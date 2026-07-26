@@ -88,9 +88,18 @@ def env(tmp_path, monkeypatch):
         lambda repo, path, branch: stubs["removed"].append(branch),
     )
 
+    stubs["issue_status"] = "In Testing"
+    stubs["status_calls"] = 0
+
     class FakeProvider:
+        signal_via_status = True
+
         def failure_signal_events(self, task, cfg):
             return stubs["signal_events"]
+
+        def issue_status(self, key, cfg):
+            stubs["status_calls"] += 1
+            return stubs["issue_status"]
 
     monkeypatch.setattr(poller, "get_provider", lambda name: FakeProvider())
     return {"cfg": cfg, "store": store, "stubs": stubs}
@@ -180,6 +189,63 @@ def test_needs_testing_signal_baseline_and_handled_dedupe(env):
     set_state(env, NEEDS_TESTING, needs_testing_entered_at="2026-07-22T00:00:00+00:00")
     poll(env)
     assert get_task(env).state == NEEDS_TESTING
+
+
+def test_status_transition_triggers_testing_failed(env):
+    set_state(
+        env, NEEDS_TESTING,
+        needs_testing_entered_at="2026-07-22T00:00:00+00:00",
+        last_seen_issue_status="In Testing",
+    )
+    env["stubs"]["issue_status"] = "qa-failed"
+    poll(env)
+    task = get_task(env)
+    assert task.state == TESTING_FAILED
+    assert task.last_handled_signal_at is not None
+    assert env["stubs"]["launched"] == ["task-feedback"]
+
+
+def test_status_already_failed_at_entry_does_not_trigger(env):
+    # entering needs-testing seeded last_seen with the (stale) signal status
+    set_state(
+        env, NEEDS_TESTING,
+        needs_testing_entered_at="2026-07-22T00:00:00+00:00",
+        last_seen_issue_status="qa-failed",
+    )
+    env["stubs"]["issue_status"] = "qa-failed"
+    poll(env)
+    assert get_task(env).state == NEEDS_TESTING
+
+
+def test_status_persisting_does_not_retrigger(env):
+    set_state(
+        env, NEEDS_TESTING,
+        needs_testing_entered_at="2026-07-22T00:00:00+00:00",
+        last_seen_issue_status="In Testing",
+    )
+    env["stubs"]["issue_status"] = "qa-failed"
+    poll(env)
+    assert get_task(env).state == TESTING_FAILED
+    # back to needs-testing after a fix round: status still "qa-failed",
+    # last_seen now records it, so mere persistence never re-triggers
+    set_state(env, NEEDS_TESTING,
+              needs_testing_entered_at="2026-07-23T00:00:00+00:00")
+    poll(env)
+    assert get_task(env).state == NEEDS_TESTING
+
+
+def test_changelog_path_still_preferred(env):
+    set_state(
+        env, NEEDS_TESTING,
+        needs_testing_entered_at="2026-07-22T00:00:00+00:00",
+        last_seen_issue_status="In Testing",
+    )
+    env["stubs"]["signal_events"] = [datetime(2026, 7, 23, tzinfo=timezone.utc)]
+    env["stubs"]["issue_status"] = "In Testing"
+    poll(env)
+    task = get_task(env)
+    assert task.state == TESTING_FAILED  # via changelog timestamps
+    assert env["stubs"]["status_calls"] == 0  # status path not consulted
 
 
 def test_ci_red_during_needs_testing_is_accepted_gap(env):

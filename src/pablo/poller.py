@@ -30,6 +30,7 @@ from pablo.model import (
     TESTING_FAILED,
     WAITING,
     WAITING_REVIEW,
+    utcnow,
 )
 from pablo.providers import get_provider, parse_ts
 from pablo.states import TaskCtx, enter_state
@@ -91,10 +92,24 @@ def check_failure_signal(ctx: TaskCtx, slug: str) -> str | None:
         for stamp in provider.failure_signal_events(task, ctx.cfg)
         if stamp > baseline and stamp > last_handled
     ]
-    if not events:
-        return None
-    task.last_handled_signal_at = max(events).isoformat()
-    return TESTING_FAILED
+    if events:
+        task.last_handled_signal_at = max(events).isoformat()
+        return TESTING_FAILED
+
+    # Observed-transition fallback for providers without event history
+    # (e.g. Jira via MCP when responses carry no changelog): seeing the
+    # issue *enter* the failure status between two polls counts as one
+    # event, stamped at observation time. `last_seen_issue_status` is
+    # seeded on needs-testing entry, so a stale signal status never fires.
+    if getattr(provider, "signal_via_status", False) and task.issue is not None:
+        current = provider.issue_status(task.issue.key, ctx.cfg)
+        previous = task.last_seen_issue_status
+        task.last_seen_issue_status = current
+        ctx.store.save(task)
+        if current == ctx.cfg.failure_signal and previous != ctx.cfg.failure_signal:
+            task.last_handled_signal_at = utcnow()
+            return TESTING_FAILED
+    return None
 
 
 # The one central transition table for the poller. `waiting-review` checks
