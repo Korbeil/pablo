@@ -74,6 +74,7 @@ class Task:
     state: str
     issue: Issue | None = None
     summary: str | None = None
+    prompt: str | None = None
     state_before_waiting: str | None = None
     task_analyst_ran: bool = False
     state_entered_at: str = field(default_factory=utcnow)
@@ -93,6 +94,7 @@ class Task:
             "state_entered_at": self.state_entered_at,
             "issue": self.issue.to_json() if self.issue else None,
             "summary": self.summary,
+            "prompt": self.prompt,
             "state_before_waiting": self.state_before_waiting,
             "task_analyst_ran": self.task_analyst_ran,
             "needs_testing_entered_at": self.needs_testing_entered_at,
@@ -113,6 +115,7 @@ class Task:
             state=data["state"],
             issue=Issue.from_json(issue) if issue else None,
             summary=data.get("summary"),
+            prompt=data.get("prompt"),
             state_before_waiting=data.get("state_before_waiting"),
             task_analyst_ran=data.get("task_analyst_ran", False),
             state_entered_at=data.get("state_entered_at", utcnow()),
