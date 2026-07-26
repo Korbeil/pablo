@@ -29,6 +29,7 @@ DEFAULT_ELIGIBLE = {
     ("sync", "interval_minutes"): "sync_interval",
     ("state_polling", "interval_minutes"): "poll_interval",
     ("review", "bot_whitelist"): "bot_whitelist",
+    ("ci", "ignore_checks"): "ci_ignore_checks",
 }
 
 
@@ -48,6 +49,9 @@ class ProjectConfig:
     poll_interval: int
     failure_signal: str | None
     bot_whitelist: list[str]
+    # Substrings matched against a check's name/context to exclude it from
+    # CI evaluation (e.g. a CircleCI approval gate stuck on action_required).
+    ci_ignore_checks: list[str]
     # Atlassian site host for jira projects (e.g. acme.atlassian.net);
     # None → first accessible resource of the authenticated account.
     site: str | None = None
@@ -159,4 +163,5 @@ def _parse_project(path: Path, defaults: dict[str, Any]) -> ProjectConfig:
         poll_interval=int(poll_interval),
         failure_signal=(data.get("testing", {}) or {}).get("failure_signal"),
         bot_whitelist=list(_merged(data, defaults, "review", "bot_whitelist")),
+        ci_ignore_checks=list(_merged(data, defaults, "ci", "ignore_checks")),
     )

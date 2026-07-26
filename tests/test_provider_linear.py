@@ -26,6 +26,7 @@ def cfg(tmp_path: Path) -> ProjectConfig:
         poll_interval=10,
         failure_signal="Testing Failed",
         bot_whitelist=[],
+        ci_ignore_checks=[],
     )
 
 

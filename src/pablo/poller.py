@@ -54,13 +54,13 @@ Check = Callable[[TaskCtx, str], "str | None"]
 
 
 def check_ci_red(ctx: TaskCtx, slug: str) -> str | None:
-    if ghpr.ci_status(slug, ctx.task.pr_number) == "red":
+    if ghpr.ci_status(slug, ctx.task.pr_number, ctx.cfg.ci_ignore_checks) == "red":
         return CI_RED
     return None
 
 
 def check_ci_green(ctx: TaskCtx, slug: str) -> str | None:
-    if ghpr.ci_status(slug, ctx.task.pr_number) == "green":
+    if ghpr.ci_status(slug, ctx.task.pr_number, ctx.cfg.ci_ignore_checks) == "green":
         return READY_TO_REVIEW
     return None
 

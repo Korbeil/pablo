@@ -56,6 +56,49 @@ def test_ci_statuscontext_shape():
     assert ghpr.evaluate_ci(rollup) == "red"
 
 
+def test_ci_ignores_approval_check_by_name():
+    # A CircleCI approval job left "on hold" reports action_required forever
+    # — it must not be mistaken for a real CI failure.
+    rollup = [
+        {"status": "COMPLETED", "conclusion": "SUCCESS"},
+        {"status": "COMPLETED", "conclusion": "ACTION_REQUIRED", "name": "hold-for-approval"},
+    ]
+    assert ghpr.evaluate_ci(rollup) == "red"  # not ignored by default
+    assert ghpr.evaluate_ci(rollup, ignore_checks=["approval"]) == "green"
+
+
+def test_ci_ignore_checks_matches_workflow_name_and_context():
+    rollup = [
+        {"status": "COMPLETED", "conclusion": "ACTION_REQUIRED", "workflowName": "Approval Gate"},
+        {"state": "PENDING", "context": "ci/circleci: approval-job"},
+    ]
+    assert ghpr.evaluate_ci(rollup, ignore_checks=["approval"]) == "green"
+
+
+def test_ci_ignore_checks_real_circleci_approval_shape():
+    # Actual shape from a acme/pim PR: CircleCI approval gates surface as
+    # StatusContext entries stuck at state PENDING (nobody clicks approve),
+    # which without filtering leaves evaluate_ci returning "pending"
+    # forever — and pending never triggers a state transition.
+    rollup = [
+        {"__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS", "name": "Labeler"},
+        {"__typename": "StatusContext", "context": "ci/circleci: tests_workflow/deploy-code-approval-ppr", "state": "PENDING"},
+        {"__typename": "StatusContext", "context": "ci/circleci: tests_workflow/deploy-code-approval-prod", "state": "PENDING"},
+        {"__typename": "StatusContext", "context": "ci/circleci: build", "state": "SUCCESS"},
+        {"__typename": "StatusContext", "context": "ci/circleci: tests", "state": "SUCCESS"},
+    ]
+    assert ghpr.evaluate_ci(rollup) == "pending"
+    assert ghpr.evaluate_ci(rollup, ignore_checks=["approval"]) == "green"
+
+
+def test_ci_ignore_checks_case_insensitive_and_unmatched_still_evaluated():
+    rollup = [
+        {"status": "COMPLETED", "conclusion": "ACTION_REQUIRED", "name": "APPROVAL-hold"},
+        {"status": "COMPLETED", "conclusion": "FAILURE", "name": "unit-tests"},
+    ]
+    assert ghpr.evaluate_ci(rollup, ignore_checks=["Approval"]) == "red"
+
+
 def test_reviews_exclude_author():
     reviews = [review("me", "CHANGES_REQUESTED", "2026-07-21T10:00:00Z")]
     assert (

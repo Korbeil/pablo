@@ -233,6 +233,14 @@ review:
   bot_whitelist: []            # bot accounts whose PR reviews should be taken into account
                                # despite being bots (e.g. ["copilot-pull-request-reviewer[bot]"]).
                                # All other bot reviews are ignored by the review evaluation.
+ci:
+  ignore_checks: []            # substrings matched (case-insensitively) against a check's
+                               # name/workflow/context to exclude it from CI evaluation
+                               # (e.g. ["approval"] for a CircleCI manual-approval gate that
+                               # nobody will click — it sits at state PENDING, or sometimes
+                               # conclusion action_required, indefinitely, which otherwise
+                               # keeps the task stuck since pending never triggers a
+                               # transition and action_required reads as a failure).
 ```
 
 Feel free to extend this schema if a feature needs it, but keep it
@@ -246,7 +254,7 @@ rather than trying to treat it as one.
 
 Some config keys (currently `sync.strategy`, `sync.auto_apply`,
 `sync.interval_minutes`, `state_polling.interval_minutes`,
-`review.bot_whitelist`) support a
+`review.bot_whitelist`, `ci.ignore_checks`) support a
 PABLO-wide default so I don't have to repeat the same value in every
 project's YAML. PABLO ships its own defaults file (e.g.
 `projects/default.yaml` — same folder as the per-project config files)
@@ -261,6 +269,8 @@ state_polling:
   interval_minutes: 10
 review:
   bot_whitelist: []
+ci:
+  ignore_checks: []
 ```
 
 - If a project's config sets one of these keys, that value wins.
@@ -601,7 +611,15 @@ Notes on the diagram:
   the PR is merged, `needs_testing` is just the normal case.
 
 - **`draft` → `ci-red`**: automatic, as soon as CI reports a failure on
-  the PR.
+  the PR. Checks whose name/workflow/context matches a `ci.ignore_checks`
+  substring are excluded from this evaluation entirely — this is meant for
+  manual-gate checks (e.g. a CircleCI approval job nobody will click) that
+  never resolve on their own: on GitHub these typically surface as a
+  `StatusContext` stuck at `state: PENDING` forever (so the task never
+  reaches CI-green, since pending isn't a transition trigger), and
+  sometimes as a `CheckRun` with `conclusion: action_required` (which reads
+  as a failure). Either way, without the exclusion the task can never
+  leave `draft`/`ci-red`.
 - **`draft`/`ci-red` → `ready-to-review`**: automatic, as soon as CI is
   green. If the PR is currently a draft on GitHub (whether it was created
   as one or returned to draft by PABLO during a rework cycle), this also

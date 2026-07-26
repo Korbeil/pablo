@@ -37,6 +37,7 @@ def ctx(tmp_path: Path, monkeypatch):
         poll_interval=10,
         failure_signal="qa-failed",
         bot_whitelist=[],
+        ci_ignore_checks=[],
     )
     task = Task(
         project="wallet-kit",
