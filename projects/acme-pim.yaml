@@ -1,0 +1,14 @@
+name: pim
+type: work
+repo:
+  path: ~/Sites/acme/pim
+  primary_branch: main
+issue_tracker:
+  provider: jira
+  identity: baptiste@example.com
+  project_key: XXX
+testing:
+  failure_signal: "A FIX"   # Jira status watched on the linked issue
+# worktrees_root omitted -> ~/.pablo/worktrees/pim/
+# sync / state_polling / review omitted -> projects/default.yaml
+# (rebase, auto_apply false, 30 min sync, 10 min polling, no bot whitelist)
