@@ -1,0 +1,174 @@
+"""Post-draft state polling and merge auto-close (spec, "Post-draft state
+transitions" and "Closing a task").
+
+Runs per project on the ``state_polling.interval_minutes`` cadence via the
+dispatcher. Per task, under the task lock:
+
+1. merged flag already set → only wait for agents to finish, then close;
+2. merge detection (runs even while ``waiting``);
+3. ``waiting`` → nothing else is evaluated (events are deferred, not lost —
+   the checks are timestamp-based);
+4. otherwise the current state's checks from ``POLL_CHECKS``.
+
+There is no git-push detection anywhere here: draft re-entry is exclusively
+/commit-and-pr's job.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Callable
+
+from pablo import PabloError, agents, ghpr, gitrepo
+from pablo.config import ProjectConfig
+from pablo.model import (
+    CI_RED,
+    DRAFT,
+    NEEDS_TESTING,
+    READY_TO_REVIEW,
+    REQUEST_CHANGES,
+    TESTING_FAILED,
+    WAITING,
+    WAITING_REVIEW,
+)
+from pablo.providers import get_provider, parse_ts
+from pablo.states import TaskCtx, enter_state
+from pablo.store import Store, task_lock
+
+POLL_LOCK_TIMEOUT_S = 2
+
+EPOCH = datetime.fromtimestamp(0, tz=timezone.utc)
+
+
+def _repo_slug(cfg: ProjectConfig) -> str:
+    from pablo.providers.github import repo_slug
+
+    return repo_slug(cfg)
+
+
+# ------------------------------------------------------------- checks ----
+# Each check returns the target state to enter, or None. First hit wins.
+
+Check = Callable[[TaskCtx, str], "str | None"]
+
+
+def check_ci_red(ctx: TaskCtx, slug: str) -> str | None:
+    if ghpr.ci_status(slug, ctx.task.pr_number) == "red":
+        return CI_RED
+    return None
+
+
+def check_ci_green(ctx: TaskCtx, slug: str) -> str | None:
+    if ghpr.ci_status(slug, ctx.task.pr_number) == "green":
+        return READY_TO_REVIEW
+    return None
+
+
+def check_reviews(ctx: TaskCtx, slug: str) -> str | None:
+    anchor = ghpr.ready_anchor(slug, ctx.task.pr_number)
+    author, reviews = ghpr.fetch_reviews(slug, ctx.task.pr_number)
+    verdict = ghpr.evaluate_reviews(
+        reviews, anchor=anchor, author=author, bot_whitelist=ctx.cfg.bot_whitelist
+    )
+    if verdict == "approved":
+        return NEEDS_TESTING
+    if verdict == "changes":
+        return REQUEST_CHANGES
+    return None
+
+
+def check_failure_signal(ctx: TaskCtx, slug: str) -> str | None:
+    task = ctx.task
+    if not ctx.cfg.failure_signal or not task.needs_testing_entered_at:
+        return None
+    baseline = parse_ts(task.needs_testing_entered_at)
+    last_handled = (
+        parse_ts(task.last_handled_signal_at) if task.last_handled_signal_at else EPOCH
+    )
+    provider = get_provider(ctx.cfg.provider)
+    events = [
+        stamp
+        for stamp in provider.failure_signal_events(task, ctx.cfg)
+        if stamp > baseline and stamp > last_handled
+    ]
+    if not events:
+        return None
+    task.last_handled_signal_at = max(events).isoformat()
+    return TESTING_FAILED
+
+
+# The one central transition table for the poller. `waiting-review` checks
+# CI first: a red CI (e.g. after a sync rebase push) outranks review state.
+POLL_CHECKS: dict[str, list[Check]] = {
+    DRAFT: [check_ci_red, check_ci_green],
+    CI_RED: [check_ci_green],
+    READY_TO_REVIEW: [check_ci_red, check_reviews],
+    WAITING_REVIEW: [check_ci_red, check_reviews],
+    NEEDS_TESTING: [check_failure_signal],
+}
+
+
+# -------------------------------------------------------------- polling ---
+
+
+def _close(ctx: TaskCtx, events: list[str]) -> None:
+    task, cfg = ctx.task, ctx.cfg
+    gitrepo.remove_worktree(cfg.repo_path, task.worktree_path, task.branch)
+    ctx.store.delete(task.project, task.branch)
+    events.append(f"{task.branch}: PR merged → task closed, worktree removed")
+
+
+def _poll_task(ctx: TaskCtx, events: list[str]) -> None:
+    task = ctx.task
+    slug = _repo_slug(ctx.cfg)
+
+    # A task that entered draft via /commit-and-pr may not know its PR yet.
+    if task.pr_number is None and task.state not in {"in-progress", WAITING}:
+        pr = ghpr.pr_for_branch(slug, task.branch)
+        if pr is not None:
+            task.pr_number = pr.number
+            ctx.store.save(task)
+
+    if task.merged:
+        # Merge already detected: only "are the agents done yet → close".
+        if not agents.active_sessions(task.worktree_path):
+            _close(ctx, events)
+        return
+
+    if task.pr_number is not None and ghpr.is_merged(slug, task.pr_number):
+        if agents.active_sessions(task.worktree_path):
+            task.merged = True
+            ctx.store.save(task)
+            events.append(
+                f"{task.branch}: PR merged, close deferred (agents still running)"
+            )
+        else:
+            _close(ctx, events)
+        return
+
+    if task.state == WAITING:
+        return  # everything else is deferred while paused
+
+    if task.pr_number is None:
+        return  # pre-draft (in-progress): nothing to poll
+
+    for check in POLL_CHECKS.get(task.state, []):
+        target = check(ctx, slug)
+        if target is not None:
+            enter_state(ctx, target)
+            events.append(f"{task.branch}: → {ctx.task.state}")
+            return
+
+
+def poll_project(cfg: ProjectConfig, store: Store) -> list[str]:
+    events: list[str] = []
+    for task in store.all_tasks(cfg.name):
+        try:
+            with task_lock(store, cfg.name, task.branch, timeout_s=POLL_LOCK_TIMEOUT_S):
+                fresh = store.get(cfg.name, task.branch)
+                if fresh is None:
+                    continue
+                _poll_task(TaskCtx(task=fresh, cfg=cfg, store=store), events)
+        except PabloError as exc:
+            events.append(f"{task.branch}: skipped ({exc})")
+    return events
