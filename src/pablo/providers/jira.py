@@ -44,6 +44,7 @@ class JiraProvider:
             else re.sub(r"/rest/api/.*$", f"/browse/{key}", data["self"]),
             title=data["fields"]["summary"],
             project_key=cfg.project_key,
+            status=(data["fields"].get("status") or {}).get("name"),
         )
 
     def get_issue(self, ref: str, cfg: ProjectConfig) -> Issue:

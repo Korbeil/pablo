@@ -60,6 +60,7 @@ class GithubProvider:
             url=data["url"],
             title=data["title"],
             project_key=cfg.project_key,
+            status=_STATUS.get(data["state"], data["state"]),
         )
 
     def list_assigned(self, cfg: ProjectConfig) -> list[Issue]:
@@ -75,6 +76,7 @@ class GithubProvider:
                 url=item["url"],
                 title=item["title"],
                 project_key=cfg.project_key,
+                status=_STATUS.get(item["state"], item["state"]),
             )
             for item in json.loads(out)
         ]

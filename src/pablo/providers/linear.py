@@ -43,6 +43,7 @@ class LinearProvider:
             url=data.get("url", ""),
             title=data["title"],
             project_key=cfg.project_key,
+            status=(data.get("state") or {}).get("name"),
         )
 
     def get_issue(self, ref: str, cfg: ProjectConfig) -> Issue:
