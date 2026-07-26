@@ -46,10 +46,18 @@ def agents_dir() -> Path:
     return Path("~/.pablo/agents").expanduser()
 
 
+ORCA_CALL_TIMEOUT_S = 60
+
+
 def _orca(argv: list[str]) -> dict | None:
-    """Run an orca command; None when orca is unusable for this call."""
+    """Run an orca command; None when orca is unusable for this call.
+
+    Timeout matters: orca has been observed to hang when invoked outside an
+    interactive session (e.g. under the systemd timer) — a hung call must
+    degrade to the headless fallback, not wedge the poller.
+    """
     try:
-        out = run_cli(["orca", *argv, "--json"], check=False)
+        out = run_cli(["orca", *argv, "--json"], check=False, timeout=ORCA_CALL_TIMEOUT_S)
         data = json.loads(out)
     except Exception:
         return None
@@ -159,11 +167,15 @@ def wait_for_handle(handle: str, timeout_s: int = ORCA_WAIT_TIMEOUT_MS // 1000) 
         while _pid_alive(pid) and time.monotonic() < deadline:
             time.sleep(5)
         return
-    run_cli(
-        ["orca", "terminal", "wait", "--terminal", handle,
-         "--for", "exit", "--timeout-ms", str(timeout_s * 1000), "--json"],
-        check=False,
-    )
+    try:
+        run_cli(
+            ["orca", "terminal", "wait", "--terminal", handle,
+             "--for", "exit", "--timeout-ms", str(timeout_s * 1000), "--json"],
+            check=False,
+            timeout=timeout_s + 120,
+        )
+    except Exception:
+        return  # orca gone/hung: treat the run as finished rather than wedging
 
 
 def spawn_watcher(

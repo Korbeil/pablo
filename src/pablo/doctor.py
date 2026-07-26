@@ -51,8 +51,20 @@ def required_clis(projects: dict[str, ProjectConfig]) -> list[str]:
     return sorted(required)
 
 
+PROBE_TIMEOUT_S = 30
+
+
 def _probe(argv: list[str]) -> tuple[int, str]:
-    proc = subprocess.run(argv, capture_output=True, text=True)
+    try:
+        proc = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=PROBE_TIMEOUT_S,
+            stdin=subprocess.DEVNULL,
+        )
+    except subprocess.TimeoutExpired:
+        return 124, f"timed out after {PROBE_TIMEOUT_S}s"
     output = (proc.stderr.strip() + "\n" + proc.stdout.strip()).strip()
     return proc.returncode, output
 

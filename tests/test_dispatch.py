@@ -97,6 +97,32 @@ def test_second_dispatcher_exits_quietly(env, capsys):
     assert "already running" in capsys.readouterr().out
 
 
+def test_preflight_orca_failure_is_soft(monkeypatch, capsys):
+    from pablo import doctor
+
+    results = [
+        doctor.CheckResult(cli="gh", installed=True, authenticated=True,
+                           detail="ok", hint=""),
+        doctor.CheckResult(cli="orca", installed=True, authenticated=False,
+                           detail="timed out after 30s", hint="start Orca"),
+    ]
+    monkeypatch.setattr(doctor, "check_all", lambda projects: results)
+    assert dispatch._preflight_errors({}) == []
+    assert "headless fallback" in capsys.readouterr().out
+
+
+def test_preflight_gh_failure_is_hard(monkeypatch):
+    from pablo import doctor
+
+    results = [
+        doctor.CheckResult(cli="gh", installed=True, authenticated=False,
+                           detail="not logged in", hint="run: gh auth login"),
+    ]
+    monkeypatch.setattr(doctor, "check_all", lambda projects: results)
+    errors = dispatch._preflight_errors({})
+    assert errors and "gh" in errors[0]
+
+
 def test_preflight_failure_aborts(env, monkeypatch, capsys):
     monkeypatch.setattr(
         dispatch, "_preflight_errors", lambda projects: ["gh: not authenticated"]

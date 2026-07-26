@@ -19,14 +19,22 @@ if TYPE_CHECKING:
     from pablo.model import Issue, Task
 
 
-def run_cli(argv: list[str], *, check: bool = True) -> str:
+def run_cli(argv: list[str], *, check: bool = True, timeout: float | None = None) -> str:
     """Run a provider CLI command, surfacing the CLI's own error text."""
     try:
-        proc = subprocess.run(argv, capture_output=True, text=True)
+        proc = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            stdin=subprocess.DEVNULL,
+        )
     except FileNotFoundError:
         raise PabloError(
             f"{argv[0]!r} is not installed (required for this project's provider)"
         )
+    except subprocess.TimeoutExpired:
+        raise PabloError(f"{argv[0]} timed out after {timeout}s: {' '.join(argv)}")
     if check and proc.returncode != 0:
         message = proc.stderr.strip() or proc.stdout.strip()
         raise PabloError(f"{argv[0]} failed: {message}")
