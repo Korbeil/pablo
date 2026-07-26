@@ -1,0 +1,130 @@
+from datetime import datetime, timezone
+
+from pablo import ghpr
+
+ANCHOR = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+
+
+def review(login: str, state: str, when: str, typename: str = "User"):
+    return {
+        "author": {"login": login, "__typename": typename},
+        "state": state,
+        "submittedAt": when,
+    }
+
+
+def test_ci_red_on_failure():
+    rollup = [
+        {"status": "COMPLETED", "conclusion": "SUCCESS"},
+        {"status": "COMPLETED", "conclusion": "FAILURE"},
+    ]
+    assert ghpr.evaluate_ci(rollup) == "red"
+
+
+def test_ci_red_wins_over_pending():
+    rollup = [
+        {"status": "IN_PROGRESS", "conclusion": None},
+        {"status": "COMPLETED", "conclusion": "FAILURE"},
+    ]
+    assert ghpr.evaluate_ci(rollup) == "red"
+
+
+def test_ci_pending_not_green():
+    rollup = [
+        {"status": "COMPLETED", "conclusion": "SUCCESS"},
+        {"status": "QUEUED", "conclusion": None},
+    ]
+    assert ghpr.evaluate_ci(rollup) == "pending"
+
+
+def test_ci_green_when_all_pass_or_skipped():
+    rollup = [
+        {"status": "COMPLETED", "conclusion": "SUCCESS"},
+        {"status": "COMPLETED", "conclusion": "SKIPPED"},
+        {"status": "COMPLETED", "conclusion": "NEUTRAL"},
+    ]
+    assert ghpr.evaluate_ci(rollup) == "green"
+
+
+def test_ci_green_when_no_checks():
+    assert ghpr.evaluate_ci([]) == "green"
+
+
+def test_ci_statuscontext_shape():
+    # statusCheckRollup mixes CheckRun and StatusContext entries
+    rollup = [{"state": "SUCCESS"}, {"state": "FAILURE"}]
+    assert ghpr.evaluate_ci(rollup) == "red"
+
+
+def test_reviews_exclude_author():
+    reviews = [review("me", "CHANGES_REQUESTED", "2026-07-21T10:00:00Z")]
+    assert (
+        ghpr.evaluate_reviews(reviews, anchor=ANCHOR, author="me", bot_whitelist=[])
+        is None
+    )
+
+
+def test_reviews_exclude_bot_unless_whitelisted():
+    reviews = [
+        review("sonar[bot]", "COMMENTED", "2026-07-21T10:00:00Z", typename="Bot")
+    ]
+    assert (
+        ghpr.evaluate_reviews(reviews, anchor=ANCHOR, author="me", bot_whitelist=[])
+        is None
+    )
+    assert (
+        ghpr.evaluate_reviews(
+            reviews, anchor=ANCHOR, author="me", bot_whitelist=["sonar[bot]"]
+        )
+        == "changes"
+    )
+
+
+def test_reviews_before_anchor_ignored():
+    reviews = [review("alice", "CHANGES_REQUESTED", "2026-07-19T10:00:00Z")]
+    assert (
+        ghpr.evaluate_reviews(reviews, anchor=ANCHOR, author="me", bot_whitelist=[])
+        is None
+    )
+
+
+def test_latest_per_reviewer_wins():
+    reviews = [
+        review("alice", "CHANGES_REQUESTED", "2026-07-21T10:00:00Z"),
+        review("alice", "APPROVED", "2026-07-22T10:00:00Z"),
+    ]
+    assert (
+        ghpr.evaluate_reviews(reviews, anchor=ANCHOR, author="me", bot_whitelist=[])
+        == "approved"
+    )
+
+
+def test_mixed_verdicts_changes_wins():
+    reviews = [
+        review("alice", "APPROVED", "2026-07-21T10:00:00Z"),
+        review("bob", "CHANGES_REQUESTED", "2026-07-21T11:00:00Z"),
+    ]
+    assert (
+        ghpr.evaluate_reviews(reviews, anchor=ANCHOR, author="me", bot_whitelist=[])
+        == "changes"
+    )
+
+
+def test_comment_review_counts_as_changes():
+    reviews = [review("alice", "COMMENTED", "2026-07-21T10:00:00Z")]
+    assert (
+        ghpr.evaluate_reviews(reviews, anchor=ANCHOR, author="me", bot_whitelist=[])
+        == "changes"
+    )
+
+
+def test_dismissed_reviews_ignored():
+    reviews = [review("alice", "DISMISSED", "2026-07-21T10:00:00Z")]
+    assert (
+        ghpr.evaluate_reviews(reviews, anchor=ANCHOR, author="me", bot_whitelist=[])
+        is None
+    )
+
+
+def test_no_reviews_returns_none():
+    assert ghpr.evaluate_reviews([], anchor=ANCHOR, author="me", bot_whitelist=[]) is None
