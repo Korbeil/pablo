@@ -151,6 +151,12 @@ def cmd_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_dispatch(args: argparse.Namespace) -> int:
+    from pablo import dispatch
+
+    return dispatch.run(load_projects(), Store())
+
+
 def cmd_poll(args: argparse.Namespace) -> int:
     from pablo import poller
 
@@ -297,6 +303,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="actually sync (default is a dry-run unless sync.auto_apply is set)",
     )
     p_sync.set_defaults(func=cmd_sync)
+
+    p_dispatch = sub.add_parser(
+        "dispatch", help="cron entry point: run due sync/poll jobs for all projects"
+    )
+    p_dispatch.set_defaults(func=cmd_dispatch)
 
     p_poll = sub.add_parser("poll", help="run the task-state polling once")
     p_poll.add_argument("project", nargs="?", help="limit to one project")
