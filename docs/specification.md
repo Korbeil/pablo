@@ -89,8 +89,10 @@ invoke myself: `/pablo-start`, the task tracking agent, the task listing,
 `commit-and-pr` command — see "Local paths"). This is the
 layer described throughout the rest of this document.
 
-**Background layer — a small unattended component, driven by cron/systemd
-timers.** This handles anything that must run without me present:
+**Background layer — a small unattended component, driven by scheduled
+timers (amended 2026-07-26: a systemd user timer on Linux, a launchd
+LaunchAgent on macOS — both platforms are supported).** This handles
+anything that must run without me present:
 
 - per-project worktree sync (`sync.interval_minutes`)
 - per-project task-state polling — CI/PR/review/testing-signal checks for
