@@ -1,0 +1,170 @@
+"""Minimal synchronous MCP client over a stdio child process.
+
+PABLO's Jira access goes through the Atlassian MCP server
+(https://mcp.atlassian.com/v1/mcp) via the ``mcp-remote`` bridge, which
+owns the OAuth flow and caches tokens under ``~/.mcp-auth/`` — PABLO
+itself stores no tokens (spec amendment 2026-07-26; the no-tokens rule is
+preserved, the bridge's cache plays the role of a CLI's own login).
+
+The protocol here is JSON-RPC 2.0, newline-delimited over the child's
+stdin/stdout: ``initialize`` → ``notifications/initialized`` →
+``tools/call``. Every read has a hard deadline — a hung bridge must never
+wedge the poller or the doctor (see the orca lesson in README).
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import select
+import subprocess
+import time
+from pathlib import Path
+from typing import Any
+
+from pablo import PabloError
+
+ATLASSIAN_MCP_URL = "https://mcp.atlassian.com/v1/mcp"
+MCP_CALL_TIMEOUT_S = 60
+PROTOCOL_VERSION = "2024-11-05"
+
+
+def default_argv() -> list[str]:
+    return ["npx", "-y", "mcp-remote", ATLASSIAN_MCP_URL]
+
+
+def auth_cache_present() -> bool:
+    """True iff mcp-remote has cached OAuth tokens. Never spawns anything —
+    callers use this to fail fast instead of triggering a browser flow."""
+    root = Path.home() / ".mcp-auth"
+    if not root.is_dir():
+        return False
+    return any(root.glob("**/*tokens.json"))
+
+
+class McpClient:
+    def __init__(self, argv: list[str] | None = None, timeout_s: float = MCP_CALL_TIMEOUT_S):
+        self.argv = argv if argv is not None else default_argv()
+        self.timeout_s = timeout_s
+        self._proc: subprocess.Popen | None = None
+        self._next_id = 0
+
+    # ------------------------------------------------------------- pipes --
+
+    def _send(self, payload: dict) -> None:
+        assert self._proc is not None and self._proc.stdin is not None
+        self._proc.stdin.write(json.dumps(payload) + "\n")
+        self._proc.stdin.flush()
+
+    def _read_response(self, expect_id: int) -> dict:
+        assert self._proc is not None and self._proc.stdout is not None
+        deadline = time.monotonic() + self.timeout_s
+        fd = self._proc.stdout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self._kill()
+                raise PabloError(
+                    f"jira mcp timed out after {self.timeout_s}s "
+                    f"({' '.join(self.argv)}){self._stderr_tail()}"
+                )
+            ready, _, _ = select.select([fd], [], [], min(remaining, 1.0))
+            if not ready:
+                continue
+            line = fd.readline()
+            if not line:
+                raise PabloError(
+                    f"jira mcp bridge exited unexpectedly{self._stderr_tail()}"
+                )
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue  # bridges may log non-JSON lines on stdout
+            if msg.get("id") == expect_id:
+                return msg
+
+    def _stderr_tail(self) -> str:
+        if self._proc is None or self._proc.stderr is None:
+            return ""
+        try:
+            os.set_blocking(self._proc.stderr.fileno(), False)
+            tail = self._proc.stderr.read() or ""
+        except Exception:
+            return ""
+        tail = tail.strip()
+        return f"\nbridge stderr: {tail[-500:]}" if tail else ""
+
+    def _kill(self) -> None:
+        if self._proc is not None and self._proc.poll() is None:
+            self._proc.kill()
+            self._proc.wait()
+
+    # ----------------------------------------------------------- session --
+
+    def __enter__(self) -> "McpClient":
+        try:
+            self._proc = subprocess.Popen(
+                self.argv,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except FileNotFoundError:
+            raise PabloError(
+                f"{self.argv[0]!r} is not installed (needed to reach the Jira MCP)"
+            )
+        self._next_id += 1
+        self._send(
+            {
+                "jsonrpc": "2.0",
+                "id": self._next_id,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "capabilities": {},
+                    "clientInfo": {"name": "pablo", "version": "0.1.0"},
+                },
+            }
+        )
+        response = self._read_response(self._next_id)
+        if "error" in response:
+            self._kill()
+            raise PabloError(f"jira mcp initialize failed: {response['error']}")
+        self._send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._kill()
+
+    # -------------------------------------------------------------- call --
+
+    def call_tool(self, name: str, arguments: dict) -> Any:
+        self._next_id += 1
+        self._send(
+            {
+                "jsonrpc": "2.0",
+                "id": self._next_id,
+                "method": "tools/call",
+                "params": {"name": name, "arguments": arguments},
+            }
+        )
+        response = self._read_response(self._next_id)
+        if "error" in response:
+            raise PabloError(f"jira mcp call {name} failed: {response['error']}")
+        result = response.get("result") or {}
+        content = result.get("content") or []
+        text = "\n".join(
+            part.get("text", "") for part in content if part.get("type") == "text"
+        )
+        if result.get("isError"):
+            raise PabloError(f"jira mcp tool {name} errored: {text or result}")
+        if not text:
+            return result
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            return text
