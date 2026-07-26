@@ -3,8 +3,9 @@ description: >-
   Analyzes an issue (Jira, GitHub Issues, or Linear) from a URL or issue key,
   or a plain task prompt when no issue exists. Produces a clear summary and a
   concrete, ordered action plan to resolve it, grounded in the actual
-  codebase. Generalized from jira-analyst for PABLO: provider access is
-  CLI-first (gh / jira / linear), no MCP, no stored tokens. Strictly
+  codebase. Generalized from jira-analyst for PABLO: provider access goes
+  through the gh/linear CLIs and the Atlassian MCP for Jira, no stored
+  tokens. Strictly
   read-only: never modifies code and never runs QA tooling (php-cs-fixer,
   phpstan, psalm, phpunit, pest...). Auto-run by PABLO when a task enters
   in-progress; also usable directly, e.g. "what do I need to do for XXX-123".
@@ -31,9 +32,6 @@ permission:
     "gh pr list*": allow
     "gh pr view*": allow
     "gh search*": allow
-    "jira issue view*": allow
-    "jira issue list*": allow
-    "jira me*": allow
     "linear issue view*": allow
     "linear issue list*": allow
     "linear auth status*": allow
@@ -70,18 +68,21 @@ prompt of one of two shapes:
 
 ## Retrieving the ticket
 
-All tracker access goes through each provider's own CLI — never MCP tools,
-never raw API calls with tokens. Pick the CLI from the issue reference:
+Never use raw API calls with tokens. Pick the access path from the issue
+reference:
 
 1. **GitHub** (`github.com/<owner>/<repo>/issues/<n>` or a bare number):
    `gh issue view <n> --repo <owner>/<repo> --comments`.
-2. **Jira** (`https://<site>/browse/<KEY>` or a `KEY-123` key):
-   `jira issue view <KEY> --comments 100` (fall back to
-   `jira issue view <KEY> --raw` if you need fields the plain view omits).
+2. **Jira** (`https://<site>/browse/<KEY>` or a `KEY-123` key): use the
+   **Atlassian MCP tools** available in the session (the `jira-cloud`
+   server): `getJiraIssue` for the issue and its comments,
+   `searchJiraIssuesUsingJql` for related issues, `atlassianUserInfo` /
+   `getAccessibleAtlassianResources` for account/site context. Do not use
+   a jira CLI.
 3. **Linear** (`linear.app/<team>/issue/<KEY>` or a `KEY-123` key):
    `linear issue view <KEY>`.
-4. If the CLI fails (not installed, not authenticated), surface the CLI's
-   own error and instructions, then ask the user to paste the ticket
+4. If the access path fails (tool unavailable, not authenticated), surface
+   its own error and instructions, then ask the user to paste the ticket
    content. Do not guess what the ticket says from its key or title alone.
 
 Extract from the ticket: summary, description, acceptance criteria,

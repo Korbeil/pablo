@@ -5,8 +5,9 @@ description: >-
   implementation, and produces an ordered fix plan to iterate on the
   feature. Classifies each QA remark (regression, incomplete implementation,
   misunderstanding, out of scope) and drafts a reply for the ticket.
-  Generalized from jira-feedback for PABLO: provider access is CLI-first
-  (gh / jira / linear), no MCP, no stored tokens. Strictly read-only: never
+  Generalized from jira-feedback for PABLO: provider access goes through
+  the gh/linear CLIs and the Atlassian MCP for Jira, no stored tokens.
+  Strictly read-only: never
   modifies code and never runs QA tooling (php-cs-fixer, phpstan, psalm,
   phpunit, pest...). Fixes always iterate on the existing feature branch
   and PR — never a new branch. Auto-run by PABLO when a task enters
@@ -45,8 +46,6 @@ permission:
     "gh pr diff*": allow
     "gh pr checks*": allow
     "gh search*": allow
-    "jira issue view*": allow
-    "jira me*": allow
     "linear issue view*": allow
     "linear auth status*": allow
     "vendor/bin/*": deny
@@ -78,18 +77,20 @@ feedback to analyze lives in the issue's comments.
 
 ## Retrieving the ticket and QA comments
 
-All tracker access goes through each provider's own CLI — never MCP tools,
-never raw API calls with tokens. Pick the CLI from the issue reference:
+Never use raw API calls with tokens. Pick the access path from the issue
+reference:
 
 1. **GitHub**: `gh issue view <n> --repo <owner>/<repo> --comments` — all
    comments with authors and timestamps. Also check the PR itself:
    `gh pr view <n> --comments`.
-2. **Jira**: `jira issue view <KEY> --comments 100` (the QA feedback lives
-   in the comments; `--raw` if you need the full field set).
+2. **Jira**: use the **Atlassian MCP tools** available in the session (the
+   `jira-cloud` server): `getJiraIssue` — the QA feedback lives in the
+   issue's comments — and `searchJiraIssuesUsingJql` for related issues.
+   Do not use a jira CLI.
 3. **Linear**: `linear issue view <KEY>` (includes comments/history).
-4. If the CLI fails (not installed, not authenticated), surface the CLI's
-   own error and instructions, then ask the user to paste the QA comments.
-   Do not guess what QA said.
+4. If the access path fails (tool unavailable, not authenticated), surface
+   its own error and instructions, then ask the user to paste the QA
+   comments. Do not guess what QA said.
 
 Identify which comments are QA feedback: typically the most recent ones,
 posted after the issue moved to a testing/QA status (or after the failure
