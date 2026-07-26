@@ -1,4 +1,3 @@
-import json
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -10,9 +9,9 @@ from pablo.providers import get_provider
 from pablo.providers import jira as jira_mod
 
 
-def cfg(tmp_path: Path) -> ProjectConfig:
+def cfg(tmp_path: Path, site: str | None = "acme.atlassian.net") -> ProjectConfig:
     return ProjectConfig(
-        name="oms",
+        name="acme-pim",
         type="work",
         repo_path=tmp_path,
         primary_branch="main",
@@ -24,47 +23,32 @@ def cfg(tmp_path: Path) -> ProjectConfig:
         sync_auto_apply=False,
         sync_interval=30,
         poll_interval=10,
-        failure_signal="QA Failed",
+        failure_signal="A FIX",
         bot_whitelist=[],
+        site=site,
     )
 
 
-@pytest.fixture
-def provider():
-    return get_provider("jira")
+RESOURCES = [
+    {"id": "cloud-other", "url": "https://other.atlassian.net", "name": "other"},
+    {"id": "cloud-acme", "url": "https://acme.atlassian.net", "name": "acme"},
+]
 
-
-def patch_cli(monkeypatch, responses: dict[str, str]):
-    def fake_run_cli(argv, *, check=True):
-        joined = " ".join(argv)
-        for key, out in responses.items():
-            if key in joined:
-                return out
-        raise AssertionError(f"unexpected CLI call: {joined}")
-
-    monkeypatch.setattr(jira_mod, "run_cli", fake_run_cli)
-
-
-def test_match_url(provider, tmp_path):
-    c = cfg(tmp_path)
-    assert (
-        provider.match_url("https://acme.atlassian.net/browse/XXX-123", c) == "XXX-123"
-    )
-    assert provider.match_url("https://acme.atlassian.net/browse/CMS-9", c) is None
-    assert provider.match_url("https://github.com/a/b/issues/1", c) is None
-
-
-ISSUE_RAW = {
+ISSUE = {
     "key": "XXX-123",
     "fields": {
-        "summary": "Fix invoice rounding",
+        "summary": "Fix product import",
         "status": {"name": "In Progress"},
     },
+}
+
+ISSUE_WITH_CHANGELOG = {
+    **ISSUE,
     "changelog": {
         "histories": [
             {
                 "created": "2026-07-20T10:00:00.000+0000",
-                "items": [{"field": "status", "toString": "QA Failed"}],
+                "items": [{"field": "status", "toString": "A FIX"}],
             },
             {
                 "created": "2026-07-21T10:00:00.000+0000",
@@ -72,55 +56,128 @@ ISSUE_RAW = {
             },
             {
                 "created": "2026-07-19T09:00:00.000+0000",
-                "items": [{"field": "status", "toString": "QA Failed"}],
+                "items": [{"field": "status", "toString": "A FIX"}],
             },
         ]
     },
 }
 
 
-def test_get_issue_parses(provider, tmp_path, monkeypatch):
-    patch_cli(monkeypatch, {"issue view XXX-123": json.dumps(ISSUE_RAW)})
+@pytest.fixture
+def provider(monkeypatch):
+    provider = get_provider("jira")
+    return provider
+
+
+def patch_call(monkeypatch, responses: dict, calls: list | None = None):
+    def fake_call(tool, args):
+        if calls is not None:
+            calls.append((tool, args))
+        if tool not in responses:
+            raise AssertionError(f"unexpected MCP call: {tool} {args}")
+        return responses[tool]
+
+    monkeypatch.setattr(jira_mod, "call", fake_call)
+
+
+def test_match_url(provider, tmp_path):
+    c = cfg(tmp_path)
+    assert provider.match_url("https://acme.atlassian.net/browse/XXX-123", c) == "XXX-123"
+    assert provider.match_url("https://acme.atlassian.net/browse/XXX-9", c) is None
+    assert provider.match_url("https://github.com/a/b/issues/1", c) is None
+
+
+def test_cloud_id_matches_site(provider, tmp_path, monkeypatch):
+    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES})
+    assert provider._cloud_id(cfg(tmp_path)) == "cloud-acme"
+
+
+def test_cloud_id_defaults_first(provider, tmp_path, monkeypatch):
+    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES})
+    assert provider._cloud_id(cfg(tmp_path, site=None)) == "cloud-other"
+
+
+def test_cloud_id_cached(provider, tmp_path, monkeypatch):
+    calls = []
+    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES}, calls)
+    c = cfg(tmp_path)
+    provider._cloud_id(c)
+    provider._cloud_id(c)
+    assert len(calls) == 1
+
+
+def test_get_issue_parses_fields(provider, tmp_path, monkeypatch):
+    patch_call(
+        monkeypatch,
+        {"getAccessibleAtlassianResources": RESOURCES, "getJiraIssue": ISSUE},
+    )
     issue = provider.get_issue("XXX-123", cfg(tmp_path))
     assert issue.key == "XXX-123"
-    assert issue.title == "Fix invoice rounding"
+    assert issue.title == "Fix product import"
+    assert issue.status == "In Progress"
     assert issue.project_key == "XXX"
     assert "browse/XXX-123" in issue.url
 
 
+def test_list_assigned_uses_jql_currentuser(provider, tmp_path, monkeypatch):
+    calls = []
+    patch_call(
+        monkeypatch,
+        {
+            "getAccessibleAtlassianResources": RESOURCES,
+            "searchJiraIssuesUsingJql": {"issues": [ISSUE]},
+        },
+        calls,
+    )
+    issues = provider.list_assigned(cfg(tmp_path))
+    assert [issue.key for issue in issues] == ["XXX-123"]
+    tool, args = calls[-1]
+    assert tool == "searchJiraIssuesUsingJql"
+    assert args["cloudId"] == "cloud-acme"
+    assert "project = XXX" in args["jql"]
+    assert "assignee = currentUser()" in args["jql"]
+
+
 def test_issue_status(provider, tmp_path, monkeypatch):
-    patch_cli(monkeypatch, {"issue view XXX-123": json.dumps(ISSUE_RAW)})
+    patch_call(
+        monkeypatch,
+        {"getAccessibleAtlassianResources": RESOURCES, "getJiraIssue": ISSUE},
+    )
     assert provider.issue_status("XXX-123", cfg(tmp_path)) == "In Progress"
 
 
-def test_list_assigned_parses(provider, tmp_path, monkeypatch):
-    patch_cli(
+def make_task(tmp_path, provider, monkeypatch):
+    patch_call(
         monkeypatch,
-        {
-            "issue list": json.dumps(
-                {
-                    "issues": [
-                        {"key": "XXX-1", "fields": {"summary": "A", "status": {"name": "To Do"}}},
-                        {"key": "XXX-2", "fields": {"summary": "B", "status": {"name": "Done"}}},
-                    ]
-                }
-            )
-        },
+        {"getAccessibleAtlassianResources": RESOURCES, "getJiraIssue": ISSUE},
     )
-    issues = provider.list_assigned(cfg(tmp_path))
-    assert [i.key for i in issues] == ["XXX-1", "XXX-2"]
-
-
-def test_failure_signal_events_filters_status_changes(provider, tmp_path, monkeypatch):
-    patch_cli(monkeypatch, {"issue view XXX-123": json.dumps(ISSUE_RAW)})
-    task = Task(
-        project="oms",
-        branch="xxx-123",
-        worktree_path=tmp_path,
-        state="needs-testing",
-    )
+    task = Task(project="acme-pim", branch="xxx-123", worktree_path=tmp_path,
+                state="needs-testing")
     task.issue = provider.get_issue("XXX-123", cfg(tmp_path))
+    return task
+
+
+def test_failure_signal_from_changelog_when_present(provider, tmp_path, monkeypatch):
+    task = make_task(tmp_path, provider, monkeypatch)
+    patch_call(
+        monkeypatch,
+        {"getAccessibleAtlassianResources": RESOURCES,
+         "getJiraIssue": ISSUE_WITH_CHANGELOG},
+    )
     stamps = provider.failure_signal_events(task, cfg(tmp_path))
     assert len(stamps) == 2
     assert stamps == sorted(stamps)
     assert stamps[-1] == datetime(2026, 7, 20, 10, 0, tzinfo=timezone.utc)
+
+
+def test_failure_signal_empty_without_changelog(provider, tmp_path, monkeypatch):
+    task = make_task(tmp_path, provider, monkeypatch)
+    patch_call(
+        monkeypatch,
+        {"getAccessibleAtlassianResources": RESOURCES, "getJiraIssue": ISSUE},
+    )
+    assert provider.failure_signal_events(task, cfg(tmp_path)) == []
+
+
+def test_signal_via_status_flag(provider):
+    assert provider.signal_via_status is True

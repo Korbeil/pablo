@@ -48,6 +48,9 @@ class ProjectConfig:
     poll_interval: int
     failure_signal: str | None
     bot_whitelist: list[str]
+    # Atlassian site host for jira projects (e.g. acme.atlassian.net);
+    # None → first accessible resource of the authenticated account.
+    site: str | None = None
 
 
 def projects_dir() -> Path:
@@ -149,6 +152,7 @@ def _parse_project(path: Path, defaults: dict[str, Any]) -> ProjectConfig:
         provider=str(provider),
         identity=str(identity),
         project_key=str(project_key),
+        site=data.get("issue_tracker", {}).get("site"),
         sync_strategy=str(strategy),
         sync_auto_apply=bool(_merged(data, defaults, "sync", "auto_apply")),
         sync_interval=int(sync_interval),
