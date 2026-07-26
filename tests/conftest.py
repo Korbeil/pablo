@@ -4,6 +4,27 @@ from pathlib import Path
 
 import pytest
 
+from pablo import agents
+
+
+@pytest.fixture(autouse=True)
+def _no_real_agent_processes(request, monkeypatch):
+    """Safety net: no test may spawn a real opencode/orca agent run.
+
+    State-machine on-enter actions launch agents; a test that forgets to
+    stub `agents.launch` would silently start a real `opencode run` (a real
+    LLM call). Stub them all by default; tests assert against their own
+    stubs, which override these. test_agents.py is exempt — it tests the
+    real implementations against faked subprocess/run_cli.
+    """
+    if request.module.__name__.endswith("test_agents"):
+        yield
+        return
+    monkeypatch.setattr(agents, "launch", lambda wt, agent, prompt: "stub-handle")
+    monkeypatch.setattr(agents, "spawn_watcher", lambda *a, **k: None)
+    monkeypatch.setattr(agents, "active_sessions", lambda wt: [])
+    yield
+
 
 def run(cwd: Path, *args: str) -> str:
     return subprocess.run(
