@@ -67,6 +67,21 @@ def test_all_green(tmp_path, monkeypatch):
     assert all(r.ok for r in results)
 
 
+def test_probe_timeout_reported_as_failure(tmp_path, monkeypatch):
+    import subprocess
+
+    monkeypatch.setattr(doctor.shutil, "which", lambda cli_name: f"/usr/bin/{cli_name}")
+
+    def hanging_run(argv, **kwargs):
+        raise subprocess.TimeoutExpired(argv, kwargs.get("timeout", 30))
+
+    monkeypatch.setattr(doctor.subprocess, "run", hanging_run)
+    results = doctor.check_all({"a": make_cfg(tmp_path, "a", "github")})
+    gh = next(r for r in results if r.cli == "gh")
+    assert not gh.ok
+    assert "timed out" in gh.detail
+
+
 def test_cli_doctor_exit_codes(tmp_path, monkeypatch, capsys):
     projects = {"a": make_cfg(tmp_path, "a", "github")}
     monkeypatch.setattr(cli, "load_projects", lambda: projects)

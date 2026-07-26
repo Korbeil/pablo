@@ -32,11 +32,19 @@ def stamps_dir() -> Path:
 def _preflight_errors(projects: dict[str, ProjectConfig]) -> list[str]:
     from pablo import doctor
 
-    return [
-        f"{result.cli}: {result.detail} ({result.hint})"
-        for result in doctor.check_all(projects)
-        if not result.ok
-    ]
+    errors = []
+    for result in doctor.check_all(projects):
+        if result.ok:
+            continue
+        # orca is a soft requirement for the background layer: the agent
+        # runner falls back to headless opencode when orca is unusable
+        # (it has been seen hanging/failing outside interactive sessions).
+        if result.cli == "orca":
+            print(f"pablo dispatch: warning: orca not usable ({result.detail}); "
+                  f"agent runs will use the headless fallback")
+            continue
+        errors.append(f"{result.cli}: {result.detail} ({result.hint})")
+    return errors
 
 
 @contextmanager

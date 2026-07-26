@@ -24,7 +24,7 @@ def orca_err(code: str) -> str:
 def test_orca_launch_builds_command(monkeypatch, tmp_path):
     calls = []
 
-    def fake_run_cli(argv, *, check=True):
+    def fake_run_cli(argv, *, check=True, timeout=None):
         calls.append(argv)
         return orca_ok({"handle": "term_123"})
 
@@ -43,7 +43,7 @@ def test_orca_launch_builds_command(monkeypatch, tmp_path):
 def test_launch_falls_back_headless_when_orca_refuses(monkeypatch, tmp_path):
     launched = {}
 
-    def fake_run_cli(argv, *, check=True):
+    def fake_run_cli(argv, *, check=True, timeout=None):
         return orca_err("selector_not_found")
 
     class FakeProc:
@@ -74,7 +74,7 @@ def test_orca_sessions_map_agent_states(monkeypatch, tmp_path):
             {"path": "/elsewhere", "agents": [{"paneKey": "c", "state": "working"}]},
         ]
     }
-    monkeypatch.setattr(agents, "run_cli", lambda argv, *, check=True: orca_ok(ps))
+    monkeypatch.setattr(agents, "run_cli", lambda argv, *, check=True, timeout=None: orca_ok(ps))
     sessions = agents.active_sessions(tmp_path)
     assert [(s.handle, s.status) for s in sessions] == [
         ("a", "running"),
@@ -84,7 +84,7 @@ def test_orca_sessions_map_agent_states(monkeypatch, tmp_path):
 
 def test_headless_sessions_from_pidfiles(monkeypatch, tmp_path, agents_dir):
     # Orca unreachable → fall back to pidfile scan
-    monkeypatch.setattr(agents, "run_cli", lambda argv, *, check=True: orca_err("down"))
+    monkeypatch.setattr(agents, "run_cli", lambda argv, *, check=True, timeout=None: orca_err("down"))
     agents_dir.mkdir(parents=True)
     alive = os.getpid()
     (agents_dir / f"{alive}.json").write_text(

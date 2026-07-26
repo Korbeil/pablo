@@ -5,3 +5,5 @@ Documentation=file://%h/Sites/user/pablo/README.md
 [Service]
 Type=oneshot
 ExecStart=%h/.local/bin/pablo dispatch
+# Backstop: a wedged run must never block future timer fires forever.
+TimeoutStartSec=10min

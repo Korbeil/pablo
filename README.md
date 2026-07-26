@@ -212,7 +212,11 @@ additions to the spec's set — the agent-runner path needs them); `jira` /
 for **installed** (PATH) and **authenticated/ready** (its own
 status/whoami command), with a per-CLI ✅/❌ line, the CLI's own login
 instructions on failure, and a non-zero exit — the dispatcher runs the
-same check as its fail-fast guard.
+same check as its fail-fast guard. Probes are capped at 30s (`orca` has
+been observed hanging when invoked outside an interactive session), and
+in the **dispatcher** preflight an `orca` failure is soft — a warning,
+not an abort — because agent runs fall back to headless `opencode run`;
+interactively, `pablo doctor` still reports it as ❌.
 
 ## Project configuration
 
