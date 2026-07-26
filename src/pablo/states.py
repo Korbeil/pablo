@@ -82,6 +82,22 @@ def _enter_ready_to_review(ctx: TaskCtx) -> None:
     enter_state(ctx, WAITING_REVIEW)
 
 
+def _current_issue_status(ctx: TaskCtx) -> str | None:
+    """Best-effort tracker status, for seeding the observed-transition
+    baseline. A tracker hiccup must never break the state transition."""
+    if ctx.task.issue is None or not ctx.cfg.failure_signal:
+        return None
+    try:
+        from pablo.providers import get_provider
+
+        provider = get_provider(ctx.cfg.provider)
+        if not getattr(provider, "signal_via_status", False):
+            return None
+        return provider.issue_status(ctx.task.issue.key, ctx.cfg)
+    except Exception:
+        return None
+
+
 def _enter_needs_testing(ctx: TaskCtx) -> None:
     # The entry timestamp is the failure-signal baseline for this round.
     # Restoring from a pause must NOT move it: signals applied during the
@@ -89,6 +105,10 @@ def _enter_needs_testing(ctx: TaskCtx) -> None:
     if ctx.previous_state == WAITING and ctx.task.needs_testing_entered_at:
         return
     ctx.task.needs_testing_entered_at = utcnow()
+    # Seed the observed-transition fallback: a status already sitting on
+    # the failure signal at entry (stale, from a previous round) must not
+    # fire — only a transition observed after this point counts.
+    ctx.task.last_seen_issue_status = _current_issue_status(ctx)
 
 
 def _run_agent_then_draft(ctx: TaskCtx, agent: str, prompt: str) -> None:

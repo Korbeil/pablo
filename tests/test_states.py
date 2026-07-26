@@ -137,6 +137,15 @@ def test_needs_testing_stamps_baseline(ctx):
     assert ctx.task.needs_testing_entered_at is not None
 
 
+def test_needs_testing_seeds_last_seen_status(ctx, monkeypatch):
+    monkeypatch.setattr(states, "_current_issue_status", lambda c: "A FIX")
+    ctx.task.state = WAITING_REVIEW
+    states.enter_state(ctx, NEEDS_TESTING)
+    # a stale failure status present at entry is recorded, so the poller's
+    # observed-transition fallback won't fire on it
+    assert ctx.task.last_seen_issue_status == "A FIX"
+
+
 def test_needs_testing_restore_from_waiting_keeps_baseline(ctx):
     ctx.task.state = WAITING_REVIEW
     states.enter_state(ctx, NEEDS_TESTING)
