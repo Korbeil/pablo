@@ -134,6 +134,45 @@ def default_argv() -> list[str]:
     return [npx_path(), "-y", "mcp-remote", ATLASSIAN_MCP_URL]
 
 
+RETRY_ATTEMPTS = 3        # 1 initial try + 2 retries
+RETRY_BACKOFF_S = (1, 2)  # sleep before attempt 2, before attempt 3
+
+# Substrings of PabloError messages that indicate a transient, connection-
+# level failure (the bridge never got to answer) rather than a real auth
+# or tool problem — e.g. the ConnectTimeoutError observed reaching
+# mcp.atlassian.com from a flaky network. Only these are retried.
+TRANSIENT_MARKERS = (
+    "ConnectTimeoutError",
+    "ECONNREFUSED",
+    "ETIMEDOUT",
+    "ENOTFOUND",
+    "EAI_AGAIN",
+    "bridge exited unexpectedly",
+)
+
+
+def is_transient_error(message: str) -> bool:
+    return any(marker in message for marker in TRANSIENT_MARKERS)
+
+
+def call_tool_with_retry(
+    tool: str, arguments: dict, *, argv: list[str] | None = None
+) -> Any:
+    """Call an MCP tool, retrying a fresh bridge session on transient
+    connection failures (short backoff, never on auth/tool errors)."""
+    last_exc: PabloError | None = None
+    for attempt in range(RETRY_ATTEMPTS):
+        try:
+            with McpClient(argv=argv) as client:
+                return client.call_tool(tool, arguments)
+        except PabloError as exc:
+            last_exc = exc
+            if not is_transient_error(str(exc)) or attempt == RETRY_ATTEMPTS - 1:
+                raise
+            time.sleep(RETRY_BACKOFF_S[attempt])
+    raise last_exc  # pragma: no cover — loop always returns or raises above
+
+
 def auth_cache_present() -> bool:
     """True iff mcp-remote has cached OAuth tokens. Never spawns anything —
     callers use this to fail fast instead of triggering a browser flow."""

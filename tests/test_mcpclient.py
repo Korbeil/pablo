@@ -113,6 +113,66 @@ def test_early_exit_surfaces_stderr(monkeypatch):
         client.__enter__()
 
 
+def test_is_transient_error_matches_known_markers():
+    for marker in mcpclient.TRANSIENT_MARKERS:
+        assert mcpclient.is_transient_error(f"boom: {marker} happened")
+    assert not mcpclient.is_transient_error("jira mcp tool x errored: bad request")
+
+
+class _FakeSession:
+    """Stand-in for McpClient used by the retry-helper tests."""
+
+    def __init__(self, behaviors, calls):
+        self._behaviors = behaviors
+        self._calls = calls
+
+    def __call__(self, argv=None, timeout_s=60):
+        self._calls.append(1)
+        return self
+
+    def __enter__(self):
+        behavior = self._behaviors[len(self._calls) - 1]
+        if isinstance(behavior, Exception):
+            raise behavior
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def call_tool(self, name, arguments):
+        return self._behaviors[len(self._calls) - 1]
+
+
+def test_call_tool_with_retry_recovers_from_transient_failure(monkeypatch):
+    calls = []
+    behaviors = [PabloError("ConnectTimeoutError: nope"), {"ok": True}]
+    monkeypatch.setattr(mcpclient, "McpClient", _FakeSession(behaviors, calls))
+    monkeypatch.setattr(mcpclient.time, "sleep", lambda s: None)
+    result = mcpclient.call_tool_with_retry("x", {})
+    assert result == {"ok": True}
+    assert len(calls) == 2
+
+
+def test_call_tool_with_retry_gives_up_after_max_attempts(monkeypatch):
+    calls = []
+    behaviors = [PabloError("ETIMEDOUT: nope")] * mcpclient.RETRY_ATTEMPTS
+    monkeypatch.setattr(mcpclient, "McpClient", _FakeSession(behaviors, calls))
+    monkeypatch.setattr(mcpclient.time, "sleep", lambda s: None)
+    with pytest.raises(PabloError, match="ETIMEDOUT"):
+        mcpclient.call_tool_with_retry("x", {})
+    assert len(calls) == mcpclient.RETRY_ATTEMPTS
+
+
+def test_call_tool_with_retry_does_not_retry_non_transient(monkeypatch):
+    calls = []
+    behaviors = [PabloError("jira mcp tool x errored: bad request")]
+    monkeypatch.setattr(mcpclient, "McpClient", _FakeSession(behaviors, calls))
+    monkeypatch.setattr(mcpclient.time, "sleep", lambda s: None)
+    with pytest.raises(PabloError, match="bad request"):
+        mcpclient.call_tool_with_retry("x", {})
+    assert len(calls) == 1
+
+
 def test_auth_cache_present_globs_tokens(tmp_path, monkeypatch):
     monkeypatch.setattr(mcpclient.Path, "home", classmethod(lambda cls: tmp_path))
     assert auth_cache_present() is False
