@@ -203,11 +203,16 @@ ready, PABLO surfaces **its own error/instructions** verbatim.
     — completes the Atlassian browser login; tokens are cached by the
     bridge under `~/.mcp-auth/` (PABLO stores nothing). Re-run the same
     command if Atlassian ever revokes the grant.
-  - **Node resolution**: mcp-remote needs Node ≥ 18, but the systemd user
-    manager's PATH can point at an older nvm Node (observed: v16 under
-    the timer vs v24 in shells). `mcpclient.npx_path()` therefore scans
-    PATH *and* `~/.nvm/versions/node/*` and runs the newest Node, also
-    prepending its bin dir to the child PATH (npx's `env node` shebang).
+  - **Node resolution — via nvm + `.nvmrc`**: mcp-remote needs Node ≥ 18,
+    but the systemd user manager's PATH carries nvm's `default` Node,
+    which is deliberately old (16.17, kept for legacy projects). PABLO
+    therefore pins its own Node in the repo's **`.nvmrc`** (currently
+    `24`) and resolves it through nvm itself —
+    `nvm which $(cat .nvmrc)` with `nvm.sh` sourced from
+    `$NVM_DIR`/`~/.nvm` — then prepends that bin dir to the bridge's
+    PATH (npx's `env node` shebang). Plain PATH lookup is only the
+    fallback when nvm isn't installed. Bump `.nvmrc` to change the
+    version; the nvm `default` alias is never touched.
   - failure signal: changelog transition timestamps when `getJiraIssue`
     responses carry a changelog (**probed live 2026-07-26: they don't** —
     top-level keys are expand/fields/id/key/self — so the fallback below
