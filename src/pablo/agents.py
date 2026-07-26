@@ -166,13 +166,20 @@ def wait_for_handle(handle: str, timeout_s: int = ORCA_WAIT_TIMEOUT_MS // 1000) 
     )
 
 
-def spawn_watcher(project: str, branch: str, handle: str, then: str) -> None:
+def spawn_watcher(
+    project: str, branch: str, handle: str, then: str, expect_state: str | None = None
+) -> None:
     """Detached ``pablo watch-agent`` process: waits for the agent run to
-    finish, then applies the follow-up (e.g. switching the PR to draft)."""
+    finish, then applies the follow-up (e.g. switching the PR to draft).
+    ``expect_state`` guards the follow-up: it is skipped if the task has
+    moved to another state by the time the agent finishes."""
+    argv = [sys.executable, "-m", "pablo.cli", "watch-agent",
+            "--project", project, "--branch", branch,
+            "--handle", handle, "--then", then]
+    if expect_state:
+        argv += ["--expect-state", expect_state]
     subprocess.Popen(
-        [sys.executable, "-m", "pablo.cli", "watch-agent",
-         "--project", project, "--branch", branch,
-         "--handle", handle, "--then", then],
+        argv,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

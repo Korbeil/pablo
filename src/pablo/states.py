@@ -93,8 +93,12 @@ def _enter_needs_testing(ctx: TaskCtx) -> None:
 
 def _run_agent_then_draft(ctx: TaskCtx, agent: str, prompt: str) -> None:
     handle = agents.launch(ctx.task.worktree_path, agent, prompt)
-    # Once the agent finishes, the watcher switches the GitHub PR to draft.
-    agents.spawn_watcher(ctx.task.project, ctx.task.branch, handle, "pr-draft")
+    # Once the agent finishes, the watcher switches the GitHub PR to draft —
+    # unless the task has already moved on to another state by then.
+    agents.spawn_watcher(
+        ctx.task.project, ctx.task.branch, handle, "pr-draft",
+        expect_state=ctx.task.state,
+    )
 
 
 def _enter_request_changes(ctx: TaskCtx) -> None:
