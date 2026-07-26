@@ -1,0 +1,115 @@
+"""Per-project worktree sync (spec, "Worktree sync").
+
+Keeps every task worktree up to date with the project's primary branch —
+regardless of PABLO state, including post-draft worktrees with open PRs.
+Dry-run by default: changes are only applied with ``sync.auto_apply: true``
+or an explicit ``--apply``. The cron-triggered run respects ``auto_apply``
+from the config; it never implies apply on its own.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from pablo import PabloError, gitrepo
+from pablo.config import ProjectConfig
+from pablo.gitrepo import SyncReport
+from pablo.store import Store, task_lock
+
+# A locked task is skipped quickly and retried on the next cycle rather
+# than stalling the whole sync run behind the state poller.
+SYNC_LOCK_TIMEOUT_S = 2
+
+ACTION_ICONS = {
+    "up-to-date": "✅",
+    "would-sync": "🔄",
+    "synced": "✅",
+    "conflict": "⚠️",
+    "lease-failed": "🔁",
+    "dirty": "✋",
+    "locked": "🔒",
+    "unregistered": "❓",
+}
+
+
+def _discover(cfg: ProjectConfig) -> list[tuple[Path, str]]:
+    """Task worktrees: git worktree list minus the primary checkout, plus
+    any stray directory under worktrees_root (reported, not synced)."""
+    worktrees = [
+        (path, branch)
+        for path, branch in gitrepo.list_worktrees(cfg.repo_path)
+        if path.resolve() != cfg.repo_path.resolve()
+        and branch != cfg.primary_branch
+    ]
+    known = {path.resolve() for path, _ in worktrees}
+    if cfg.worktrees_root.is_dir():
+        for entry in sorted(cfg.worktrees_root.iterdir()):
+            if entry.is_dir() and entry.resolve() not in known:
+                worktrees.append((entry, ""))
+    return worktrees
+
+
+def sync_project(
+    cfg: ProjectConfig, store: Store, *, apply: bool | None
+) -> list[SyncReport]:
+    effective_apply = cfg.sync_auto_apply if apply is None else apply
+    reports: list[SyncReport] = []
+    for path, branch in _discover(cfg):
+        if not branch:
+            reports.append(
+                SyncReport(
+                    worktree=path,
+                    branch="?",
+                    action="unregistered",
+                    detail="directory under worktrees_root is not a worktree of the repo",
+                )
+            )
+            continue
+        task = store.get(cfg.name, branch)
+        if task is not None:
+            try:
+                with task_lock(store, cfg.name, branch, timeout_s=SYNC_LOCK_TIMEOUT_S):
+                    reports.append(
+                        gitrepo.sync_worktree(
+                            path, branch, cfg.primary_branch, cfg.sync_strategy,
+                            apply=effective_apply,
+                        )
+                    )
+            except PabloError as exc:
+                if "locked" in str(exc):
+                    reports.append(
+                        SyncReport(
+                            worktree=path, branch=branch, action="locked",
+                            detail="task busy (state poller or a command holds it); will retry next cycle",
+                        )
+                    )
+                else:
+                    raise
+        else:
+            reports.append(
+                gitrepo.sync_worktree(
+                    path, branch, cfg.primary_branch, cfg.sync_strategy,
+                    apply=effective_apply,
+                )
+            )
+    return reports
+
+
+def render_reports(reports: list[SyncReport]) -> str:
+    if not reports:
+        return "no task worktrees found"
+    lines = []
+    for report in reports:
+        icon = ACTION_ICONS.get(report.action, "•")
+        line = f"{icon} {report.branch:<24} {report.action}"
+        if report.action in {"would-sync", "synced"} and (report.behind or report.ahead):
+            line += f" (behind {report.behind}, ahead {report.ahead})"
+        if report.detail and report.action not in {"conflict"}:
+            line += f" — {report.detail}"
+        lines.append(line)
+        if report.action == "conflict":
+            lines.append(f"   conflicting files: {', '.join(report.conflict_files)}")
+            for hunk_line in report.detail.splitlines()[:20]:
+                lines.append(f"   {hunk_line}")
+            lines.append("   left as-is — resolve manually, PABLO never auto-resolves")
+    return "\n".join(lines)
