@@ -54,7 +54,9 @@ def ctx(tmp_path: Path, monkeypatch):
     )
     monkeypatch.setattr(
         agents, "spawn_watcher",
-        lambda project, branch, handle, then: calls["watch"].append((handle, then)),
+        lambda project, branch, handle, then, expect_state=None: calls["watch"].append(
+            (handle, then)
+        ),
     )
     monkeypatch.setattr(
         ghpr, "mark_ready", lambda slug, pr: calls["ready"].append(pr)

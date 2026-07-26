@@ -8,14 +8,16 @@ deterministic logic lives in the pablo package, never in the markdown.
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
 from pathlib import Path
 
-from pablo import PabloError, agents, gitrepo, naming
+from pablo import PabloError, agents, ghpr, gitrepo, naming
 from pablo.config import ProjectConfig, load_projects
 from pablo.model import IN_PROGRESS, Issue, Task
 from pablo.providers import get_provider
-from pablo.states import TaskCtx, enter_state
+from pablo.states import COMMIT_ALLOWED_FROM, TaskCtx, enter_state, toggle_waiting
 from pablo.store import Store, task_lock
 
 SUMMARY_MAX_WORDS = 5
@@ -126,6 +128,114 @@ def cmd_start(args: argparse.Namespace) -> int:
     return 0
 
 
+# ------------------------------------------------- cwd-resolved commands ---
+
+
+def _repo_slug(cfg: ProjectConfig) -> str:
+    from pablo.providers.github import repo_slug
+
+    return repo_slug(cfg)
+
+
+def _resolve_ctx(store: Store) -> TaskCtx:
+    task = store.task_for_cwd(Path.cwd())
+    cfg = load_projects().get(task.project)
+    if cfg is None:
+        raise PabloError(
+            f"task {task.branch} belongs to project {task.project!r}, which has "
+            f"no config under projects/ anymore"
+        )
+    return TaskCtx(task=task, cfg=cfg, store=store)
+
+
+def cmd_state(args: argparse.Namespace) -> int:
+    store = Store()
+    ctx = _resolve_ctx(store)
+    with task_lock(store, ctx.task.project, ctx.task.branch):
+        enter_state(ctx, args.state, trigger=not args.no_trigger)
+    print(f"{ctx.task.branch}: state set to {ctx.task.state}")
+    return 0
+
+
+def cmd_waiting(args: argparse.Namespace) -> int:
+    store = Store()
+    ctx = _resolve_ctx(store)
+    with task_lock(store, ctx.task.project, ctx.task.branch):
+        ended_in = toggle_waiting(ctx)
+    if ended_in == "waiting":
+        print(f"{ctx.task.branch}: paused (waiting); will restore to "
+              f"{ctx.task.state_before_waiting}")
+    else:
+        print(f"{ctx.task.branch}: un-paused, back to {ended_in}")
+    return 0
+
+
+def cmd_close(args: argparse.Namespace) -> int:
+    store = Store()
+    ctx = _resolve_ctx(store)
+    task, cfg = ctx.task, ctx.cfg
+    sessions = agents.active_sessions(task.worktree_path)
+    if sessions and not args.yes:
+        return _fail(
+            f"{len(sessions)} agent session(s) still active on this worktree — "
+            f"wait for them or re-run with --yes"
+        )
+    with task_lock(store, task.project, task.branch):
+        # The command deletes the worktree we may be standing in: move out
+        # first or the shell would be left in a deleted cwd.
+        os.chdir(cfg.repo_path)
+        gitrepo.remove_worktree(cfg.repo_path, task.worktree_path, task.branch)
+        store.delete(task.project, task.branch)
+    print(
+        f"closed {task.branch} ({task.project}): worktree removed, state cleared. "
+        f"The PR itself is untouched. You are now in {cfg.repo_path}."
+    )
+    return 0
+
+
+def cmd_precommit_check(args: argparse.Namespace) -> int:
+    store = Store()
+    try:
+        ctx = _resolve_ctx(store)
+    except PabloError as exc:
+        print(f"pablo: {exc}", file=sys.stderr)
+        return 2
+    payload = {
+        "project": ctx.task.project,
+        "branch": ctx.task.branch,
+        "state": ctx.task.state,
+        "allowed": ctx.task.state in COMMIT_ALLOWED_FROM,
+    }
+    print(json.dumps(payload))
+    return 0
+
+
+def cmd_task_current(args: argparse.Namespace) -> int:
+    store = Store()
+    ctx = _resolve_ctx(store)
+    payload = ctx.task.to_json()
+    payload["repo_path"] = str(ctx.cfg.repo_path)
+    payload["primary_branch"] = ctx.cfg.primary_branch
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def cmd_watch_agent(args: argparse.Namespace) -> int:
+    agents.wait_for_handle(args.handle)
+    store = Store()
+    with task_lock(store, args.project, args.branch):
+        task = store.get(args.project, args.branch)
+        if task is None:
+            return 0  # task closed while the agent ran; nothing to do
+        if args.expect_state and task.state != args.expect_state:
+            return 0  # state moved on; the follow-up no longer applies
+        if args.then == "pr-draft" and task.pr_number is not None:
+            cfg = load_projects().get(args.project)
+            if cfg is not None:
+                ghpr.mark_draft(_repo_slug(cfg), task.pr_number)
+    return 0
+
+
 # ----------------------------------------------------------------- main ---
 
 
@@ -137,6 +247,39 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--project", help="project name for plain-prompt tasks")
     p_start.add_argument("input", nargs="+", help="issue URL or task prompt")
     p_start.set_defaults(func=cmd_start)
+
+    p_state = sub.add_parser("state", help="force the current task to a state")
+    p_state.add_argument("state", help="target state")
+    p_state.add_argument(
+        "--no-trigger", action="store_true",
+        help="skip the state's on-enter actions (ignored for waiting)",
+    )
+    p_state.set_defaults(func=cmd_state)
+
+    p_waiting = sub.add_parser("waiting", help="toggle the waiting pause for the current task")
+    p_waiting.set_defaults(func=cmd_waiting)
+
+    p_close = sub.add_parser("close", help="close the current task (delete worktree + record)")
+    p_close.add_argument("--yes", action="store_true", help="close even if agents are active")
+    p_close.set_defaults(func=cmd_close)
+
+    p_pre = sub.add_parser("precommit-check", help="check /commit-and-pr is allowed here")
+    p_pre.add_argument("--json", action="store_true", default=True)
+    p_pre.set_defaults(func=cmd_precommit_check)
+
+    p_task = sub.add_parser("task", help="task record utilities")
+    task_sub = p_task.add_subparsers(dest="task_command", required=True)
+    p_task_current = task_sub.add_parser("current", help="dump the current task record")
+    p_task_current.add_argument("--json", action="store_true", default=True)
+    p_task_current.set_defaults(func=cmd_task_current)
+
+    p_watch = sub.add_parser("watch-agent", help="internal: wait for an agent run, then follow up")
+    p_watch.add_argument("--project", required=True)
+    p_watch.add_argument("--branch", required=True)
+    p_watch.add_argument("--handle", required=True)
+    p_watch.add_argument("--then", required=True, choices=["pr-draft"])
+    p_watch.add_argument("--expect-state")
+    p_watch.set_defaults(func=cmd_watch_agent)
 
     return parser
 
