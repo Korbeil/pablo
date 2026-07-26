@@ -43,32 +43,91 @@ def _node_major(node: Path) -> int:
         return -1
 
 
-def npx_path() -> str:
-    """The npx of the newest available Node.
+NVM_RESOLVE_TIMEOUT_S = 15
 
-    PATH alone is not enough: the systemd user manager's PATH can point at
-    an older nvm Node (observed: v16 under the timer vs v24 in shells),
-    and mcp-remote needs Node >= 18 — so scan nvm installs too and pick
-    the newest.
+
+def nvmrc_spec() -> str:
+    """The Node version spec pinned by the repo's .nvmrc (fallback: default).
+
+    The user's nvm `default` alias is deliberately old (legacy projects),
+    so PABLO pins its own requirement in-repo, the nvm-idiomatic way.
     """
-    candidates: list[Path] = []
-    which = shutil.which("npx")
-    if which:
-        candidates.append(Path(which))
-    candidates.extend(sorted(Path.home().glob(".nvm/versions/node/*/bin/npx")))
-    best: Path | None = None
-    best_major = -1
-    for npx in candidates:
-        major = _node_major(npx.parent / "node")
-        if major > best_major:
-            best, best_major = npx, major
-    if best is None:
-        raise PabloError("npx not found — install Node.js (it runs the mcp-remote bridge)")
-    if best_major < MIN_NODE_MAJOR:
-        raise PabloError(
-            f"newest Node found is v{best_major}, but mcp-remote needs >= {MIN_NODE_MAJOR}"
+    nvmrc = Path(__file__).resolve().parents[2] / ".nvmrc"
+    if nvmrc.is_file():
+        spec = nvmrc.read_text().strip()
+        if spec:
+            return spec
+    return "default"
+
+
+def _nvm_dir() -> Path | None:
+    for candidate in (os.environ.get("NVM_DIR"), Path.home() / ".nvm"):
+        if candidate and (Path(candidate) / "nvm.sh").is_file():
+            return Path(candidate)
+    return None
+
+
+def _nvm_which(spec: str) -> str | None:
+    """Resolve a Node binary through nvm itself (nvm is a shell function,
+    so it has to be sourced). None when nvm can't resolve the spec."""
+    nvm_dir = _nvm_dir()
+    if nvm_dir is None:
+        return None
+    env = os.environ.copy()
+    env["NVM_DIR"] = str(nvm_dir)
+    try:
+        proc = subprocess.run(
+            ["bash", "-c", '. "$NVM_DIR/nvm.sh" >/dev/null 2>&1; nvm which "$1"',
+             "bash", spec],
+            capture_output=True,
+            text=True,
+            timeout=NVM_RESOLVE_TIMEOUT_S,
+            env=env,
         )
-    return str(best)
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    node = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ""
+    return node if node.endswith("/node") or Path(node).name == "node" else None
+
+
+def npx_path() -> str:
+    """The npx to run the mcp-remote bridge with, resolved through nvm.
+
+    The systemd user manager's PATH carries nvm's old default Node
+    (observed: v16 under the timer vs v24 in shells) and mcp-remote needs
+    Node >= MIN_NODE_MAJOR — so ask nvm for the repo's pinned version
+    (.nvmrc) instead of trusting PATH. PATH is only the fallback when nvm
+    isn't installed at all.
+    """
+    if _nvm_dir() is not None:
+        spec = nvmrc_spec()
+        node = _nvm_which(spec)
+        if node is None:
+            raise PabloError(
+                f"nvm cannot resolve Node {spec!r} — run: nvm install {spec}"
+            )
+        major = _node_major(Path(node))
+        if major < MIN_NODE_MAJOR:
+            raise PabloError(
+                f"Node {spec!r} resolves to v{major}, but mcp-remote needs "
+                f">= {MIN_NODE_MAJOR} — bump .nvmrc or run: nvm install {MIN_NODE_MAJOR}"
+            )
+        npx = Path(node).parent / "npx"
+        if not npx.exists():
+            raise PabloError(f"npx not found next to {node}")
+        return str(npx)
+
+    which = shutil.which("npx")
+    if which is None:
+        raise PabloError("npx not found — install Node.js (it runs the mcp-remote bridge)")
+    major = _node_major(Path(which).parent / "node")
+    if major < MIN_NODE_MAJOR:
+        raise PabloError(
+            f"PATH Node is v{major}, but mcp-remote needs >= {MIN_NODE_MAJOR}"
+        )
+    return which
 
 
 def default_argv() -> list[str]:
