@@ -128,6 +128,29 @@ def cmd_start(args: argparse.Namespace) -> int:
     return 0
 
 
+# ----------------------------------------------------------------- sync ---
+
+
+def cmd_sync(args: argparse.Namespace) -> int:
+    from pablo import sync as sync_mod
+
+    projects = load_projects()
+    if args.project:
+        if args.project not in projects:
+            return _fail(
+                f"unknown project {args.project!r}; configured projects: "
+                + ", ".join(sorted(projects))
+            )
+        projects = {args.project: projects[args.project]}
+    store = Store()
+    apply = True if args.apply else None
+    for name, cfg in projects.items():
+        reports = sync_mod.sync_project(cfg, store, apply=apply)
+        print(f"# {name}")
+        print(sync_mod.render_reports(reports))
+    return 0
+
+
 # ------------------------------------------------- cwd-resolved commands ---
 
 
@@ -247,6 +270,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--project", help="project name for plain-prompt tasks")
     p_start.add_argument("input", nargs="+", help="issue URL or task prompt")
     p_start.set_defaults(func=cmd_start)
+
+    p_sync = sub.add_parser("sync", help="sync task worktrees with the primary branch")
+    p_sync.add_argument("project", nargs="?", help="limit to one project")
+    p_sync.add_argument(
+        "--apply", action="store_true",
+        help="actually sync (default is a dry-run unless sync.auto_apply is set)",
+    )
+    p_sync.set_defaults(func=cmd_sync)
 
     p_state = sub.add_parser("state", help="force the current task to a state")
     p_state.add_argument("state", help="target state")
