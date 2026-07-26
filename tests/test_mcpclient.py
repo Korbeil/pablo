@@ -41,32 +41,68 @@ def test_timeout_kills_child(monkeypatch):
     assert client._proc.poll() is not None  # child was killed
 
 
-def make_fake_node_tree(tmp_path, versions):
-    for version in versions:
-        bin_dir = tmp_path / ".nvm" / "versions" / "node" / f"v{version}" / "bin"
-        bin_dir.mkdir(parents=True)
-        (bin_dir / "npx").write_text("#!/bin/sh\n")
-        (bin_dir / "npx").chmod(0o755)
-        (bin_dir / "node").write_text(f"#!/bin/sh\necho v{version}\n")
-        (bin_dir / "node").chmod(0o755)
+def make_fake_node(tmp_path, version: str) -> Path:
+    bin_dir = tmp_path / "versions" / "node" / f"v{version}" / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "npx").write_text("#!/bin/sh\n")
+    (bin_dir / "npx").chmod(0o755)
+    (bin_dir / "node").write_text(f"#!/bin/sh\necho v{version}\n")
+    (bin_dir / "node").chmod(0o755)
+    return bin_dir / "node"
 
 
-def test_npx_prefers_newest_node(tmp_path, monkeypatch):
-    make_fake_node_tree(tmp_path, ["16.17.1", "24.14.1"])
-    monkeypatch.setattr(mcpclient.Path, "home", classmethod(lambda cls: tmp_path))
-    # PATH resolution finds the old one (as under the systemd user manager)
-    old_npx = tmp_path / ".nvm/versions/node/v16.17.1/bin/npx"
-    monkeypatch.setattr(mcpclient.shutil, "which", lambda name: str(old_npx))
-    assert "v24.14.1" in mcpclient.npx_path()
+def test_nvm_which_via_fake_nvm_sh(tmp_path, monkeypatch):
+    node = make_fake_node(tmp_path, "24.14.1")
+    nvm_dir = tmp_path / "nvm"
+    nvm_dir.mkdir()
+    (nvm_dir / "nvm.sh").write_text(
+        'nvm() { if [ "$1" = which ]; then echo "$FAKE_NODE"; fi; }\n'
+    )
+    monkeypatch.setenv("NVM_DIR", str(nvm_dir))
+    monkeypatch.setenv("FAKE_NODE", str(node))
+    assert mcpclient._nvm_which("24") == str(node)
 
 
-def test_npx_rejects_node_too_old(tmp_path, monkeypatch):
-    make_fake_node_tree(tmp_path, ["16.17.1"])
-    monkeypatch.setattr(mcpclient.Path, "home", classmethod(lambda cls: tmp_path))
-    old_npx = tmp_path / ".nvm/versions/node/v16.17.1/bin/npx"
-    monkeypatch.setattr(mcpclient.shutil, "which", lambda name: str(old_npx))
+def test_npx_path_uses_nvmrc_spec(tmp_path, monkeypatch):
+    node = make_fake_node(tmp_path, "24.14.1")
+    seen = []
+
+    def fake_nvm_which(spec):
+        seen.append(spec)
+        return str(node)
+
+    monkeypatch.setattr(mcpclient, "_nvm_dir", lambda: tmp_path / "nvm")
+    monkeypatch.setattr(mcpclient, "_nvm_which", fake_nvm_which)
+    monkeypatch.setattr(mcpclient, "nvmrc_spec", lambda: "24")
+    npx = mcpclient.npx_path()
+    assert seen == ["24"]
+    assert npx == str(node.parent / "npx")
+
+
+def test_npx_path_rejects_old_nvm_node(tmp_path, monkeypatch):
+    node = make_fake_node(tmp_path, "16.17.1")
+    monkeypatch.setattr(mcpclient, "_nvm_dir", lambda: tmp_path / "nvm")
+    monkeypatch.setattr(mcpclient, "_nvm_which", lambda spec: str(node))
+    monkeypatch.setattr(mcpclient, "nvmrc_spec", lambda: "16")
     with pytest.raises(PabloError, match="18"):
         mcpclient.npx_path()
+
+
+def test_npx_path_unresolvable_spec_errors(tmp_path, monkeypatch):
+    monkeypatch.setattr(mcpclient, "_nvm_dir", lambda: tmp_path / "nvm")
+    monkeypatch.setattr(mcpclient, "_nvm_which", lambda spec: None)
+    monkeypatch.setattr(mcpclient, "nvmrc_spec", lambda: "24")
+    with pytest.raises(PabloError, match="nvm install 24"):
+        mcpclient.npx_path()
+
+
+def test_npx_path_falls_back_to_path_without_nvm(tmp_path, monkeypatch):
+    node = make_fake_node(tmp_path, "24.14.1")
+    monkeypatch.setattr(mcpclient, "_nvm_dir", lambda: None)
+    monkeypatch.setattr(
+        mcpclient.shutil, "which", lambda name: str(node.parent / "npx")
+    )
+    assert mcpclient.npx_path() == str(node.parent / "npx")
 
 
 def test_early_exit_surfaces_stderr(monkeypatch):
