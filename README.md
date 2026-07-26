@@ -245,6 +245,11 @@ ready, PABLO surfaces **its own error/instructions** verbatim.
     `state_polling.interval_minutes`; seeded at `needs-testing` entry so
     a stale status never fires). Interactive agents use the session's
     Atlassian MCP tools directly.
+  - **retry on transient failures**: `call_tool_with_retry()`
+    (`src/pablo/mcpclient.py`) retries up to 3 times with a short backoff
+    when a bridge session fails to connect at all (connect timeout, DNS
+    failure, bridge exiting before responding to `initialize`) — real
+    auth or tool errors are never retried, they surface immediately.
 - **Linear — `linear`** ([schpet/linear-cli](https://github.com/schpet/linear-cli),
   the chosen Linear CLI): `linear issue view <KEY> --json`,
   `linear issue list --assignee <id> --json`; failure signal = history
