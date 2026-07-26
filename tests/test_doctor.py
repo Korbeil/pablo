@@ -30,12 +30,14 @@ def test_required_set_without_jira_linear(tmp_path):
     assert doctor.required_clis(projects) == ["gh", "opencode", "orca"]
 
 
-def test_required_includes_jira_and_linear_when_used(tmp_path):
+def test_required_uses_jira_mcp_for_jira_projects(tmp_path):
     projects = {
         "a": make_cfg(tmp_path, "a", "jira"),
         "b": make_cfg(tmp_path, "b", "linear"),
     }
-    assert doctor.required_clis(projects) == ["gh", "jira", "linear", "opencode", "orca"]
+    assert doctor.required_clis(projects) == [
+        "gh", "jira-mcp", "linear", "opencode", "orca",
+    ]
 
 
 def test_missing_cli_reported_not_installed(tmp_path, monkeypatch):
@@ -65,6 +67,59 @@ def test_all_green(tmp_path, monkeypatch):
     monkeypatch.setattr(doctor, "_probe", lambda argv: (0, "ok"))
     results = doctor.check_all({"a": make_cfg(tmp_path, "a", "github")})
     assert all(r.ok for r in results)
+
+
+def jira_results(tmp_path, monkeypatch):
+    monkeypatch.setattr(doctor.shutil, "which", lambda cli_name: f"/usr/bin/{cli_name}")
+    monkeypatch.setattr(doctor, "_probe", lambda argv: (0, "ok"))
+    return doctor.check_all({"a": make_cfg(tmp_path, "a", "jira")})
+
+
+def test_jira_mcp_fails_fast_without_auth_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(doctor.mcpclient, "auth_cache_present", lambda: False)
+
+    def must_not_spawn():
+        raise AssertionError("bridge spawned without cached auth")
+
+    monkeypatch.setattr(doctor, "_mcp_userinfo", must_not_spawn)
+    results = jira_results(tmp_path, monkeypatch)
+    check = next(r for r in results if r.cli == "jira-mcp")
+    assert check.installed and not check.authenticated and not check.ok
+    assert "mcp-remote" in check.hint  # the one-time auth instruction
+
+
+def test_jira_mcp_ok_calls_userinfo(tmp_path, monkeypatch):
+    monkeypatch.setattr(doctor.mcpclient, "auth_cache_present", lambda: True)
+    monkeypatch.setattr(
+        doctor, "_mcp_userinfo", lambda: {"email": "baptiste@example.com"}
+    )
+    results = jira_results(tmp_path, monkeypatch)
+    check = next(r for r in results if r.cli == "jira-mcp")
+    assert check.ok
+    assert "baptiste@example.com" in check.detail
+
+
+def test_jira_mcp_bridge_failure_reported(tmp_path, monkeypatch):
+    from pablo import PabloError
+
+    monkeypatch.setattr(doctor.mcpclient, "auth_cache_present", lambda: True)
+
+    def boom():
+        raise PabloError("jira mcp timed out after 60s")
+
+    monkeypatch.setattr(doctor, "_mcp_userinfo", boom)
+    results = jira_results(tmp_path, monkeypatch)
+    check = next(r for r in results if r.cli == "jira-mcp")
+    assert not check.ok
+    assert "timed out" in check.detail
+
+
+def test_jira_mcp_requires_npx(tmp_path, monkeypatch):
+    monkeypatch.setattr(doctor.shutil, "which", lambda cli_name: None)
+    results = doctor.check_all({"a": make_cfg(tmp_path, "a", "jira")})
+    check = next(r for r in results if r.cli == "jira-mcp")
+    assert not check.installed
+    assert "npx" in check.detail or "Node" in check.hint
 
 
 def test_probe_timeout_reported_as_failure(tmp_path, monkeypatch):
