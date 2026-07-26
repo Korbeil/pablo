@@ -97,6 +97,17 @@ def test_worktrees_root_default(projects_dir: Path):
     assert cfg.worktrees_root == Path("~/.pablo/worktrees/mini").expanduser()
 
 
+def test_site_optional(projects_dir: Path):
+    (projects_dir / "mini.yaml").write_text(MINIMAL_PROJECT)
+    assert load_projects(projects_dir)["mini"].site is None
+    (projects_dir / "mini.yaml").write_text(
+        MINIMAL_PROJECT.replace(
+            "  project_key: MI\n", "  project_key: MI\n  site: acme.atlassian.net\n"
+        )
+    )
+    assert load_projects(projects_dir)["mini"].site == "acme.atlassian.net"
+
+
 def test_missing_required_key_names_file_and_key(projects_dir: Path):
     (projects_dir / "broken.yaml").write_text("name: broken\ntype: work\n")
     with pytest.raises(PabloError) as exc:
