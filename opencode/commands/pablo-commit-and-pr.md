@@ -1,5 +1,32 @@
 ---
 description: "PABLO : commit, push, PR draft GitHub (description en français) et passage de la tâche en état draft"
+permission:
+  edit: deny
+  write: allow
+  read: allow
+  grep: allow
+  glob: allow
+  list: allow
+  webfetch: deny
+  bash:
+    "pablo precommit-check*": allow
+    "pablo state*": allow
+    "git branch --show-current": allow
+    "git status*": allow
+    "git diff*": allow
+    "git log*": allow
+    "git add*": allow
+    "git commit*": allow
+    "git push*": allow
+    "gh pr list*": allow
+    "gh pr view*": allow
+    "gh pr create*": allow
+    "cat .github/pull_request_template.md*": allow
+    "cat .github/PULL_REQUEST_TEMPLATE.md*": allow
+    "mkdir -p /tmp/pablo-descriptions*": allow
+    "cat > /tmp/pablo-descriptions/*": allow
+    "tee /tmp/pablo-descriptions/*": allow
+    "*": ask
 ---
 
 PABLO's version of commit-and-pr (the original `/commit-and-pr` still
@@ -115,8 +142,12 @@ Existing PR for this branch:
    - `git push -u origin <branch>` (plain push — never `--force`; if the
      push is rejected, report it and stop, don't force anything).
    - If the "Existing PR" context above is empty: create the draft PR with
-     the French description as body — write the body to a temp file and
-     run `gh pr create --draft --title "<title>" --body-file <file>`
+     the French description as body — write the body to
+     `/tmp/pablo-descriptions/<branch name>.md` (create the directory
+     first with `mkdir -p /tmp/pablo-descriptions` if it doesn't exist —
+     always this exact location, it's what this command's `bash:`
+     permission allow-list is scoped to) and run
+     `gh pr create --draft --title "<title>" --body-file <file>`
      (title follows the same convention as the commit message, mention
      the issue key if the branch has one).
    - If a PR already exists: just push; do not edit the existing PR.
