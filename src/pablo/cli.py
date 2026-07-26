@@ -151,6 +151,14 @@ def cmd_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    from pablo import doctor
+
+    results = doctor.check_all(load_projects())
+    print(doctor.render(results))
+    return 0 if all(result.ok for result in results) else 1
+
+
 def cmd_dispatch(args: argparse.Namespace) -> int:
     from pablo import dispatch
 
@@ -303,6 +311,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="actually sync (default is a dry-run unless sync.auto_apply is set)",
     )
     p_sync.set_defaults(func=cmd_sync)
+
+    p_doctor = sub.add_parser("doctor", help="check required CLIs are installed and authenticated")
+    p_doctor.set_defaults(func=cmd_doctor)
 
     p_dispatch = sub.add_parser(
         "dispatch", help="cron entry point: run due sync/poll jobs for all projects"

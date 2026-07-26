@@ -163,9 +163,10 @@ project config, and none should be added. If a CLI isn't authenticated,
 surface that CLI's own error/instructions rather than inventing a token
 mechanism.
 
-**CLI preflight check script.** PABLO includes a **bash script** (e.g.
-`bin/check-clis.sh`, also exposed as something like `/pablo-doctor`) that
-verifies all required CLIs are ready before anything relies on them:
+**CLI preflight check.** PABLO includes a **Python module**
+(`src/pablo/doctor.py`, exposed as `pablo doctor` and `/pablo-doctor` —
+not a bash script; decided 2026-07-26) that verifies all required CLIs are
+ready before anything relies on them:
 
 - First, determine which CLIs are actually **required by the configured
   projects**: scan `projects/*.yaml` (skipping `default.yaml`) and collect
@@ -178,7 +179,7 @@ verifies all required CLIs are ready before anything relies on them:
   equivalent, etc. — use each CLI's own status/whoami command).
 - Output a clear per-CLI pass/fail summary, with the CLI's own login
   instructions on failure, and exit non-zero if anything required is
-  missing — so the script is usable both by me interactively and as a
+  missing — so the check is usable both by me interactively and as a
   guard at the start of the background jobs (a cron run that's missing an
   authenticated CLI should fail fast with a clear message, not half-run).
 
