@@ -16,16 +16,24 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 
+from pablo import mcpclient
 from pablo.config import ProjectConfig
 
 # cli name → (probe argv, login hint shown on failure)
 CLI_PROBES: dict[str, tuple[list[str], str]] = {
     "gh": (["gh", "auth", "status"], "run: gh auth login"),
-    "jira": (["jira", "me"], "run: jira init (see ankitpokhrel/jira-cli docs)"),
     "linear": (["linear", "auth", "status"], "run: linear auth login (schpet/linear-cli)"),
     "orca": (["orca", "status"], "start the Orca app, or run: orca open"),
     "opencode": (["opencode", "--version"], "install opencode: https://opencode.ai"),
 }
+
+# Jira goes through the Atlassian MCP (spec amendment 2026-07-26), so its
+# check is an MCP reachability/auth check, not a CLI probe.
+JIRA_MCP_CHECK = "jira-mcp"
+JIRA_MCP_AUTH_HINT = (
+    f"run once: npx -y mcp-remote {mcpclient.ATLASSIAN_MCP_URL} "
+    "(completes the Atlassian browser login; tokens cached by mcp-remote)"
+)
 
 ALWAYS_REQUIRED = ["gh", "opencode", "orca"]
 
@@ -46,8 +54,10 @@ class CheckResult:
 def required_clis(projects: dict[str, ProjectConfig]) -> list[str]:
     required = set(ALWAYS_REQUIRED)
     for cfg in projects.values():
-        if cfg.provider in ("jira", "linear"):
-            required.add(cfg.provider)
+        if cfg.provider == "jira":
+            required.add(JIRA_MCP_CHECK)
+        elif cfg.provider == "linear":
+            required.add("linear")
     return sorted(required)
 
 
@@ -69,9 +79,60 @@ def _probe(argv: list[str]) -> tuple[int, str]:
     return proc.returncode, output
 
 
+def _mcp_userinfo() -> dict:
+    """Module-level for test patching; only reached with cached auth."""
+    from pablo.providers.jira import call
+
+    return call("atlassianUserInfo", {})
+
+
+def _check_jira_mcp() -> CheckResult:
+    if shutil.which("npx") is None:
+        return CheckResult(
+            cli=JIRA_MCP_CHECK,
+            installed=False,
+            authenticated=False,
+            detail="npx is not installed (it runs the mcp-remote bridge)",
+            hint="install Node.js (provides npx)",
+        )
+    # Never spawn the bridge without cached auth: it would start the OAuth
+    # browser flow — a hang under the systemd timer. Fail fast instead.
+    if not mcpclient.auth_cache_present():
+        return CheckResult(
+            cli=JIRA_MCP_CHECK,
+            installed=True,
+            authenticated=False,
+            detail="no cached Atlassian MCP auth (~/.mcp-auth)",
+            hint=JIRA_MCP_AUTH_HINT,
+        )
+    try:
+        info = _mcp_userinfo()
+    except Exception as exc:
+        return CheckResult(
+            cli=JIRA_MCP_CHECK,
+            installed=True,
+            authenticated=False,
+            detail=str(exc).splitlines()[0],
+            hint=JIRA_MCP_AUTH_HINT,
+        )
+    account = ""
+    if isinstance(info, dict):
+        account = info.get("email") or info.get("name") or ""
+    return CheckResult(
+        cli=JIRA_MCP_CHECK,
+        installed=True,
+        authenticated=True,
+        detail=f"atlassian mcp authenticated{f' as {account}' if account else ''}",
+        hint="",
+    )
+
+
 def check_all(projects: dict[str, ProjectConfig]) -> list[CheckResult]:
     results = []
     for cli_name in required_clis(projects):
+        if cli_name == JIRA_MCP_CHECK:
+            results.append(_check_jira_mcp())
+            continue
         probe_argv, hint = CLI_PROBES[cli_name]
         if shutil.which(cli_name) is None:
             results.append(
