@@ -151,6 +151,36 @@ def cmd_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_issues(args: argparse.Namespace) -> int:
+    from pablo import listing
+
+    projects = load_projects()
+    if args.project and args.project not in projects:
+        return _fail(
+            f"unknown project {args.project!r}; configured projects: "
+            + ", ".join(sorted(projects))
+        )
+    store = Store()
+    selected = {args.project: projects[args.project]} if args.project else projects
+    for name, cfg in selected.items():
+        print(f"# {name}")
+        print(listing.issues_table(cfg, store))
+    return 0
+
+
+def cmd_tasks(args: argparse.Namespace) -> int:
+    from pablo import listing
+
+    print(listing.tasks_table(load_projects(), Store()))
+    return 0
+
+
+def cmd_projects(args: argparse.Namespace) -> int:
+    for name, cfg in sorted(load_projects().items()):
+        print(f"{name}\t{cfg.type}\t{cfg.provider}\t{cfg.repo_path}")
+    return 0
+
+
 def cmd_doctor(args: argparse.Namespace) -> int:
     from pablo import doctor
 
@@ -311,6 +341,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="actually sync (default is a dry-run unless sync.auto_apply is set)",
     )
     p_sync.set_defaults(func=cmd_sync)
+
+    p_issues = sub.add_parser("issues", help="issues assigned to me, per project")
+    p_issues.add_argument("project", nargs="?", help="limit to one project")
+    p_issues.set_defaults(func=cmd_issues)
+
+    p_tasks = sub.add_parser("tasks", help="active task worktrees and their states")
+    p_tasks.set_defaults(func=cmd_tasks)
+
+    p_projects = sub.add_parser("projects", help="list configured projects")
+    p_projects.set_defaults(func=cmd_projects)
 
     p_doctor = sub.add_parser("doctor", help="check required CLIs are installed and authenticated")
     p_doctor.set_defaults(func=cmd_doctor)

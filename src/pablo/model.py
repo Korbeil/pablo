@@ -45,6 +45,7 @@ class Issue:
     url: str
     title: str
     project_key: str | None = None
+    status: str | None = None  # the tracker's own status, e.g. "In Progress"
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -53,6 +54,7 @@ class Issue:
             "url": self.url,
             "title": self.title,
             "project_key": self.project_key,
+            "status": self.status,
         }
 
     @classmethod
@@ -63,6 +65,7 @@ class Issue:
             url=data["url"],
             title=data["title"],
             project_key=data.get("project_key"),
+            status=data.get("status"),
         )
 
 
