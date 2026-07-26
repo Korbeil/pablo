@@ -41,6 +41,42 @@ def test_timeout_kills_child(monkeypatch):
     assert client._proc.poll() is not None  # child was killed
 
 
+def make_fake_node_tree(tmp_path, versions):
+    for version in versions:
+        bin_dir = tmp_path / ".nvm" / "versions" / "node" / f"v{version}" / "bin"
+        bin_dir.mkdir(parents=True)
+        (bin_dir / "npx").write_text("#!/bin/sh\n")
+        (bin_dir / "npx").chmod(0o755)
+        (bin_dir / "node").write_text(f"#!/bin/sh\necho v{version}\n")
+        (bin_dir / "node").chmod(0o755)
+
+
+def test_npx_prefers_newest_node(tmp_path, monkeypatch):
+    make_fake_node_tree(tmp_path, ["16.17.1", "24.14.1"])
+    monkeypatch.setattr(mcpclient.Path, "home", classmethod(lambda cls: tmp_path))
+    # PATH resolution finds the old one (as under the systemd user manager)
+    old_npx = tmp_path / ".nvm/versions/node/v16.17.1/bin/npx"
+    monkeypatch.setattr(mcpclient.shutil, "which", lambda name: str(old_npx))
+    assert "v24.14.1" in mcpclient.npx_path()
+
+
+def test_npx_rejects_node_too_old(tmp_path, monkeypatch):
+    make_fake_node_tree(tmp_path, ["16.17.1"])
+    monkeypatch.setattr(mcpclient.Path, "home", classmethod(lambda cls: tmp_path))
+    old_npx = tmp_path / ".nvm/versions/node/v16.17.1/bin/npx"
+    monkeypatch.setattr(mcpclient.shutil, "which", lambda name: str(old_npx))
+    with pytest.raises(PabloError, match="18"):
+        mcpclient.npx_path()
+
+
+def test_early_exit_surfaces_stderr(monkeypatch):
+    client = McpClient(
+        argv=["sh", "-c", "echo 'SyntaxError: nope' >&2; exit 1"], timeout_s=5
+    )
+    with pytest.raises(PabloError, match="SyntaxError"):
+        client.__enter__()
+
+
 def test_auth_cache_present_globs_tokens(tmp_path, monkeypatch):
     monkeypatch.setattr(mcpclient.Path, "home", classmethod(lambda cls: tmp_path))
     assert auth_cache_present() is False

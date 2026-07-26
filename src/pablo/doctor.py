@@ -87,13 +87,15 @@ def _mcp_userinfo() -> dict:
 
 
 def _check_jira_mcp() -> CheckResult:
-    if shutil.which("npx") is None:
+    try:
+        mcpclient.npx_path()  # PATH or nvm installs, newest Node, >= 18
+    except Exception as exc:
         return CheckResult(
             cli=JIRA_MCP_CHECK,
             installed=False,
             authenticated=False,
-            detail="npx is not installed (it runs the mcp-remote bridge)",
-            hint="install Node.js (provides npx)",
+            detail=str(exc),
+            hint="install Node.js >= 18 (provides npx, which runs the mcp-remote bridge)",
         )
     # Never spawn the bridge without cached auth: it would start the OAuth
     # browser flow — a hang under the systemd timer. Fail fast instead.
