@@ -151,6 +151,25 @@ def cmd_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_poll(args: argparse.Namespace) -> int:
+    from pablo import poller
+
+    projects = load_projects()
+    if args.project:
+        if args.project not in projects:
+            return _fail(
+                f"unknown project {args.project!r}; configured projects: "
+                + ", ".join(sorted(projects))
+            )
+        projects = {args.project: projects[args.project]}
+    store = Store()
+    for name, cfg in projects.items():
+        events = poller.poll_project(cfg, store)
+        for event in events:
+            print(f"[{name}] {event}")
+    return 0
+
+
 # ------------------------------------------------- cwd-resolved commands ---
 
 
@@ -278,6 +297,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="actually sync (default is a dry-run unless sync.auto_apply is set)",
     )
     p_sync.set_defaults(func=cmd_sync)
+
+    p_poll = sub.add_parser("poll", help="run the task-state polling once")
+    p_poll.add_argument("project", nargs="?", help="limit to one project")
+    p_poll.set_defaults(func=cmd_poll)
 
     p_state = sub.add_parser("state", help="force the current task to a state")
     p_state.add_argument("state", help="target state")
