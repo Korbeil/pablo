@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import select
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -27,10 +29,50 @@ from pablo import PabloError
 ATLASSIAN_MCP_URL = "https://mcp.atlassian.com/v1/mcp"
 MCP_CALL_TIMEOUT_S = 60
 PROTOCOL_VERSION = "2024-11-05"
+MIN_NODE_MAJOR = 18  # mcp-remote requirement
+
+
+def _node_major(node: Path) -> int:
+    try:
+        out = subprocess.run(
+            [str(node), "--version"], capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+        match = re.match(r"v(\d+)", out)
+        return int(match.group(1)) if match else -1
+    except Exception:
+        return -1
+
+
+def npx_path() -> str:
+    """The npx of the newest available Node.
+
+    PATH alone is not enough: the systemd user manager's PATH can point at
+    an older nvm Node (observed: v16 under the timer vs v24 in shells),
+    and mcp-remote needs Node >= 18 — so scan nvm installs too and pick
+    the newest.
+    """
+    candidates: list[Path] = []
+    which = shutil.which("npx")
+    if which:
+        candidates.append(Path(which))
+    candidates.extend(sorted(Path.home().glob(".nvm/versions/node/*/bin/npx")))
+    best: Path | None = None
+    best_major = -1
+    for npx in candidates:
+        major = _node_major(npx.parent / "node")
+        if major > best_major:
+            best, best_major = npx, major
+    if best is None:
+        raise PabloError("npx not found — install Node.js (it runs the mcp-remote bridge)")
+    if best_major < MIN_NODE_MAJOR:
+        raise PabloError(
+            f"newest Node found is v{best_major}, but mcp-remote needs >= {MIN_NODE_MAJOR}"
+        )
+    return str(best)
 
 
 def default_argv() -> list[str]:
-    return ["npx", "-y", "mcp-remote", ATLASSIAN_MCP_URL]
+    return [npx_path(), "-y", "mcp-remote", ATLASSIAN_MCP_URL]
 
 
 def auth_cache_present() -> bool:
@@ -73,6 +115,10 @@ class McpClient:
                 continue
             line = fd.readline()
             if not line:
+                try:
+                    self._proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    self._kill()
                 raise PabloError(
                     f"jira mcp bridge exited unexpectedly{self._stderr_tail()}"
                 )
@@ -90,7 +136,8 @@ class McpClient:
         if self._proc is None or self._proc.stderr is None:
             return ""
         try:
-            os.set_blocking(self._proc.stderr.fileno(), False)
+            if self._proc.poll() is None:
+                os.set_blocking(self._proc.stderr.fileno(), False)
             tail = self._proc.stderr.read() or ""
         except Exception:
             return ""
@@ -105,6 +152,12 @@ class McpClient:
     # ----------------------------------------------------------- session --
 
     def __enter__(self) -> "McpClient":
+        env = os.environ.copy()
+        # npx's shebang is `#!/usr/bin/env node`: the chosen Node must be
+        # first in the child's PATH or an older PATH node would run it.
+        bin_dir = str(Path(self.argv[0]).parent)
+        if bin_dir not in ("", "."):
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
         try:
             self._proc = subprocess.Popen(
                 self.argv,
@@ -112,6 +165,7 @@ class McpClient:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                env=env,
             )
         except FileNotFoundError:
             raise PabloError(

@@ -114,12 +114,20 @@ def test_jira_mcp_bridge_failure_reported(tmp_path, monkeypatch):
     assert "timed out" in check.detail
 
 
-def test_jira_mcp_requires_npx(tmp_path, monkeypatch):
+def test_jira_mcp_requires_usable_node(tmp_path, monkeypatch):
+    from pablo import PabloError
+
     monkeypatch.setattr(doctor.shutil, "which", lambda cli_name: None)
+
+    def no_node():
+        raise PabloError("newest Node found is v16, but mcp-remote needs >= 18")
+
+    monkeypatch.setattr(doctor.mcpclient, "npx_path", no_node)
     results = doctor.check_all({"a": make_cfg(tmp_path, "a", "jira")})
     check = next(r for r in results if r.cli == "jira-mcp")
     assert not check.installed
-    assert "npx" in check.detail or "Node" in check.hint
+    assert "v16" in check.detail
+    assert "Node" in check.hint
 
 
 def test_probe_timeout_reported_as_failure(tmp_path, monkeypatch):

@@ -203,8 +203,15 @@ ready, PABLO surfaces **its own error/instructions** verbatim.
     — completes the Atlassian browser login; tokens are cached by the
     bridge under `~/.mcp-auth/` (PABLO stores nothing). Re-run the same
     command if Atlassian ever revokes the grant.
+  - **Node resolution**: mcp-remote needs Node ≥ 18, but the systemd user
+    manager's PATH can point at an older nvm Node (observed: v16 under
+    the timer vs v24 in shells). `mcpclient.npx_path()` therefore scans
+    PATH *and* `~/.nvm/versions/node/*` and runs the newest Node, also
+    prepending its bin dir to the child PATH (npx's `env node` shebang).
   - failure signal: changelog transition timestamps when `getJiraIssue`
-    responses carry a changelog; otherwise the poller's
+    responses carry a changelog (**probed live 2026-07-26: they don't** —
+    top-level keys are expand/fields/id/key/self — so the fallback below
+    is the active path); otherwise the poller's
     **observed-transition fallback** — it records
     `last_seen_issue_status` on the task each poll, and the issue
     *entering* `testing.failure_signal` between two polls counts as one
