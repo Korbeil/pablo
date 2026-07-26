@@ -17,9 +17,8 @@ import re
 from datetime import datetime
 from typing import Any
 
-from pablo import PabloError
+from pablo import PabloError, mcpclient
 from pablo.config import ProjectConfig
-from pablo.mcpclient import McpClient
 from pablo.model import Issue, Task
 from pablo.providers import parse_ts
 
@@ -27,9 +26,9 @@ _BROWSE_RE = re.compile(r"https?://[^/]+/browse/([A-Z][A-Z0-9]*-\d+)")
 
 
 def call(tool: str, args: dict) -> Any:
-    """One MCP tool call per bridge session. Module-level for test patching."""
-    with McpClient() as client:
-        return client.call_tool(tool, args)
+    """One MCP tool call, retried on transient connection failures.
+    Module-level for test patching."""
+    return mcpclient.call_tool_with_retry(tool, args)
 
 
 class JiraProvider:

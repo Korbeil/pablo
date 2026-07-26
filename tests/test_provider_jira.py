@@ -181,3 +181,17 @@ def test_failure_signal_empty_without_changelog(provider, tmp_path, monkeypatch)
 
 def test_signal_via_status_flag(provider):
     assert provider.signal_via_status is True
+
+
+def test_call_delegates_to_retry_helper(monkeypatch):
+    from pablo import mcpclient
+
+    calls = []
+
+    def fake_retry(tool, args, **kwargs):
+        calls.append((tool, args))
+        return {"stubbed": True}
+
+    monkeypatch.setattr(mcpclient, "call_tool_with_retry", fake_retry)
+    assert jira_mod.call("x", {"a": 1}) == {"stubbed": True}
+    assert calls == [("x", {"a": 1})]
