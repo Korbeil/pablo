@@ -169,13 +169,14 @@ skill-loading surface on top wasn't worth it, especially stacked on an
 already-working OpenCode/Orca agent ecosystem. (Kept here so the
 reasoning isn't re-litigated without cause.)
 
-## Provider access: CLI-first, no tokens
+## Provider access: CLI-first, no tokens (Jira via MCP)
 
-Everywhere PABLO talks to an external service it uses that service's CLI —
-no MCP servers, no raw API calls, no stored tokens anywhere (there is no
-secrets section in the config and none should be added). Each CLI manages
-its own authentication; when one isn't ready, PABLO surfaces **that CLI's
-own error/instructions** verbatim.
+PABLO talks to external services through each service's CLI — with one
+deliberate exception, **Jira, which goes through the Atlassian MCP
+server** (spec amended 2026-07-26). No raw API calls, no stored tokens
+anywhere (there is no secrets section in the config and none should be
+added). Each CLI/bridge manages its own authentication; when one isn't
+ready, PABLO surfaces **its own error/instructions** verbatim.
 
 - **GitHub — `gh`** (always required; every project's PR/CI flow goes
   through GitHub regardless of tracker):
@@ -189,10 +190,28 @@ own error/instructions** verbatim.
   - failure-signal labels: `gh api repos/<o>/<r>/issues/<pr>/events --paginate`
     (`labeled` events)
   - auth check: `gh auth status`
-- **Jira — `jira`** ([ankitpokhrel/jira-cli](https://github.com/ankitpokhrel/jira-cli)):
-  `jira issue view <KEY> --raw` (fields + changelog), `jira issue list
-  --project <KEY> --assignee <id> --raw`; failure signal = changelog
-  transitions into `testing.failure_signal`; auth check: `jira me`.
+- **Jira — Atlassian MCP** (`https://mcp.atlassian.com/v1/mcp`, reached
+  via the [`mcp-remote`](https://www.npmjs.com/package/mcp-remote) stdio
+  bridge; client in `src/pablo/mcpclient.py`):
+  - tools used: `getAccessibleAtlassianResources` (cloud id — matched
+    against the optional `issue_tracker.site` config, e.g.
+    `acme.atlassian.net`; without it, the account's first site),
+    `getJiraIssue`, `searchJiraIssuesUsingJql`
+    (`project = <KEY> AND assignee = currentUser()`), `atlassianUserInfo`
+    (doctor).
+  - **one-time auth**: `npx -y mcp-remote https://mcp.atlassian.com/v1/mcp`
+    — completes the Atlassian browser login; tokens are cached by the
+    bridge under `~/.mcp-auth/` (PABLO stores nothing). Re-run the same
+    command if Atlassian ever revokes the grant.
+  - failure signal: changelog transition timestamps when `getJiraIssue`
+    responses carry a changelog; otherwise the poller's
+    **observed-transition fallback** — it records
+    `last_seen_issue_status` on the task each poll, and the issue
+    *entering* `testing.failure_signal` between two polls counts as one
+    event (stamped at observation time; granularity =
+    `state_polling.interval_minutes`; seeded at `needs-testing` entry so
+    a stale status never fires). Interactive agents use the session's
+    Atlassian MCP tools directly.
 - **Linear — `linear`** ([schpet/linear-cli](https://github.com/schpet/linear-cli),
   the chosen Linear CLI): `linear issue view <KEY> --json`,
   `linear issue list --assignee <id> --json`; failure signal = history
@@ -207,12 +226,16 @@ own error/instructions** verbatim.
 A **Python** check (`src/pablo/doctor.py`; the spec originally said bash
 and was amended 2026-07-26). Required set is derived from the configured
 projects: `gh`, `opencode`, `orca` always (`opencode`/`orca` are PABLO
-additions to the spec's set — the agent-runner path needs them); `jira` /
-`linear` only when some project uses that provider. Each CLI is checked
-for **installed** (PATH) and **authenticated/ready** (its own
-status/whoami command), with a per-CLI ✅/❌ line, the CLI's own login
-instructions on failure, and a non-zero exit — the dispatcher runs the
-same check as its fail-fast guard. Probes are capped at 30s (`orca` has
+additions to the spec's set — the agent-runner path needs them);
+**`jira-mcp`** / `linear` only when some project uses that provider. CLIs
+are checked for **installed** (PATH) and **authenticated/ready** (their
+own status/whoami command). The `jira-mcp` check verifies `npx` exists,
+then **fails fast if `~/.mcp-auth` has no cached tokens** (it never
+spawns the bridge un-authenticated — that would open a browser / hang
+under systemd; the ❌ line carries the one-time auth command), and only
+then calls `atlassianUserInfo` through the bridge. Per-check ✅/❌ lines,
+non-zero exit — the dispatcher runs the same check as its fail-fast
+guard. Probes are capped at 30s (`orca` has
 been observed hanging when invoked outside an interactive session), and
 in the **dispatcher** preflight an `orca` failure is soft — a warning,
 not an abort — because agent runs fall back to headless `opencode run`;
@@ -234,9 +257,12 @@ worktrees_root: ~/dev/wallet-kit-worktrees
                              # optional; default ~/.pablo/worktrees/<repo-dir-name>/
 issue_tracker:
   provider: github           # github | jira | linear (required)
-  identity: bfontaine        # account used to filter "assigned to me" (required)
+  identity: bfontaine        # account used to filter "assigned to me" (required;
+                             # informational for jira — the MCP uses currentUser())
   project_key: WK            # required. Jira/Linear: the issue key prefix.
                              # GitHub: used as the branch prefix (no native key).
+  site: acme.atlassian.net   # jira only, optional: which Atlassian site's
+                             # cloudId to use; default = the account's first site
 sync:
   strategy: rebase           # rebase | merge
   auto_apply: false          # false → cron sync is dry-run/report-only
@@ -475,6 +501,7 @@ A task record holds: `project`, `branch`, `worktree_path`, `state`,
 `state_entered_at`, `issue` (provider/key/url/title/status; `null` for
 prompt tasks), `summary` + `prompt` (prompt tasks), `state_before_waiting`,
 `task_analyst_ran`, `needs_testing_entered_at`, `last_handled_signal_at`,
+`last_seen_issue_status` (observed-transition fallback baseline),
 `pr_number`, `merged`, `created_at`, `updated_at` — UTC ISO-8601
 timestamps, atomic writes (tmp + rename).
 
