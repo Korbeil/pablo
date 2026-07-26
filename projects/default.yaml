@@ -8,3 +8,5 @@ state_polling:
   interval_minutes: 10
 review:
   bot_whitelist: []
+ci:
+  ignore_checks: []

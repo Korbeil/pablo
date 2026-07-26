@@ -25,6 +25,7 @@ def make_cfg(repos: RepoPair, tmp_path: Path, auto_apply: bool = False) -> Proje
         poll_interval=10,
         failure_signal=None,
         bot_whitelist=[],
+        ci_ignore_checks=[],
     )
 
 

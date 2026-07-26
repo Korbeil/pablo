@@ -59,15 +59,37 @@ def pr_for_branch(repo_slug: str, branch: str) -> PrInfo | None:
     )
 
 
-def evaluate_ci(rollup: list[dict]) -> str:
+def _is_ignored(check: dict, ignore_checks: list[str]) -> bool:
+    """Match a check's name (CheckRun) or context (StatusContext) against
+    ``ignore_checks`` substrings, case-insensitively.
+
+    Used to exclude manual-gate checks (e.g. a CircleCI approval job nobody
+    will click) from CI evaluation — they sit at ``state: PENDING``
+    indefinitely (as a StatusContext) or ``conclusion: action_required``
+    (as a CheckRun), neither of which ever resolves on its own and would
+    otherwise leave the PR stuck pending/red forever.
+    """
+    if not ignore_checks:
+        return False
+    name = (check.get("name") or check.get("workflowName") or check.get("context") or "").lower()
+    return any(marker.lower() in name for marker in ignore_checks)
+
+
+def evaluate_ci(rollup: list[dict], ignore_checks: list[str] | None = None) -> str:
     """"green" | "red" | "pending" from a statusCheckRollup list.
 
     Handles both CheckRun entries (status/conclusion) and StatusContext
     entries (state). No checks at all counts as green — otherwise a project
-    without CI could never leave draft.
+    without CI could never leave draft. ``ignore_checks`` (from
+    ``ci.ignore_checks``) excludes checks whose name/context matches one of
+    the given substrings, e.g. a CircleCI approval gate stuck pending
+    forever because nobody will click approve.
     """
+    ignore_checks = ignore_checks or []
     pending = False
     for check in rollup:
+        if _is_ignored(check, ignore_checks):
+            continue
         if "state" in check:  # StatusContext
             state = check["state"]
             if state in {"FAILURE", "ERROR"}:
@@ -85,12 +107,12 @@ def evaluate_ci(rollup: list[dict]) -> str:
     return "pending" if pending else "green"
 
 
-def ci_status(repo_slug: str, pr_number: int) -> str:
+def ci_status(repo_slug: str, pr_number: int, ignore_checks: list[str] | None = None) -> str:
     out = run_cli(
         ["gh", "pr", "view", str(pr_number), "--repo", repo_slug,
          "--json", "statusCheckRollup"]
     )
-    return evaluate_ci(json.loads(out).get("statusCheckRollup") or [])
+    return evaluate_ci(json.loads(out).get("statusCheckRollup") or [], ignore_checks)
 
 
 _TIMELINE_QUERY = """

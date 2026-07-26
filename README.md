@@ -315,15 +315,20 @@ testing:
 review:
   bot_whitelist: []          # bot accounts whose PR reviews count anyway,
                              # e.g. ["copilot-pull-request-reviewer[bot]"]
+ci:
+  ignore_checks: []          # substrings matched against a check's name/workflow/context
+                             # to exclude it from CI evaluation, e.g. ["approval"] for a
+                             # CircleCI manual-approval gate that nobody will click and
+                             # therefore sits pending (or action_required) forever
 ```
 
 **Default-eligible keys** (fall back per key to `projects/default.yaml`
 when a project omits them — a project can override just one and inherit
 the rest): `sync.strategy`, `sync.auto_apply`, `sync.interval_minutes`,
-`state_polling.interval_minutes`, `review.bot_whitelist`. Shipped
-defaults: `rebase`, `false`, `30`, `10`, `[]`. New keys added later
-should follow the same pattern unless they have no sensible global
-default (like `issue_tracker`).
+`state_polling.interval_minutes`, `review.bot_whitelist`,
+`ci.ignore_checks`. Shipped defaults: `rebase`, `false`, `30`, `10`, `[]`,
+`[]`. New keys added later should follow the same pattern unless they
+have no sensible global default (like `issue_tracker`).
 
 ## Branch naming convention
 

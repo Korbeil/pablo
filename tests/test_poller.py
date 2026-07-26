@@ -35,6 +35,7 @@ def make_cfg(tmp_path: Path) -> ProjectConfig:
         poll_interval=10,
         failure_signal="qa-failed",
         bot_whitelist=[],
+        ci_ignore_checks=[],
     )
 
 
@@ -64,7 +65,9 @@ def env(tmp_path, monkeypatch):
     from pablo import states
 
     monkeypatch.setattr(states, "_repo_slug", lambda cfg: "acme/proj")
-    monkeypatch.setattr(ghpr, "ci_status", lambda slug, pr: stubs["ci"])
+    monkeypatch.setattr(
+        ghpr, "ci_status", lambda slug, pr, ignore_checks=None: stubs["ci"]
+    )
     monkeypatch.setattr(ghpr, "is_merged", lambda slug, pr: stubs["merged"])
     monkeypatch.setattr(ghpr, "mark_ready", lambda slug, pr: None)
     monkeypatch.setattr(ghpr, "mark_draft", lambda slug, pr: None)

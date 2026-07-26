@@ -24,6 +24,7 @@ def make_cfg(tmp_path: Path, name: str = "wallet-kit") -> ProjectConfig:
         poll_interval=10,
         failure_signal=None,
         bot_whitelist=[],
+        ci_ignore_checks=[],
     )
 
 

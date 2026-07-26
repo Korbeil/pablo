@@ -25,6 +25,7 @@ def cfg(tmp_path: Path, site: str | None = "acme.atlassian.net") -> ProjectConfi
         poll_interval=10,
         failure_signal="A FIX",
         bot_whitelist=[],
+        ci_ignore_checks=[],
         site=site,
     )
 

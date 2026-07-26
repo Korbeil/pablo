@@ -14,6 +14,8 @@ state_polling:
   interval_minutes: 10
 review:
   bot_whitelist: []
+ci:
+  ignore_checks: []
 """
 
 FULL_PROJECT = """\
@@ -37,6 +39,8 @@ testing:
   failure_signal: qa-failed
 review:
   bot_whitelist: ["copilot-pull-request-reviewer[bot]"]
+ci:
+  ignore_checks: ["approval"]
 """
 
 MINIMAL_PROJECT = """\
@@ -76,6 +80,7 @@ def test_per_key_merge(projects_dir: Path):
     assert cfg.sync_auto_apply is False    # from defaults
     assert cfg.poll_interval == 10         # from defaults
     assert cfg.bot_whitelist == []         # from defaults
+    assert cfg.ci_ignore_checks == []      # from defaults
 
 
 def test_project_value_wins(projects_dir: Path):
@@ -86,6 +91,7 @@ def test_project_value_wins(projects_dir: Path):
     assert cfg.sync_interval == 5
     assert cfg.poll_interval == 2
     assert cfg.bot_whitelist == ["copilot-pull-request-reviewer[bot]"]
+    assert cfg.ci_ignore_checks == ["approval"]
     assert cfg.failure_signal == "qa-failed"
     assert cfg.worktrees_root == Path("~/dev/wallet-kit-worktrees").expanduser()
     assert cfg.repo_path == Path("~/dev/wallet-kit").expanduser()
