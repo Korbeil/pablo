@@ -1,4 +1,4 @@
-name: pim
+name: acme-pim
 type: work
 repo:
   path: ~/Sites/acme/pim
@@ -7,6 +7,7 @@ issue_tracker:
   provider: jira
   identity: baptiste@example.com
   project_key: XXX
+  site: acme.atlassian.net   # Atlassian site for the MCP cloudId
 testing:
   failure_signal: "A FIX"   # Jira status watched on the linked issue
 # worktrees_root omitted -> ~/.pablo/worktrees/pim/
