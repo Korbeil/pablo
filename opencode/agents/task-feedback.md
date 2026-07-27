@@ -16,19 +16,10 @@ description: >-
 mode: primary
 model: opencode-go/deepseek-v4-flash
 temperature: 0.2
-tools:
-  read: true
-  grep: true
-  glob: true
-  list: true
-  webfetch: true
-  bash: true
-  edit: false
-  write: false
-  "github*": false
 permission:
   edit: deny
   write: deny
+  "github*": deny
   read: allow
   grep: allow
   glob: allow
