@@ -47,6 +47,32 @@ agents and advancing the task's state automatically. See
 [docs/state-machine.md](docs/state-machine.md) for the full flow and
 [docs/agents-commands.md](docs/agents-commands.md) for every command.
 
+## Example workflow
+
+A task's life from issue to merge, alternating what you do and what
+PABLO does in the background:
+
+1. `/pablo-start https://acme.atlassian.net/browse/XXX-123` — the task
+   starts: worktree and branch created, a **task-analyst** agent launches.
+2. `/pablo-tasks` — check that it's running.
+3. The task-analyst agent finishes. Open it in Orca and read its plan.
+4. Chat with the agent in that session to fine-tune the plan.
+5. `/pablo-commit-and-pr` — commits, pushes, opens the PR as **draft**.
+6. CI runs... and turns red.
+7. PABLO notices and launches a **ci-analyst** agent to dig into the
+   failure.
+8. Read its output, chat with it to work out the fix, then
+   `/pablo-commit-and-pr` again — the PR goes back to `draft` while CI
+   reruns.
+9. CI turns green 🎉 — PABLO takes the PR out of draft
+   (`ready-to-review`).
+10. A coworker reviews your changes and approves.
+11. PABLO detects the approval and moves the task to `needs-testing` —
+    waiting on QA.
+12. QA tests it and signs off.
+13. The PR is merged. PABLO detects the merge, deletes the task's state,
+    and removes the worktree.
+
 ## Layout
 
 ```
