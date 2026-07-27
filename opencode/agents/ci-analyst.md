@@ -19,20 +19,36 @@ permission:
   list: allow
   webfetch: allow
   bash:
-    "git log*": allow
-    "git show*": allow
-    "git blame*": allow
-    "git status*": allow
-    "git diff*": allow
-    "gh pr view*": allow
-    "gh pr checks*": allow
-    "gh run view*": allow
-    "gh run list*": allow
-    "gh api repos/*": allow
+    "*": allow
+    "git commit*": deny
+    "git push*": deny
+    "git checkout*": deny
+    "git switch*": deny
+    "git merge*": deny
+    "git rebase*": deny
+    "git reset*": deny
+    "git rm*": deny
+    "git mv*": deny
+    "git stash*": deny
+    "git cherry-pick*": deny
+    "git revert*": deny
+    "git tag*": deny
+    "gh pr comment*": deny
+    "gh pr edit*": deny
+    "gh pr merge*": deny
+    "gh pr ready*": deny
+    "gh pr close*": deny
+    "gh pr review*": deny
+    "gh pr create*": deny
+    "gh run rerun*": deny
+    "gh run cancel*": deny
+    "gh issue edit*": deny
+    "gh issue close*": deny
+    "gh issue comment*": deny
+    "gh issue create*": deny
     "vendor/bin/*": deny
     "composer*": deny
     "php*": deny
-    "*": ask
 ---
 
 You are a CI-failure analyst. A PR's CI is red — your job is to figure out
