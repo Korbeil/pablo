@@ -69,6 +69,7 @@ def env(tmp_path, monkeypatch):
         ghpr, "ci_status", lambda slug, pr, ignore_checks=None: stubs["ci"]
     )
     monkeypatch.setattr(ghpr, "is_merged", lambda slug, pr: stubs["merged"])
+    monkeypatch.setattr(ghpr, "pr_for_branch", lambda slug, branch: None)
     monkeypatch.setattr(ghpr, "mark_ready", lambda slug, pr: None)
     monkeypatch.setattr(ghpr, "mark_draft", lambda slug, pr: None)
     monkeypatch.setattr(
@@ -248,7 +249,9 @@ def test_changelog_path_still_preferred(env):
     poll(env)
     task = get_task(env)
     assert task.state == TESTING_FAILED  # via changelog timestamps
-    assert env["stubs"]["status_calls"] == 0  # status path not consulted
+    # the one call is the display-cache refresh, not the failure-signal
+    # check (which prefers the changelog path and never consults status)
+    assert env["stubs"]["status_calls"] == 1
 
 
 def test_ci_red_during_needs_testing_is_accepted_gap(env):
@@ -307,3 +310,30 @@ def test_in_progress_task_untouched(env):
     set_state(env, "in-progress", pr_number=None)
     events = poll(env)
     assert get_task(env).state == "in-progress"
+
+
+def test_poll_persists_display_cache(env, monkeypatch):
+    monkeypatch.setattr(
+        ghpr, "pr_for_branch",
+        lambda slug, branch: ghpr.PrInfo(
+            number=7, title="t", state="OPEN", is_draft=True, url="u", merged_at=None
+        ),
+    )
+    env["stubs"]["issue_status"] = "In Progress"
+    env["stubs"]["sessions"] = [agents.SessionInfo(handle="a", status="running")]
+    poll(env)
+    task = get_task(env)
+    assert task.cached_tracker_status == "In Progress"
+    assert task.cached_pr_state == "📪 draft #7"
+    assert task.cached_agent_count == 1
+    assert task.cached_agent_activity == "🏃 1"
+    assert task.cached_at is not None
+
+
+def test_poll_display_cache_survives_closed_task(env):
+    """A task closed this cycle (merge, agents done) must not be re-saved
+    by the cache refresh after `_close` already deleted it."""
+    env["stubs"]["merged"] = True
+    env["stubs"]["sessions"] = []
+    poll(env)
+    assert get_task(env) is None

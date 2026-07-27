@@ -19,6 +19,8 @@ from datetime import datetime
 
 from pablo.providers import parse_ts, run_cli
 
+GH_CALL_TIMEOUT_S = 20
+
 CI_FAILURE_CONCLUSIONS = {
     "FAILURE",
     "TIMED_OUT",
@@ -43,7 +45,8 @@ def pr_for_branch(repo_slug: str, branch: str) -> PrInfo | None:
     out = run_cli(
         ["gh", "pr", "list", "--repo", repo_slug, "--head", branch,
          "--state", "all", "--json", "number,title,state,isDraft,mergedAt,url",
-         "--limit", "1"]
+         "--limit", "1"],
+        timeout=GH_CALL_TIMEOUT_S,
     )
     items = json.loads(out)
     if not items:
@@ -110,7 +113,8 @@ def evaluate_ci(rollup: list[dict], ignore_checks: list[str] | None = None) -> s
 def ci_status(repo_slug: str, pr_number: int, ignore_checks: list[str] | None = None) -> str:
     out = run_cli(
         ["gh", "pr", "view", str(pr_number), "--repo", repo_slug,
-         "--json", "statusCheckRollup"]
+         "--json", "statusCheckRollup"],
+        timeout=GH_CALL_TIMEOUT_S,
     )
     return evaluate_ci(json.loads(out).get("statusCheckRollup") or [], ignore_checks)
 
@@ -138,7 +142,8 @@ def ready_anchor(repo_slug: str, pr_number: int) -> datetime:
     out = run_cli(
         ["gh", "api", "graphql",
          "-f", f"query={_TIMELINE_QUERY}",
-         "-F", f"owner={owner}", "-F", f"repo={repo}", "-F", f"pr={pr_number}"]
+         "-F", f"owner={owner}", "-F", f"repo={repo}", "-F", f"pr={pr_number}"],
+        timeout=GH_CALL_TIMEOUT_S,
     )
     pr = json.loads(out)["data"]["repository"]["pullRequest"]
     nodes = [n for n in pr["timelineItems"]["nodes"] if n]
@@ -171,7 +176,8 @@ def fetch_reviews(repo_slug: str, pr_number: int) -> tuple[str, list[dict]]:
     out = run_cli(
         ["gh", "api", "graphql",
          "-f", f"query={_REVIEWS_QUERY}",
-         "-F", f"owner={owner}", "-F", f"repo={repo}", "-F", f"pr={pr_number}"]
+         "-F", f"owner={owner}", "-F", f"repo={repo}", "-F", f"pr={pr_number}"],
+        timeout=GH_CALL_TIMEOUT_S,
     )
     pr = json.loads(out)["data"]["repository"]["pullRequest"]
     return pr["author"]["login"], [n for n in pr["reviews"]["nodes"] if n]
@@ -213,17 +219,20 @@ def evaluate_reviews(
 
 
 def mark_ready(repo_slug: str, pr_number: int) -> None:
-    run_cli(["gh", "pr", "ready", str(pr_number), "--repo", repo_slug])
+    run_cli(["gh", "pr", "ready", str(pr_number), "--repo", repo_slug],
+            timeout=GH_CALL_TIMEOUT_S)
 
 
 def mark_draft(repo_slug: str, pr_number: int) -> None:
-    run_cli(["gh", "pr", "ready", str(pr_number), "--repo", repo_slug, "--undo"])
+    run_cli(["gh", "pr", "ready", str(pr_number), "--repo", repo_slug, "--undo"],
+            timeout=GH_CALL_TIMEOUT_S)
 
 
 def is_merged(repo_slug: str, pr_number: int) -> bool:
     out = run_cli(
         ["gh", "pr", "view", str(pr_number), "--repo", repo_slug,
-         "--json", "state,mergedAt"]
+         "--json", "state,mergedAt"],
+        timeout=GH_CALL_TIMEOUT_S,
     )
     data = json.loads(out)
     return data["state"] == "MERGED" or bool(data.get("mergedAt"))

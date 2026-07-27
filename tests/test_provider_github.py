@@ -39,7 +39,7 @@ def provider():
 def patch_cli(monkeypatch, responses: dict[str, str]):
     """Map a substring of the argv to canned stdout."""
 
-    def fake_run_cli(argv, *, check=True):
+    def fake_run_cli(argv, *, check=True, timeout=None):
         joined = " ".join(argv)
         for key, out in responses.items():
             if key in joined:

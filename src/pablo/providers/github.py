@@ -11,6 +11,8 @@ from pablo.gitrepo import origin_url
 from pablo.model import Issue, Task
 from pablo.providers import parse_ts, run_cli
 
+GH_CALL_TIMEOUT_S = 20
+
 _URL_RE = re.compile(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?(?:/|$)")
 _ISSUE_URL_RE = re.compile(r"https?://github\.com/([^/]+)/([^/]+)/issues/(\d+)")
 
@@ -51,7 +53,8 @@ class GithubProvider:
     def get_issue(self, ref: str, cfg: ProjectConfig) -> Issue:
         out = run_cli(
             ["gh", "issue", "view", ref, "--repo", repo_slug(cfg),
-             "--json", "number,title,state,url"]
+             "--json", "number,title,state,url"],
+            timeout=GH_CALL_TIMEOUT_S,
         )
         data = json.loads(out)
         return Issue(
@@ -67,7 +70,8 @@ class GithubProvider:
         out = run_cli(
             ["gh", "issue", "list", "--repo", repo_slug(cfg),
              "--assignee", cfg.identity, "--state", "all",
-             "--json", "number,title,state,url", "--limit", "100"]
+             "--json", "number,title,state,url", "--limit", "100"],
+            timeout=GH_CALL_TIMEOUT_S,
         )
         return [
             Issue(
@@ -83,7 +87,8 @@ class GithubProvider:
 
     def issue_status(self, key: str, cfg: ProjectConfig) -> str:
         out = run_cli(
-            ["gh", "issue", "view", key, "--repo", repo_slug(cfg), "--json", "state"]
+            ["gh", "issue", "view", key, "--repo", repo_slug(cfg), "--json", "state"],
+            timeout=GH_CALL_TIMEOUT_S,
         )
         state = json.loads(out)["state"]
         return _STATUS.get(state, state)
@@ -94,7 +99,8 @@ class GithubProvider:
             return []
         out = run_cli(
             ["gh", "api", f"repos/{repo_slug(cfg)}/issues/{task.pr_number}/events",
-             "--paginate"]
+             "--paginate"],
+            timeout=GH_CALL_TIMEOUT_S,
         )
         stamps = [
             parse_ts(event["created_at"])

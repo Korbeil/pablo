@@ -64,6 +64,11 @@ ISSUE_WITH_CHANGELOG = {
 }
 
 
+@pytest.fixture(autouse=True)
+def _isolated_cache_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("PABLO_CACHE_DIR", str(tmp_path / "cache"))
+
+
 @pytest.fixture
 def provider(monkeypatch):
     provider = get_provider("jira")
@@ -182,6 +187,34 @@ def test_failure_signal_empty_without_changelog(provider, tmp_path, monkeypatch)
 
 def test_signal_via_status_flag(provider):
     assert provider.signal_via_status is True
+
+
+def test_cloud_id_persisted_across_provider_instances(tmp_path, monkeypatch):
+    calls = []
+    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES}, calls)
+    c = cfg(tmp_path)
+
+    get_provider("jira")._cloud_id(c)
+    assert len(calls) == 1
+
+    # A brand-new instance (as listing.py/poller.py build per call) must
+    # hit the on-disk cache instead of re-resolving via MCP.
+    assert get_provider("jira")._cloud_id(c) == "cloud-acme"
+    assert len(calls) == 1
+
+
+def test_cloud_id_disk_cache_deleted_falls_back_to_resolve(tmp_path, monkeypatch):
+    calls = []
+    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES}, calls)
+    c = cfg(tmp_path)
+    get_provider("jira")._cloud_id(c)
+    assert len(calls) == 1
+
+    from pablo.providers.jira import _cloud_id_cache_path
+
+    _cloud_id_cache_path().unlink()
+    assert get_provider("jira")._cloud_id(c) == "cloud-acme"
+    assert len(calls) == 2
 
 
 def test_call_delegates_to_retry_helper(monkeypatch):

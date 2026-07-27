@@ -156,3 +156,66 @@ def test_agent_columns(env, monkeypatch):
     )
     table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
     assert "🏃 1 · ⏳ 1" in table
+
+
+def test_cached_task_renders_without_live_calls(env, monkeypatch):
+    """A polled task (cached_* fields set) must not trigger any live
+    provider/gh/orca calls — that's the whole point of the cache."""
+
+    def boom(*a, **k):
+        raise AssertionError("must not be called when cache is populated")
+
+    monkeypatch.setattr(listing, "get_provider", lambda name: type(
+        "P", (), {"issue_status": boom}
+    )())
+    monkeypatch.setattr(ghpr, "pr_for_branch", boom)
+    monkeypatch.setattr(agents, "active_sessions", boom)
+
+    env["store"].save(
+        Task(
+            project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
+            state=NEEDS_TESTING, pr_number=7,
+            issue=Issue(provider="github", key="45", url="u", title="Fix callbacks",
+                        project_key="WK"),
+            cached_tracker_status="In Review",
+            cached_pr_state="📬 open #7",
+            cached_agent_count=2,
+            cached_agent_activity="🏃 2",
+        )
+    )
+    table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
+    assert "In Review" in table
+    assert "📬 open #7" in table
+    assert "🏃 2" in table
+
+
+def test_live_flag_bypasses_cache_without_writing_it(env):
+    task = Task(
+        project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
+        state=NEEDS_TESTING,
+        issue=Issue(provider="github", key="45", url="u", title="Fix callbacks",
+                    project_key="WK"),
+        cached_tracker_status="stale status",
+    )
+    env["store"].save(task)
+    table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"], live=True)
+    assert "In Progress" in table  # live value from FakeProvider, not the cache
+    assert "stale status" not in table
+    reloaded = env["store"].get("wallet-kit", "wk-45")
+    assert reloaded.cached_tracker_status == "stale status"  # untouched
+
+
+def test_refresh_flag_fetches_live_and_persists(env):
+    task = Task(
+        project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
+        state=NEEDS_TESTING,
+        issue=Issue(provider="github", key="45", url="u", title="Fix callbacks",
+                    project_key="WK"),
+        cached_tracker_status="stale status",
+    )
+    env["store"].save(task)
+    table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"], refresh=True)
+    assert "In Progress" in table
+    reloaded = env["store"].get("wallet-kit", "wk-45")
+    assert reloaded.cached_tracker_status == "In Progress"
+    assert reloaded.cached_at is not None
