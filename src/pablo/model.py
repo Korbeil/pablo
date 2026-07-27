@@ -1,7 +1,7 @@
 """Task and issue records, plus the canonical state-name constants.
 
-The task-record JSON contract is documented in @README.md ("Task state
-storage"). One task == one worktree created via /pablo-start.
+The task-record JSON contract is documented in @docs/state-machine.md
+("Task state storage"). One task == one worktree created via /pablo-start.
 """
 
 from __future__ import annotations

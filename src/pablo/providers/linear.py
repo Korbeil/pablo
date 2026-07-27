@@ -1,6 +1,6 @@
 """Linear provider, backed by schpet's ``linear`` CLI.
 
-Exact subcommands used (documented in @README.md; the CLI was chosen but not
+Exact subcommands used (documented in @docs/providers.md; the CLI was chosen but not
 yet installed on this machine — verify these against ``linear --help`` on
 first install and adjust here if they differ):
 - ``linear issue view <KEY> --json``

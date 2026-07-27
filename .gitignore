@@ -4,3 +4,7 @@ dist/
 .venv/
 *.swp
 *.pyc
+
+# Project configs are per-machine/personal; only the shared defaults are committed.
+projects/*.yaml
+!projects/default.yaml
