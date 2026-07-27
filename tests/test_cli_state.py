@@ -60,7 +60,7 @@ def test_state_forces_with_shared_handler(env, monkeypatch, capsys):
     monkeypatch.setattr(agents, "spawn_watcher", lambda *a, **k: None)
     rc = cli.main(["state", REQUEST_CHANGES])
     assert rc == 0
-    assert launched == ["pr-review-planner"]
+    assert launched == ["pr-feedback"]
     assert env["store"]().get("wallet-kit", "wk-45").state == REQUEST_CHANGES
 
 

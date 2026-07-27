@@ -124,9 +124,17 @@ def _run_agent_then_draft(ctx: TaskCtx, agent: str, prompt: str) -> None:
 def _enter_request_changes(ctx: TaskCtx) -> None:
     _run_agent_then_draft(
         ctx,
-        "pr-review-planner",
+        "pr-feedback",
         f"Review feedback was left on PR #{ctx.task.pr_number}. Read the "
         f"unresolved review comments and produce your fix plan.",
+    )
+
+
+def _enter_ci_red(ctx: TaskCtx) -> None:
+    agents.launch(
+        ctx.task.worktree_path, "ci-analyst",
+        f"CI is failing on PR #{ctx.task.pr_number}. Analyze the failing "
+        f"checks and produce a fix plan.",
     )
 
 
@@ -153,7 +161,7 @@ STATES: dict[str, StateDef] = {
     IN_PROGRESS: StateDef(IN_PROGRESS, "🔨", "in-progress", _enter_in_progress, False),
     WAITING: StateDef(WAITING, "⏸️", "waiting", _enter_waiting, False),
     DRAFT: StateDef(DRAFT, "📝", "draft", None, True),
-    CI_RED: StateDef(CI_RED, "🔴", "ci-red", None, True),
+    CI_RED: StateDef(CI_RED, "🔴", "ci-red", _enter_ci_red, True),
     # Momentary pass-through: displayed as waiting-review if ever observed.
     READY_TO_REVIEW: StateDef(
         READY_TO_REVIEW, "👀", "waiting-review", _enter_ready_to_review, True

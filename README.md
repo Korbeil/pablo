@@ -127,9 +127,18 @@ commands):
   QA/testing feedback against what the branch/PR actually ships, produces
   a classified fix plan + draft reply. Auto-run on entering
   `testing-failed`.
-- `pr-review-planner` — my existing agent, invoked **by name, as-is**
-  (not copied: PABLO only runs it, its content needed no rework).
-  Auto-run on entering `request-changes`.
+- `pr-feedback` — generalization of my `pr-review-planner`: reads the
+  PR's unresolved review comments and review bodies, produces a
+  topic-grouped, actionable fix plan. Auto-run on entering
+  `request-changes`. Unlike `pr-review-planner`, this is a PABLO-owned,
+  in-repo copy (not invoked by name from `~/.config/opencode/agents/`) so
+  it can take the PR number PABLO already knows instead of re-deriving it.
+- `ci-analyst` — new agent, no external source: pulls the PR's failing CI
+  checks and their job logs (`gh pr checks`, `gh run view --log-failed`),
+  maps each failure to the responsible code, and produces a fix plan.
+  Auto-run on entering `ci-red`. Read-only and side-effect-free — unlike
+  `pr-feedback`/`task-feedback`, it never flips the PR to draft (CI
+  turning red never changes the PR's ready status on GitHub).
 
 **Commands** (explicit entry points, thin wrappers over the `pablo` CLI):
 
@@ -406,11 +415,11 @@ behavior is never duplicated.
 | `in-progress` | 🔨 in-progress | `/pablo-start` (initial) | run `task-analyst` (once per task) |
 | `waiting` | ⏸️ waiting | `/pablo-waiting` toggle | save `state_before_waiting` |
 | `draft` | 📝 draft | `/pablo-commit-and-pr` | — |
-| `ci-red` | 🔴 ci-red | poller: CI failure | — |
+| `ci-red` | 🔴 ci-red | poller: CI failure | run `ci-analyst` |
 | `ready-to-review` | 👀 waiting-review | poller: CI green | `gh pr ready`, then chain to `waiting-review` |
 | `waiting-review` | 👀 waiting-review | chained | — |
 | `needs-testing` | 🧪 needs-testing | poller: review approved | stamp the failure-signal baseline |
-| `request-changes` | 🔁 request-changes | poller: changes/comment | run `pr-review-planner`, then PR → draft |
+| `request-changes` | 🔁 request-changes | poller: changes/comment | run `pr-feedback`, then PR → draft |
 | `testing-failed` | ❌ testing-failed | poller: failure signal | run `task-feedback`, then PR → draft |
 
 (`ready-to-review` is a momentary pass-through — it renders as

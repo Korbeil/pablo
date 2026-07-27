@@ -129,6 +129,7 @@ def test_draft_to_ci_red(env):
     env["stubs"]["ci"] = "red"
     poll(env)
     assert get_task(env).state == CI_RED
+    assert env["stubs"]["launched"] == ["ci-analyst"]
 
 
 def test_draft_pending_stays(env):
@@ -150,6 +151,7 @@ def test_waiting_review_ci_red_takes_priority(env):
     env["stubs"]["verdict"] = "approved"
     poll(env)
     assert get_task(env).state == CI_RED
+    assert env["stubs"]["launched"] == ["ci-analyst"]
 
 
 def test_waiting_review_approved_to_needs_testing(env):
@@ -168,7 +170,7 @@ def test_waiting_review_changes_to_request_changes(env):
     env["stubs"]["verdict"] = "changes"
     poll(env)
     assert get_task(env).state == REQUEST_CHANGES
-    assert env["stubs"]["launched"] == ["pr-review-planner"]
+    assert env["stubs"]["launched"] == ["pr-feedback"]
 
 
 def test_needs_testing_signal_baseline_and_handled_dedupe(env):
