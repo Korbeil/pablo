@@ -179,6 +179,14 @@ def cmd_tasks(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_queue(args: argparse.Namespace) -> int:
+    from pablo import listing
+
+    rows = listing.queue_tasks(load_projects(), Store(), args.state)
+    print(json.dumps(rows, indent=2))
+    return 0
+
+
 def cmd_projects(args: argparse.Namespace) -> int:
     for name, cfg in sorted(load_projects().items()):
         print(f"{name}\t{cfg.type}\t{cfg.provider}\t{cfg.repo_path}")
@@ -362,6 +370,10 @@ def build_parser() -> argparse.ArgumentParser:
              "cache before rendering (an on-demand poll for these tasks)",
     )
     p_tasks.set_defaults(func=cmd_tasks)
+
+    p_queue = sub.add_parser("queue", help="tasks in a given state, across all projects")
+    p_queue.add_argument("state", help="target state (e.g. needs-testing, waiting-review)")
+    p_queue.set_defaults(func=cmd_queue)
 
     p_projects = sub.add_parser("projects", help="list configured projects")
     p_projects.set_defaults(func=cmd_projects)
