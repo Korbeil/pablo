@@ -9,6 +9,16 @@ description: >-
 mode: primary
 model: opencode-go/deepseek-v4-flash
 temperature: 0.2
+tools:
+  read: true
+  grep: true
+  glob: true
+  list: true
+  webfetch: true
+  bash: true
+  edit: false
+  write: false
+  "github*": false
 permission:
   edit: deny
   write: deny
@@ -31,7 +41,7 @@ permission:
     "vendor/bin/*": deny
     "composer*": deny
     "php*": deny
-    "*": deny
+    "*": ask
 ---
 
 You are a CI-failure analyst. A PR's CI is red — your job is to figure out

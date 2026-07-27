@@ -67,11 +67,18 @@ def _orca(argv: list[str]) -> dict | None:
 
 
 def launch(worktree: Path, agent: str, prompt: str) -> str:
-    """Start ``opencode run --agent <agent>`` in the worktree; returns a handle.
+    """Start an opencode agent in the worktree; returns a handle.
 
-    Handle is ``term_...`` for Orca-managed runs, ``pid:<n>`` for headless.
+    Orca path opens the interactive TUI (``opencode <wt> --agent ...
+    --prompt ...``) in an Orca terminal pane so the user can approve
+    permission prompts inline. Headless fallback (no TTY) uses
+    ``opencode run``. Handle is ``term_...`` for Orca-managed runs,
+    ``pid:<n>`` for headless.
     """
-    command = f"opencode run --agent {agent} {shlex.quote(prompt)}"
+    command = (
+        f"opencode {shlex.quote(str(worktree))} "
+        f"--agent {agent} --prompt {shlex.quote(prompt)}"
+    )
     result = _orca(
         ["terminal", "create",
          "--worktree", f"path:{worktree}",
@@ -91,6 +98,12 @@ def launch(worktree: Path, agent: str, prompt: str) -> str:
 
 
 def _launch_headless(worktree: Path, agent: str, prompt: str) -> str:
+    # No TTY here, so the interactive TUI is not an option — fall back to
+    # `opencode run`. NOTE: without --auto, any permission resolving to
+    # "ask" auto-rejects (the original bug). The Orca/TUI path is the
+    # preferred launch; this fallback only fires when Orca refuses (e.g.
+    # repo not registered in Orca). Add --auto here if you want the
+    # fallback to run autonomously.
     logs = agents_dir() / "logs"
     logs.mkdir(parents=True, exist_ok=True)
     log = open(logs / f"{int(time.time())}-{agent}.log", "ab")

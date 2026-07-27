@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from pablo import agents, cli, ghpr, gitrepo
+from pablo import states
 from pablo.config import ProjectConfig
 from pablo.model import DRAFT, IN_PROGRESS, REQUEST_CHANGES, WAITING, Issue, Task
 from pablo.store import Store
@@ -58,6 +59,8 @@ def test_state_forces_with_shared_handler(env, monkeypatch, capsys):
         agents, "launch", lambda wt, agent, prompt: launched.append(agent) or "t1"
     )
     monkeypatch.setattr(agents, "spawn_watcher", lambda *a, **k: None)
+    monkeypatch.setattr(ghpr, "mark_draft", lambda slug, pr: None)
+    monkeypatch.setattr(states, "_repo_slug", lambda cfg: "acme/wallet-kit")
     rc = cli.main(["state", REQUEST_CHANGES])
     assert rc == 0
     assert launched == ["pr-feedback"]

@@ -11,6 +11,15 @@ description: >-
 mode: primary
 model: opencode-go/deepseek-v4-flash
 temperature: 0.2
+tools:
+  read: true
+  grep: true
+  glob: true
+  list: true
+  bash: true
+  edit: false
+  write: false
+  "github*": false
 permission:
   edit: deny
   write: deny
@@ -26,12 +35,14 @@ permission:
     "git diff*": allow
     "gh pr view*": allow
     "gh pr diff*": allow
+    "gh repo view*": allow
     "gh api graphql*": allow
     "gh api repos/*": allow
+    "git remote*": allow
     "vendor/bin/*": deny
     "composer*": deny
     "php*": deny
-    "*": deny
+    "*": ask
 ---
 
 You are a PR review feedback planner. Given a pull request, you gather every
