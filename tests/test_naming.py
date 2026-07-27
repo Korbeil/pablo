@@ -14,7 +14,7 @@ def test_slug_branch_truncates_and_sanitizes():
 
 
 def test_slug_branch_short_prompt():
-    assert naming.slug_branch("XXX", "Refactor auth") == "oms-refactor-auth"
+    assert naming.slug_branch("XXX", "Refactor auth") == "xxx-refactor-auth"
 
 
 def test_slug_branch_strips_symbols():
