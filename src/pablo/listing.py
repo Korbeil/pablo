@@ -1,6 +1,6 @@
 """Terminal tables: the issue-tracking view and the active-task listing.
 
-Both are strictly read-only. Legend (documented in @README.md):
+Both are strictly read-only. Legend (documented in @docs/listings.md):
 states 🔨 in-progress · ⏸️ waiting · 📝 draft · 🔴 ci-red ·
 👀 waiting-review (also used for the momentary ready-to-review) ·
 🧪 needs-testing · 🔁 request-changes · ❌ testing-failed;
