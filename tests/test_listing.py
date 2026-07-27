@@ -2,11 +2,18 @@ from pathlib import Path
 
 import pytest
 
-from pablo import agents, ghpr, gitrepo, listing
+from pablo import PabloError, agents, ghpr, gitrepo, listing
 from pablo.agents import SessionInfo
 from pablo.config import ProjectConfig
 from pablo.ghpr import PrInfo
-from pablo.model import IN_PROGRESS, NEEDS_TESTING, READY_TO_REVIEW, Issue, Task
+from pablo.model import (
+    IN_PROGRESS,
+    NEEDS_TESTING,
+    READY_TO_REVIEW,
+    WAITING_REVIEW,
+    Issue,
+    Task,
+)
 from pablo.store import Store
 
 
@@ -106,6 +113,77 @@ def test_tasks_row_prompt_task_shows_summary_and_na(env):
     table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
     assert "fix flaky webhooks" in table
     assert "N/A" in table
+
+
+def test_queue_tasks_empty_store_returns_empty_list(env):
+    rows = listing.queue_tasks({"wallet-kit": env["cfg"]}, env["store"], NEEDS_TESTING)
+    assert rows == []
+
+
+def test_queue_tasks_unknown_state_raises(env):
+    with pytest.raises(PabloError):
+        listing.queue_tasks({"wallet-kit": env["cfg"]}, env["store"], "bogus-state")
+
+
+def test_queue_tasks_includes_matching_task_with_pr(env, monkeypatch):
+    monkeypatch.setattr(
+        ghpr, "pr_for_branch",
+        lambda slug, branch: PrInfo(
+            number=7, title="Fix callbacks", state="OPEN", is_draft=False,
+            url="https://github.com/acme/wallet-kit/pull/7", merged_at=None,
+        ),
+    )
+    task = Task(
+        project="wallet-kit",
+        branch="wk-45",
+        worktree_path=Path("/tmp/x"),
+        state=NEEDS_TESTING,
+        pr_number=7,
+        issue=Issue(provider="github", key="45", url="u", title="Fix callbacks",
+                    project_key="WK"),
+    )
+    env["store"].save(task)
+    # A task in a different state must not be picked up.
+    other = Task(
+        project="wallet-kit",
+        branch="wk-46",
+        worktree_path=Path("/tmp/y"),
+        state=WAITING_REVIEW,
+    )
+    env["store"].save(other)
+
+    rows = listing.queue_tasks({"wallet-kit": env["cfg"]}, env["store"], NEEDS_TESTING)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["project"] == "wallet-kit"
+    assert row["branch"] == "wk-45"
+    assert row["issue"]["key"] == "45"
+    assert row["pr"] == {
+        "number": 7,
+        "title": "Fix callbacks",
+        "url": "https://github.com/acme/wallet-kit/pull/7",
+        "is_draft": False,
+    }
+
+
+def test_queue_tasks_task_with_no_pr_yet(env, monkeypatch):
+    monkeypatch.setattr(ghpr, "pr_for_branch", lambda slug, branch: None)
+    task = Task(
+        project="wallet-kit",
+        branch="wk-fix-hooks",
+        worktree_path=Path("/tmp/y"),
+        state=NEEDS_TESTING,
+        summary="fix flaky webhooks",
+    )
+    env["store"].save(task)
+
+    rows = listing.queue_tasks({"wallet-kit": env["cfg"]}, env["store"], NEEDS_TESTING)
+
+    assert len(rows) == 1
+    assert rows[0]["pr"] is None
+    assert rows[0]["issue"] is None
+    assert rows[0]["summary"] == "fix flaky webhooks"
 
 
 def test_ready_to_review_rendered_as_waiting_review(env):

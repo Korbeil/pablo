@@ -15,7 +15,7 @@ from pablo import PabloError, agents, ghpr, gitrepo
 from pablo.agents import SessionInfo
 from pablo.config import ProjectConfig
 from pablo.ghpr import PrInfo
-from pablo.model import Task, utcnow
+from pablo.model import ALL_STATES, Task, utcnow
 from pablo.providers import get_provider
 from pablo.states import STATES
 from pablo.store import Store
@@ -214,3 +214,42 @@ def tasks_table(
     return _render(
         ["Task", "State", "Issue", "Tracker", "PR", "Agents", "Activity"], rows
     )
+
+
+# --------------------------------------------------------- queue export ---
+
+
+def queue_tasks(
+    projects: dict[str, ProjectConfig], store: Store, state: str
+) -> list[dict]:
+    """Tasks currently in ``state``, across all projects, each enriched with
+    a live-fetched PR (title/url) for review-queue commands like
+    /pablo-needs-testing and /pablo-waiting-review to format for Slack."""
+    if state not in ALL_STATES:
+        raise PabloError(f"unknown state {state!r} (expected one of {list(ALL_STATES)})")
+    rows = []
+    for task in store.all_tasks():
+        if task.state != state:
+            continue
+        cfg = projects.get(task.project)
+        if cfg is None:
+            continue
+        try:
+            info = ghpr.pr_for_branch(_repo_slug(cfg), task.branch)
+        except PabloError:
+            info = None
+        pr = (
+            {"number": info.number, "title": info.title, "url": info.url, "is_draft": info.is_draft}
+            if info is not None
+            else None
+        )
+        rows.append(
+            {
+                "project": task.project,
+                "branch": task.branch,
+                "issue": task.issue.to_json() if task.issue else None,
+                "summary": task.summary,
+                "pr": pr,
+            }
+        )
+    return rows
