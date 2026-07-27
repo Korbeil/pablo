@@ -1,5 +1,5 @@
 # P.A.B.L.O.
-<i>Personal Assistant Building Local Operations</i>
+<i>Personal Assistant for Boring Logic & Operations</i>
 
 PABLO is an AI orchestrator for the projects I work on. It is not a
 standalone CLI product: it plugs into my existing OpenCode/Orca agent
