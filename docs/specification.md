@@ -55,7 +55,10 @@ this prompt.
   that handles Jira, GitHub Issues, and Linear. Everywhere else in this
   document, `task-analyst`/`task-feedback` refers to the generalized
   version PABLO creates and manages; `jira-analyst`/`jira-feedback` refers
-  only to the original source file used as its basis.
+  only to the original source file used as its basis. Same treatment for
+  `pr-review-planner`: it's the *source* agent (generic, PR-review focused,
+  not PABLO-aware); PABLO forks it into its own `pr-feedback` agent.
+  `ci-analyst` has no external source agent — it's new, built for PABLO.
 - **All referenced agents/commands are basis material, not final
   behavior.** Every existing agent or command this spec names —
   `jira-analyst`, `jira-feedback`, `pr-review-planner`, `commit-and-pr`,
@@ -105,8 +108,9 @@ anything that must run without me present:
 This layer is mostly plain logic — git commands, GitHub/Jira/Linear API
 calls, file I/O — and doesn't need its own LLM invocation for most of it.
 When it does need to trigger actual agent work (e.g. running `task-analyst`
-automatically when a task enters `in-progress`, or `task-feedback` on
-`testing-failed`, or `pr-review-planner` on `request-changes`), **it
+automatically when a task enters `in-progress`, `ci-analyst` on `ci-red`,
+`task-feedback` on `testing-failed`, or `pr-feedback` on `request-changes`),
+**it
 should do so via Orca CLI commands** rather than building a separate
 invocation mechanism, reusing the same agent-runner path already used
 across my other Orca-managed agents. Document the exact Orca CLI
@@ -619,7 +623,12 @@ Notes on the diagram:
   reaches CI-green, since pending isn't a transition trigger), and
   sometimes as a `CheckRun` with `conclusion: action_required` (which reads
   as a failure). Either way, without the exclusion the task can never
-  leave `draft`/`ci-red`.
+  leave `draft`/`ci-red`. On entering `ci-red`, PABLO automatically runs
+  the `ci-analyst` agent against that worktree — it pulls the failing
+  checks and their job logs and produces a read-only fix plan. Unlike
+  `request-changes`/`testing-failed`, this never touches the PR's
+  draft/ready status on GitHub (see the `waiting-review` → `ci-red` note
+  below).
 - **`draft`/`ci-red` → `ready-to-review`**: automatic, as soon as CI is
   green. If the PR is currently a draft on GitHub (whether it was created
   as one or returned to draft by PABLO during a rework cycle), this also
@@ -682,15 +691,16 @@ Notes on the diagram:
   one approval and one changes-requested, each being that reviewer's
   latest), `request-changes` always wins — the approval is ignored. On
   entering `request-changes`, PABLO automatically runs the
-  `pr-review-planner` agent against that worktree, the same way it's used
-  elsewhere in my workflow — it should read the review comments and
-  produce its usual read-only analysis/plan, not make changes itself. Once
-  `pr-review-planner` finishes running, PABLO switches the actual GitHub
+  `pr-feedback` agent against that worktree — a PABLO-owned, in-repo
+  generalization of my `pr-review-planner` (see "Local paths"), not an
+  external reference — it should read the review comments and produce its
+  usual read-only analysis/plan, not make changes itself. Once
+  `pr-feedback` finishes running, PABLO switches the actual GitHub
   PR to draft (e.g. `gh pr ready --undo`), so it's clearly marked as not
   ready while I rework it.
 - **`request-changes` → `draft`**: triggered by me running
   `/commit-and-pr` once I've addressed the feedback (informed by
-  `pr-review-planner`'s plan) — it commits, pushes, and switches the
+  `pr-feedback`'s plan) — it commits, pushes, and switches the
   state to `draft` itself as its final step. There is no push detection:
   a raw `git push` without the command leaves the task in
   `request-changes`.

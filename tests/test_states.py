@@ -120,9 +120,22 @@ def test_ready_to_review_chains_to_waiting_review_and_marks_ready(ctx):
 def test_request_changes_launches_planner_then_drafts_pr(ctx):
     ctx.task.state = WAITING_REVIEW
     states.enter_state(ctx, REQUEST_CHANGES)
-    assert ctx.calls["launch"][0][0] == "pr-review-planner"
+    assert ctx.calls["launch"][0][0] == "pr-feedback"
     assert ctx.calls["watch"] == [("term_1", "pr-draft")]
     assert ctx.calls["draft"] == []  # drafting happens after the agent finishes
+
+
+def test_ci_red_runs_analyst(ctx):
+    ctx.task.state = DRAFT
+    states.enter_state(ctx, CI_RED)
+    assert ctx.calls["launch"][0][0] == "ci-analyst"
+    assert ctx.calls["watch"] == []  # no pr-draft flip — the PR is untouched
+    assert ctx.calls["draft"] == []
+    # no run-once guard: a fresh ci-red entry always re-runs the analyst
+    states.enter_state(ctx, READY_TO_REVIEW)
+    states.enter_state(ctx, CI_RED)
+    assert len(ctx.calls["launch"]) == 2
+    assert ctx.calls["launch"][1][0] == "ci-analyst"
 
 
 def test_testing_failed_launches_feedback_then_drafts_pr(ctx):
