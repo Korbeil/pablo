@@ -1,4 +1,4 @@
-"""PABLO — Personal Assistant Building Local Operations."""
+"""PABLO — Personal Assistant for Boring Logic & Operations."""
 
 
 class PabloError(Exception):

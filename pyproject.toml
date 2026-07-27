@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "pablo"
 version = "0.1.0"
-description = "PABLO — Personal Assistant Building Local Operations. AI orchestrator for OpenCode/Orca-managed projects."
+description = "PABLO — Personal Assistant for Boring Logic & Operations. AI orchestrator for OpenCode/Orca-managed projects."
 authors = ["Baptiste Leduc <baptiste.leduc@gmail.com>"]
 readme = "README.md"
 packages = [{ include = "pablo", from = "src" }]
