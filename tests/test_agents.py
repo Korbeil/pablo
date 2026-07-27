@@ -36,7 +36,9 @@ def test_orca_launch_builds_command(monkeypatch, tmp_path):
     assert f"path:{tmp_path}" in argv
     assert "pablo:task-analyst" in argv
     command = argv[argv.index("--command") + 1]
-    assert command.startswith("opencode run --agent task-analyst ")
+    assert command.startswith("opencode ")
+    assert "--agent task-analyst" in command
+    assert "--prompt" in command
     assert "Analyze issue #45" in command
 
 

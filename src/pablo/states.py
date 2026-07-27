@@ -111,18 +111,19 @@ def _enter_needs_testing(ctx: TaskCtx) -> None:
     ctx.task.last_seen_issue_status = _current_issue_status(ctx)
 
 
-def _run_agent_then_draft(ctx: TaskCtx, agent: str, prompt: str) -> None:
-    handle = agents.launch(ctx.task.worktree_path, agent, prompt)
-    # Once the agent finishes, the watcher switches the GitHub PR to draft —
-    # unless the task has already moved on to another state by then.
-    agents.spawn_watcher(
-        ctx.task.project, ctx.task.branch, handle, "pr-draft",
-        expect_state=ctx.task.state,
-    )
+def _mark_draft_then_run_agent(ctx: TaskCtx, agent: str, prompt: str) -> None:
+    # Flip the GitHub PR to draft immediately so CI doesn't run on stale
+    # code while the human implements the agent's fix plan. No watcher:
+    # the agent runs in an interactive TUI (Orca path) or headless
+    # (fallback); the task stays put until /pablo-commit-and-pr re-marks
+    # the PR ready and advances state.
+    if ctx.task.pr_number is not None:
+        ghpr.mark_draft(_repo_slug(ctx.cfg), ctx.task.pr_number)
+    agents.launch(ctx.task.worktree_path, agent, prompt)
 
 
 def _enter_request_changes(ctx: TaskCtx) -> None:
-    _run_agent_then_draft(
+    _mark_draft_then_run_agent(
         ctx,
         "pr-feedback",
         f"Review feedback was left on PR #{ctx.task.pr_number}. Read the "
@@ -140,7 +141,7 @@ def _enter_ci_red(ctx: TaskCtx) -> None:
 
 def _enter_testing_failed(ctx: TaskCtx) -> None:
     issue_ref = ctx.task.issue.key if ctx.task.issue else "the task"
-    _run_agent_then_draft(
+    _mark_draft_then_run_agent(
         ctx,
         "task-feedback",
         f"Manual testing failed for {issue_ref} (PR #{ctx.task.pr_number}). "

@@ -48,16 +48,10 @@ def ctx(tmp_path: Path, monkeypatch):
         issue=Issue(provider="github", key="45", url="u", title="T", project_key="WK"),
     )
     store = Store(root=tmp_path / "state")
-    calls = {"launch": [], "watch": [], "ready": [], "draft": []}
+    calls = {"launch": [], "ready": [], "draft": []}
     monkeypatch.setattr(
         agents, "launch",
         lambda wt, agent, prompt: calls["launch"].append((agent, prompt)) or "term_1",
-    )
-    monkeypatch.setattr(
-        agents, "spawn_watcher",
-        lambda project, branch, handle, then, expect_state=None: calls["watch"].append(
-            (handle, then)
-        ),
     )
     monkeypatch.setattr(
         ghpr, "mark_ready", lambda slug, pr: calls["ready"].append(pr)
@@ -121,16 +115,14 @@ def test_request_changes_launches_planner_then_drafts_pr(ctx):
     ctx.task.state = WAITING_REVIEW
     states.enter_state(ctx, REQUEST_CHANGES)
     assert ctx.calls["launch"][0][0] == "pr-feedback"
-    assert ctx.calls["watch"] == [("term_1", "pr-draft")]
-    assert ctx.calls["draft"] == []  # drafting happens after the agent finishes
+    assert ctx.calls["draft"] == [7]  # PR flipped to draft immediately on entry
 
 
 def test_ci_red_runs_analyst(ctx):
     ctx.task.state = DRAFT
     states.enter_state(ctx, CI_RED)
     assert ctx.calls["launch"][0][0] == "ci-analyst"
-    assert ctx.calls["watch"] == []  # no pr-draft flip — the PR is untouched
-    assert ctx.calls["draft"] == []
+    assert ctx.calls["draft"] == []  # no pr-draft flip — the PR is untouched
     # no run-once guard: a fresh ci-red entry always re-runs the analyst
     states.enter_state(ctx, READY_TO_REVIEW)
     states.enter_state(ctx, CI_RED)
@@ -142,7 +134,7 @@ def test_testing_failed_launches_feedback_then_drafts_pr(ctx):
     ctx.task.state = NEEDS_TESTING
     states.enter_state(ctx, TESTING_FAILED)
     assert ctx.calls["launch"][0][0] == "task-feedback"
-    assert ctx.calls["watch"] == [("term_1", "pr-draft")]
+    assert ctx.calls["draft"] == [7]  # PR flipped to draft immediately on entry
 
 
 def test_needs_testing_stamps_baseline(ctx):
