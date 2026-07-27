@@ -171,7 +171,11 @@ def cmd_issues(args: argparse.Namespace) -> int:
 def cmd_tasks(args: argparse.Namespace) -> int:
     from pablo import listing
 
-    print(listing.tasks_table(load_projects(), Store()))
+    print(
+        listing.tasks_table(
+            load_projects(), Store(), live=args.live, refresh=args.refresh
+        )
+    )
     return 0
 
 
@@ -347,6 +351,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_issues.set_defaults(func=cmd_issues)
 
     p_tasks = sub.add_parser("tasks", help="active task worktrees and their states")
+    p_tasks.add_argument(
+        "--live", action="store_true",
+        help="fetch fresh Tracker/PR/Agents data for display only "
+             "(does not update the cache the poller maintains)",
+    )
+    p_tasks.add_argument(
+        "--refresh", action="store_true",
+        help="fetch fresh Tracker/PR/Agents data and persist it as the new "
+             "cache before rendering (an on-demand poll for these tasks)",
+    )
     p_tasks.set_defaults(func=cmd_tasks)
 
     p_projects = sub.add_parser("projects", help="list configured projects")

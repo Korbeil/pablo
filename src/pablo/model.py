@@ -88,6 +88,15 @@ class Task:
     merged: bool = False
     created_at: str = field(default_factory=utcnow)
     updated_at: str = field(default_factory=utcnow)
+    # Display cache written by the poller (poller.py) on its regular
+    # cadence, so `pablo tasks` can render instantly by reading these
+    # instead of re-fetching Jira/gh/orca live on every invocation. None
+    # means "never polled yet" — listing.py falls back to a live fetch.
+    cached_tracker_status: str | None = None
+    cached_pr_state: str | None = None
+    cached_agent_count: int | None = None
+    cached_agent_activity: str | None = None
+    cached_at: str | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -108,6 +117,11 @@ class Task:
             "merged": self.merged,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "cached_tracker_status": self.cached_tracker_status,
+            "cached_pr_state": self.cached_pr_state,
+            "cached_agent_count": self.cached_agent_count,
+            "cached_agent_activity": self.cached_agent_activity,
+            "cached_at": self.cached_at,
         }
 
     @classmethod
@@ -131,4 +145,9 @@ class Task:
             merged=data.get("merged", False),
             created_at=data.get("created_at", utcnow()),
             updated_at=data.get("updated_at", utcnow()),
+            cached_tracker_status=data.get("cached_tracker_status"),
+            cached_pr_state=data.get("cached_pr_state"),
+            cached_agent_count=data.get("cached_agent_count"),
+            cached_agent_activity=data.get("cached_agent_activity"),
+            cached_at=data.get("cached_at"),
         )

@@ -19,7 +19,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Callable
 
-from pablo import PabloError, agents, ghpr, gitrepo
+from pablo import PabloError, agents, ghpr, gitrepo, listing
 from pablo.config import ProjectConfig
 from pablo.model import (
     CI_RED,
@@ -175,6 +175,42 @@ def _poll_task(ctx: TaskCtx, events: list[str]) -> None:
             return
 
 
+def _refresh_display_cache(ctx: TaskCtx) -> None:
+    """Persist the Tracker/PR/Agents display fields `pablo tasks` reads,
+    so the interactive command never has to fetch them live (listing.py
+    falls back to a live fetch only when these are still None, i.e. the
+    task has never been polled)."""
+    task, cfg = ctx.task, ctx.cfg
+    slug = _repo_slug(cfg)
+
+    if task.issue is not None:
+        try:
+            provider = get_provider(cfg.provider)
+            task.cached_tracker_status = provider.issue_status(task.issue.key, cfg)
+        except PabloError:
+            pass  # keep the last known value rather than blanking it
+
+    if task.pr_number is None:
+        task.cached_pr_state = "-"
+    else:
+        try:
+            pr = ghpr.pr_for_branch(slug, task.branch)
+            task.cached_pr_state = listing.pr_state_cell(task, pr)
+        except PabloError:
+            pass
+
+    try:
+        sessions = agents.active_sessions(task.worktree_path)
+        count, activity = listing.agent_activity_summary(sessions)
+        task.cached_agent_count = count
+        task.cached_agent_activity = activity
+    except Exception:
+        pass
+
+    task.cached_at = utcnow()
+    ctx.store.save(task)
+
+
 def poll_project(cfg: ProjectConfig, store: Store) -> list[str]:
     events: list[str] = []
     for task in store.all_tasks(cfg.name):
@@ -183,7 +219,10 @@ def poll_project(cfg: ProjectConfig, store: Store) -> list[str]:
                 fresh = store.get(cfg.name, task.branch)
                 if fresh is None:
                     continue
-                _poll_task(TaskCtx(task=fresh, cfg=cfg, store=store), events)
+                ctx = TaskCtx(task=fresh, cfg=cfg, store=store)
+                _poll_task(ctx, events)
+                if store.get(cfg.name, task.branch) is not None:
+                    _refresh_display_cache(ctx)
         except PabloError as exc:
             events.append(f"{task.branch}: skipped ({exc})")
     return events

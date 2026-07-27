@@ -12,8 +12,10 @@ agents 🏃 running · ⏳ waiting on feedback.
 from __future__ import annotations
 
 from pablo import PabloError, agents, ghpr, gitrepo
+from pablo.agents import SessionInfo
 from pablo.config import ProjectConfig
-from pablo.model import Task
+from pablo.ghpr import PrInfo
+from pablo.model import Task, utcnow
 from pablo.providers import get_provider
 from pablo.states import STATES
 from pablo.store import Store
@@ -104,24 +106,15 @@ def _issue_cell(task: Task) -> str:
     return task.summary or "-"
 
 
-def _remote_status_cell(task: Task, cfg: ProjectConfig) -> str:
-    if task.issue is None:
-        return "N/A"
-    try:
-        return get_provider(cfg.provider).issue_status(task.issue.key, cfg)
-    except PabloError:
-        return "?"
+# Shared with poller.py, which writes these back to the store on every
+# poll cycle so `pablo tasks` can read them instead of fetching live.
 
 
-def _pr_cell(task: Task, cfg: ProjectConfig) -> str:
+def pr_state_cell(task: Task, pr: PrInfo | None) -> str:
     if task.merged:
         return "✅ merged"
     if task.pr_number is None:
         return "-"
-    try:
-        pr = ghpr.pr_for_branch(_repo_slug(cfg), task.branch)
-    except PabloError:
-        return f"#{task.pr_number}"
     if pr is None:
         return f"#{task.pr_number}"
     if pr.state == "MERGED":
@@ -131,10 +124,9 @@ def _pr_cell(task: Task, cfg: ProjectConfig) -> str:
     return f"📬 open #{pr.number}"
 
 
-def _agent_cells(task: Task) -> tuple[str, str]:
-    sessions = agents.active_sessions(task.worktree_path)
+def agent_activity_summary(sessions: list[SessionInfo]) -> tuple[int, str]:
     if not sessions:
-        return "0", "-"
+        return 0, "-"
     running = sum(1 for session in sessions if session.status == "running")
     waiting = sum(1 for session in sessions if session.status == "waiting")
     parts = []
@@ -142,23 +134,77 @@ def _agent_cells(task: Task) -> tuple[str, str]:
         parts.append(f"🏃 {running}")
     if waiting:
         parts.append(f"⏳ {waiting}")
-    return str(len(sessions)), " · ".join(parts)
+    return len(sessions), " · ".join(parts)
 
 
-def tasks_table(projects: dict[str, ProjectConfig], store: Store) -> str:
+def _remote_status_cell(task: Task, cfg: ProjectConfig, *, live: bool) -> str:
+    if task.issue is None:
+        return "N/A"
+    if not live and task.cached_tracker_status is not None:
+        return task.cached_tracker_status
+    try:
+        return get_provider(cfg.provider).issue_status(task.issue.key, cfg)
+    except PabloError:
+        return "?"
+
+
+def _pr_cell(task: Task, cfg: ProjectConfig, *, live: bool) -> str:
+    if not live and task.cached_pr_state is not None:
+        return task.cached_pr_state
+    if task.merged:
+        return "✅ merged"
+    if task.pr_number is None:
+        return "-"
+    try:
+        pr = ghpr.pr_for_branch(_repo_slug(cfg), task.branch)
+    except PabloError:
+        return f"#{task.pr_number}"
+    return pr_state_cell(task, pr)
+
+
+def _agent_cells(task: Task, *, live: bool) -> tuple[str, str]:
+    if not live and task.cached_agent_count is not None:
+        return str(task.cached_agent_count), task.cached_agent_activity or "-"
+    sessions = agents.active_sessions(task.worktree_path)
+    count, activity = agent_activity_summary(sessions)
+    return str(count), activity
+
+
+def tasks_table(
+    projects: dict[str, ProjectConfig],
+    store: Store,
+    *,
+    live: bool = False,
+    refresh: bool = False,
+) -> str:
+    """Renders each task's Tracker/PR/Agents columns from the poller's
+    cached display fields by default (instant, no live calls) — pass
+    ``live=True`` for a one-off live fetch, or ``refresh=True`` to fetch
+    live and persist the result as the new cache, same as the poller."""
+    fetch_live = live or refresh
     rows = []
     for task in store.all_tasks():
         cfg = projects.get(task.project)
         if cfg is None:
             continue
-        count, activity = _agent_cells(task)
+        tracker = _remote_status_cell(task, cfg, live=fetch_live)
+        pr = _pr_cell(task, cfg, live=fetch_live)
+        count, activity = _agent_cells(task, live=fetch_live)
+        if refresh:
+            if task.issue is not None and tracker != "?":
+                task.cached_tracker_status = tracker
+            task.cached_pr_state = pr
+            task.cached_agent_count = int(count)
+            task.cached_agent_activity = activity
+            task.cached_at = utcnow()
+            store.save(task)
         rows.append(
             [
                 f"{task.branch} ({task.project})",
                 _state_cell(task),
                 _issue_cell(task),
-                _remote_status_cell(task, cfg),
-                _pr_cell(task, cfg),
+                tracker,
+                pr,
                 count,
                 activity,
             ]

@@ -13,8 +13,11 @@ otherwise the poller's observed-status-transition fallback
 
 from __future__ import annotations
 
+import json
+import os
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from pablo import PabloError, mcpclient
@@ -23,6 +26,33 @@ from pablo.model import Issue, Task
 from pablo.providers import parse_ts
 
 _BROWSE_RE = re.compile(r"https?://[^/]+/browse/([A-Z][A-Z0-9]*-\d+)")
+
+
+def _cache_root() -> Path:
+    override = os.environ.get("PABLO_CACHE_DIR")
+    return Path(override) if override else Path("~/.pablo/cache").expanduser()
+
+
+def _cloud_id_cache_path() -> Path:
+    return _cache_root() / "jira-cloud-ids.json"
+
+
+def _load_cloud_id_cache() -> dict[str, str]:
+    path = _cloud_id_cache_path()
+    if not path.is_file():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return {}
+
+
+def _save_cloud_id_cache(cache: dict[str, str]) -> None:
+    path = _cloud_id_cache_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(cache, indent=2) + "\n")
+    os.replace(tmp, path)
 
 
 def call(tool: str, args: dict) -> Any:
@@ -42,6 +72,10 @@ class JiraProvider:
         cache_key = cfg.site or "<first>"
         if cache_key in self._cloud_ids:
             return self._cloud_ids[cache_key]
+        disk_cache = _load_cloud_id_cache()
+        if cache_key in disk_cache:
+            self._cloud_ids[cache_key] = disk_cache[cache_key]
+            return disk_cache[cache_key]
         resources = call("getAccessibleAtlassianResources", {})
         if isinstance(resources, dict):
             resources = resources.get("resources") or resources.get("values") or []
@@ -63,6 +97,8 @@ class JiraProvider:
         else:
             chosen = resources[0]
         self._cloud_ids[cache_key] = chosen["id"]
+        disk_cache[cache_key] = chosen["id"]
+        _save_cloud_id_cache(disk_cache)
         return chosen["id"]
 
     def _get(self, key: str, cfg: ProjectConfig) -> dict:
