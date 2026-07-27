@@ -89,7 +89,7 @@ def patch_call(monkeypatch, responses: dict, calls: list | None = None):
 def test_match_url(provider, tmp_path):
     c = cfg(tmp_path)
     assert provider.match_url("https://acme.atlassian.net/browse/XXX-123", c) == "XXX-123"
-    assert provider.match_url("https://acme.atlassian.net/browse/XXX-9", c) is None
+    assert provider.match_url("https://acme.atlassian.net/browse/YYY-9", c) is None
     assert provider.match_url("https://github.com/a/b/issues/1", c) is None
 
 

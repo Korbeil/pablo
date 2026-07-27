@@ -76,7 +76,7 @@ def test_ci_ignore_checks_matches_workflow_name_and_context():
 
 
 def test_ci_ignore_checks_real_circleci_approval_shape():
-    # Actual shape from a acme/pim PR: CircleCI approval gates surface as
+    # Actual shape from an acme/pim PR: CircleCI approval gates surface as
     # StatusContext entries stuck at state PENDING (nobody clicks approve),
     # which without filtering leaves evaluate_ci returning "pending"
     # forever — and pending never triggers a state transition.
