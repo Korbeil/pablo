@@ -1,8 +1,51 @@
+import json
 from datetime import datetime, timezone
 
 from pablo import ghpr
 
 ANCHOR = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+
+
+def test_prs_for_branches_matches_multiple_branches_from_one_call(monkeypatch):
+    calls = []
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        calls.append(argv)
+        return json.dumps(
+            [
+                {
+                    "number": 7, "title": "Fix callbacks", "state": "OPEN",
+                    "isDraft": False, "mergedAt": None, "url": "u7",
+                    "headRefName": "wk-45",
+                },
+                {
+                    "number": 8, "title": "Add exports", "state": "MERGED",
+                    "isDraft": False, "mergedAt": "2026-07-20T00:00:00Z", "url": "u8",
+                    "headRefName": "wk-46",
+                },
+                {
+                    "number": 9, "title": "Unrelated", "state": "OPEN",
+                    "isDraft": False, "mergedAt": None, "url": "u9",
+                    "headRefName": "some-other-branch",
+                },
+            ]
+        )
+
+    monkeypatch.setattr(ghpr, "run_cli", fake_run_cli)
+    result = ghpr.prs_for_branches("acme/wallet-kit", ["wk-45", "wk-46", "wk-47"])
+
+    assert len(calls) == 1  # one gh call for all branches
+    assert set(result) == {"wk-45", "wk-46"}  # wk-47 has no matching PR
+    assert result["wk-45"].number == 7
+    assert result["wk-46"].state == "MERGED"
+
+
+def test_prs_for_branches_empty_list_makes_no_call(monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("must not be called for an empty branch list")
+
+    monkeypatch.setattr(ghpr, "run_cli", boom)
+    assert ghpr.prs_for_branches("acme/wallet-kit", []) == {}
 
 
 def review(login: str, state: str, when: str, typename: str = "User"):

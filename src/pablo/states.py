@@ -65,10 +65,12 @@ def _analyst_prompt(task: Task) -> str:
 
 
 def _enter_in_progress(ctx: TaskCtx) -> None:
-    if ctx.task.task_analyst_ran:
-        return
-    agents.launch(ctx.task.worktree_path, "task-analyst", _analyst_prompt(ctx.task))
-    ctx.task.task_analyst_ran = True
+    if not ctx.task.task_analyst_ran:
+        agents.launch(ctx.task.worktree_path, "task-analyst", _analyst_prompt(ctx.task))
+        ctx.task.task_analyst_ran = True
+    if ctx.cfg.startup_script and not ctx.task.startup_script_ran:
+        agents.run_startup_script(ctx.task.worktree_path, ctx.cfg.startup_script)
+        ctx.task.startup_script_ran = True
 
 
 def _enter_waiting(ctx: TaskCtx) -> None:

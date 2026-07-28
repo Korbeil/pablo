@@ -62,6 +62,39 @@ def pr_for_branch(repo_slug: str, branch: str) -> PrInfo | None:
     )
 
 
+def prs_for_branches(repo_slug: str, branches: list[str]) -> dict[str, PrInfo]:
+    """Same data as calling ``pr_for_branch`` once per branch, but one
+    ``gh pr list`` call for the whole repo instead of one per branch."""
+    if not branches:
+        return {}
+    # gh sorts by most-recently-updated, so a generous cap (not just
+    # len(branches)) keeps older-but-still-open PRs from falling off the
+    # page while still bounding the response for repos with long history.
+    limit = min(max(len(branches) * 5, 50), 500)
+    out = run_cli(
+        ["gh", "pr", "list", "--repo", repo_slug,
+         "--state", "all", "--json",
+         "number,title,state,isDraft,mergedAt,url,headRefName",
+         "--limit", str(limit)],
+        timeout=GH_CALL_TIMEOUT_S,
+    )
+    wanted = set(branches)
+    result: dict[str, PrInfo] = {}
+    for item in json.loads(out):
+        head = item.get("headRefName")
+        if head not in wanted or head in result:
+            continue
+        result[head] = PrInfo(
+            number=item["number"],
+            title=item["title"],
+            state=item["state"],
+            is_draft=item["isDraft"],
+            url=item["url"],
+            merged_at=item.get("mergedAt"),
+        )
+    return result
+
+
 def _is_ignored(check: dict, ignore_checks: list[str]) -> bool:
     """Match a check's name (CheckRun) or context (StatusContext) against
     ``ignore_checks`` substrings, case-insensitively.

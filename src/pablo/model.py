@@ -80,6 +80,7 @@ class Task:
     prompt: str | None = None
     state_before_waiting: str | None = None
     task_analyst_ran: bool = False
+    startup_script_ran: bool = False
     state_entered_at: str = field(default_factory=utcnow)
     needs_testing_entered_at: str | None = None
     last_handled_signal_at: str | None = None
@@ -110,6 +111,7 @@ class Task:
             "prompt": self.prompt,
             "state_before_waiting": self.state_before_waiting,
             "task_analyst_ran": self.task_analyst_ran,
+            "startup_script_ran": self.startup_script_ran,
             "needs_testing_entered_at": self.needs_testing_entered_at,
             "last_handled_signal_at": self.last_handled_signal_at,
             "last_seen_issue_status": self.last_seen_issue_status,
@@ -137,6 +139,7 @@ class Task:
             prompt=data.get("prompt"),
             state_before_waiting=data.get("state_before_waiting"),
             task_analyst_ran=data.get("task_analyst_ran", False),
+            startup_script_ran=data.get("startup_script_ran", False),
             state_entered_at=data.get("state_entered_at", utcnow()),
             needs_testing_entered_at=data.get("needs_testing_entered_at"),
             last_handled_signal_at=data.get("last_handled_signal_at"),

@@ -114,6 +114,19 @@ def test_site_optional(projects_dir: Path):
     assert load_projects(projects_dir)["mini"].site == "acme.atlassian.net"
 
 
+def test_startup_script_optional(projects_dir: Path):
+    (projects_dir / "mini.yaml").write_text(MINIMAL_PROJECT)
+    assert load_projects(projects_dir)["mini"].startup_script is None
+
+
+def test_startup_script_parsed(projects_dir: Path):
+    (projects_dir / "mini.yaml").write_text(
+        MINIMAL_PROJECT + "startup_script: ~/scripts/pablo-setup.sh\n"
+    )
+    cfg = load_projects(projects_dir)["mini"]
+    assert cfg.startup_script == Path("~/scripts/pablo-setup.sh").expanduser()
+
+
 def test_missing_required_key_names_file_and_key(projects_dir: Path):
     (projects_dir / "broken.yaml").write_text("name: broken\ntype: work\n")
     with pytest.raises(PabloError) as exc:

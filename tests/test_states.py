@@ -48,10 +48,14 @@ def ctx(tmp_path: Path, monkeypatch):
         issue=Issue(provider="github", key="45", url="u", title="T", project_key="WK"),
     )
     store = Store(root=tmp_path / "state")
-    calls = {"launch": [], "ready": [], "draft": []}
+    calls = {"launch": [], "ready": [], "draft": [], "startup_script": []}
     monkeypatch.setattr(
         agents, "launch",
         lambda wt, agent, prompt: calls["launch"].append((agent, prompt)) or "term_1",
+    )
+    monkeypatch.setattr(
+        agents, "run_startup_script",
+        lambda wt, script: calls["startup_script"].append(script) or "term_2",
     )
     monkeypatch.setattr(
         ghpr, "mark_ready", lambda slug, pr: calls["ready"].append(pr)
@@ -72,6 +76,23 @@ def test_enter_in_progress_runs_analyst_once(ctx):
     assert ctx.task.task_analyst_ran is True
     states.enter_state(ctx, IN_PROGRESS)  # run-once flag respected
     assert len(ctx.calls["launch"]) == 1
+
+
+def test_enter_in_progress_skips_startup_script_when_unset(ctx):
+    states.enter_state(ctx, IN_PROGRESS)
+    assert ctx.calls["startup_script"] == []
+    assert ctx.task.startup_script_ran is False
+
+
+def test_enter_in_progress_runs_startup_script_once(ctx, tmp_path):
+    from dataclasses import replace
+
+    ctx.cfg = replace(ctx.cfg, startup_script=tmp_path / "setup.sh")
+    states.enter_state(ctx, IN_PROGRESS)
+    assert ctx.calls["startup_script"] == [tmp_path / "setup.sh"]
+    assert ctx.task.startup_script_ran is True
+    states.enter_state(ctx, IN_PROGRESS)  # run-once flag respected
+    assert len(ctx.calls["startup_script"]) == 1
 
 
 def test_waiting_saves_and_restores_previous_state(ctx):

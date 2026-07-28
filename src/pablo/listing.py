@@ -148,13 +148,17 @@ def _remote_status_cell(task: Task, cfg: ProjectConfig, *, live: bool) -> str:
         return "?"
 
 
-def _pr_cell(task: Task, cfg: ProjectConfig, *, live: bool) -> str:
+def _pr_cell(
+    task: Task, cfg: ProjectConfig, *, live: bool, prefetched: dict[str, PrInfo] | None = None
+) -> str:
     if not live and task.cached_pr_state is not None:
         return task.cached_pr_state
     if task.merged:
         return "✅ merged"
     if task.pr_number is None:
         return "-"
+    if prefetched is not None:
+        return pr_state_cell(task, prefetched.get(task.branch))
     try:
         pr = ghpr.pr_for_branch(_repo_slug(cfg), task.branch)
     except PabloError:
@@ -162,10 +166,13 @@ def _pr_cell(task: Task, cfg: ProjectConfig, *, live: bool) -> str:
     return pr_state_cell(task, pr)
 
 
-def _agent_cells(task: Task, *, live: bool) -> tuple[str, str]:
+def _agent_cells(
+    task: Task, *, live: bool, sessions: list[SessionInfo] | None = None
+) -> tuple[str, str]:
     if not live and task.cached_agent_count is not None:
         return str(task.cached_agent_count), task.cached_agent_activity or "-"
-    sessions = agents.active_sessions(task.worktree_path)
+    if sessions is None:
+        sessions = agents.active_sessions(task.worktree_path)
     count, activity = agent_activity_summary(sessions)
     return str(count), activity
 
@@ -182,14 +189,42 @@ def tasks_table(
     ``live=True`` for a one-off live fetch, or ``refresh=True`` to fetch
     live and persist the result as the new cache, same as the poller."""
     fetch_live = live or refresh
+    tasks = [t for t in store.all_tasks() if t.project in projects]
+
+    needs_agent_check = [
+        t for t in tasks if fetch_live or t.cached_agent_count is None
+    ]
+    sessions_by_worktree = (
+        agents.bulk_active_sessions([t.worktree_path for t in needs_agent_check])
+        if needs_agent_check
+        else {}
+    )
+
+    needs_pr_check = [
+        t for t in tasks
+        if not t.merged and t.pr_number is not None
+        and (fetch_live or t.cached_pr_state is None)
+    ]
+    branches_by_repo: dict[str, list[str]] = {}
+    for task in needs_pr_check:
+        slug = _repo_slug(projects[task.project])
+        branches_by_repo.setdefault(slug, []).append(task.branch)
+    prs_by_repo: dict[str, dict[str, PrInfo]] = {}
+    for slug, branches in branches_by_repo.items():
+        try:
+            prs_by_repo[slug] = ghpr.prs_for_branches(slug, branches)
+        except PabloError:
+            prs_by_repo[slug] = {}
+
     rows = []
-    for task in store.all_tasks():
-        cfg = projects.get(task.project)
-        if cfg is None:
-            continue
+    for task in tasks:
+        cfg = projects[task.project]
         tracker = _remote_status_cell(task, cfg, live=fetch_live)
-        pr = _pr_cell(task, cfg, live=fetch_live)
-        count, activity = _agent_cells(task, live=fetch_live)
+        slug = _repo_slug(cfg)
+        pr = _pr_cell(task, cfg, live=fetch_live, prefetched=prs_by_repo.get(slug))
+        count, activity = _agent_cells(
+            task, live=fetch_live, sessions=sessions_by_worktree.get(task.worktree_path)
+        )
         if refresh:
             if task.issue is not None and tracker != "?":
                 task.cached_tracker_status = tracker
