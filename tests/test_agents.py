@@ -29,7 +29,7 @@ def test_orca_launch_builds_command(monkeypatch, tmp_path):
         return orca_ok({"handle": "term_123"})
 
     monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    handle = agents.launch(tmp_path, "task-analyst", "Analyze issue #45")
+    handle = agents._do_launch_agent(tmp_path, "task-analyst", "Analyze issue #45")
     assert handle == "term_123"
     argv = calls[0]
     assert argv[:3] == ["orca", "terminal", "create"]
@@ -42,10 +42,12 @@ def test_orca_launch_builds_command(monkeypatch, tmp_path):
     assert "Analyze issue #45" in command
 
 
-def test_launch_falls_back_headless_when_orca_refuses(monkeypatch, tmp_path):
+def test_launch_falls_back_headless_when_orca_refuses(monkeypatch, tmp_path, agents_dir):
     launched = {}
+    calls = []
 
     def fake_run_cli(argv, *, check=True, timeout=None):
+        calls.append(argv)
         return orca_err("selector_not_found")
 
     class FakeProc:
@@ -57,10 +59,90 @@ def test_launch_falls_back_headless_when_orca_refuses(monkeypatch, tmp_path):
 
     monkeypatch.setattr(agents, "run_cli", fake_run_cli)
     monkeypatch.setattr(agents.subprocess, "Popen", fake_popen)
-    handle = agents.launch(tmp_path, "task-analyst", "hello")
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    handle = agents._do_launch_agent(tmp_path, "task-analyst", "hello")
     assert handle == "pid:4242"
     assert launched["argv"][:3] == ["opencode", "run", "--agent"]
     assert "--dir" in launched["argv"]
+    assert len(calls) == agents.ORCA_LAUNCH_RETRIES  # retried before giving up
+    fallback_log = (agents_dir / "logs" / "orca-fallback.log").read_text()
+    assert "task-analyst" in fallback_log
+    assert "selector_not_found" in fallback_log
+
+
+def test_launch_succeeds_on_orca_retry(monkeypatch, tmp_path):
+    attempts = {"n": 0}
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        attempts["n"] += 1
+        if attempts["n"] < 2:
+            return orca_err("selector_not_found")
+        return orca_ok({"handle": "term_555"})
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    handle = agents._do_launch_agent(tmp_path, "task-analyst", "hello")
+    assert handle == "term_555"
+    assert attempts["n"] == 2
+
+
+def test_launch_detaches_and_returns_immediately(monkeypatch, tmp_path):
+    spawned = {}
+
+    class FakeProc:
+        pid = 777
+
+    def fake_popen(argv, **kwargs):
+        spawned["argv"] = argv
+        spawned["kwargs"] = kwargs
+        return FakeProc()
+
+    def fail_run_cli(*a, **k):
+        raise AssertionError("launch() must not call orca/run_cli directly")
+
+    monkeypatch.setattr(agents.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(agents, "run_cli", fail_run_cli)
+    handle = agents.launch(tmp_path, "task-analyst", "hello")
+    assert handle == "pid:777"
+    assert spawned["argv"][:3] == [agents.sys.executable, "-m", "pablo.cli"]
+    assert "internal-launch-agent" in spawned["argv"]
+    assert "--worktree" in spawned["argv"]
+    assert str(tmp_path) in spawned["argv"]
+    assert "--agent" in spawned["argv"]
+    assert "task-analyst" in spawned["argv"]
+    assert "--prompt" in spawned["argv"]
+    assert "hello" in spawned["argv"]
+    assert spawned["kwargs"].get("start_new_session") is True
+    assert spawned["kwargs"].get("stdin") is agents.subprocess.DEVNULL
+    assert spawned["kwargs"].get("stdout") is agents.subprocess.DEVNULL
+    assert spawned["kwargs"].get("stderr") is agents.subprocess.DEVNULL
+
+
+def test_run_startup_script_detaches_and_returns_immediately(monkeypatch, tmp_path):
+    spawned = {}
+    script = tmp_path / "setup.sh"
+
+    class FakeProc:
+        pid = 888
+
+    def fake_popen(argv, **kwargs):
+        spawned["argv"] = argv
+        spawned["kwargs"] = kwargs
+        return FakeProc()
+
+    def fail_run_cli(*a, **k):
+        raise AssertionError("run_startup_script() must not call orca/run_cli directly")
+
+    monkeypatch.setattr(agents.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(agents, "run_cli", fail_run_cli)
+    handle = agents.run_startup_script(tmp_path, script)
+    assert handle == "pid:888"
+    assert "internal-run-startup-script" in spawned["argv"]
+    assert "--worktree" in spawned["argv"]
+    assert str(tmp_path) in spawned["argv"]
+    assert "--script" in spawned["argv"]
+    assert str(script) in spawned["argv"]
+    assert spawned["kwargs"].get("start_new_session") is True
 
 
 def test_orca_sessions_map_agent_states(monkeypatch, tmp_path):
@@ -82,6 +164,29 @@ def test_orca_sessions_map_agent_states(monkeypatch, tmp_path):
         ("a", "running"),
         ("b", "waiting"),
     ]
+
+
+def test_bulk_active_sessions_one_orca_call_for_many_worktrees(monkeypatch, tmp_path):
+    wt_a = tmp_path / "a"
+    wt_b = tmp_path / "b"
+    ps = {
+        "worktrees": [
+            {"path": str(wt_a), "agents": [{"paneKey": "a1", "state": "working"}]},
+            {"path": str(wt_b), "agents": [{"paneKey": "b1", "state": "awaiting-input"}]},
+            {"path": "/elsewhere", "agents": [{"paneKey": "c1", "state": "working"}]},
+        ]
+    }
+    calls = []
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        calls.append(argv)
+        return orca_ok(ps)
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    result = agents.bulk_active_sessions([wt_a, wt_b])
+    assert len(calls) == 1  # one orca call total, not one per worktree
+    assert [(s.handle, s.status) for s in result[wt_a]] == [("a1", "running")]
+    assert [(s.handle, s.status) for s in result[wt_b]] == [("b1", "waiting")]
 
 
 def test_headless_sessions_from_pidfiles(monkeypatch, tmp_path, agents_dir):

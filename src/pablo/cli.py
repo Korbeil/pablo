@@ -347,6 +347,16 @@ def cmd_task_current(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_internal_launch_agent(args: argparse.Namespace) -> int:
+    agents._do_launch_agent(Path(args.worktree), args.agent, args.prompt)
+    return 0
+
+
+def cmd_internal_run_startup_script(args: argparse.Namespace) -> int:
+    agents._do_run_startup_script(Path(args.worktree), Path(args.script))
+    return 0
+
+
 def cmd_watch_agent(args: argparse.Namespace) -> int:
     agents.wait_for_handle(args.handle)
     store = Store()
@@ -443,6 +453,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_task_current = task_sub.add_parser("current", help="dump the current task record")
     p_task_current.add_argument("--json", action="store_true", default=True)
     p_task_current.set_defaults(func=cmd_task_current)
+
+    p_launch = sub.add_parser(
+        "internal-launch-agent", help="internal: run the Orca/headless launch dance, detached"
+    )
+    p_launch.add_argument("--worktree", required=True)
+    p_launch.add_argument("--agent", required=True)
+    p_launch.add_argument("--prompt", required=True)
+    p_launch.set_defaults(func=cmd_internal_launch_agent)
+
+    p_startup = sub.add_parser(
+        "internal-run-startup-script",
+        help="internal: run the Orca/headless launch dance for a startup script, detached",
+    )
+    p_startup.add_argument("--worktree", required=True)
+    p_startup.add_argument("--script", required=True)
+    p_startup.set_defaults(func=cmd_internal_run_startup_script)
 
     p_watch = sub.add_parser("watch-agent", help="internal: wait for an agent run, then follow up")
     p_watch.add_argument("--project", required=True)

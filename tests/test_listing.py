@@ -61,7 +61,9 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(listing, "_repo_slug", lambda cfg: "acme/wallet-kit")
     monkeypatch.setattr(gitrepo, "all_branch_names", lambda repo: {"wk-45", "main"})
     monkeypatch.setattr(ghpr, "pr_for_branch", lambda slug, branch: None)
+    monkeypatch.setattr(ghpr, "prs_for_branches", lambda slug, branches: {})
     monkeypatch.setattr(agents, "active_sessions", lambda wt: [])
+    monkeypatch.setattr(agents, "bulk_active_sessions", lambda worktrees: {})
     return {"cfg": cfg, "store": store}
 
 
@@ -207,10 +209,13 @@ def test_merged_deferred_shows_check_emoji(env, monkeypatch):
 
 def test_pr_states_rendered(env, monkeypatch):
     monkeypatch.setattr(
-        ghpr, "pr_for_branch",
-        lambda slug, branch: PrInfo(
-            number=7, title="PR", state="OPEN", is_draft=True, url="u", merged_at=None
-        ),
+        ghpr, "prs_for_branches",
+        lambda slug, branches: {
+            b: PrInfo(
+                number=7, title="PR", state="OPEN", is_draft=True, url="u", merged_at=None
+            )
+            for b in branches
+        },
     )
     env["store"].save(
         Task(project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
@@ -222,11 +227,14 @@ def test_pr_states_rendered(env, monkeypatch):
 
 def test_agent_columns(env, monkeypatch):
     monkeypatch.setattr(
-        agents, "active_sessions",
-        lambda wt: [
-            SessionInfo(handle="a", status="running"),
-            SessionInfo(handle="b", status="waiting"),
-        ],
+        agents, "bulk_active_sessions",
+        lambda worktrees: {
+            wt: [
+                SessionInfo(handle="a", status="running"),
+                SessionInfo(handle="b", status="waiting"),
+            ]
+            for wt in worktrees
+        },
     )
     env["store"].save(
         Task(project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
@@ -247,7 +255,9 @@ def test_cached_task_renders_without_live_calls(env, monkeypatch):
         "P", (), {"issue_status": boom}
     )())
     monkeypatch.setattr(ghpr, "pr_for_branch", boom)
+    monkeypatch.setattr(ghpr, "prs_for_branches", boom)
     monkeypatch.setattr(agents, "active_sessions", boom)
+    monkeypatch.setattr(agents, "bulk_active_sessions", boom)
 
     env["store"].save(
         Task(

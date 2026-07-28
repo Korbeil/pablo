@@ -24,6 +24,15 @@
   worktree — **once per task** (`task_analyst_ran` flag in the store;
   re-entering `in-progress` later, e.g. from `waiting`, does not re-run
   it). The `/pablo-tasks` agents column shows when the run has finished.
+- If the project config sets `startup_script`
+  ([configuration.md](configuration.md)), it also runs — once per task,
+  in its own Orca terminal, in parallel with `task-analyst` (neither waits
+  on the other). Guarded independently via the `startup_script_ran` flag.
+- Both launches are asynchronous: entering `in-progress` spawns a detached
+  `pablo internal-launch-agent`/`internal-run-startup-script` subprocess
+  per launch and returns immediately, so `pablo state in-progress` (and
+  `/pablo-state`) never blocks on Orca — even if Orca is slow, hung, or
+  still indexing a just-created worktree.
 
 ## Task state
 
@@ -47,7 +56,7 @@ behavior is never duplicated.
 
 | state | legend | entered by | on-enter action |
 |---|---|---|---|
-| `in-progress` | 🔨 in-progress | `/pablo-start` (initial) | run `task-analyst` (once per task) |
+| `in-progress` | 🔨 in-progress | `/pablo-start` (initial) | run `task-analyst` (once per task); run `startup_script` if configured (once per task, parallel) |
 | `waiting` | ⏸️ waiting | `/pablo-waiting` toggle | save `state_before_waiting` |
 | `draft` | 📝 draft | `/pablo-commit-and-pr` | — |
 | `ci-red` | 🔴 ci-red | poller: CI failure | run `ci-analyst` |

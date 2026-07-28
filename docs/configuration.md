@@ -44,7 +44,9 @@ ci:
 startup_script: ~/scripts/pablo-setup.sh
                              # optional; absolute path to a bash script run once per
                              # task, in its own Orca terminal, alongside task-analyst
-                             # on /pablo-start. Default: null (skipped).
+                             # on /pablo-start. Default: null (skipped). Launched via a
+                             # detached subprocess, so it never blocks the /pablo-start
+                             # or pablo state command that triggers it.
 ```
 
 **Default-eligible keys** (fall back per key to `projects/default.yaml`

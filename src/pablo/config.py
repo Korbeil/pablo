@@ -55,6 +55,9 @@ class ProjectConfig:
     # Atlassian site host for jira projects (e.g. acme.atlassian.net);
     # None → first accessible resource of the authenticated account.
     site: str | None = None
+    # Absolute path to a bash script run once per task, in its own Orca
+    # terminal, alongside task-analyst on /pablo-start. None → skipped.
+    startup_script: Path | None = None
 
 
 def projects_dir() -> Path:
@@ -164,4 +167,9 @@ def _parse_project(path: Path, defaults: dict[str, Any]) -> ProjectConfig:
         failure_signal=(data.get("testing", {}) or {}).get("failure_signal"),
         bot_whitelist=list(_merged(data, defaults, "review", "bot_whitelist")),
         ci_ignore_checks=list(_merged(data, defaults, "ci", "ignore_checks")),
+        startup_script=(
+            Path(str(data["startup_script"])).expanduser()
+            if data.get("startup_script")
+            else None
+        ),
     )
