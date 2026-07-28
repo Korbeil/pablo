@@ -256,8 +256,14 @@ def _do_run_startup_script(worktree: Path, script: Path) -> str:
     detached launcher subprocess (see ``run_startup_script()``). Shares
     ``_do_launch_agent``'s per-worktree lock so the two don't race on the
     same cold ``terminal create`` call.
+
+    The command is ``bash <script>; exec bash`` so when the script
+    finishes (success or failure — ``;`` not ``&&``) the tab drops into
+    an interactive shell at the worktree root instead of auto-closing
+    on PTY EOF. ``opencode``'s TUI is itself long-lived and needs no
+    such wrapping, so only this path does it.
     """
-    command = f"bash {shlex.quote(str(script))}"
+    command = f"bash {shlex.quote(str(script))}; exec bash"
     with _acquire_launch_lock(worktree):
         _wait_worktree_indexed(worktree)
         result = _orca_with_retry(

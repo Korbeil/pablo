@@ -28,6 +28,9 @@
   ([configuration.md](configuration.md)), it also runs — once per task,
   in its own Orca terminal, in parallel with `task-analyst` (neither waits
   on the other). Guarded independently via the `startup_script_ran` flag.
+  The terminal runs `bash <script>; exec bash` so when the script
+  finishes the tab drops into an interactive shell at the worktree root
+  (showing the script's output) instead of auto-closing on PTY EOF.
 - Both launches are asynchronous: entering `in-progress` spawns a detached
   `pablo internal-launch-agent`/`internal-run-startup-script` subprocess
   per launch and returns immediately, so `pablo state in-progress` (and
