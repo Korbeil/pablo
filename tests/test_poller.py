@@ -8,6 +8,7 @@ from pablo.config import ProjectConfig
 from pablo.model import (
     CI_RED,
     DRAFT,
+    IN_PROGRESS,
     NEEDS_TESTING,
     REQUEST_CHANGES,
     TESTING_FAILED,
@@ -83,6 +84,11 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(agents, "active_sessions", lambda wt: stubs["sessions"])
     monkeypatch.setattr(
         agents, "launch", lambda wt, a, p: stubs["launched"].append(a) or "t1"
+    )
+    stubs["startups"] = []
+    monkeypatch.setattr(
+        agents, "run_startup_script",
+        lambda wt, script: stubs["startups"].append(str(script)) or "t2",
     )
     monkeypatch.setattr(
         agents, "spawn_watcher", lambda *a, **k: None
@@ -339,3 +345,80 @@ def test_poll_display_cache_survives_closed_task(env):
     env["stubs"]["sessions"] = []
     poll(env)
     assert get_task(env) is None
+
+
+# ----- self-healing for a cold-worktree Orca launch hang (all 4 states) ----
+
+
+def _fresh_ts(seconds_ago: int) -> str:
+    from datetime import timedelta
+
+    return (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).isoformat(
+        timespec="seconds"
+    )
+
+
+def set_launch(env, label, *, attempts=1, ago=0):
+    """Stamp ``agent_launches[label]`` on the current task."""
+    task = get_task(env)
+    if task.agent_launches is None:
+        task.agent_launches = {}
+    task.agent_launches[label] = {
+        "launched_at": _fresh_ts(ago),
+        "attempts": attempts,
+    }
+    env["store"].save(task)
+
+
+def test_no_state_change_when_session_present(env):
+    env["stubs"]["sessions"] = [agents.SessionInfo(handle="a", status="running")]
+    set_state(env, IN_PROGRESS, pr_number=None)
+    set_launch(env, "task-analyst", ago=poller.LAUNCH_WINDOW_S + 60)
+    poll(env)
+    assert env["stubs"]["launched"] == []
+    assert env["stubs"]["startups"] == []
+
+
+def test_caps_at_max_attempts(env):
+    set_state(env, IN_PROGRESS, pr_number=None)
+    set_launch(
+        env, "task-analyst", attempts=poller.LAUNCH_MAX_ATTEMPTS,
+        ago=poller.LAUNCH_WINDOW_S + 60,
+    )
+    poll(env)
+    assert env["stubs"]["launched"] == []
+
+
+@pytest.mark.parametrize("state, label, pr", [
+    (IN_PROGRESS, "task-analyst", None),
+    (CI_RED, "ci-analyst", 7),
+    (REQUEST_CHANGES, "pr-feedback", 7),
+    (TESTING_FAILED, "task-feedback", 7),
+])
+def test_relaunches_missing_agent_past_window(env, state, label, pr):
+    set_state(env, state, pr_number=pr, state_entered_at=_fresh_ts(poller.LAUNCH_WINDOW_S + 70))
+    set_launch(env, label, ago=poller.LAUNCH_WINDOW_S + 60)
+    poll(env)
+    assert env["stubs"]["launched"] == [label]
+    rec = get_task(env).agent_launches[label]
+    assert rec["attempts"] == 2
+    assert env["stubs"]["startups"] == []
+
+
+def test_in_progress_relouches_startup_past_window(env):
+    from dataclasses import replace
+
+    env["cfg"] = replace(env["cfg"], startup_script=Path("/setup.sh"))
+    set_state(env, IN_PROGRESS, pr_number=None)
+    set_launch(env, "task-analyst", ago=poller.LAUNCH_WINDOW_S + 60)
+    set_launch(env, "startup-script", ago=poller.LAUNCH_WINDOW_S + 60)
+    poll(env)
+    assert env["stubs"]["launched"] == ["task-analyst"]
+    assert env["stubs"]["startups"] == ["/setup.sh"]
+
+
+def test_no_relouch_within_launch_window(env):
+    set_state(env, CI_RED, pr_number=7, state_entered_at=_fresh_ts(20))
+    set_launch(env, "ci-analyst", ago=10)
+    poll(env)
+    assert env["stubs"]["launched"] == []

@@ -80,10 +80,11 @@ def test_enter_in_progress_runs_analyst_once(ctx):
 
 def test_enter_in_progress_stamps_analyst_launch(ctx):
     states.enter_state(ctx, IN_PROGRESS)
-    assert ctx.task.task_analyst_launched_at is not None
-    assert ctx.task.analyst_launch_attempts == 1
+    rec = ctx.task.agent_launches["task-analyst"]
+    assert rec["launched_at"] is not None
+    assert rec["attempts"] == 1
     states.enter_state(ctx, IN_PROGRESS)  # run-once flag respected → no re-stamp
-    assert ctx.task.analyst_launch_attempts == 1
+    assert ctx.task.agent_launches["task-analyst"]["attempts"] == 1
 
 
 def test_enter_in_progress_skips_startup_script_when_unset(ctx):
@@ -99,8 +100,9 @@ def test_enter_in_progress_runs_startup_script_once(ctx, tmp_path):
     states.enter_state(ctx, IN_PROGRESS)
     assert ctx.calls["startup_script"] == [tmp_path / "setup.sh"]
     assert ctx.task.startup_script_ran is True
-    assert ctx.task.startup_script_launched_at is not None
-    assert ctx.task.startup_launch_attempts == 1
+    rec = ctx.task.agent_launches["startup-script"]
+    assert rec["launched_at"] is not None
+    assert rec["attempts"] == 1
     states.enter_state(ctx, IN_PROGRESS)  # run-once flag respected
     assert len(ctx.calls["startup_script"]) == 1
 
@@ -147,6 +149,17 @@ def test_request_changes_launches_planner_then_drafts_pr(ctx):
     states.enter_state(ctx, REQUEST_CHANGES)
     assert ctx.calls["launch"][0][0] == "pr-feedback"
     assert ctx.calls["draft"] == [7]  # PR flipped to draft immediately on entry
+    rec = ctx.task.agent_launches["pr-feedback"]
+    assert rec["launched_at"] is not None
+    assert rec["attempts"] == 1
+
+
+def test_ci_red_stamps_launch(ctx):
+    ctx.task.state = DRAFT
+    states.enter_state(ctx, CI_RED)
+    rec = ctx.task.agent_launches["ci-analyst"]
+    assert rec["launched_at"] is not None
+    assert rec["attempts"] == 1
 
 
 def test_ci_red_runs_analyst(ctx):
@@ -166,6 +179,9 @@ def test_testing_failed_launches_feedback_then_drafts_pr(ctx):
     states.enter_state(ctx, TESTING_FAILED)
     assert ctx.calls["launch"][0][0] == "task-feedback"
     assert ctx.calls["draft"] == [7]  # PR flipped to draft immediately on entry
+    rec = ctx.task.agent_launches["task-feedback"]
+    assert rec["launched_at"] is not None
+    assert rec["attempts"] == 1
 
 
 def test_needs_testing_stamps_baseline(ctx):

@@ -40,6 +40,7 @@ Following the conventions of the user's other OpenCode agents (flat
 | `/pablo-sync` | `pablo sync` | worktree sync (dry-run by default) |
 | `/pablo-state` | `pablo state` | manually force the current task's state |
 | `/pablo-waiting` | `pablo waiting` | pause/resume toggle |
+| `/pablo-relaunch` | `pablo relaunch` | re-fire the current state's agent/startup launchers (recover from a cold-worktree Orca hang) |
 | `/pablo-close` | `pablo close` | manual close (escape hatch) |
 | `/pablo-doctor` | `pablo doctor` | CLI preflight check |
 | `/pablo-commit-and-pr` | (agentic) | commit, push, draft PR, state → `draft` |
