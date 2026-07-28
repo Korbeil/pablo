@@ -29,12 +29,14 @@ def test_orca_launch_builds_command(monkeypatch, tmp_path):
         return orca_ok({"handle": "term_123"})
 
     monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
     handle = agents._do_launch_agent(tmp_path, "task-analyst", "Analyze issue #45")
     assert handle == "term_123"
     argv = calls[0]
     assert argv[:3] == ["orca", "terminal", "create"]
     assert f"path:{tmp_path}" in argv
     assert "pablo:task-analyst" in argv
+    assert "--focus" in argv  # surface the new TUI tab in Orca's foreground
     command = argv[argv.index("--command") + 1]
     assert command.startswith("opencode ")
     assert "--agent task-analyst" in command
@@ -58,6 +60,7 @@ def test_launch_falls_back_headless_when_orca_refuses(monkeypatch, tmp_path, age
         return FakeProc()
 
     monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
     monkeypatch.setattr(agents.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(agents.time, "sleep", lambda s: None)
     handle = agents._do_launch_agent(tmp_path, "task-analyst", "hello")
@@ -80,10 +83,109 @@ def test_launch_succeeds_on_orca_retry(monkeypatch, tmp_path):
         return orca_ok({"handle": "term_555"})
 
     monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
     monkeypatch.setattr(agents.time, "sleep", lambda s: None)
     handle = agents._do_launch_agent(tmp_path, "task-analyst", "hello")
     assert handle == "term_555"
     assert attempts["n"] == 2
+
+
+def test_create_uses_tight_per_call_timeout(monkeypatch, tmp_path):
+    """A hung ``terminal create`` must not eat the whole retry budget — the
+    per-call timeout for the create call is the tighter ORCA_CREATE_TIMEOUT_S,
+    so the retry loop can iterate within its patient detached budget."""
+    seen_timeouts = []
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        seen_timeouts.append(timeout)
+        return orca_ok({"handle": "term_x"})
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    agents._do_launch_agent(tmp_path, "task-analyst", "hi")
+    assert agents.ORCA_CREATE_TIMEOUT_S in seen_timeouts, seen_timeouts
+    assert agents.ORCA_CREATE_TIMEOUT_S < agents.ORCA_CALL_TIMEOUT_S
+
+
+def test_wait_worktree_indexed_polls_until_present(monkeypatch, tmp_path):
+    target = tmp_path / "wt"
+    calls = {"n": 0}
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return orca_ok({"worktrees": [{"path": "/elsewhere"}]})
+        return orca_ok({"worktrees": [{"path": str(target)}]})
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    assert agents._wait_worktree_indexed(target) is True
+    assert calls["n"] == 2  # polled once (missed), then again (hit)
+
+
+def test_wait_worktree_indexed_called_before_terminal_create(monkeypatch, tmp_path):
+    """Warm-up runs before the create attempt, so the ``path:`` selector is
+    resolvable by the time we ask Orca for a terminal."""
+    order = []
+
+    def spy_wait(wt, **k):
+        order.append("wait")
+        return True
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        if argv[1:3] == ["terminal", "create"]:
+            order.append("create")
+        return orca_ok({"handle": "term_x"})
+
+    monkeypatch.setattr(agents, "_wait_worktree_indexed", spy_wait)
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    agents._do_launch_agent(tmp_path, "task-analyst", "hi")
+    assert order[0] == "wait"
+    assert "create" in order
+
+
+def test_launch_lock_namespacing_per_worktree(monkeypatch, tmp_path, agents_dir):
+    """Per-worktree ``flock``: same worktree reuses one lockfile; different
+    worktrees get independent ones — so concurrent launchers on the same
+    cold path serialise without blocking unrelated worktrees."""
+    wt_a = tmp_path / "repo" / "wt-a"
+    wt_b = tmp_path / "repo" / "wt-b"
+    wt_a.mkdir(parents=True)
+    wt_b.mkdir(parents=True)
+    monkeypatch.setattr(agents, "run_cli", lambda *a, **k: orca_ok({"handle": "term_x"}))
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    with agents._acquire_launch_lock(wt_a):
+        pass
+    with agents._acquire_launch_lock(wt_b):
+        pass
+    with agents._acquire_launch_lock(wt_a):  # reuse, not a new lockfile
+        pass
+    names = sorted(p.name for p in (agents_dir / "locks").iterdir())
+    assert len(names) == 2  # one per worktree, not one per acquire
+
+
+def test_run_startup_script_uses_focus_and_warmup(monkeypatch, tmp_path, agents_dir):
+    """``_do_run_startup_script`` shares the warm-up + ``--focus`` path with
+    ``_do_launch_agent`` so its Orca tab also surfaces reliably."""
+    script = tmp_path / "setup.sh"
+    script.write_text("#!/bin/bash\necho hi\n")
+    calls = []
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        calls.append(argv)
+        return orca_ok({"terminal": {"handle": "term_s"}})
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    handle = agents._do_run_startup_script(tmp_path, script)
+    assert handle == "term_s"
+    argv = calls[0]
+    assert argv[:3] == ["orca", "terminal", "create"]
+    assert "--focus" in argv
+    assert "pablo:startup-script" in argv
 
 
 def test_launch_detaches_and_returns_immediately(monkeypatch, tmp_path):

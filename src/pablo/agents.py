@@ -18,10 +18,24 @@ A brand-new worktree (``launch()``/``run_startup_script()`` called right
 after ``git worktree add``) can hit the same ``selector_not_found`` before
 Orca has indexed it — observed 2026-07-28 on OMS-6393, where the repo was
 registered weeks earlier yet the very first ``terminal create`` still
-failed. ``_orca_with_retry`` retries several times to ride out that race,
-and every exhausted fallback is logged to
-``<agents_dir>/logs/orca-fallback.log`` so a genuinely-unregistered repo
-and this race are distinguishable after the fact.
+failed (in practice it hung for the full per-call timeout and never
+retried). Two measures close that race:
+
+* ``_wait_worktree_indexed`` polls ``orca worktree list`` until the new
+  path appears before any ``terminal create`` attempt, so the selector
+  is already resolvable by the time we ask for a terminal.
+* ``_orca_with_retry`` then retries several times with a tight per-call
+  timeout (``ORCA_CREATE_TIMEOUT_S``) so a single hung call no longer
+  eats the whole retry budget — exhaustive failures are logged to
+  ``<agents_dir>/logs/orca-fallback.log`` so a genuinely-unregistered
+  repo and this race stay distinguishable after the fact.
+
+Finally, ``_enter_in_progress`` fires ``launch()`` and
+``run_startup_script()`` back-to-back; both would race on the same
+cold path. A per-worktree ``flock`` (``_acquire_launch_lock``) serialises
+their ``terminal create`` spans, and ``--focus`` surfaces the new TUI
+tab in Orca's foreground instead of leaving it as an inactive background
+tab.
 
 ``launch()``/``run_startup_script()`` are thin: they each ``Popen`` a
 detached ``pablo internal-launch-agent`` / ``internal-run-startup-script``
@@ -40,6 +54,8 @@ degrading to a headless (Orca-invisible) run.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import os
 import shlex
@@ -70,6 +86,18 @@ def agents_dir() -> Path:
 
 
 ORCA_CALL_TIMEOUT_S = 60
+# ``orca terminal create`` on a warm path returns in ~1s; the only
+# observed slow case is the just-created-worktree hang, which
+# ``_wait_worktree_indexed`` pre-empts. A single hung call must not eat
+# the whole retry budget — keep this tight so ``_orca_with_retry`` can
+# iterate within its patient detached-launch budget.
+ORCA_CREATE_TIMEOUT_S = 12
+# ``orca worktree list`` is a cheap read; polled by
+# ``_wait_worktree_indexed`` once per second while waiting for a
+# brand-new worktree to appear in Orca's index.
+ORCA_LIST_TIMEOUT_S = 8
+ORCA_LAUNCH_INDEX_WAIT_S = 20.0
+ORCA_LAUNCH_INDEX_POLL_S = 1.0
 # The retry loop below only ever runs inside the detached launcher
 # subprocess (see launch()/run_startup_script()), never inline in the
 # interactive CLI, so it can afford to be patient about the
@@ -78,7 +106,9 @@ ORCA_LAUNCH_RETRIES = 10
 ORCA_LAUNCH_RETRY_DELAY_S = 3.0
 
 
-def _orca(argv: list[str]) -> tuple[dict | None, str | None]:
+def _orca(
+    argv: list[str], *, per_call_timeout: float = ORCA_CALL_TIMEOUT_S
+) -> tuple[dict | None, str | None]:
     """Run an orca command.
 
     Returns ``(result, None)`` on success or ``(None, reason)`` describing
@@ -87,10 +117,12 @@ def _orca(argv: list[str]) -> tuple[dict | None, str | None]:
 
     Timeout matters: orca has been observed to hang when invoked outside an
     interactive session (e.g. under the systemd timer) — a hung call must
-    degrade to the headless fallback, not wedge the poller.
+    degrade to the headless fallback, not wedge the poller. ``per_call_timeout``
+    lets ``terminal create`` use the tighter ``ORCA_CREATE_TIMEOUT_S`` so a
+    single hang doesn't eat the whole retry budget.
     """
     try:
-        out = run_cli(["orca", *argv, "--json"], check=False, timeout=ORCA_CALL_TIMEOUT_S)
+        out = run_cli(["orca", *argv, "--json"], check=False, timeout=per_call_timeout)
         data = json.loads(out)
     except Exception as exc:
         return None, f"{type(exc).__name__}: {exc}"
@@ -106,13 +138,61 @@ def _log_orca_fallback(worktree: Path, label: str, reason: str | None) -> None:
         f.write(f"{utcnow()} worktree={worktree} label={label} reason={reason}\n")
 
 
-def _orca_with_retry(argv: list[str], *, worktree: Path, label: str) -> dict | None:
+def _wait_worktree_indexed(worktree: Path, *, timeout_s: float = ORCA_LAUNCH_INDEX_WAIT_S) -> bool:
+    """Poll ``orca worktree list`` until ``worktree`` appears (or timeout).
+
+    A brand-new worktree (``git worktree add`` seconds ago) may not be in
+    Orca's index yet, so its ``path:`` selector is unresolvable and
+    ``orca terminal create`` hangs. Waiting for the list to acknowledge
+    the path pre-empts that race. Returns ``True`` once present, ``False``
+    on any failure/timeout — callers proceed to ``terminal create`` either
+    way and let ``_orca_with_retry`` + the headless fallback handle an
+    Orca that genuinely doesn't know the path.
+    """
+    target = str(worktree)
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        result, _ = _orca(["worktree", "list"], per_call_timeout=ORCA_LIST_TIMEOUT_S)
+        if result is not None:
+            for wt in result.get("worktrees", []) if isinstance(result, dict) else (result or []):
+                if str(Path(wt.get("path", ""))) == target:
+                    return True
+        time.sleep(ORCA_LAUNCH_INDEX_POLL_S)
+    return False
+
+
+@contextlib.contextmanager
+def _acquire_launch_lock(worktree: Path):
+    """Per-worktree ``flock`` serialising ``terminal create`` spans.
+
+    ``_enter_in_progress`` fires ``launch()`` and ``run_startup_script()``
+    back-to-back; both spawn detached launchers that would otherwise race
+    on the same cold ``orca terminal create --worktree path:<NEW>`` call.
+    Holding this lock across the warm-up + create span in each launcher
+    makes them sequential for the same worktree only — different worktrees
+    get independent lockfiles and run in parallel as before.
+    """
+    locks = agents_dir() / "locks"
+    locks.mkdir(parents=True, exist_ok=True)
+    stem = "".join(c if c.isalnum() else "_" for c in str(worktree)) or "root"
+    lockfile = open(locks / f"{stem}.launch.lock", "w")
+    try:
+        fcntl.flock(lockfile.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(lockfile.fileno(), fcntl.LOCK_UN)
+        lockfile.close()
+
+
+def _orca_with_retry(
+    argv: list[str], *, worktree: Path, label: str, per_call_timeout: float = ORCA_CALL_TIMEOUT_S
+) -> dict | None:
     """``_orca`` with a few retries, to ride out the just-created-worktree
     indexing race (Orca hasn't yet resolved a brand-new ``path:`` selector).
     Logs the last failure reason once retries are exhausted."""
     reason = None
     for attempt in range(ORCA_LAUNCH_RETRIES):
-        result, reason = _orca(argv)
+        result, reason = _orca(argv, per_call_timeout=per_call_timeout)
         if result is not None:
             return result
         if attempt < ORCA_LAUNCH_RETRIES - 1:
@@ -130,23 +210,29 @@ def _do_launch_agent(worktree: Path, agent: str, prompt: str) -> str:
     ``opencode run``. Handle is ``term_...`` for Orca-managed runs,
     ``pid:<n>`` for headless.
 
-    Blocking: retries against Orca for up to
-    ``ORCA_LAUNCH_RETRIES * ORCA_LAUNCH_RETRY_DELAY_S`` seconds before
-    falling back. Only call this from the detached launcher subprocess
-    (see ``launch()``), never inline from the interactive CLI.
+    Blocking: warms Orca's worktree index, then retries ``terminal create``
+    for up to ``ORCA_LAUNCH_RETRIES * ORCA_LAUNCH_RETRY_DELAY_S`` seconds
+    before falling back. Only call this from the detached launcher
+    subprocess (see ``launch()``), never inline from the interactive CLI.
+    The per-worktree ``_acquire_launch_lock`` serialises this against a
+    concurrent ``run_startup_script`` on the same worktree.
     """
     command = (
         f"opencode {shlex.quote(str(worktree))} "
         f"--agent {agent} --prompt {shlex.quote(prompt)}"
     )
-    result = _orca_with_retry(
-        ["terminal", "create",
-         "--worktree", f"path:{worktree}",
-         "--title", f"pablo:{agent}",
-         "--command", command],
-        worktree=worktree,
-        label=agent,
-    )
+    with _acquire_launch_lock(worktree):
+        _wait_worktree_indexed(worktree)
+        result = _orca_with_retry(
+            ["terminal", "create",
+             "--worktree", f"path:{worktree}",
+             "--title", f"pablo:{agent}",
+             "--command", command,
+             "--focus"],
+            worktree=worktree,
+            label=agent,
+            per_call_timeout=ORCA_CREATE_TIMEOUT_S,
+        )
     if result:
         handle = (
             result.get("handle")
@@ -167,17 +253,23 @@ def _do_run_startup_script(worktree: Path, script: Path) -> str:
     Fire-and-forget: the caller does not wait for it to finish.
 
     Blocking, same budget as ``_do_launch_agent()`` — only call from the
-    detached launcher subprocess (see ``run_startup_script()``).
+    detached launcher subprocess (see ``run_startup_script()``). Shares
+    ``_do_launch_agent``'s per-worktree lock so the two don't race on the
+    same cold ``terminal create`` call.
     """
     command = f"bash {shlex.quote(str(script))}"
-    result = _orca_with_retry(
-        ["terminal", "create",
-         "--worktree", f"path:{worktree}",
-         "--title", "pablo:startup-script",
-         "--command", command],
-        worktree=worktree,
-        label="startup-script",
-    )
+    with _acquire_launch_lock(worktree):
+        _wait_worktree_indexed(worktree)
+        result = _orca_with_retry(
+            ["terminal", "create",
+             "--worktree", f"path:{worktree}",
+             "--title", "pablo:startup-script",
+             "--command", command,
+             "--focus"],
+            worktree=worktree,
+            label="startup-script",
+            per_call_timeout=ORCA_CREATE_TIMEOUT_S,
+        )
     if result:
         handle = (
             result.get("handle")
