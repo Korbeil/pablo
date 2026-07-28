@@ -237,17 +237,17 @@ def tasks_table(
             [
                 f"{task.branch} ({task.project})",
                 _state_cell(task),
+                count,
+                activity,
                 _issue_cell(task),
                 tracker,
                 pr,
-                count,
-                activity,
             ]
         )
     if not rows:
         return "no active tasks"
     return _render(
-        ["Task", "State", "Issue", "Tracker", "PR", "Agents", "Activity"], rows
+        ["Task", "State", "Agents", "Activity", "Issue", "Tracker", "PR"], rows
     )
 
 
