@@ -41,6 +41,10 @@ ci:
                              # to exclude it from CI evaluation, e.g. ["approval"] for a
                              # CircleCI manual-approval gate that nobody will click and
                              # therefore sits pending (or action_required) forever
+startup_script: ~/scripts/pablo-setup.sh
+                             # optional; absolute path to a bash script run once per
+                             # task, in its own Orca terminal, alongside task-analyst
+                             # on /pablo-start. Default: null (skipped).
 ```
 
 **Default-eligible keys** (fall back per key to `projects/default.yaml`
@@ -77,3 +81,11 @@ lowercased, e.g. `xxx-123` for Jira issue `XXX-123`.
   name for a task.
 - Plain-prompt tasks (no issue) use `project_key` + a short slug of the
   prompt instead (e.g. `xxx-fix-callback-verification`), same dedupe rule.
+- **Exception**: if a free-text prompt mentions a recognizable Jira/Linear
+  issue key belonging to a configured project (e.g. "fix the thing per
+  OMS-6393"), PABLO resolves that issue and uses the issue-linked
+  `[project-key]-[issue-id]` name instead of a word slug — same as
+  passing the issue URL directly. GitHub is excluded from this detection
+  (its `project_key` is just a configured branch prefix, not part of how
+  GitHub issues are referenced). Only prompts with no detectable key fall
+  back to the word-slug name.

@@ -430,8 +430,15 @@ for the target project. It supports two entry points:
   project's `project_key` plus a short slug derived from the prompt instead
   (e.g. `xxx-fix-callback-verification`), and apply the same `-2`, `-3`,
   ... duplicate-handling rule if that name is already taken.
+- **Exception**: if the prompt text mentions a recognizable Jira/Linear
+  issue key belonging to a configured project (e.g. "fix the thing per
+  OMS-6393"), treat it as issue-linked instead — resolve that issue and
+  use `[project-key]-[issue-id]` naming, same as flow 1 above. GitHub is
+  excluded (its `project_key` is only a branch prefix, not part of how
+  GitHub issues are referenced). Only prompts with no detectable key fall
+  back to the word-slug name.
 - Create the worktree the same way as the issue-linked flow, just without
-  any issue metadata attached.
+  any issue metadata attached (unless the exception above applied).
 
 In both cases, this command only creates the worktree/branch itself — it
 does not open an editor or make any code changes on its own. Document the

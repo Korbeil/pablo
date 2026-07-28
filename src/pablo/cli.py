@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -47,6 +48,24 @@ def _branch_base(cfg: ProjectConfig, issue: Issue) -> str:
     return issue.key.lower()
 
 
+_ISSUE_KEY_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9]*)-(\d+)\b")
+
+
+def _match_issue_key(text: str, projects: dict[str, ProjectConfig]):
+    """Find a Jira/Linear issue key (e.g. ``OMS-6393``) mentioned anywhere in
+    a free-text prompt, matched against a configured project's
+    ``project_key``. GitHub is excluded: its ``project_key`` is just a
+    configured branch prefix, not part of how its issues are referenced."""
+    for match in _ISSUE_KEY_RE.finditer(text):
+        prefix = match.group(1).upper()
+        for cfg in projects.values():
+            if cfg.provider not in ("jira", "linear"):
+                continue
+            if (cfg.project_key or "").upper() == prefix:
+                return cfg, get_provider(cfg.provider), match.group(0).upper()
+    return None
+
+
 def _create_task(
     store: Store,
     cfg: ProjectConfig,
@@ -73,6 +92,25 @@ def _create_task(
     return task
 
 
+def _start_issue_task(store: Store, cfg: ProjectConfig, issue: Issue) -> int:
+    for existing in store.all_tasks(cfg.name):
+        if existing.issue is not None and existing.issue.key == issue.key:
+            print(
+                f"task for {issue.key} already exists: worktree "
+                f"{existing.worktree_path} (state {existing.state}) — reusing it"
+            )
+            return 0
+    base = _branch_base(cfg, issue)
+    branch = naming.dedupe(base, gitrepo.all_branch_names(cfg.repo_path))
+    task = _create_task(store, cfg, branch, issue=issue, prompt=None)
+    print(
+        f"started {issue.key} ({issue.title}) in project {cfg.name}\n"
+        f"worktree: {task.worktree_path} (branch {branch})\n"
+        f"state: {task.state} — task-analyst is running"
+    )
+    return 0
+
+
 def cmd_start(args: argparse.Namespace) -> int:
     projects = load_projects()
     store = Store()
@@ -89,22 +127,13 @@ def cmd_start(args: argparse.Namespace) -> int:
             )
         cfg, provider, ref = matched
         issue = provider.get_issue(ref, cfg)
-        for existing in store.all_tasks(cfg.name):
-            if existing.issue is not None and existing.issue.key == issue.key:
-                print(
-                    f"task for {issue.key} already exists: worktree "
-                    f"{existing.worktree_path} (state {existing.state}) — reusing it"
-                )
-                return 0
-        base = _branch_base(cfg, issue)
-        branch = naming.dedupe(base, gitrepo.all_branch_names(cfg.repo_path))
-        task = _create_task(store, cfg, branch, issue=issue, prompt=None)
-        print(
-            f"started {issue.key} ({issue.title}) in project {cfg.name}\n"
-            f"worktree: {task.worktree_path} (branch {branch})\n"
-            f"state: {task.state} — task-analyst is running"
-        )
-        return 0
+        return _start_issue_task(store, cfg, issue)
+
+    key_matched = _match_issue_key(text, projects)
+    if key_matched is not None:
+        cfg, provider, key = key_matched
+        issue = provider.get_issue(key, cfg)
+        return _start_issue_task(store, cfg, issue)
 
     if not args.project:
         names = ", ".join(sorted(projects)) or "none configured"

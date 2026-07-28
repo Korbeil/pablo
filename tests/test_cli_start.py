@@ -135,3 +135,75 @@ def test_start_unknown_project_errors(env, capsys):
     rc = cli.main(["start", "--project", "nope", "do something"])
     assert rc == 1
     assert "wallet-kit" in capsys.readouterr().err  # lists configured projects
+
+
+def make_jira_cfg(tmp_path: Path, name: str = "sezane-oms") -> ProjectConfig:
+    return ProjectConfig(
+        name=name,
+        type="work",
+        repo_path=tmp_path / "oms-repo",
+        primary_branch="main",
+        worktrees_root=tmp_path / "oms-wt",
+        provider="jira",
+        identity="bleduc",
+        project_key="OMS",
+        sync_strategy="rebase",
+        sync_auto_apply=False,
+        sync_interval=30,
+        poll_interval=10,
+        failure_signal=None,
+        bot_whitelist=[],
+        ci_ignore_checks=[],
+    )
+
+
+@pytest.fixture
+def jira_env(env, tmp_path, monkeypatch):
+    jira_cfg = make_jira_cfg(tmp_path)
+    jira_issue = Issue(
+        provider="jira",
+        key="OMS-6393",
+        url="https://example.atlassian.net/browse/OMS-6393",
+        title="Release gallery ML",
+        project_key="OMS",
+    )
+    jira_provider = FakeProvider(jira_issue)
+    projects = {"wallet-kit": env["cfg"], "sezane-oms": jira_cfg}
+    monkeypatch.setattr(cli, "load_projects", lambda: projects)
+
+    def get_provider(name):
+        return jira_provider if name == "jira" else FakeProvider(env["issue"])
+
+    monkeypatch.setattr(cli, "get_provider", get_provider)
+    env["jira_cfg"] = jira_cfg
+    env["jira_issue"] = jira_issue
+    return env
+
+
+def test_start_prompt_with_issue_key_resolves_issue(jira_env, capsys):
+    rc = cli.main(
+        ["start", "--project", "sezane-oms", "fix the thing per OMS-6393 please"]
+    )
+    assert rc == 0
+    assert jira_env["created"] == [("oms-6393", "main")]
+    task = jira_env["store"]().get("sezane-oms", "oms-6393")
+    assert task is not None
+    assert task.issue.key == "OMS-6393"
+    out = capsys.readouterr().out
+    assert "OMS-6393" in out
+
+
+def test_start_prompt_with_unconfigured_key_falls_back_to_slug(jira_env, capsys):
+    rc = cli.main(
+        ["start", "--project", "wallet-kit", "fix the thing per XYZ-999 please"]
+    )
+    assert rc == 0
+    assert jira_env["created"] == [("wk-fix-the-thing-per", "main")]
+
+
+def test_start_prompt_without_issue_key_uses_slug(jira_env, capsys):
+    rc = cli.main(
+        ["start", "--project", "wallet-kit", "fix callback verification quickly now"]
+    )
+    assert rc == 0
+    assert jira_env["created"] == [("wk-fix-callback-verification-quickly", "main")]
