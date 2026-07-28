@@ -78,6 +78,14 @@ def test_enter_in_progress_runs_analyst_once(ctx):
     assert len(ctx.calls["launch"]) == 1
 
 
+def test_enter_in_progress_stamps_analyst_launch(ctx):
+    states.enter_state(ctx, IN_PROGRESS)
+    assert ctx.task.task_analyst_launched_at is not None
+    assert ctx.task.analyst_launch_attempts == 1
+    states.enter_state(ctx, IN_PROGRESS)  # run-once flag respected → no re-stamp
+    assert ctx.task.analyst_launch_attempts == 1
+
+
 def test_enter_in_progress_skips_startup_script_when_unset(ctx):
     states.enter_state(ctx, IN_PROGRESS)
     assert ctx.calls["startup_script"] == []
@@ -91,6 +99,8 @@ def test_enter_in_progress_runs_startup_script_once(ctx, tmp_path):
     states.enter_state(ctx, IN_PROGRESS)
     assert ctx.calls["startup_script"] == [tmp_path / "setup.sh"]
     assert ctx.task.startup_script_ran is True
+    assert ctx.task.startup_script_launched_at is not None
+    assert ctx.task.startup_launch_attempts == 1
     states.enter_state(ctx, IN_PROGRESS)  # run-once flag respected
     assert len(ctx.calls["startup_script"]) == 1
 

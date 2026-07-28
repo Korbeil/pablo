@@ -26,8 +26,8 @@ def test_internal_run_startup_script_dispatches_to_do_run_startup_script(monkeyp
     assert calls == [(tmp_path, script)]
 
 
-def test_build_parser_parses_internal_launch_agent():
-    parser = cli.build_parser()
+def test_internal_parser_parses_launch_agent():
+    parser = cli._build_internal_parser()
     args = parser.parse_args(
         ["internal-launch-agent", "--worktree", "/wt", "--agent", "task-analyst", "--prompt", "hi"]
     )
@@ -37,8 +37,8 @@ def test_build_parser_parses_internal_launch_agent():
     assert args.prompt == "hi"
 
 
-def test_build_parser_parses_internal_run_startup_script():
-    parser = cli.build_parser()
+def test_internal_parser_parses_run_startup_script():
+    parser = cli._build_internal_parser()
     args = parser.parse_args(
         ["internal-run-startup-script", "--worktree", "/wt", "--script", "/wt/setup.sh"]
     )
