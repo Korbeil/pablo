@@ -16,9 +16,15 @@ from pathlib import Path
 
 from pablo import PabloError, agents, ghpr, gitrepo, naming
 from pablo.config import ProjectConfig, load_projects
-from pablo.model import IN_PROGRESS, Issue, Task
+from pablo.model import IN_PROGRESS, Issue, Task, utcnow
 from pablo.providers import get_provider
-from pablo.states import COMMIT_ALLOWED_FROM, TaskCtx, enter_state, toggle_waiting
+from pablo.states import (
+    COMMIT_ALLOWED_FROM,
+    TaskCtx,
+    _analyst_prompt,
+    enter_state,
+    toggle_waiting,
+)
 from pablo.store import Store, task_lock
 
 SUMMARY_MAX_WORDS = 5
@@ -284,6 +290,43 @@ def cmd_state(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_relaunch(args: argparse.Namespace) -> int:
+    """Manually re-fire the task-analyst and/or startup-script launchers.
+
+    Used to recover an ``in-progress`` task whose cold-worktree Orca launch
+    hung: the worktree is now warm, so the re-fire usually opens the Orca
+    terminal (which also auto-renames the worktree to ``OMS-XXXX`` once the
+    analyst sends its first message). Non-blocking, same fire-and-forget
+    ``agents.launch``/``agents.run_startup_script`` as ``pablo start``; safe
+    to run repeatedly. Resets the auto re-fire attempt counters so the
+    poller's self-healing budget starts fresh.
+    """
+    store = Store()
+    ctx = _resolve_ctx(store)
+    only = args.only
+    fired: list[str] = []
+    with task_lock(store, ctx.task.project, ctx.task.branch):
+        task = ctx.task
+        if only is None or only == "analyst":
+            agents.launch(task.worktree_path, "task-analyst", _analyst_prompt(task))
+            task.task_analyst_ran = True
+            task.task_analyst_launched_at = utcnow()
+            task.analyst_launch_attempts = 1
+            fired.append("task-analyst")
+        if (only is None or only == "startup") and ctx.cfg.startup_script:
+            agents.run_startup_script(task.worktree_path, ctx.cfg.startup_script)
+            task.startup_script_ran = True
+            task.startup_script_launched_at = utcnow()
+            task.startup_launch_attempts = 1
+            fired.append("startup-script")
+        store.save(task)
+    print(
+        f"{ctx.task.branch}: re-launched {', '.join(fired)} — "
+        f"check Orca for the new terminal tab"
+    )
+    return 0
+
+
 def cmd_waiting(args: argparse.Namespace) -> int:
     store = Store()
     ctx = _resolve_ctx(store)
@@ -437,6 +480,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_state.set_defaults(func=cmd_state)
 
+    p_relaunch = sub.add_parser(
+        "relaunch",
+        help="re-fire the task-analyst/startup-script launchers on the current task",
+    )
+    p_relaunch.add_argument(
+        "--only",
+        choices=["analyst", "startup"],
+        help="re-fire only one (default: both analyst and, if configured, startup)",
+    )
+    p_relaunch.set_defaults(func=cmd_relaunch)
+
     p_waiting = sub.add_parser("waiting", help="toggle the waiting pause for the current task")
     p_waiting.set_defaults(func=cmd_waiting)
 
@@ -454,23 +508,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_task_current.add_argument("--json", action="store_true", default=True)
     p_task_current.set_defaults(func=cmd_task_current)
 
-    p_launch = sub.add_parser(
-        "internal-launch-agent", help="internal: run the Orca/headless launch dance, detached"
-    )
+    return parser
+
+
+def _build_internal_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="pablo", add_help=False)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_launch = sub.add_parser("internal-launch-agent")
     p_launch.add_argument("--worktree", required=True)
     p_launch.add_argument("--agent", required=True)
     p_launch.add_argument("--prompt", required=True)
     p_launch.set_defaults(func=cmd_internal_launch_agent)
 
-    p_startup = sub.add_parser(
-        "internal-run-startup-script",
-        help="internal: run the Orca/headless launch dance for a startup script, detached",
-    )
+    p_startup = sub.add_parser("internal-run-startup-script")
     p_startup.add_argument("--worktree", required=True)
     p_startup.add_argument("--script", required=True)
     p_startup.set_defaults(func=cmd_internal_run_startup_script)
 
-    p_watch = sub.add_parser("watch-agent", help="internal: wait for an agent run, then follow up")
+    p_watch = sub.add_parser("watch-agent")
     p_watch.add_argument("--project", required=True)
     p_watch.add_argument("--branch", required=True)
     p_watch.add_argument("--handle", required=True)
@@ -481,8 +537,16 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+_INTERNAL_COMMANDS = frozenset({"internal-launch-agent", "internal-run-startup-script", "watch-agent"})
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] in _INTERNAL_COMMANDS:
+        parser = _build_internal_parser()
+    else:
+        parser = build_parser()
     args = parser.parse_args(argv)
     try:
         return args.func(args)

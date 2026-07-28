@@ -10,6 +10,16 @@ dispatcher. Per task, under the task lock:
    the checks are timestamp-based);
 4. otherwise the current state's checks from ``POLL_CHECKS``.
 
+For ``in-progress`` tasks specifically, before the pre-draft no-op, the
+poller also self-heals a cold-worktree Orca launch hang: ``pablo start`` is
+non-blocking (it spawn a detached launcher and returns), so a hang inside
+``orca terminal create`` leaves ``task_analyst_ran`` set but no agent
+session ever appeared. The poller re-fires the detached task-analyst
+launcher when no session is observed past the launch window, up to
+``IN_PROGRESS_LAUNCH_MAX_ATTEMPTS``. The startup script is not auto-refired
+(arbitrary shell scripts aren't safe to re-run blindly); use
+``pablo relaunch`` to recover it manually.
+
 There is no git-push detection anywhere here: draft re-entry is exclusively
 /commit-and-pr's job.
 """
@@ -24,6 +34,7 @@ from pablo.config import ProjectConfig
 from pablo.model import (
     CI_RED,
     DRAFT,
+    IN_PROGRESS,
     NEEDS_TESTING,
     READY_TO_REVIEW,
     REQUEST_CHANGES,
@@ -33,10 +44,19 @@ from pablo.model import (
     utcnow,
 )
 from pablo.providers import get_provider, parse_ts
-from pablo.states import TaskCtx, enter_state
+from pablo.states import TaskCtx, _analyst_prompt, enter_state
 from pablo.store import Store, task_lock
 
 POLL_LOCK_TIMEOUT_S = 2
+
+# Self-healing window for a cold-worktree Orca launch hang. Must exceed the
+# detached launcher's retry budget (ORCA_LAUNCH_RETRIES *
+# ORCA_LAUNCH_RETRY_DELAY_S + warm-up ≈ 170s in agents.py) plus margin so a
+# genuinely-running (but slow to register in Orca's `worktree ps`) session
+# is observed before we conclude it died. The poller cadence itself bounds
+# how quickly a stuck task is noticed regardless.
+IN_PROGRESS_LAUNCH_WINDOW_S = 240
+IN_PROGRESS_LAUNCH_MAX_ATTEMPTS = 3
 
 EPOCH = datetime.fromtimestamp(0, tz=timezone.utc)
 
@@ -133,6 +153,52 @@ def _close(ctx: TaskCtx, events: list[str]) -> None:
     events.append(f"{task.branch}: PR merged → task closed, worktree removed")
 
 
+def _relaunch_stuck_in_progress(ctx: TaskCtx, events: list[str]) -> None:
+    """Re-fire the detached task-analyst launcher when a cold-worktree Orca
+    hang left the worktree with no agent session.
+
+    ``pablo start`` is non-blocking: it spawns a detached launcher
+    (``agents.launch``) and returns, but ``orca terminal create`` on a
+    brand-new worktree has been observed to hang, leaving
+    ``task_analyst_ran`` set with no session ever appearing. Once the
+    launch window has elapsed with no observed session, and the attempt
+    budget hasn't been exhausted, the detached launcher is re-fired (same
+    fire-and-forget ``agents.launch``); the working worktree is now warm,
+    so the second attempt usually succeeds in Orca and the worktree's
+    ``displayName`` self-corrects once the analyst sends its first message.
+
+    The startup script is deliberately excluded: re-running an arbitrary
+    shell script blindly is unsafe, and its "success" is not a live
+    session the poller can observe. Recover it manually with
+    ``pablo relaunch``.
+    """
+    task = ctx.task
+    try:
+        sessions = agents.active_sessions(task.worktree_path)
+    except Exception:
+        sessions = []
+    if sessions:
+        # A session exists (running or done-but-still-listed in Orca): the
+        # launch took, so there is nothing to heal.
+        return
+    if task.task_analyst_launched_at is None:
+        return  # never launched (older record pre-dating the tracking fields)
+    age_s = (datetime.now(timezone.utc) - parse_ts(task.task_analyst_launched_at)).total_seconds()
+    if age_s < IN_PROGRESS_LAUNCH_WINDOW_S:
+        return  # the detached launcher may still be retrying inside its budget
+    if task.analyst_launch_attempts >= IN_PROGRESS_LAUNCH_MAX_ATTEMPTS:
+        return  # give up; the user can still recover manually via pablo relaunch
+    agents.launch(task.worktree_path, "task-analyst", _analyst_prompt(task))
+    task.task_analyst_launched_at = utcnow()
+    task.analyst_launch_attempts += 1
+    ctx.store.save(task)
+    events.append(
+        f"{task.branch}: task-analyst re-launch "
+        f"#{task.analyst_launch_attempts} (no session observed after "
+        f"{int(age_s)}s)"
+    )
+
+
 def _poll_task(ctx: TaskCtx, events: list[str]) -> None:
     task = ctx.task
     slug = _repo_slug(ctx.cfg)
@@ -163,6 +229,11 @@ def _poll_task(ctx: TaskCtx, events: list[str]) -> None:
 
     if task.state == WAITING:
         return  # everything else is deferred while paused
+
+    if task.state == IN_PROGRESS:
+        _relaunch_stuck_in_progress(ctx, events)
+        # pre-draft: nothing else to poll (no PR yet).
+        return
 
     if task.pr_number is None:
         return  # pre-draft (in-progress): nothing to poll

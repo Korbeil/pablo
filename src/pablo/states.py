@@ -68,9 +68,13 @@ def _enter_in_progress(ctx: TaskCtx) -> None:
     if not ctx.task.task_analyst_ran:
         agents.launch(ctx.task.worktree_path, "task-analyst", _analyst_prompt(ctx.task))
         ctx.task.task_analyst_ran = True
+        ctx.task.task_analyst_launched_at = utcnow()
+        ctx.task.analyst_launch_attempts = 1
     if ctx.cfg.startup_script and not ctx.task.startup_script_ran:
         agents.run_startup_script(ctx.task.worktree_path, ctx.cfg.startup_script)
         ctx.task.startup_script_ran = True
+        ctx.task.startup_script_launched_at = utcnow()
+        ctx.task.startup_launch_attempts = 1
 
 
 def _enter_waiting(ctx: TaskCtx) -> None:
