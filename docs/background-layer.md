@@ -86,9 +86,10 @@ Orca-managed agents:
 
 ```bash
 # launch (src/pablo/agents.py):
+orca worktree list --json                                       # warm-up: wait for the path to be indexed
 orca terminal create --worktree path:<worktree> \
-     --title "pablo:<agent>" \
-     --command "opencode run --agent <agent> '<prompt>'" --json
+     --title "pablo:<agent>" --focus \
+     --command "opencode <worktree> --agent <agent> --prompt '<prompt>'" --json
 # completion (the pablo watch-agent watcher):
 orca terminal wait --terminal <handle> --for exit --timeout-ms 3600000 --json
 # activity (task listing + close checks):
