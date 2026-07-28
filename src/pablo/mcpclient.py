@@ -31,11 +31,18 @@ MCP_CALL_TIMEOUT_S = 60
 PROTOCOL_VERSION = "2024-11-05"
 MIN_NODE_MAJOR = 18  # mcp-remote requirement
 
+# The bridge and its Node/nvm helper processes don't care what directory
+# they run in, so they must never inherit the caller's cwd — a shell left
+# sitting in a task worktree the background poller has since deleted would
+# otherwise crash npx with a uv_cwd ENOENT.
+_SAFE_CWD = str(Path.home())
+
 
 def _node_major(node: Path) -> int:
     try:
         out = subprocess.run(
-            [str(node), "--version"], capture_output=True, text=True, timeout=10
+            [str(node), "--version"], capture_output=True, text=True, timeout=10,
+            cwd=_SAFE_CWD,
         ).stdout.strip()
         match = re.match(r"v(\d+)", out)
         return int(match.group(1)) if match else -1
@@ -83,6 +90,7 @@ def _nvm_which(spec: str) -> str | None:
             text=True,
             timeout=NVM_RESOLVE_TIMEOUT_S,
             env=env,
+            cwd=_SAFE_CWD,
         )
     except Exception:
         return None
@@ -264,6 +272,7 @@ class McpClient:
                 stderr=subprocess.PIPE,
                 text=True,
                 env=env,
+                cwd=_SAFE_CWD,
             )
         except FileNotFoundError:
             raise PabloError(
