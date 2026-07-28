@@ -166,9 +166,12 @@ def test_launch_lock_namespacing_per_worktree(monkeypatch, tmp_path, agents_dir)
     assert len(names) == 2  # one per worktree, not one per acquire
 
 
-def test_run_startup_script_uses_focus_and_warmup(monkeypatch, tmp_path, agents_dir):
+def test_run_startup_script_uses_focus_warmup_and_keepalive(monkeypatch, tmp_path, agents_dir):
     """``_do_run_startup_script`` shares the warm-up + ``--focus`` path with
-    ``_do_launch_agent`` so its Orca tab also surfaces reliably."""
+    ``_do_launch_agent`` so its Orca tab also surfaces reliably, and wraps
+    the script with ``; exec bash`` so the tab drops into an interactive
+    shell at the worktree root when the script finishes (instead of
+    auto-closing on PTY EOF)."""
     script = tmp_path / "setup.sh"
     script.write_text("#!/bin/bash\necho hi\n")
     calls = []
@@ -186,6 +189,10 @@ def test_run_startup_script_uses_focus_and_warmup(monkeypatch, tmp_path, agents_
     assert argv[:3] == ["orca", "terminal", "create"]
     assert "--focus" in argv
     assert "pablo:startup-script" in argv
+    command = argv[argv.index("--command") + 1]
+    assert command.startswith("bash ")
+    assert str(script) in command
+    assert command.endswith("; exec bash")  # keep tab open after the script exits
 
 
 def test_launch_detaches_and_returns_immediately(monkeypatch, tmp_path):
