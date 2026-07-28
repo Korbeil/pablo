@@ -62,6 +62,16 @@ Sync and the state poller never interleave on a task: both take the
 per-task lock (see [state-machine.md](state-machine.md#task-state-storage)); a
 locked task is skipped (🔒) and retried next cycle.
 
+The poller also **self-heals a stuck agent-launching state**
+(`in-progress`/`ci-red`/`request-changes`/`testing-failed`): when no
+agent session is observed past the launch window (the cold-worktree Orca
+`terminal create` hang — see [state-machine.md](state-machine.md)), it
+re-fires each of the state's detached launchers (including the
+`in-progress` startup script) up to `LAUNCH_MAX_ATTEMPTS`. The
+`in-progress` startup script is included because it's verified safely
+re-runnable; any future project's non-idempotent startup script must be
+scoped out, not special-cased. Recover manually with `pablo relaunch`.
+
 ## Closing a task
 
 **Primary path — automatic on merge.** The poller detects the merged PR

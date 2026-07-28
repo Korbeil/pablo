@@ -37,6 +37,13 @@ COMMIT_ALLOWED_FROM = {IN_PROGRESS, CI_RED, REQUEST_CHANGES, TESTING_FAILED}
 # The waiting toggle is forbidden from these two states.
 WAITING_FORBIDDEN_FROM = {REQUEST_CHANGES, TESTING_FAILED}
 
+# States whose on-enter action fires a fire-and-forget agent/startup launch
+# via ``agents.launch``/``agents.run_startup_script``. The poller and
+# ``pablo relaunch`` consult this set (and ``LAUNCH_SPECS``) to self-heal a
+# cold-worktree Orca ``terminal create`` hang that left the worktree with
+# no live session.
+AGENT_LAUNCH_STATES = {IN_PROGRESS, CI_RED, REQUEST_CHANGES, TESTING_FAILED}
+
 
 @dataclass
 class TaskCtx:
@@ -64,17 +71,53 @@ def _analyst_prompt(task: Task) -> str:
     )
 
 
+def _ci_analyst_prompt(task: Task) -> str:
+    return (
+        f"CI is failing on PR #{task.pr_number}. Analyze the failing "
+        f"checks and produce a fix plan."
+    )
+
+
+def _pr_feedback_prompt(task: Task) -> str:
+    return (
+        f"Review feedback was left on PR #{task.pr_number}. Read the "
+        f"unresolved review comments and produce your fix plan."
+    )
+
+
+def _task_feedback_prompt(task: Task) -> str:
+    issue_ref = task.issue.key if task.issue else "the task"
+    return (
+        f"Manual testing failed for {issue_ref} (PR #{task.pr_number}). "
+        f"Gather the testing feedback and produce your fix plan."
+    )
+
+
+def _launch_tracked(ctx: "TaskCtx", label: str, fn: Callable, *args) -> None:
+    """Fire a non-blocking launch and stamp it in ``agent_launches``.
+
+    All four agent-launching states route their ``agents.launch`` /
+    ``agents.run_startup_script`` calls through here so the poller and
+    ``pablo relaunch`` share a single per-label record (``launched_at`` +
+    ``attempts``) to self-heal a cold-worktree Orca hang.
+    """
+    fn(*args)
+    ctx.task.agent_launches[label] = {"launched_at": utcnow(), "attempts": 1}
+
+
 def _enter_in_progress(ctx: TaskCtx) -> None:
     if not ctx.task.task_analyst_ran:
-        agents.launch(ctx.task.worktree_path, "task-analyst", _analyst_prompt(ctx.task))
+        _launch_tracked(
+            ctx, "task-analyst", agents.launch,
+            ctx.task.worktree_path, "task-analyst", _analyst_prompt(ctx.task),
+        )
         ctx.task.task_analyst_ran = True
-        ctx.task.task_analyst_launched_at = utcnow()
-        ctx.task.analyst_launch_attempts = 1
     if ctx.cfg.startup_script and not ctx.task.startup_script_ran:
-        agents.run_startup_script(ctx.task.worktree_path, ctx.cfg.startup_script)
+        _launch_tracked(
+            ctx, "startup-script", agents.run_startup_script,
+            ctx.task.worktree_path, ctx.cfg.startup_script,
+        )
         ctx.task.startup_script_ran = True
-        ctx.task.startup_script_launched_at = utcnow()
-        ctx.task.startup_launch_attempts = 1
 
 
 def _enter_waiting(ctx: TaskCtx) -> None:
@@ -117,7 +160,7 @@ def _enter_needs_testing(ctx: TaskCtx) -> None:
     ctx.task.last_seen_issue_status = _current_issue_status(ctx)
 
 
-def _mark_draft_then_run_agent(ctx: TaskCtx, agent: str, prompt: str) -> None:
+def _mark_draft_then_run_agent(ctx: TaskCtx, label: str, prompt: str) -> None:
     # Flip the GitHub PR to draft immediately so CI doesn't run on stale
     # code while the human implements the agent's fix plan. No watcher:
     # the agent runs in an interactive TUI (Orca path) or headless
@@ -125,34 +168,22 @@ def _mark_draft_then_run_agent(ctx: TaskCtx, agent: str, prompt: str) -> None:
     # the PR ready and advances state.
     if ctx.task.pr_number is not None:
         ghpr.mark_draft(_repo_slug(ctx.cfg), ctx.task.pr_number)
-    agents.launch(ctx.task.worktree_path, agent, prompt)
+    _launch_tracked(ctx, label, agents.launch, ctx.task.worktree_path, label, prompt)
 
 
 def _enter_request_changes(ctx: TaskCtx) -> None:
-    _mark_draft_then_run_agent(
-        ctx,
-        "pr-feedback",
-        f"Review feedback was left on PR #{ctx.task.pr_number}. Read the "
-        f"unresolved review comments and produce your fix plan.",
-    )
+    _mark_draft_then_run_agent(ctx, "pr-feedback", _pr_feedback_prompt(ctx.task))
 
 
 def _enter_ci_red(ctx: TaskCtx) -> None:
-    agents.launch(
-        ctx.task.worktree_path, "ci-analyst",
-        f"CI is failing on PR #{ctx.task.pr_number}. Analyze the failing "
-        f"checks and produce a fix plan.",
+    _launch_tracked(
+        ctx, "ci-analyst", agents.launch,
+        ctx.task.worktree_path, "ci-analyst", _ci_analyst_prompt(ctx.task),
     )
 
 
 def _enter_testing_failed(ctx: TaskCtx) -> None:
-    issue_ref = ctx.task.issue.key if ctx.task.issue else "the task"
-    _mark_draft_then_run_agent(
-        ctx,
-        "task-feedback",
-        f"Manual testing failed for {issue_ref} (PR #{ctx.task.pr_number}). "
-        f"Gather the testing feedback and produce your fix plan.",
-    )
+    _mark_draft_then_run_agent(ctx, "task-feedback", _task_feedback_prompt(ctx.task))
 
 
 @dataclass(frozen=True)
@@ -186,6 +217,60 @@ STATES: dict[str, StateDef] = {
 }
 
 assert set(STATES) == set(ALL_STATES)
+
+
+@dataclass(frozen=True)
+class _LaunchSpec:
+    """How to re-fire a label's launch for self-healing / ``pablo relaunch``.
+
+    ``build(ctx)`` returns the ``(callable, args)`` to invoke — the on-enter
+    handlers stay the sole authors of run-once guards and PR-draft side
+    effects; this table only reconstructs the fire-and-forget launch call.
+    """
+
+    label: str
+    build: Callable[["TaskCtx"], tuple[Callable, tuple]]
+
+
+def _specs_for(ctx: TaskCtx, state: str) -> list[_LaunchSpec]:
+    """The active launch specs for ``state`` under ``ctx`` (startup-script
+    only when the project configures one)."""
+    specs = list(LAUNCH_SPECS.get(state, []))
+    if state == IN_PROGRESS and not ctx.cfg.startup_script:
+        specs = [s for s in specs if s.label != "startup-script"]
+    return specs
+
+
+LAUNCH_SPECS: dict[str, list[_LaunchSpec]] = {
+    IN_PROGRESS: [
+        _LaunchSpec(
+            "task-analyst",
+            lambda c: (agents.launch, (c.task.worktree_path, "task-analyst", _analyst_prompt(c.task))),
+        ),
+        _LaunchSpec(
+            "startup-script",
+            lambda c: (agents.run_startup_script, (c.task.worktree_path, c.cfg.startup_script)),
+        ),
+    ],
+    CI_RED: [
+        _LaunchSpec(
+            "ci-analyst",
+            lambda c: (agents.launch, (c.task.worktree_path, "ci-analyst", _ci_analyst_prompt(c.task))),
+        ),
+    ],
+    REQUEST_CHANGES: [
+        _LaunchSpec(
+            "pr-feedback",
+            lambda c: (agents.launch, (c.task.worktree_path, "pr-feedback", _pr_feedback_prompt(c.task))),
+        ),
+    ],
+    TESTING_FAILED: [
+        _LaunchSpec(
+            "task-feedback",
+            lambda c: (agents.launch, (c.task.worktree_path, "task-feedback", _task_feedback_prompt(c.task))),
+        ),
+    ],
+}
 
 
 def enter_state(ctx: TaskCtx, target: str, *, trigger: bool = True) -> None:

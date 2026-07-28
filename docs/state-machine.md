@@ -47,6 +47,24 @@
   `terminal create` spans so they don't race on the same cold path —
   different worktrees still run in parallel as before.
 
+- **Self-healing for a cold-worktree hang.** The launchers are
+  fire-and-forget, but a genuine Orca `terminal create` hang leaves the
+  `agent_launches` record set with no session ever appearing. The poller
+  detects this for **every agent-launching state** (`in-progress`,
+  `ci-red`, `request-changes`, `testing-failed`): once `LAUNCH_WINDOW_S`
+  (> the detached retry budget) has elapsed with no `active_sessions`
+  observed and the attempt budget (`LAUNCH_MAX_ATTEMPTS`) isn't
+  exhausted, it re-fires each of the state's detached launchers (the
+  worktree is now warm, so the retry usually succeeds in Orca — for
+  `in-progress` the worktree's `displayName` then self-corrects to
+  `OMS-XXXX` once the analyst sends its first message). The
+  `in-progress` startup script is included too (verified safely
+  re-runnable); a future project's non-idempotent startup script must be
+  scoped out or fixed, not special-cased in the poller. Recover manually
+  with `pablo relaunch` (see `agents-commands.md`). Post-draft states
+  still fall through to `POLL_CHECKS` after the heal, so e.g. a `ci-red`
+  that went green transitions normally.
+
 ## Task state
 
 One state per task:
@@ -167,7 +185,10 @@ repo or worktree:
 A task record holds: `project`, `branch`, `worktree_path`, `state`,
 `state_entered_at`, `issue` (provider/key/url/title/status; `null` for
 prompt tasks), `summary` + `prompt` (prompt tasks), `state_before_waiting`,
-`task_analyst_ran`, `needs_testing_entered_at`, `last_handled_signal_at`,
+`task_analyst_ran` + `startup_script_ran` (run-once guards for re-entering
+`in-progress`), `agent_launches` (per-label `{launched_at, attempts}` map
+tracking the fire-and-forget launches for the poller's cold-worktree
+self-healing — see above), `needs_testing_entered_at`, `last_handled_signal_at`,
 `last_seen_issue_status` (observed-transition fallback baseline),
 `pr_number`, `merged`, `created_at`, `updated_at` — UTC ISO-8601
 timestamps, atomic writes (tmp + rename).

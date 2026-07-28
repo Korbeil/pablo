@@ -81,16 +81,14 @@ class Task:
     state_before_waiting: str | None = None
     task_analyst_ran: bool = False
     startup_script_ran: bool = False
-    # Tracks the fire-and-forget agent/startup launches so a cold-worktree
-    # Orca hang (agents.launch detached but no session ever appeared) can be
-    # self-healed by the poller instead of silently leaving in-progress tasks
-    # with no running analyst. ``*_ran`` stays as the "don't re-fire on a
-    # manual /pablo-state re-entry" guard; these timestamp/record the last
-    # attempt so the poller can decide whether to re-fire (see poller.py).
-    task_analyst_launched_at: str | None = None
-    analyst_launch_attempts: int = 0
-    startup_script_launched_at: str | None = None
-    startup_launch_attempts: int = 0
+    # Generic per-label launch tracking: label -> {"launched_at": str|None,
+    # "attempts": int}. Lets the poller self-heal ANY agent-launching state
+    # (in-progress/ci-red/request-changes/testing-failed) when a cold-worktree
+    # Orca ``terminal create`` hang leaves the label with no live session.
+    # The ``*_ran`` flags above are the distinct "don't re-fire on a manual
+    # /pablo-state re-entry" guard for in-progress; this dict records the
+    # last attempt so the poller can decide whether to re-fire (poller.py).
+    agent_launches: dict[str, dict] = field(default_factory=dict)
     state_entered_at: str = field(default_factory=utcnow)
     needs_testing_entered_at: str | None = None
     last_handled_signal_at: str | None = None
@@ -122,10 +120,7 @@ class Task:
             "state_before_waiting": self.state_before_waiting,
             "task_analyst_ran": self.task_analyst_ran,
             "startup_script_ran": self.startup_script_ran,
-            "task_analyst_launched_at": self.task_analyst_launched_at,
-            "analyst_launch_attempts": self.analyst_launch_attempts,
-            "startup_script_launched_at": self.startup_script_launched_at,
-            "startup_launch_attempts": self.startup_launch_attempts,
+            "agent_launches": self.agent_launches,
             "needs_testing_entered_at": self.needs_testing_entered_at,
             "last_handled_signal_at": self.last_handled_signal_at,
             "last_seen_issue_status": self.last_seen_issue_status,
@@ -154,10 +149,9 @@ class Task:
             state_before_waiting=data.get("state_before_waiting"),
             task_analyst_ran=data.get("task_analyst_ran", False),
             startup_script_ran=data.get("startup_script_ran", False),
-            task_analyst_launched_at=data.get("task_analyst_launched_at"),
-            analyst_launch_attempts=data.get("analyst_launch_attempts", 0),
-            startup_script_launched_at=data.get("startup_script_launched_at"),
-            startup_launch_attempts=data.get("startup_launch_attempts", 0),
+            # Tolerate the supersed slow fields (pre-generalization) so a
+            # live task record loads cleanly; they're simply ignored.
+            agent_launches=data.get("agent_launches", {}),
             state_entered_at=data.get("state_entered_at", utcnow()),
             needs_testing_entered_at=data.get("needs_testing_entered_at"),
             last_handled_signal_at=data.get("last_handled_signal_at"),

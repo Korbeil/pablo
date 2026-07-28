@@ -20,8 +20,9 @@ from pablo.model import IN_PROGRESS, Issue, Task, utcnow
 from pablo.providers import get_provider
 from pablo.states import (
     COMMIT_ALLOWED_FROM,
+    LAUNCH_SPECS,
     TaskCtx,
-    _analyst_prompt,
+    _specs_for,
     enter_state,
     toggle_waiting,
 )
@@ -291,15 +292,17 @@ def cmd_state(args: argparse.Namespace) -> int:
 
 
 def cmd_relaunch(args: argparse.Namespace) -> int:
-    """Manually re-fire the task-analyst and/or startup-script launchers.
+    """Manually re-fire the current state's agent (and/or startup) launchers.
 
-    Used to recover an ``in-progress`` task whose cold-worktree Orca launch
-    hung: the worktree is now warm, so the re-fire usually opens the Orca
-    terminal (which also auto-renames the worktree to ``OMS-XXXX`` once the
-    analyst sends its first message). Non-blocking, same fire-and-forget
-    ``agents.launch``/``agents.run_startup_script`` as ``pablo start``; safe
-    to run repeatedly. Resets the auto re-fire attempt counters so the
-    poller's self-healing budget starts fresh.
+    Generalizes across all agent-launching states
+    (in-progress/ci-red/request-changes/testing-failed): re-fires each label
+    in ``LAUNCH_SPECS`` for the task's current state. Used to recover a
+    cold-worktree Orca launch hang: the worktree is now warm, so the re-fire
+    usually opens the Orca terminal (for ``in-progress`` this also
+    auto-renames the worktree to ``OMS-XXXX`` once the analyst sends its
+    first message). Non-blocking, same fire-and-forget calls as ``pablo
+    start``; safe to run repeatedly. Resets the auto re-fire attempt
+    counters so the poller's self-healing budget starts fresh.
     """
     store = Store()
     ctx = _resolve_ctx(store)
@@ -307,19 +310,18 @@ def cmd_relaunch(args: argparse.Namespace) -> int:
     fired: list[str] = []
     with task_lock(store, ctx.task.project, ctx.task.branch):
         task = ctx.task
-        if only is None or only == "analyst":
-            agents.launch(task.worktree_path, "task-analyst", _analyst_prompt(task))
-            task.task_analyst_ran = True
-            task.task_analyst_launched_at = utcnow()
-            task.analyst_launch_attempts = 1
-            fired.append("task-analyst")
-        if (only is None or only == "startup") and ctx.cfg.startup_script:
-            agents.run_startup_script(task.worktree_path, ctx.cfg.startup_script)
-            task.startup_script_ran = True
-            task.startup_script_launched_at = utcnow()
-            task.startup_launch_attempts = 1
-            fired.append("startup-script")
+        for spec in _specs_for(ctx, task.state):
+            if only is not None and spec.label != only:
+                continue
+            fn, args_ = spec.build(ctx)
+            fn(*args_)
+            task.agent_launches[spec.label] = {"launched_at": utcnow(), "attempts": 1}
+            fired.append(spec.label)
         store.save(task)
+    if not fired:
+        print(f"{ctx.task.branch}: nothing to relaunch in {ctx.task.state} state"
+              + (f" matching --only {only!r}" if only else ""))
+        return 0
     print(
         f"{ctx.task.branch}: re-launched {', '.join(fired)} — "
         f"check Orca for the new terminal tab"
@@ -482,12 +484,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_relaunch = sub.add_parser(
         "relaunch",
-        help="re-fire the task-analyst/startup-script launchers on the current task",
+        help="re-fire the current state's agent/startup launchers on the current task",
     )
     p_relaunch.add_argument(
         "--only",
-        choices=["analyst", "startup"],
-        help="re-fire only one (default: both analyst and, if configured, startup)",
+        choices=["task-analyst", "startup-script", "ci-analyst", "pr-feedback", "task-feedback"],
+        help="re-fire only one label (default: all labels for the current state)",
     )
     p_relaunch.set_defaults(func=cmd_relaunch)
 

@@ -7,7 +7,7 @@ import pytest
 from pablo import agents, cli, ghpr, gitrepo
 from pablo import states
 from pablo.config import ProjectConfig
-from pablo.model import DRAFT, IN_PROGRESS, REQUEST_CHANGES, WAITING, Issue, Task
+from pablo.model import CI_RED, DRAFT, IN_PROGRESS, REQUEST_CHANGES, WAITING, Issue, Task
 from pablo.store import Store
 
 
@@ -184,3 +184,111 @@ def test_watch_agent_skips_when_state_moved_on(env, monkeypatch):
     )
     assert rc == 0
     assert drafted == []  # task is in-progress, not request-changes anymore
+
+
+def test_relaunch_fires_both_and_resets_counters(env, monkeypatch, capsys):
+    launched = []
+    startups = []
+    monkeypatch.setattr(
+        agents, "launch",
+        lambda wt, agent, prompt: launched.append(agent) or "t1",
+    )
+    monkeypatch.setattr(
+        agents, "run_startup_script",
+        lambda wt, script: startups.append(str(script)) or "t2",
+    )
+    from dataclasses import replace
+
+    monkeypatch.setattr(cli, "load_projects", lambda: {"wallet-kit": replace(env["cfg"], startup_script=Path("/setup.sh"))})
+    task = env["store"]().get("wallet-kit", "wk-45")
+    task.agent_launches = {"task-analyst": {"launched_at": "x", "attempts": 3}}
+    env["store"]().save(task)
+    rc = cli.main(["relaunch"])
+    assert rc == 0
+    assert launched == ["task-analyst"]
+    assert startups == ["/setup.sh"]
+    fresh = env["store"]().get("wallet-kit", "wk-45")
+    assert fresh.agent_launches["task-analyst"]["attempts"] == 1
+    assert fresh.agent_launches["startup-script"]["attempts"] == 1
+    assert fresh.agent_launches["task-analyst"]["launched_at"] is not None
+    assert fresh.agent_launches["startup-script"]["launched_at"] is not None
+    out = capsys.readouterr().out
+    assert "re-launched task-analyst, startup-script" in out
+
+
+def test_relaunch_only_startup_skips_analyst(env, monkeypatch, capsys):
+    launched = []
+    startups = []
+    monkeypatch.setattr(
+        agents, "launch",
+        lambda wt, agent, prompt: launched.append(agent) or "t1",
+    )
+    monkeypatch.setattr(
+        agents, "run_startup_script",
+        lambda wt, script: startups.append(str(script)) or "t2",
+    )
+    from dataclasses import replace
+
+    monkeypatch.setattr(cli, "load_projects", lambda: {"wallet-kit": replace(env["cfg"], startup_script=Path("/setup.sh"))})
+    rc = cli.main(["relaunch", "--only", "startup-script"])
+    assert rc == 0
+    assert launched == []
+    assert startups == ["/setup.sh"]
+    out = capsys.readouterr().out
+    assert "re-launched startup-script" in out
+
+
+def test_relaunch_only_analyst_skips_startup_when_configured(env, monkeypatch):
+    launched = []
+    monkeypatch.setattr(
+        agents, "launch",
+        lambda wt, agent, prompt: launched.append(agent) or "t1",
+    )
+    startups = []
+    monkeypatch.setattr(agents, "run_startup_script", lambda wt, s: startups.append(s) or "t2")
+    rc = cli.main(["relaunch", "--only", "task-analyst"])
+    assert rc == 0
+    assert launched == ["task-analyst"]
+    assert startups == []
+
+
+def test_relaunch_ci_red_fires_ci_analyst(env, monkeypatch):
+    launched = []
+    monkeypatch.setattr(
+        agents, "launch",
+        lambda wt, agent, prompt: launched.append(agent) or "t1",
+    )
+    task = env["store"]().get("wallet-kit", "wk-45")
+    task.state = CI_RED
+    env["store"]().save(task)
+    rc = cli.main(["relaunch"])
+    assert rc == 0
+    assert launched == ["ci-analyst"]
+    rec = env["store"]().get("wallet-kit", "wk-45").agent_launches["ci-analyst"]
+    assert rec["attempts"] == 1
+
+
+def test_relaunch_request_changes_fires_pr_feedback(env, monkeypatch):
+    launched = []
+    monkeypatch.setattr(
+        agents, "launch",
+        lambda wt, agent, prompt: launched.append(agent) or "t1",
+    )
+    monkeypatch.setattr(ghpr, "mark_draft", lambda slug, pr: None)
+    monkeypatch.setattr(states, "_repo_slug", lambda cfg: "acme/wallet-kit")
+    task = env["store"]().get("wallet-kit", "wk-45")
+    task.state = REQUEST_CHANGES
+    env["store"]().save(task)
+    rc = cli.main(["relaunch"])
+    assert rc == 0
+    assert launched == ["pr-feedback"]
+
+
+def test_relaunch_unknown_label_prints_nothing(env, monkeypatch, capsys):
+    task = env["store"]().get("wallet-kit", "wk-45")
+    task.state = IN_PROGRESS
+    env["store"]().save(task)
+    rc = cli.main(["relaunch", "--only", "ci-analyst"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "nothing to relaunch" in out
