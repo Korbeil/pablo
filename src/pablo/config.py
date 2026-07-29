@@ -52,9 +52,15 @@ class ProjectConfig:
     # Substrings matched against a check's name/context to exclude it from
     # CI evaluation (e.g. a CircleCI approval gate stuck on action_required).
     ci_ignore_checks: list[str]
-    # Atlassian site host for jira projects (e.g. acme.atlassian.net);
-    # None → first accessible resource of the authenticated account.
+    # Atlassian site host for jira/confluence projects (e.g.
+    # acme.atlassian.net); required to scope a jira provider's browse URLs
+    # and the confluence page lookup when a Confluence URL has no host.
     site: str | None = None
+    # Confluence space key scoping this project's documentation lookups
+    # (optional; None → no Confluence scope enforced). Only relevant when
+    # ``provider == "jira"`` (acli owns both Jira and Confluence auth under
+    # the same Atlassian OAuth grant).
+    confluence_space: str | None = None
     # Absolute path to a bash script run once per task, in its own Orca
     # terminal, alongside task-analyst on /pablo-start. None → skipped.
     startup_script: Path | None = None
@@ -160,6 +166,7 @@ def _parse_project(path: Path, defaults: dict[str, Any]) -> ProjectConfig:
         identity=str(identity),
         project_key=str(project_key),
         site=data.get("issue_tracker", {}).get("site"),
+        confluence_space=(data.get("confluence", {}) or {}).get("space"),
         sync_strategy=str(strategy),
         sync_auto_apply=bool(_merged(data, defaults, "sync", "auto_apply")),
         sync_interval=int(sync_interval),

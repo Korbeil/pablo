@@ -26,9 +26,8 @@ The launchd path was written portable-by-construction on Linux — walk
 this once on the Mac:
 
 1. Prerequisites: Python 3.12 + Poetry, `gh` (+ `gh auth login`),
-   nvm with a Node matching `.nvmrc` (`nvm install 24`), the Orca and
-   opencode apps; one-time Jira auth:
-   `npx -y mcp-remote https://mcp.atlassian.com/v1/mcp`.
+   the Atlassian CLI `acli` (+ `acli auth login` — covers both Jira and
+   Confluence under one OAuth grant), the Orca and opencode apps.
 2. `./bin/install.sh` → expect "com.pablo.dispatch loaded".
 3. `pablo doctor` → all ✅.
 4. `tail -f ~/.pablo/logs/dispatch.log` across one 5-minute tick → a

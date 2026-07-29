@@ -16,12 +16,16 @@ worktrees_root: ~/dev/wallet-kit-worktrees
                              # optional; default ~/.pablo/worktrees/<repo-dir-name>/
 issue_tracker:
   provider: github           # github | jira | linear (required)
-  identity: bfontaine        # account used to filter "assigned to me" (required;
-                             # informational for jira — the MCP uses currentUser())
+identity: bfontaine        # account used to filter "assigned to me" (required;
+                              # informational for jira — acli uses currentUser())
   project_key: WK            # required. Jira/Linear: the issue key prefix.
-                             # GitHub: used as the branch prefix (no native key).
-  site: acme.atlassian.net   # jira only, optional: which Atlassian site's
-                             # cloudId to use; default = the account's first site
+                              # GitHub: used as the branch prefix (no native key).
+  site: acme.atlassian.net   # jira only, optional: which Atlassian site host
+                              # to use for browse URLs / Confluence page URLs;
+                              # default = "jira"
+confluence:                    # optional; only relevant for jira projects (acli
+  space: PIM                   # owns both Jira and Confluence auth). Scopes doc
+                              # lookups (`pablo docs` / agents) to this space key.
 sync:
   strategy: rebase           # rebase | merge
   auto_apply: false          # false → cron sync is dry-run/report-only

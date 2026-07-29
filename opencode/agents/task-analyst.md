@@ -4,7 +4,8 @@ description: >-
   or a plain task prompt when no issue exists. Produces a clear summary and a
   concrete, ordered action plan to resolve it, grounded in the actual
   codebase. Generalized from jira-analyst for PABLO: provider access goes
-  through the gh/linear CLIs and the Atlassian MCP for Jira, no stored
+  through the gh/linear CLIs and the acli CLI (Atlassian CLI) for Jira and
+  Confluence, no stored
   tokens. Strictly
   read-only: never modifies code and never runs QA tooling (php-cs-fixer,
   phpstan, psalm, phpunit, pest...). Auto-run by PABLO when a task enters
@@ -47,6 +48,34 @@ permission:
     "gh issue close*": deny
     "gh issue comment*": deny
     "gh issue create*": deny
+    "acli jira workitem edit*": deny
+    "acli jira workitem transition*": deny
+    "acli jira workitem assign*": deny
+    "acli jira workitem create*": deny
+    "acli jira workitem create-bulk*": deny
+    "acli jira workitem comment create*": deny
+    "acli jira workitem comment update*": deny
+    "acli jira workitem comment delete*": deny
+    "acli jira workitem watcher*": deny
+    "acli jira workitem list-watchers*": deny
+    "acli jira workitem link*": deny
+    "acli jira workitem archive*": deny
+    "acli jira workitem delete*": deny
+    "acli jira workitem clone*": deny
+    "acli confluence page create*": deny
+    "acli confluence page update*": deny
+    "acli confluence page delete*": deny
+    "acli confluence space create*": deny
+    "acli confluence space update*": deny
+    "acli confluence space archive*": deny
+    "acli confluence space restore*": deny
+    "acli auth login*": deny
+    "acli auth logout*": deny
+    "acli auth switch*": deny
+    "acli confluence auth login*": deny
+    "acli confluence auth logout*": deny
+    "acli jira auth login*": deny
+    "acli jira auth logout*": deny
     "vendor/bin/*": deny
     "composer*": deny
     "php*": deny
@@ -85,14 +114,24 @@ reference:
 1. **GitHub** (`github.com/<owner>/<repo>/issues/<n>` or a bare number):
    `gh issue view <n> --repo <owner>/<repo> --comments`.
 2. **Jira** (`https://<site>/browse/<KEY>` or a `KEY-123` key): use the
-   **Atlassian MCP tools** available in the session (the `jira-cloud`
-   server): `getJiraIssue` for the issue and its comments,
-   `searchJiraIssuesUsingJql` for related issues, `atlassianUserInfo` /
-   `getAccessibleAtlassianResources` for account/site context. Do not use
-   a jira CLI.
+   `acli` CLI (Atlassian CLI) directly — no MCP server, no stored tokens.
+   - Issue + fields: `acli jira workitem view <KEY> --json --fields '*all'`
+     (default fields are `key,issuetype,summary,status,assignee,description`;
+     use `--fields 'summary,status,comment'` to also pull comments, or
+     `'*all'` for everything acli exposes).
+   - Related issues (JQL):
+     `acli jira workitem search --jql "<JQL>" --json --limit 50`
+   - Comments: `acli jira workitem comment list --key <KEY> --json`
+   - Account/site context: `acli jira auth status`.
 3. **Linear** (`linear.app/<team>/issue/<KEY>` or a `KEY-123` key):
    `linear issue view <KEY>`.
-4. If the access path fails (tool unavailable, not authenticated), surface
+4. **Confluence documentation** (when the ticket references a wiki page —
+   a `*.atlassian.net/wiki/...pages/<id>` URL, a `?pageId=<id>` link, or a
+   bare page id): `acli confluence page view --id <id> --json --body-format storage`.
+   The response's `body.storage.value` is XHTML (Confluence storage
+   format); read it for context but do not echo it verbatim into the plan.
+   `acli confluence space list --json` lists accessible spaces.
+5. If the access path fails (tool unavailable, not authenticated), surface
    its own error and instructions, then ask the user to paste the ticket
    content. Do not guess what the ticket says from its key or title alone.
 

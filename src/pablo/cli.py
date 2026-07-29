@@ -228,11 +228,22 @@ def cmd_tasks(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_queue(args: argparse.Namespace) -> int:
+def cmd_slack(args: argparse.Namespace) -> int:
+    """Print paste-ready Slack mrkdwn for the review and/or QA queues.
+
+    With no ``state`` argument it prints both queues separated by a divider so
+    each block can be copied into its own Slack channel. With an explicit
+    ``waiting-review`` or ``needs-testing`` it prints just that one block."""
     from pablo import listing
 
-    rows = listing.queue_tasks(load_projects(), Store(), args.state)
-    print(json.dumps(rows, indent=2))
+    states = [args.state] if args.state else ["waiting-review", "needs-testing"]
+    projects = load_projects()
+    store = Store()
+    blocks = [listing.render_slack(listing.queue_tasks(projects, store, s), s) for s in states]
+    if len(blocks) == 1:
+        print(blocks[0])
+    else:
+        print("\n\n―――― review above · QA below ――――\n\n".join(blocks))
     return 0
 
 
@@ -272,6 +283,42 @@ def cmd_poll(args: argparse.Namespace) -> int:
         events = poller.poll_project(cfg, store)
         for event in events:
             print(f"[{name}] {event}")
+    return 0
+
+
+def cmd_docs(args: argparse.Namespace) -> int:
+    """Fetch a Confluence documentation page via `acli confluence page view`.
+
+    Usage: ``pablo docs <page-id | confluence-url> [--project <name>]``.
+    The project is optional — used only to resolve ``confluence.space`` for
+    scoping hints and to surface a clear error when acli auth (which is
+    global per Atlassian account) isn't ready. Prints the page title + URL
+    header followed by the storage-format body (XHTML with Confluence
+    macros).
+    """
+    from pablo import confluence
+
+    target = " ".join(args.page).strip()
+    if not target:
+        return _fail("usage: pablo docs <page-id | confluence-url> [--project <name>]")
+    projects = load_projects()
+    cfg = None
+    if args.project:
+        cfg = projects.get(args.project)
+        if cfg is None:
+            return _fail(
+                f"unknown project {args.project!r}; configured projects: "
+                + ", ".join(sorted(projects))
+            )
+    elif projects:
+        # Default to the first configured project (config order is stable).
+        cfg = next(iter(projects.values()))
+    try:
+        page = confluence.fetch(target, cfg)
+    except PabloError as exc:
+        return _fail(str(exc))
+    print(f"# {page.title}\n{page.url}\n")
+    print(page.body)
     return 0
 
 
@@ -468,9 +515,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_tasks.set_defaults(func=cmd_tasks)
 
-    p_queue = sub.add_parser("queue", help="tasks in a given state, across all projects")
-    p_queue.add_argument("state", help="target state (e.g. needs-testing, waiting-review)")
-    p_queue.set_defaults(func=cmd_queue)
+    p_slack = sub.add_parser(
+        "slack",
+        help="paste-ready Slack list of PRs to review and/or QA (waiting-review / needs-testing)",
+    )
+    p_slack.add_argument(
+        "state", nargs="?", choices=["waiting-review", "needs-testing"],
+        help="one queue only; omit to print both separated by a divider",
+    )
+    p_slack.set_defaults(func=cmd_slack)
 
     p_projects = sub.add_parser("projects", help="list configured projects")
     p_projects.set_defaults(func=cmd_projects)
@@ -486,6 +539,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_poll = sub.add_parser("poll", help="run the task-state polling once")
     p_poll.add_argument("project", nargs="?", help="limit to one project")
     p_poll.set_defaults(func=cmd_poll)
+
+    p_docs = sub.add_parser(
+        "docs", help="fetch a Confluence documentation page (via acli)"
+    )
+    p_docs.add_argument("--project", help="scope to a configured project (optional)")
+    p_docs.add_argument("page", nargs="+", help="page id or Confluence URL")
+    p_docs.set_defaults(func=cmd_docs)
 
     p_state = sub.add_parser("state", help="force the current task to a state")
     p_state.add_argument("state", help="target state")

@@ -1,11 +1,10 @@
-# Provider access: CLI-first, no tokens (Jira via MCP)
+# Provider access: CLI-first, no tokens
 
-PABLO talks to external services through each service's CLI — with one
-deliberate exception, **Jira, which goes through the Atlassian MCP
-server** (spec amended 2026-07-26). No raw API calls, no stored tokens
-anywhere (there is no secrets section in the config and none should be
-added). Each CLI/bridge manages its own authentication; when one isn't
-ready, PABLO surfaces **its own error/instructions** verbatim.
+PABLO talks to external services through each service's CLI — no MCP
+servers, no raw API calls, no stored tokens anywhere (there is no secrets
+section in the config and none should be added). Each CLI manages its own
+authentication; when one isn't ready, PABLO surfaces **its own
+error/instructions** verbatim.
 
 ## GitHub — `gh`
 
@@ -23,48 +22,55 @@ regardless of tracker:
   (`labeled` events)
 - auth check: `gh auth status`
 
-## Jira — Atlassian MCP
+## Jira — `acli` (Atlassian CLI)
 
-`https://mcp.atlassian.com/v1/mcp`, reached via the
-[`mcp-remote`](https://www.npmjs.com/package/mcp-remote) stdio bridge;
-client in `src/pablo/mcpclient.py`.
+Atlassian's own [`acli`](https://atlassian.com/cli) CLI; OAuth owned and
+cached by acli itself. Provider in `src/pablo/providers/jira.py`;
 
-- tools used: `getAccessibleAtlassianResources` (cloud id — matched
-  against the optional `issue_tracker.site` config, e.g.
-  `acme.atlassian.net`; without it, the account's first site),
-  `getJiraIssue`, `searchJiraIssuesUsingJql`
-  (`project = <KEY> AND assignee = currentUser()`), `atlassianUserInfo`
-  (doctor).
-- **one-time auth**: `npx -y mcp-remote https://mcp.atlassian.com/v1/mcp`
-  — completes the Atlassian browser login; tokens are cached by the
-  bridge under `~/.mcp-auth/` (PABLO stores nothing). Re-run the same
-  command if Atlassian ever revokes the grant.
-- **Node resolution — via nvm + `.nvmrc`**: mcp-remote needs Node ≥ 18,
-  but the systemd user manager's PATH carries nvm's `default` Node,
-  which is deliberately old (16.17, kept for legacy projects). PABLO
-  therefore pins its own Node in the repo's **`.nvmrc`** (currently
-  `24`) and resolves it through nvm itself —
-  `nvm which $(cat .nvmrc)` with `nvm.sh` sourced from
-  `$NVM_DIR`/`~/.nvm` — then prepends that bin dir to the bridge's
-  PATH (npx's `env node` shebang). Plain PATH lookup is only the
-  fallback when nvm isn't installed. Bump `.nvmrc` to change the
-  version; the nvm `default` alias is never touched.
-- failure signal: changelog transition timestamps when `getJiraIssue`
-  responses carry a changelog (**probed live 2026-07-26: they don't** —
-  top-level keys are expand/fields/id/key/self — so the fallback below
-  is the active path); otherwise the poller's
-  **observed-transition fallback** — it records `last_seen_issue_status`
-  on the task each poll, and the issue *entering*
-  `testing.failure_signal` between two polls counts as one event
-  (stamped at observation time; granularity =
+- issue: `acli jira workitem view <KEY> --json --fields 'summary,status'`
+  (default fields are `key,issuetype,summary,status,assignee,description`;
+  use `'*all'` for everything acli exposes, including comments).
+- assigned issues:
+  `acli jira workitem search --jql "project = <KEY> AND assignee = currentUser() ORDER BY updated DESC" --json --limit 50`
+  (a list of `{key, fields:{summary,status,...}, ...}`).
+- comments: `acli jira workitem comment list --key <KEY> --json`
+  (`{"comments": [...], "isLast": bool, ...}` — used by interactive
+  agents for QA feedback).
+- **one-time auth**: `acli auth login` — completes the Atlassian browser
+  login; the grant is shared across `acli jira …` and
+  `acli confluence …` (one OAuth account, two scoped probes). Re-run if
+  Atlassian ever revokes the grant. PABLO stores nothing.
+- **failure signal**: acli does *not* expose a work-item changelog in its
+  JSON output (probed live 2026-07-29: the `changelog` field is always
+  `null`), so the poller's **observed-transition fallback** is the only
+  path — it records `last_seen_issue_status` on the task each poll, and
+  the issue *entering* `testing.failure_signal` between two polls counts
+  as one event (stamped at observation time; granularity =
   `state_polling.interval_minutes`; seeded at `needs-testing` entry so a
-  stale status never fires). Interactive agents use the session's
-  Atlassian MCP tools directly.
-- **retry on transient failures**: `call_tool_with_retry()`
-  (`src/pablo/mcpclient.py`) retries up to 3 times with a short backoff
-  when a bridge session fails to connect at all (connect timeout, DNS
-  failure, bridge exiting before responding to `initialize`) — real auth
-  or tool errors are never retried, they surface immediately.
+  stale status never fires).
+- CLI calls through `providers.run_cli` (≤30s timeout), surfacing acli's
+  own error text on failure.
+
+## Confluence — `acli confluence`
+
+Same `acli` CLI, same OAuth grant; the **documentation** path
+(`src/pablo/confluence.py`, exposed as `pablo docs` / `/pablo-docs` and
+used by interactive agents when an issue references a wiki page):
+
+- page: `acli confluence page view --id <id> --json --body-format storage`
+  → `{id, title, _links:{base,webui}, body:{storage:{value:"<XHTML>"}}}`.
+  The body is **Confluence storage-format XHTML** (with `<ac:*>` macros);
+  returned verbatim — rendering to Markdown is the caller's job (agents
+  tolerate raw XHTML; `pablo docs` prints it as-is).
+- space discovery: `acli confluence space list --json`
+  (advisory; the optional `confluence.space` project config scopes agents'
+  doc lookups but acli's OAuth grant is the real gatekeeper).
+- URL → id: `confluence.match_url` accepts both
+  `…/wiki/spaces/<KEY>/pages/<id>[/Title]` and `…/wiki?pageId=<id>`; a
+  bare numeric id is passed straight through.
+- auth check: `acli confluence auth status` (separate probe from
+  `acli jira auth status` so the doctor can report jira-ready vs
+  confluence-not-ready distinctly, even though they share one OAuth grant).
 
 ## Linear — `linear`
 
@@ -79,20 +85,18 @@ subcommand spellings above are the provider's assumptions; verify against
 
 ## CLI preflight — `pablo doctor` / `/pablo-doctor`
 
-A **Python** check (`src/pablo/doctor.py`; the spec originally said bash
-and was amended 2026-07-26). Required set is derived from the configured
-projects: `gh`, `opencode`, `orca` always (`opencode`/`orca` are PABLO
-additions to the spec's set — the agent-runner path needs them);
-**`jira-mcp`** / `linear` only when some project uses that provider. CLIs
-are checked for **installed** (PATH) and **authenticated/ready** (their
-own status/whoami command). The `jira-mcp` check verifies `npx` exists,
-then **fails fast if `~/.mcp-auth` has no cached tokens** (it never
-spawns the bridge un-authenticated — that would open a browser / hang
-under systemd; the ❌ line carries the one-time auth command), and only
-then calls `atlassianUserInfo` through the bridge. Per-check ✅/❌ lines,
-non-zero exit — the dispatcher runs the same check as its fail-fast
-guard. Probes are capped at 30s (`orca` has been observed hanging when
-invoked outside an interactive session), and in the **dispatcher**
-preflight an `orca` failure is soft — a warning, not an abort — because
-agent runs fall back to headless `opencode run`; interactively,
-`pablo doctor` still reports it as ❌.
+A **Python** check (`src/pablo/doctor.py`). Required set is derived from
+the configured projects: `gh`, `opencode`, `orca` always
+(`opencode`/`orca` are PABLO additions to the spec's set — the
+agent-runner path needs them); **`acli`** only when some project uses the
+Jira provider; **`acli-confluence`** additionally when at least one
+project configures a `confluence.space`; `linear` only when some project
+uses that provider. CLIs are checked for **installed** (PATH; the probe's
+first argv element is the binary — `acli` appears in two probes) and
+**authenticated/ready** (each CLI's own status command). Per-check ✅/❌
+lines, non-zero exit — the dispatcher runs the same check as its
+fail-fast guard. Probes are capped at 30s (`orca` has been observed
+hanging when invoked outside an interactive session), and in the
+**dispatcher** preflight an `orca` failure is soft — a warning, not an
+abort — because agent runs fall back to headless `opencode run`;
+interactively, `pablo doctor` still reports it as ❌.
