@@ -8,6 +8,8 @@ permission:
   glob: allow
   list: allow
   webfetch: deny
+  external_directory:
+    "/tmp/**": allow
   bash:
     "pablo precommit-check*": allow
     "pablo state*": allow
