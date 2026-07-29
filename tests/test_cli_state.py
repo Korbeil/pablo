@@ -317,10 +317,13 @@ def test_skip_ci_from_wrong_state_fails(env):
 
 def test_retrigger_ci(env, monkeypatch, capsys):
     monkeypatch.setattr(cli, "_repo_slug", lambda cfg: "acme/wallet-kit")
+    draft_calls = []
     monkeypatch.setattr(ghpr, "rerun_ci", lambda slug, branch: ["42", "43"])
+    monkeypatch.setattr(ghpr, "mark_draft", lambda slug, pr: draft_calls.append((slug, pr)))
     rc = cli.main(["retrigger-ci"])
     assert rc == 0
     out = capsys.readouterr().out
     assert "re-triggered CI" in out
     assert "42" in out
     assert "43" in out
+    assert draft_calls == [("acme/wallet-kit", 7)]
