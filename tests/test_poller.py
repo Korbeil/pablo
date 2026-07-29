@@ -448,3 +448,27 @@ def test_display_name_not_re_set_when_sessions_exist(env):
     set_launch(env, "task-analyst", ago=poller.LAUNCH_WINDOW_S + 60)
     poll(env)
     assert env["stubs"]["display_names"] == []
+
+
+def test_skip_ci_ignores_red_ci(env):
+    set_state(env, WAITING_REVIEW, ci_ignored=True)
+    env["stubs"]["ci"] = "red"
+    env["stubs"]["verdict"] = None
+    poll(env)
+    assert get_task(env).state == WAITING_REVIEW
+    assert env["stubs"]["launched"] == []
+
+
+def test_ci_ignored_reset_on_draft(env, monkeypatch):
+    from pablo import states as states_mod
+
+    task = get_task(env)
+    task.ci_ignored = True
+    task.state = WAITING_REVIEW
+    env["store"].save(task)
+    cfg = env["cfg"]
+    from pablo.states import TaskCtx
+
+    ctx = TaskCtx(task=task, cfg=cfg, store=env["store"])
+    states_mod.enter_state(ctx, DRAFT)
+    assert task.ci_ignored is False

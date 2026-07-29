@@ -93,6 +93,7 @@ class Task:
     needs_testing_entered_at: str | None = None
     last_handled_signal_at: str | None = None
     last_seen_issue_status: str | None = None
+    ci_ignored: bool = False
     pr_number: int | None = None
     merged: bool = False
     created_at: str = field(default_factory=utcnow)
@@ -124,6 +125,7 @@ class Task:
             "needs_testing_entered_at": self.needs_testing_entered_at,
             "last_handled_signal_at": self.last_handled_signal_at,
             "last_seen_issue_status": self.last_seen_issue_status,
+            "ci_ignored": self.ci_ignored,
             "pr_number": self.pr_number,
             "merged": self.merged,
             "created_at": self.created_at,
@@ -156,6 +158,7 @@ class Task:
             needs_testing_entered_at=data.get("needs_testing_entered_at"),
             last_handled_signal_at=data.get("last_handled_signal_at"),
             last_seen_issue_status=data.get("last_seen_issue_status"),
+            ci_ignored=data.get("ci_ignored", False),
             pr_number=data.get("pr_number"),
             merged=data.get("merged", False),
             created_at=data.get("created_at", utcnow()),
