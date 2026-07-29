@@ -71,11 +71,17 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(
         agents, "launch", lambda wt, agent, prompt: launches.append(agent) or "t1"
     )
+    display_names = []
+    monkeypatch.setattr(
+        agents, "set_worktree_display_name",
+        lambda wt, name, issue_number=None: display_names.append(name),
+    )
     return {
         "cfg": cfg,
         "issue": issue,
         "created": created,
         "launches": launches,
+        "display_names": display_names,
         "store": lambda: Store(),
     }
 
@@ -90,6 +96,12 @@ def test_start_from_url_creates_worktree_and_task(env, capsys):
     assert task.issue.key == "45"
     assert env["launches"] == ["task-analyst"]
     assert "wk-45" in capsys.readouterr().out
+
+
+def test_start_from_url_sets_orca_display_name_to_issue_key(env):
+    rc = cli.main(["start", env["issue"].url])
+    assert rc == 0
+    assert env["display_names"] == ["45"]
 
 
 def test_start_unmatched_url_errors(env, capsys):
@@ -191,6 +203,14 @@ def test_start_prompt_with_issue_key_resolves_issue(jira_env, capsys):
     assert task.issue.key == "OMS-6393"
     out = capsys.readouterr().out
     assert "OMS-6393" in out
+
+
+def test_start_with_jira_key_sets_orca_display_name(jira_env):
+    rc = cli.main(
+        ["start", "--project", "sezane-oms", "fix the thing per OMS-6393 please"]
+    )
+    assert rc == 0
+    assert jira_env["display_names"] == ["OMS-6393"]
 
 
 def test_start_prompt_with_unconfigured_key_falls_back_to_slug(jira_env, capsys):

@@ -327,6 +327,31 @@ def run_startup_script(worktree: Path, script: Path) -> str:
     return f"pid:{pid}"
 
 
+def set_worktree_display_name(
+    worktree: Path, name: str, issue_number: str | None = None
+) -> None:
+    """Override Orca's worktree ``displayName`` (e.g. ``OMS-6407`` instead
+    of the lowercase branch auto-derived from the path) and clear/set the
+    linked GitHub issue.
+
+    ``issue_number=None`` passes ``--issue null``, explicitly telling Orca
+    there is no linked PR/issue — preventing Orca from auto-detecting a
+    wrong PR from the branch name's trailing digits. Pass the GitHub issue
+    number string (e.g. ``"273"``) to link the correct issue instead.
+
+    Best-effort: silently ignores failures (no Orca, worktree not yet
+    indexed, repo not registered). Orca's own post-first-message
+    self-correction remains the fallback when this call loses the
+    indexing race, so callers needn't retry."""
+    _orca(
+        ["worktree", "set",
+         "--worktree", f"path:{worktree}",
+         "--display-name", name,
+         "--issue", issue_number if issue_number is not None else "null"],
+        per_call_timeout=ORCA_CALL_TIMEOUT_S,
+    )
+
+
 def _launch_headless_command(worktree: Path, label: str, command: str) -> str:
     logs = agents_dir() / "logs"
     logs.mkdir(parents=True, exist_ok=True)

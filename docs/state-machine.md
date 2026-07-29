@@ -55,9 +55,12 @@
   (> the detached retry budget) has elapsed with no `active_sessions`
   observed and the attempt budget (`LAUNCH_MAX_ATTEMPTS`) isn't
   exhausted, it re-fires each of the state's detached launchers (the
-  worktree is now warm, so the retry usually succeeds in Orca — for
-  `in-progress` the worktree's `displayName` then self-corrects to
-  `OMS-XXXX` once the analyst sends its first message). The
+  worktree is now warm, so the retry usually succeeds in Orca). For
+  `in-progress` the Orca workspace `displayName` is also re-set on the
+  same heal pass (via `orca worktree set --display-name`), so it shows
+  `OMS-XXXX` up front instead of the lowercase branch that Orca
+  auto-derives from the path; `cmd_start` sets it eagerly too, but that
+  call may lose the same indexing race. The
   `in-progress` startup script is included too (verified safely
   re-runnable); a future project's non-idempotent startup script must be
   scoped out or fixed, not special-cased in the poller. Recover manually

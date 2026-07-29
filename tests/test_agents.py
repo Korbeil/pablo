@@ -334,3 +334,46 @@ def test_spawn_watcher_detaches(monkeypatch, tmp_path):
     agents.spawn_watcher("proj", "br-1", "term_9", "pr-draft")
     assert "watch-agent" in spawned["argv"]
     assert spawned["kwargs"].get("start_new_session") is True
+
+
+def test_set_worktree_display_name_calls_orca(monkeypatch, tmp_path):
+    """``set_worktree_display_name`` issues ``orca worktree set`` with the
+    ``--display-name`` flag so the Orca UI shows e.g. ``OMS-6407`` instead
+    of the lowercase branch that Orca auto-derives from the path. Passes
+    ``--issue null`` by default so Orca doesn't auto-detect a wrong PR."""
+    calls = []
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        calls.append(argv)
+        return orca_ok({})
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    agents.set_worktree_display_name(tmp_path, "OMS-6407")
+    argv = calls[0]
+    assert argv[:3] == ["orca", "worktree", "set"]
+    assert f"path:{tmp_path}" in argv
+    assert "OMS-6407" in argv
+    assert "--display-name" in argv
+    assert "--issue" in argv
+    assert argv[argv.index("--issue") + 1] == "null"
+
+
+def test_set_worktree_display_name_links_github_issue(monkeypatch, tmp_path):
+    """Passing ``issue_number`` links the GitHub issue instead of null."""
+    calls = []
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        calls.append(argv)
+        return orca_ok({})
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    agents.set_worktree_display_name(tmp_path, "OMS-6407", "273")
+    argv = calls[0]
+    assert argv[argv.index("--issue") + 1] == "273"
+
+
+def test_set_worktree_display_name_silently_ignores_failure(monkeypatch, tmp_path):
+    """A best-effort call: Orca unavailable or worktree not yet indexed must
+    not raise — Orca's own self-correction remains the fallback."""
+    monkeypatch.setattr(agents, "run_cli", lambda *a, **k: orca_err("selector_not_found"))
+    agents.set_worktree_display_name(tmp_path, "OMS-6407")  # must not raise
