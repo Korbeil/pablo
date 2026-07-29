@@ -15,10 +15,51 @@ from pablo import PabloError, agents, ghpr, gitrepo
 from pablo.agents import SessionInfo
 from pablo.config import ProjectConfig
 from pablo.ghpr import PrInfo
-from pablo.model import ALL_STATES, Task, utcnow
+from pablo.model import (
+    ALL_STATES,
+    CI_RED,
+    DRAFT,
+    IN_PROGRESS,
+    NEEDS_TESTING,
+    READY_TO_REVIEW,
+    REQUEST_CHANGES,
+    TESTING_FAILED,
+    WAITING,
+    WAITING_REVIEW,
+    Task,
+    utcnow,
+)
 from pablo.providers import get_provider
 from pablo.states import STATES
 from pablo.store import Store
+
+
+# -------------------------------------------------------- tasks ordering ----
+
+# `pablo tasks` lists each section's rows in this state order; unknown
+# states fall back to len(_TASKS_SORT_ORDER) so they sort last (stable).
+_TASKS_SORT_ORDER = (
+    TESTING_FAILED,
+    NEEDS_TESTING,
+    REQUEST_CHANGES,
+    WAITING_REVIEW,
+    READY_TO_REVIEW,
+    CI_RED,
+    DRAFT,
+    WAITING,
+    IN_PROGRESS,
+)
+_TASKS_SORT_INDEX = {state: i for i, state in enumerate(_TASKS_SORT_ORDER)}
+
+# Only these states qualify for the "⏳ Waiting for feedback" section;
+# tasks in any other state always go to "Other tasks" regardless of
+# agent activity.
+_WAITING_FEEDBACK_STATES = {IN_PROGRESS, CI_RED, REQUEST_CHANGES, TESTING_FAILED}
+
+
+def _state_rank(state: str) -> int:
+    """Index into _TASKS_SORT_ORDER; unknown states sort last (stable)."""
+    return _TASKS_SORT_INDEX.get(state, len(_TASKS_SORT_ORDER))
 
 
 def _repo_slug(cfg: ProjectConfig) -> str:
@@ -27,11 +68,12 @@ def _repo_slug(cfg: ProjectConfig) -> str:
     return repo_slug(cfg)
 
 
-def _render(headers: list[str], rows: list[list[str]]) -> str:
-    widths = [
-        max(len(headers[i]), *(len(row[i]) for row in rows)) if rows else len(headers[i])
-        for i in range(len(headers))
-    ]
+def _render(headers: list[str], rows: list[list[str]], widths: list[int] | None = None) -> str:
+    if widths is None:
+        widths = [
+            max(len(headers[i]), *(len(row[i]) for row in rows)) if rows else len(headers[i])
+            for i in range(len(headers))
+        ]
     lines = [
         "  ".join(headers[i].ljust(widths[i]) for i in range(len(headers))),
         "  ".join("-" * widths[i] for i in range(len(headers))),
@@ -177,6 +219,9 @@ def _agent_cells(
     return str(count), activity
 
 
+_TASKS_HEADERS = ["Task", "State", "Agents", "Activity", "Issue", "Tracker", "PR"]
+
+
 def tasks_table(
     projects: dict[str, ProjectConfig],
     store: Store,
@@ -187,7 +232,19 @@ def tasks_table(
     """Renders each task's Tracker/PR/Agents columns from the poller's
     cached display fields by default (instant, no live calls) — pass
     ``live=True`` for a one-off live fetch, or ``refresh=True`` to fetch
-    live and persist the result as the new cache, same as the poller."""
+    live and persist the result as the new cache, same as the poller.
+
+    Tasks are split into two sections, each sorted by state (see
+    _TASKS_SORT_ORDER); ties keep store insertion order (stable sort):
+
+    1. "⏳ Waiting for feedback" — tasks in _WAITING_FEEDBACK_STATES
+       (in-progress, ci-red, request-changes, testing-failed) that also
+       have at least one agent session in the waiting-on-feedback state
+       (the activity cell contains "⏳").
+    2. "Other tasks" — everything else. The header is omitted when the
+       waiting-feedback section is empty, preserving the single-table
+       look for the common case.
+    """
     fetch_live = live or refresh
     tasks = [t for t in store.all_tasks() if t.project in projects]
 
@@ -216,7 +273,9 @@ def tasks_table(
         except PabloError:
             prs_by_repo[slug] = {}
 
-    rows = []
+    # Build (task, row) entries; row[3] is the activity cell, used to
+    # detect waiting-for-feedback agents ("⏳" in the activity string).
+    entries: list[tuple[Task, list[str]]] = []
     for task in tasks:
         cfg = projects[task.project]
         tracker = _remote_status_cell(task, cfg, live=fetch_live)
@@ -233,22 +292,53 @@ def tasks_table(
             task.cached_agent_activity = activity
             task.cached_at = utcnow()
             store.save(task)
-        rows.append(
-            [
-                f"{task.branch} ({task.project})",
-                _state_cell(task),
-                count,
-                activity,
-                _issue_cell(task),
-                tracker,
-                pr,
-            ]
-        )
-    if not rows:
+        row = [
+            f"{task.branch} ({task.project})",
+            _state_cell(task),
+            count,
+            activity,
+            _issue_cell(task),
+            tracker,
+            pr,
+        ]
+        entries.append((task, row))
+
+    if not entries:
         return "no active tasks"
-    return _render(
-        ["Task", "State", "Agents", "Activity", "Issue", "Tracker", "PR"], rows
+
+    all_rows = [row for _, row in entries]
+    global_widths = [
+        max(len(_TASKS_HEADERS[i]), *(len(row[i]) for row in all_rows))
+        for i in range(len(_TASKS_HEADERS))
+    ]
+
+    waiting_entries = [
+        (task, row) for task, row in entries
+        if task.state in _WAITING_FEEDBACK_STATES and "⏳" in row[3]
+    ]
+    rest_entries = [
+        (task, row) for task, row in entries
+        if not (task.state in _WAITING_FEEDBACK_STATES and "⏳" in row[3])
+    ]
+    waiting_entries = sorted(
+        waiting_entries, key=lambda tr: _state_rank(tr[0].state)
     )
+    rest_entries = sorted(rest_entries, key=lambda tr: _state_rank(tr[0].state))
+
+    sections: list[str] = []
+    if waiting_entries:
+        sections.append(
+            "⏳ Waiting for feedback\n\n"
+            + _render(_TASKS_HEADERS, [row for _, row in waiting_entries], widths=global_widths)
+        )
+    if rest_entries:
+        # Header omitted when there is no waiting section: keeps the
+        # original single-table look for the common case.
+        header = "" if not waiting_entries else "Other tasks\n\n"
+        sections.append(
+            header + _render(_TASKS_HEADERS, [row for _, row in rest_entries], widths=global_widths)
+        )
+    return "\n\n".join(sections)
 
 
 # --------------------------------------------------------- queue export ---
