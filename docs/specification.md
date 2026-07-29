@@ -792,8 +792,8 @@ task (worktree) it shows, as a **terminal table**, in this column order:
    finish before cleanup.
 6. **Number of agents currently running** on that worktree.
 7. **Whether those agents are actively running or waiting on my
-   feedback** — compact form, e.g. 🏃 2 running, ⏳ 1 waiting, or
-   🏃 1 · ⏳ 1 if mixed.
+   feedback** — compact form, e.g. 🏃 2 running, 💭 1 waiting, or
+   🏃 1 · 💭 1 if mixed.
 
 Keep every column compact — emoji plus a couple of words, not full
 sentences — since this is a terminal table and needs to stay scannable at

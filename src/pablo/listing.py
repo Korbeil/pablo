@@ -6,7 +6,7 @@ states 🔨 in-progress · ⏸️ waiting · 📝 draft · 🔴 ci-red ·
 🧪 needs-testing · 🔁 request-changes · 🚨 testing-failed;
 PRs 📬 open · 📪 draft · ✅ merged (merged only appears when auto-close is
 deferred because agents are still running);
-agents 🏃 running · ⏳ waiting on feedback.
+agents 🏃 running · 💭 waiting on feedback.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ _TASKS_SORT_ORDER = (
 )
 _TASKS_SORT_INDEX = {state: i for i, state in enumerate(_TASKS_SORT_ORDER)}
 
-# Only these states qualify for the "⏳ Waiting for feedback" section;
+# Only these states qualify for the "💭 Waiting for feedback" section;
 # tasks in any other state always go to "Other tasks" regardless of
 # agent activity.
 _WAITING_FEEDBACK_STATES = {IN_PROGRESS, CI_RED, REQUEST_CHANGES, TESTING_FAILED}
@@ -175,7 +175,7 @@ def agent_activity_summary(sessions: list[SessionInfo]) -> tuple[int, str]:
     if running:
         parts.append(f"🏃 {running}")
     if waiting:
-        parts.append(f"⏳ {waiting}")
+        parts.append(f"💭 {waiting}")
     return len(sessions), " · ".join(parts)
 
 
@@ -237,10 +237,10 @@ def tasks_table(
     Tasks are split into two sections, each sorted by state (see
     _TASKS_SORT_ORDER); ties keep store insertion order (stable sort):
 
-    1. "⏳ Waiting for feedback" — tasks in _WAITING_FEEDBACK_STATES
+    1. "💭 Waiting for feedback" — tasks in _WAITING_FEEDBACK_STATES
        (in-progress, ci-red, request-changes, testing-failed) that also
        have at least one agent session in the waiting-on-feedback state
-       (the activity cell contains "⏳").
+       (the activity cell contains "💭").
     2. "Other tasks" — everything else. The header is omitted when the
        waiting-feedback section is empty, preserving the single-table
        look for the common case.
@@ -274,7 +274,7 @@ def tasks_table(
             prs_by_repo[slug] = {}
 
     # Build (task, row) entries; row[3] is the activity cell, used to
-    # detect waiting-for-feedback agents ("⏳" in the activity string).
+    # detect waiting-for-feedback agents ("💭" in the activity string).
     entries: list[tuple[Task, list[str]]] = []
     for task in tasks:
         cfg = projects[task.project]
@@ -314,11 +314,11 @@ def tasks_table(
 
     waiting_entries = [
         (task, row) for task, row in entries
-        if task.state in _WAITING_FEEDBACK_STATES and "⏳" in row[3]
+        if task.state in _WAITING_FEEDBACK_STATES and "💭" in row[3]
     ]
     rest_entries = [
         (task, row) for task, row in entries
-        if not (task.state in _WAITING_FEEDBACK_STATES and "⏳" in row[3])
+        if not (task.state in _WAITING_FEEDBACK_STATES and "💭" in row[3])
     ]
     waiting_entries = sorted(
         waiting_entries, key=lambda tr: _state_rank(tr[0].state)
@@ -328,7 +328,7 @@ def tasks_table(
     sections: list[str] = []
     if waiting_entries:
         sections.append(
-            "⏳ Waiting for feedback\n\n"
+            "💭 Waiting for feedback\n\n"
             + _render(_TASKS_HEADERS, [row for _, row in waiting_entries], widths=global_widths)
         )
     if rest_entries:

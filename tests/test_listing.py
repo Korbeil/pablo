@@ -244,7 +244,7 @@ def test_agent_columns(env, monkeypatch):
              state=IN_PROGRESS)
     )
     table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
-    assert "🏃 1 · ⏳ 1" in table
+    assert "🏃 1 · 💭 1" in table
 
 
 def test_cached_task_renders_without_live_calls(env, monkeypatch):
@@ -329,7 +329,7 @@ def test_tasks_split_waiting_feedback_first(env, monkeypatch):
                            state=NEEDS_TESTING))
 
     table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
-    assert "⏳ Waiting for feedback" in table
+    assert "💭 Waiting for feedback" in table
     assert "Other tasks" in table
     # wk-45 has the waiting session, so it must be in the first section
     other_idx = table.index("Other tasks")
@@ -354,7 +354,7 @@ def test_tasks_no_waiting_header_when_no_waiting_agents(env):
     env["store"].save(Task(project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
                            state=IN_PROGRESS))
     table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
-    assert "⏳ Waiting for feedback" not in table
+    assert "💭 Waiting for feedback" not in table
     assert "Other tasks" not in table  # header omitted for single-section
     assert "wk-45" in table
 
@@ -373,7 +373,7 @@ def test_tasks_waiting_agent_excluded_for_non_eligible_state(env, monkeypatch):
                            state=NEEDS_TESTING))
 
     table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
-    assert "⏳ Waiting for feedback" not in table
+    assert "💭 Waiting for feedback" not in table
     assert "Other tasks" not in table  # single section, no header
     assert "wk-45" in table
 
