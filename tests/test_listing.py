@@ -376,3 +376,59 @@ def test_tasks_waiting_agent_excluded_for_non_eligible_state(env, monkeypatch):
     assert "⏳ Waiting for feedback" not in table
     assert "Other tasks" not in table  # single section, no header
     assert "wk-45" in table
+
+
+# ----------------------------------------------------------- render_slack --
+
+
+def test_render_slack_empty_rows_waiting_review():
+    assert listing.render_slack([], WAITING_REVIEW) == "No PRs waiting for review right now 🎉"
+
+
+def test_render_slack_empty_rows_needs_testing():
+    assert listing.render_slack([], NEEDS_TESTING) == "Nothing needs testing right now 🎉"
+
+
+def test_render_slack_empty_rows_unknown_state_falls_back():
+    assert "🎉" in listing.render_slack([], "request-changes")
+
+
+def _row(project, pr):
+    return {"project": project, "branch": "b", "issue": None, "summary": None, "pr": pr}
+
+
+def test_render_slack_groups_by_project_with_mrkdwn_links():
+    rows = [
+        _row("wallet-kit", {"number": 7, "title": "Fix callbacks",
+                            "url": "https://github.com/acme/wallet-kit/pull/7", "is_draft": False}),
+        _row("acme-pim", {"number": 12, "title": "Add exports",
+                          "url": "https://github.com/acme/pim/pull/12", "is_draft": False}),
+        _row("wallet-kit", {"number": 9, "title": "Tidy tests",
+                            "url": "https://github.com/acme/wallet-kit/pull/9", "is_draft": False}),
+    ]
+    out = listing.render_slack(rows, WAITING_REVIEW)
+    assert out == (
+        "*wallet-kit*\n"
+        "• <https://github.com/acme/wallet-kit/pull/7|#7 Fix callbacks>\n"
+        "• <https://github.com/acme/wallet-kit/pull/9|#9 Tidy tests>\n"
+        "*acme-pim*\n"
+        "• <https://github.com/acme/pim/pull/12|#12 Add exports>"
+    )
+
+
+def test_render_slack_skips_tasks_without_pr_and_drops_empty_groups():
+    rows = [
+        _row("wallet-kit", None),
+        _row("acme-pim", {"number": 12, "title": "Add exports",
+                          "url": "https://github.com/acme/pim/pull/12", "is_draft": False}),
+    ]
+    out = listing.render_slack(rows, NEEDS_TESTING)
+    assert out == (
+        "*acme-pim*\n"
+        "• <https://github.com/acme/pim/pull/12|#12 Add exports>"
+    )
+
+
+def test_render_slack_all_prs_missing_returns_empty_message():
+    rows = [_row("wallet-kit", None)]
+    assert listing.render_slack(rows, WAITING_REVIEW) == "No PRs waiting for review right now 🎉"
