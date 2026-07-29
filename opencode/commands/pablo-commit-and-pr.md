@@ -84,6 +84,17 @@ Existing PR for this branch:
   only the commit step and continue the rest of the flow (push any
   unpushed commits, create the draft PR if missing, switch the state) —
   for when the user already committed manually.
+- **Amend by default.** If the branch already has task-owned commits (use
+  the "Unpushed commits" context above — if it shows commits that belong
+  to this branch, not the base): use `git commit --amend --no-edit`
+  (never change the existing commit message). If this is the very first
+  `/pablo-commit-and-pr` for this task (no prior commits on the branch):
+  create a new commit with a message following conventions as described
+  below.
+- **Push is always `--force-with-lease`.** Use
+  `git push --force-with-lease -u origin <branch>` for every push — this
+  is safe (refuses if the remote has diverged) and works for first pushes
+  too.
 - The PR description is **always in French**, even if the code and
   commits are in English.
 - The PR description is **always printed inside a fenced code block**
@@ -95,14 +106,21 @@ Existing PR for this branch:
 ## Steps
 
 1. **Commit** (skipped with `--force`)
-   - If files are already staged, commit only those. Otherwise stage the
-     files relevant to the work — do NOT blindly `git add -A` if
-     unrelated files are lying around (local config, `.env`, debug
-     scripts); leave them out and mention them.
-   - Write the commit message following the conventions visible in the
+   - Determine if this branch already has task-owned commits — check the
+     "Unpushed commits" context above. If it shows commits that belong to
+     this task (not the base branch), the branch has existing commits.
+   - If files are already staged, use those. Otherwise stage the files
+     relevant to the work — do NOT blindly `git add -A` if unrelated
+     files are lying around (local config, `.env`, debug scripts); leave
+     them out and mention them.
+   - **Existing commits on this branch:** `git commit --amend --no-edit`
+     (do not change the existing commit message).
+   - **First commit for this task (no prior commits on this branch):**
+     write the commit message following the conventions visible in the
      git log above (language, prefixes, ticket refs like `ABC-123`). If
      no convention is detectable, use Conventional Commits in English:
-     `type(scope): summary`, subject ≤ 72 chars.
+     `type(scope): summary`, subject ≤ 72 chars. Then `git commit -m
+     "<message>"`.
 
 2. **PR description**
    - Cover the **whole branch** vs the base branch, not just this
@@ -141,8 +159,9 @@ Existing PR for this branch:
      (`composer.json` changes), migrations, and config changes if present.
 
 3. **Push and PR**
-   - `git push -u origin <branch>` (plain push — never `--force`; if the
-     push is rejected, report it and stop, don't force anything).
+   - `git push --force-with-lease -u origin <branch>` (always use
+     `--force-with-lease` — safe for first pushes and rejects only if the
+     remote truly diverged; if the push is rejected, report it and stop).
    - If the "Existing PR" context above is empty: create the draft PR with
      the French description as body — write the body to
      `/tmp/pablo-descriptions/<branch name>.md` (create the directory
