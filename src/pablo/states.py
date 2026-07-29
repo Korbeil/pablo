@@ -216,7 +216,7 @@ STATES: dict[str, StateDef] = {
         REQUEST_CHANGES, "🔁", "request-changes", _enter_request_changes, False
     ),
     TESTING_FAILED: StateDef(
-        TESTING_FAILED, "❌", "testing-failed", _enter_testing_failed, False
+        TESTING_FAILED, "🚨", "testing-failed", _enter_testing_failed, False
     ),
 }
 
