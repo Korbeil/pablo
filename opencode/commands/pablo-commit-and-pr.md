@@ -8,8 +8,6 @@ permission:
   glob: allow
   list: allow
   webfetch: deny
-  external_directory:
-    "/tmp/**": allow
   bash:
     "pablo precommit-check*": allow
     "pablo state*": allow
@@ -25,9 +23,6 @@ permission:
     "gh pr create*": allow
     "cat .github/pull_request_template.md*": allow
     "cat .github/PULL_REQUEST_TEMPLATE.md*": allow
-    "mkdir -p /tmp/pablo-descriptions*": allow
-    "cat > /tmp/pablo-descriptions/*": allow
-    "tee /tmp/pablo-descriptions/*": allow
     "*": ask
 ---
 
@@ -164,10 +159,7 @@ Existing PR for this branch:
      remote truly diverged; if the push is rejected, report it and stop).
    - If the "Existing PR" context above is empty: create the draft PR with
      the French description as body — write the body to
-     `/tmp/pablo-descriptions/<branch name>.md` (create the directory
-     first with `mkdir -p /tmp/pablo-descriptions` if it doesn't exist —
-     always this exact location, it's what this command's `bash:`
-     permission allow-list is scoped to) and run
+      `.pablo-pr-body.md` (a dotfile in the worktree root) and run
      `gh pr create --draft --title "<title>" --body-file <file>`
      (title follows the same convention as the commit message, mention
      the issue key if the branch has one).
