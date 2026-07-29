@@ -114,6 +114,15 @@ def test_site_optional(projects_dir: Path):
     assert load_projects(projects_dir)["mini"].site == "acme.atlassian.net"
 
 
+def test_confluence_space_optional(projects_dir: Path):
+    (projects_dir / "mini.yaml").write_text(MINIMAL_PROJECT)
+    assert load_projects(projects_dir)["mini"].confluence_space is None
+    (projects_dir / "mini.yaml").write_text(
+        MINIMAL_PROJECT + "confluence:\n  space: PIM\n"
+    )
+    assert load_projects(projects_dir)["mini"].confluence_space == "PIM"
+
+
 def test_startup_script_optional(projects_dir: Path):
     (projects_dir / "mini.yaml").write_text(MINIMAL_PROJECT)
     assert load_projects(projects_dir)["mini"].startup_script is None

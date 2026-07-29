@@ -156,19 +156,22 @@ that service's CLI rather than raw API calls with stored tokens:
   ready/draft), everything. Document the specific subcommands/flags used
   per feature (e.g. `gh pr checks`, `gh pr view --json reviews`) in
   `@README.md` as they're implemented.
-- **Jira** (amended 2026-07-26; originally the `jira` CLI): the
-  **Atlassian MCP server** (`https://mcp.atlassian.com/v1/mcp`), reached
-  through the `mcp-remote` bridge. The bridge owns and caches the OAuth
-  login (`~/.mcp-auth/`), so the no-tokens rule still holds — PABLO
-  stores nothing; the bridge's cache plays the role of a CLI's own
-  login. Interactive agents use the session's Atlassian MCP tools
-  directly; the background layer talks to the bridge over stdio.
+- **Jira** (amended 2026-07-26; re-amended 2026-07-29: originally the
+  `jira` CLI, then briefly the Atlassian MCP server via the `mcp-remote`
+  bridge, now the Atlassian CLI **`acli`**): `acli jira workitem …` —
+  `view`/`search`/`comment list`, all with `--json`. acli owns and caches
+  the OAuth login itself (`acli auth login`), so the no-tokens rule holds —
+  PABLO stores nothing. The same `acli` grant also covers **Confluence**
+  via `acli confluence page view --id <id> --json` (the documentation path,
+  exposed as `pablo docs` / `/pablo-docs` and used by agents when an issue
+  references a wiki page). Interactive agents invoke `acli` directly via
+  bash; the background layer shells out to the same CLI.
 - **Linear**: the corresponding Linear CLI — pick one, and document which
   in `@README.md`.
 
 This applies to both layers: the background component shells out to these
-CLIs (or the Jira MCP bridge) for its polling, and any interactive
-agent/command doing provider-related work does the same.
+CLIs for its polling, and any interactive agent/command doing
+provider-related work does the same.
 Because each CLI/bridge manages its own authentication (its own
 login/config), **PABLO stores no tokens at all** — there is no secrets
 section in the project config, and none should be added. If a CLI or the
@@ -183,17 +186,17 @@ ready before anything relies on them:
 - First, determine which checks are actually **required by the configured
   projects**: scan `projects/*.yaml` (skipping `default.yaml`) and collect
   the set of `issue_tracker.provider` values in use. `gh` is always
-  required (every project's PR/CI flow goes through GitHub); the **Jira
-  MCP check** only if at least one project uses the `jira` provider; the
-  Linear CLI only if at least one uses `linear`. Don't check what no
-  project needs.
+  required (every project's PR/CI flow goes through GitHub); the
+  **`acli`** check (Jira) only if at least one project uses the `jira`
+  provider; **`acli-confluence`** additionally when at least one project
+  configures a `confluence.space`; the Linear CLI only if at least one
+  uses `linear`. Don't check what no project needs.
 - For each required CLI, check both that it's **installed** (on `PATH`)
-  and **authenticated** (e.g. `gh auth status` — use each CLI's own
-  status/whoami command). For Jira, the check is an **MCP
-  reachability/auth check** (amended 2026-07-26): cached bridge auth must
-  exist and an `atlassianUserInfo` call must succeed — and the check must
-  never trigger the interactive OAuth flow itself (fail fast with the
-  one-time auth instruction instead).
+  and **authenticated** (e.g. `gh auth status`, `acli jira auth status`,
+  `acli confluence auth status` — each CLI's own status/whoami command;
+  re-amended 2026-07-29: the Atlassian CLI `acli` replaced the earlier
+  MCP reachability check — acli owns the OAuth flow, so a normal CLI
+  probe is sufficient).
 - Output a clear per-CLI pass/fail summary, with the CLI's own login
   instructions on failure, and exit non-zero if anything required is
   missing — so the check is usable both by me interactively and as a

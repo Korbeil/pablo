@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+import json
 from pathlib import Path
 
 import pytest
@@ -7,6 +7,22 @@ from pablo.config import ProjectConfig
 from pablo.model import Task
 from pablo.providers import get_provider
 from pablo.providers import jira as jira_mod
+
+ISSUE_JSON = {
+    "key": "XXX-123",
+    "fields": {
+        "summary": "Fix product import",
+        "status": {"name": "In Progress"},
+    },
+}
+
+ISSUE_JSON_DIFF_STATUS = {
+    "key": "XXX-123",
+    "fields": {
+        "summary": "Fix product import",
+        "status": {"name": "A FIX"},
+    },
+}
 
 
 def cfg(tmp_path: Path, site: str | None = "acme.atlassian.net") -> ProjectConfig:
@@ -30,60 +46,32 @@ def cfg(tmp_path: Path, site: str | None = "acme.atlassian.net") -> ProjectConfi
     )
 
 
-RESOURCES = [
-    {"id": "cloud-other", "url": "https://other.atlassian.net", "name": "other"},
-    {"id": "cloud-acme", "url": "https://acme.atlassian.net", "name": "acme"},
-]
-
-ISSUE = {
-    "key": "XXX-123",
-    "fields": {
-        "summary": "Fix product import",
-        "status": {"name": "In Progress"},
-    },
-}
-
-ISSUE_WITH_CHANGELOG = {
-    **ISSUE,
-    "changelog": {
-        "histories": [
-            {
-                "created": "2026-07-20T10:00:00.000+0000",
-                "items": [{"field": "status", "toString": "A FIX"}],
-            },
-            {
-                "created": "2026-07-21T10:00:00.000+0000",
-                "items": [{"field": "assignee", "toString": "someone"}],
-            },
-            {
-                "created": "2026-07-19T09:00:00.000+0000",
-                "items": [{"field": "status", "toString": "A FIX"}],
-            },
-        ]
-    },
-}
-
-
-@pytest.fixture(autouse=True)
-def _isolated_cache_dir(tmp_path, monkeypatch):
-    monkeypatch.setenv("PABLO_CACHE_DIR", str(tmp_path / "cache"))
-
-
 @pytest.fixture
-def provider(monkeypatch):
-    provider = get_provider("jira")
-    return provider
+def provider():
+    return get_provider("jira")
 
 
-def patch_call(monkeypatch, responses: dict, calls: list | None = None):
-    def fake_call(tool, args):
+def patch_run_cli(monkeypatch, *, view=ISSUE_JSON, search=None, calls=None) -> None:
+    """Fake `providers.run_cli`, dispatching by subcommand.
+
+    `view`/`search`: JSON-decodable payloads to return for the matching
+    acli call. `search` defaults to [view] when unset. acli returns the
+    raw JSON object for `view` and a JSON list for `search`; run_cli yields
+    the *string* output that the provider then json.loads — so we encode
+    the payloads here.
+    """
+    search = search if search is not None else [view]
+
+    def fake_run_cli(argv, **kwargs):
         if calls is not None:
-            calls.append((tool, args))
-        if tool not in responses:
-            raise AssertionError(f"unexpected MCP call: {tool} {args}")
-        return responses[tool]
+            calls.append(argv)
+        if "search" in argv:
+            return json.dumps(search)
+        if "view" in argv:
+            return json.dumps(view)
+        raise AssertionError(f"unexpected acli argv: {argv}")
 
-    monkeypatch.setattr(jira_mod, "call", fake_call)
+    monkeypatch.setattr(jira_mod, "run_cli", fake_run_cli)
 
 
 def test_match_url(provider, tmp_path):
@@ -93,30 +81,8 @@ def test_match_url(provider, tmp_path):
     assert provider.match_url("https://github.com/a/b/issues/1", c) is None
 
 
-def test_cloud_id_matches_site(provider, tmp_path, monkeypatch):
-    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES})
-    assert provider._cloud_id(cfg(tmp_path)) == "cloud-acme"
-
-
-def test_cloud_id_defaults_first(provider, tmp_path, monkeypatch):
-    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES})
-    assert provider._cloud_id(cfg(tmp_path, site=None)) == "cloud-other"
-
-
-def test_cloud_id_cached(provider, tmp_path, monkeypatch):
-    calls = []
-    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES}, calls)
-    c = cfg(tmp_path)
-    provider._cloud_id(c)
-    provider._cloud_id(c)
-    assert len(calls) == 1
-
-
 def test_get_issue_parses_fields(provider, tmp_path, monkeypatch):
-    patch_call(
-        monkeypatch,
-        {"getAccessibleAtlassianResources": RESOURCES, "getJiraIssue": ISSUE},
-    )
+    patch_run_cli(monkeypatch)
     issue = provider.get_issue("XXX-123", cfg(tmp_path))
     assert issue.key == "XXX-123"
     assert issue.title == "Fix product import"
@@ -127,61 +93,42 @@ def test_get_issue_parses_fields(provider, tmp_path, monkeypatch):
 
 def test_list_assigned_uses_jql_currentuser(provider, tmp_path, monkeypatch):
     calls = []
-    patch_call(
-        monkeypatch,
-        {
-            "getAccessibleAtlassianResources": RESOURCES,
-            "searchJiraIssuesUsingJql": {"issues": [ISSUE]},
-        },
-        calls,
-    )
+    patch_run_cli(monkeypatch, search=[ISSUE_JSON], calls=calls)
     issues = provider.list_assigned(cfg(tmp_path))
     assert [issue.key for issue in issues] == ["XXX-123"]
-    tool, args = calls[-1]
-    assert tool == "searchJiraIssuesUsingJql"
-    assert args["cloudId"] == "cloud-acme"
-    assert "project = XXX" in args["jql"]
-    assert "assignee = currentUser()" in args["jql"]
+    argv = calls[-1]
+    assert "search" in argv
+    jql = argv[argv.index("--jql") + 1]
+    assert "project = XXX" in jql
+    assert "assignee = currentUser()" in jql
+    assert argv[argv.index("--limit") + 1] == "50"
 
 
 def test_issue_status(provider, tmp_path, monkeypatch):
-    patch_call(
-        monkeypatch,
-        {"getAccessibleAtlassianResources": RESOURCES, "getJiraIssue": ISSUE},
-    )
+    patch_run_cli(monkeypatch)
     assert provider.issue_status("XXX-123", cfg(tmp_path)) == "In Progress"
 
 
 def make_task(tmp_path, provider, monkeypatch):
-    patch_call(
-        monkeypatch,
-        {"getAccessibleAtlassianResources": RESOURCES, "getJiraIssue": ISSUE},
-    )
+    patch_run_cli(monkeypatch)
     task = Task(project="acme-pim", branch="xxx-123", worktree_path=tmp_path,
                 state="needs-testing")
     task.issue = provider.get_issue("XXX-123", cfg(tmp_path))
     return task
 
 
-def test_failure_signal_from_changelog_when_present(provider, tmp_path, monkeypatch):
+def test_failure_signal_empty_when_changelog_unavailable(provider, tmp_path, monkeypatch):
+    # acli never returns a changelog → the provider always yields [] and the
+    # poller's observed-transition fallback (signal_via_status) does the work.
     task = make_task(tmp_path, provider, monkeypatch)
-    patch_call(
-        monkeypatch,
-        {"getAccessibleAtlassianResources": RESOURCES,
-         "getJiraIssue": ISSUE_WITH_CHANGELOG},
-    )
-    stamps = provider.failure_signal_events(task, cfg(tmp_path))
-    assert len(stamps) == 2
-    assert stamps == sorted(stamps)
-    assert stamps[-1] == datetime(2026, 7, 20, 10, 0, tzinfo=timezone.utc)
+    assert provider.failure_signal_events(task, cfg(tmp_path)) == []
 
 
-def test_failure_signal_empty_without_changelog(provider, tmp_path, monkeypatch):
+def test_failure_signal_empty_even_when_status_matches_signal(provider, tmp_path, monkeypatch):
+    patch_run_cli(monkeypatch, view=ISSUE_JSON_DIFF_STATUS)
     task = make_task(tmp_path, provider, monkeypatch)
-    patch_call(
-        monkeypatch,
-        {"getAccessibleAtlassianResources": RESOURCES, "getJiraIssue": ISSUE},
-    )
+    # Status transition detection is the poller's job; the provider never
+    # synthesizes stamps from the current status alone.
     assert provider.failure_signal_events(task, cfg(tmp_path)) == []
 
 
@@ -189,43 +136,9 @@ def test_signal_via_status_flag(provider):
     assert provider.signal_via_status is True
 
 
-def test_cloud_id_persisted_across_provider_instances(tmp_path, monkeypatch):
-    calls = []
-    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES}, calls)
-    c = cfg(tmp_path)
-
-    get_provider("jira")._cloud_id(c)
-    assert len(calls) == 1
-
-    # A brand-new instance (as listing.py/poller.py build per call) must
-    # hit the on-disk cache instead of re-resolving via MCP.
-    assert get_provider("jira")._cloud_id(c) == "cloud-acme"
-    assert len(calls) == 1
+def test_cli_name_is_acli(provider):
+    assert provider.cli_name() == "acli"
 
 
-def test_cloud_id_disk_cache_deleted_falls_back_to_resolve(tmp_path, monkeypatch):
-    calls = []
-    patch_call(monkeypatch, {"getAccessibleAtlassianResources": RESOURCES}, calls)
-    c = cfg(tmp_path)
-    get_provider("jira")._cloud_id(c)
-    assert len(calls) == 1
-
-    from pablo.providers.jira import _cloud_id_cache_path
-
-    _cloud_id_cache_path().unlink()
-    assert get_provider("jira")._cloud_id(c) == "cloud-acme"
-    assert len(calls) == 2
-
-
-def test_call_delegates_to_retry_helper(monkeypatch):
-    from pablo import mcpclient
-
-    calls = []
-
-    def fake_retry(tool, args, **kwargs):
-        calls.append((tool, args))
-        return {"stubbed": True}
-
-    monkeypatch.setattr(mcpclient, "call_tool_with_retry", fake_retry)
-    assert jira_mod.call("x", {"a": 1}) == {"stubbed": True}
-    assert calls == [("x", {"a": 1})]
+def test_auth_check_cmd(provider):
+    assert provider.auth_check_cmd() == ["acli", "jira", "auth", "status"]

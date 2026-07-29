@@ -17,7 +17,7 @@ rules documented below, never on its own judgement.
 ## Quick start
 
 Prerequisites: Python 3.12 + Poetry, `gh` (+ `gh auth login`), the Orca
-and opencode apps, nvm with a Node matching `.nvmrc`. Full details and
+and opencode apps, the Atlassian CLI `acli` (`acli auth login`). Full details and
 platform-specific steps: [docs/installation.md](docs/installation.md).
 
 ```bash
@@ -37,6 +37,7 @@ Then, day to day, from an OpenCode session:
 /pablo-start --project wallet-kit "fix callback verification"   # ...or from a prompt
 /pablo-tasks             # see all active tasks and their state
 /pablo-issues            # see issues assigned to you, per project
+/pablo-docs <page-id>    # fetch a Confluence documentation page (via acli)
 /pablo-commit-and-pr     # commit, push, open a draft PR
 /pablo-waiting           # pause/resume a task
 /pablo-close             # abandon/clean up a task (escape hatch)
@@ -131,8 +132,12 @@ before making non-trivial changes in that area:
   state and transition, task storage format
 - [docs/background-layer.md](docs/background-layer.md) — the two layers,
   worktree sync, closing a task, agent execution via Orca
-- [docs/providers.md](docs/providers.md) — GitHub/Jira/Linear access,
-  Jira-via-MCP details, `pablo doctor` preflight
+- [docs/providers.md](docs/providers.md) — GitHub/Jira/Linear/Confluence
+  access via `acli`/`gh`/`linear`, `pablo doctor` preflight
+- [docs/configuration.md](docs/configuration.md) — project YAML schema,
+  branch naming convention
+- [docs/listings.md](docs/listings.md) — `/pablo-issues` and
+  `/pablo-tasks` output
 - [docs/configuration.md](docs/configuration.md) — project YAML schema,
   branch naming convention
 - [docs/listings.md](docs/listings.md) — `/pablo-issues` and

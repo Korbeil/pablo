@@ -1,5 +1,5 @@
 ---
-description: Vérifie que les CLIs requis (gh, jira, linear, orca, opencode) sont installés et authentifiés
+description: Vérifie que les CLIs requis (gh, acli, linear, orca, opencode) sont installés et authentifiés
 subtask: true
 ---
 

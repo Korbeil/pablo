@@ -41,9 +41,11 @@ No lint/format config exists — match surrounding style.
 `naming.py` (branch naming) · `gitrepo.py` (worktrees, lease-safe sync) ·
 `sync.py` / `poller.py` (per-project background jobs) · `ghpr.py` (GitHub
 PR/CI/review plumbing) · `agents.py` (launches agents via Orca) ·
-`mcpclient.py` (Jira via Atlassian MCP) · `listing.py` (table rendering) ·
-`dispatch.py` (cron entry point) · `doctor.py` (preflight checks) ·
-`providers/` (`github.py`/`jira.py`/`linear.py` behind a common interface).
+`confluence.py` (Confluence page fetch via the `acli` CLI, used by
+`pablo docs` / `/pablo-docs` and by interactive agents) · `listing.py`
+(table rendering) · `dispatch.py` (cron entry point) · `doctor.py`
+(preflight checks) · `providers/` (`github.py`/`jira.py`/`linear.py`
+behind a common interface).
 
 **New state**: add to `ALL_STATES` in `model.py` + a `StateDef` in
 `STATES` in `states.py`. Always transition via `enter_state()`, never

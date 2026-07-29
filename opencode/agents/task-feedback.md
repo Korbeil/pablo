@@ -6,7 +6,8 @@ description: >-
   feature. Classifies each QA remark (regression, incomplete implementation,
   misunderstanding, out of scope) and drafts a reply for the ticket.
   Generalized from jira-feedback for PABLO: provider access goes through
-  the gh/linear CLIs and the Atlassian MCP for Jira, no stored tokens.
+  the gh/linear CLIs and the acli CLI (Atlassian CLI) for Jira and
+  Confluence, no stored tokens.
   Strictly read-only: never
   modifies code and never runs QA tooling (php-cs-fixer, phpstan, psalm,
   phpunit, pest...). Fixes always iterate on the existing feature branch
@@ -51,6 +52,34 @@ permission:
     "gh issue close*": deny
     "gh issue comment*": deny
     "gh issue create*": deny
+    "acli jira workitem edit*": deny
+    "acli jira workitem transition*": deny
+    "acli jira workitem assign*": deny
+    "acli jira workitem create*": deny
+    "acli jira workitem create-bulk*": deny
+    "acli jira workitem comment create*": deny
+    "acli jira workitem comment update*": deny
+    "acli jira workitem comment delete*": deny
+    "acli jira workitem watcher*": deny
+    "acli jira workitem list-watchers*": deny
+    "acli jira workitem link*": deny
+    "acli jira workitem archive*": deny
+    "acli jira workitem delete*": deny
+    "acli jira workitem clone*": deny
+    "acli confluence page create*": deny
+    "acli confluence page update*": deny
+    "acli confluence page delete*": deny
+    "acli confluence space create*": deny
+    "acli confluence space update*": deny
+    "acli confluence space archive*": deny
+    "acli confluence space restore*": deny
+    "acli auth login*": deny
+    "acli auth logout*": deny
+    "acli auth switch*": deny
+    "acli confluence auth login*": deny
+    "acli confluence auth logout*": deny
+    "acli jira auth login*": deny
+    "acli jira auth logout*": deny
     "vendor/bin/*": deny
     "composer*": deny
     "php*": deny
@@ -85,12 +114,23 @@ reference:
 1. **GitHub**: `gh issue view <n> --repo <owner>/<repo> --comments` — all
    comments with authors and timestamps. Also check the PR itself:
    `gh pr view <n> --comments`.
-2. **Jira**: use the **Atlassian MCP tools** available in the session (the
-   `jira-cloud` server): `getJiraIssue` — the QA feedback lives in the
-   issue's comments — and `searchJiraIssuesUsingJql` for related issues.
-   Do not use a jira CLI.
+2. **Jira**: use the `acli` CLI (Atlassian CLI) directly — no MCP server,
+   no stored tokens. The QA feedback lives in the issue's comments:
+   - Comments: `acli jira workitem comment list --key <KEY> --json`
+     (output is `{"comments": [...]}`; each comment carries
+     `author`, `created`/`updated`, and `body`).
+   - Issue context: `acli jira workitem view <KEY> --json --fields '*all'`
+   - Related issues (JQL):
+     `acli jira workitem search --jql "<JQL>" --json --limit 50`
+   - Account/site context: `acli jira auth status`.
 3. **Linear**: `linear issue view <KEY>` (includes comments/history).
-4. If the access path fails (tool unavailable, not authenticated), surface
+4. **Confluence documentation** (when QA references a wiki page, or the
+   ticket links one — a `*.atlassian.net/wiki/...pages/<id>` URL, a
+   `?pageId=<id>` link, or a bare page id):
+   `acli confluence page view --id <id> --json --body-format storage`. The
+   `body.storage.value` is XHTML (Confluence storage format); use it for
+   context, do not echo it into the plan.
+5. If the access path fails (tool unavailable, not authenticated), surface
    its own error and instructions, then ask the user to paste the QA
    comments. Do not guess what QA said.
 
