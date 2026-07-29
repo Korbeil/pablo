@@ -436,6 +436,8 @@ def cmd_retrigger_ci(args: argparse.Namespace) -> int:
     repo = _repo_slug(ctx.cfg)
     with task_lock(store, ctx.task.project, ctx.task.branch):
         run_ids = ghpr.rerun_ci(repo, ctx.task.branch)
+        if ctx.task.pr_number is not None:
+            ghpr.mark_draft(repo, ctx.task.pr_number)
     print(
         f"{ctx.task.branch}: re-triggered CI — {len(run_ids)} workflow run(s) "
         f"({', '.join(run_ids)})"
