@@ -63,6 +63,10 @@ def test_launch_falls_back_headless_when_orca_refuses(monkeypatch, tmp_path, age
     monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
     monkeypatch.setattr(agents.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    monkeypatch.setattr(
+        agents, "_capture_orca_state_probe",
+        lambda wt: "probe rc=0 present_in_list=False stdout_len=0 stderr=''",
+    )
     handle = agents._do_launch_agent(tmp_path, "task-analyst", "hello")
     assert handle == "pid:4242"
     assert launched["argv"][:3] == ["opencode", "run", "--agent"]
@@ -71,6 +75,9 @@ def test_launch_falls_back_headless_when_orca_refuses(monkeypatch, tmp_path, age
     fallback_log = (agents_dir / "logs" / "orca-fallback.log").read_text()
     assert "task-analyst" in fallback_log
     assert "selector_not_found" in fallback_log
+    assert "probe rc=0" in fallback_log  # Phase 1: state probe recorded at exhaustion
+    marker = (agents_dir / "last-headless-fallback.txt").read_text()
+    assert "task-analyst" in marker  # Phase 1: silent degrade surfaced via marker
 
 
 def test_launch_succeeds_on_orca_retry(monkeypatch, tmp_path):
@@ -377,3 +384,91 @@ def test_set_worktree_display_name_silently_ignores_failure(monkeypatch, tmp_pat
     not raise — Orca's own self-correction remains the fallback."""
     monkeypatch.setattr(agents, "run_cli", lambda *a, **k: orca_err("selector_not_found"))
     agents.set_worktree_display_name(tmp_path, "OMS-6407")  # must not raise
+
+
+def test_orca_reason_embeds_raw_stdout_on_empty(monkeypatch, tmp_path):
+    """Phase 1: the opaque empty-stdout failure mode (observed 2026-07-29 on
+    oms-6421/sezane-8266 as a bare ``JSONDecodeError: Expecting value…``)
+    must surface the raw stdout orca returned so the log is actionable."""
+    def fake_empty(_argv, *, check=True, timeout=None):
+        return ""
+    monkeypatch.setattr(agents, "run_cli", fake_empty)
+    _, reason = agents._orca(["worktree", "list"])
+    assert "raw_stdout=''" in reason
+    assert "JSONDecodeError" in reason
+
+
+def test_orca_with_retry_logs_each_attempt_and_probe(monkeypatch, tmp_path, agents_dir):
+    """Phase 1: per-attempt outcomes go to ``orca-create-attempts.log``
+    (one tail-line only showed the last attempt), and exhaustion runs the
+    state probe so the log distinguishes a never-resolved selector from an
+    orca outage."""
+    attempts = {"n": 0}
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        attempts["n"] += 1
+        return orca_err("selector_not_found")
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    monkeypatch.setattr(
+        agents, "_capture_orca_state_probe",
+        lambda wt: "probe rc=0 present_in_list=False stdout_len=0 stderr=''",
+    )
+    result, reason = agents._orca_with_retry(
+        ["terminal", "create", "--worktree", f"path:{tmp_path}"],
+        worktree=tmp_path, label="task-analyst",
+        per_call_timeout=agents.ORCA_CREATE_TIMEOUT_S,
+    )
+    assert result is None
+    assert "probe rc=0" in reason
+    log = (agents_dir / "logs" / "orca-create-attempts.log").read_text()
+    assert log.count("\n") == agents.ORCA_LAUNCH_RETRIES
+    assert "attempt=1/" in log
+    assert f"attempt={agents.ORCA_LAUNCH_RETRIES}/" in log
+    assert "ok=False" in log
+
+
+def test_orca_with_retry_returns_none_reason_on_success(monkeypatch, tmp_path):
+    monkeypatch.setattr(agents, "run_cli", lambda *a, **k: orca_ok({"handle": "t"}))
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    result, reason = agents._orca_with_retry(
+        ["terminal", "create"], worktree=tmp_path, label="x",
+        per_call_timeout=agents.ORCA_CREATE_TIMEOUT_S,
+    )
+    assert result == {"handle": "t"}
+    assert reason is None
+
+
+def test_warn_headless_fallback_writes_marker(monkeypatch, tmp_path, agents_dir):
+    agents._warn_headless_fallback(tmp_path, "task-analyst", "boom")
+    marker = agents_dir / "last-headless-fallback.txt"
+    text = marker.read_text()
+    assert "task-analyst" in text
+    assert "boom" in text
+
+
+def test_consume_headless_fallback_warning_unlinks(monkeypatch, tmp_path, agents_dir):
+    """A recent marker is surfaced and removed; a stale one is just removed."""
+    agents._warn_headless_fallback(tmp_path, "task-analyst", "boom")
+    marker = agents_dir / "last-headless-fallback.txt"
+    assert marker.is_file()
+    warning = agents.consume_headless_fallback_warning()
+    assert warning is not None
+    assert "headless" in warning
+    assert "orca-fallback.log" in warning
+    assert not marker.is_file()  # consumed
+    # second consume: nothing left
+    assert agents.consume_headless_fallback_warning() is None
+
+
+def test_consume_headless_fallback_warning_ignores_stale(monkeypatch, tmp_path, agents_dir):
+    marker = agents_dir / "last-headless-fallback.txt"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("stale\n")
+    import time as _time
+    old = _time.time() - agents.HEADLESS_FALLBACK_MAX_AGE_S - 10
+    import os as _os
+    _os.utime(marker, (old, old))
+    assert agents.consume_headless_fallback_warning() is None
+    assert not marker.is_file()
