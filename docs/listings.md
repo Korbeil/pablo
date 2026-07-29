@@ -28,3 +28,20 @@ status (`N/A` for prompt tasks) ⑤ related PR: 📬 open · 📪 draft ·
 agents — normally a merged task is already gone from the listing) ⑥
 number of agent sessions on the worktree ⑦ their activity, e.g.
 `🏃 1 · ⏳ 1`. State legend matches the sort order above.
+
+**`pablo slack [waiting-review|needs-testing]`** — paste-ready Slack
+(mrkdwn) list of PRs awaiting review and/or QA, run from a shell (not an
+OpenCode command). With no argument it prints both queues separated by a
+`―――― review above · QA below ――――` divider so each block can be
+copied into its own Slack channel; pass `waiting-review` or
+`needs-testing` to print just one block.
+
+Each block is grouped by project (one `*<project>*` header per group),
+one bullet per task that has a PR, using Slack's link syntax
+`<pr.url|#<n> <title>`. Tasks without a PR are skipped; a project whose
+tasks all lack PRs is omitted. An empty queue (or one with no PRs)
+prints `No PRs waiting for review right now 🎉` / `Nothing needs testing
+right now 🎉`. No headers, no commentary — the output is paste-ready
+as-is. Replaces the former `/pablo-waiting-review` and
+`/pablo-needs-testing` OpenCode commands (which relied on an LLM to
+format the same JSON); the formatting is now deterministic in the engine.

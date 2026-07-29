@@ -341,15 +341,21 @@ def tasks_table(
     return "\n\n".join(sections)
 
 
-# --------------------------------------------------------- queue export ---
+# ------------------------------------------------------ slack export -----
+
+# Empty-state messages per queue state (paste-ready Slack output).
+_SLACK_EMPTY = {
+    WAITING_REVIEW: "No PRs waiting for review right now 🎉",
+    NEEDS_TESTING: "Nothing needs testing right now 🎉",
+}
 
 
 def queue_tasks(
     projects: dict[str, ProjectConfig], store: Store, state: str
 ) -> list[dict]:
     """Tasks currently in ``state``, across all projects, each enriched with
-    a live-fetched PR (title/url) for review-queue commands like
-    /pablo-needs-testing and /pablo-waiting-review to format for Slack."""
+    a live-fetched PR (title/url). The rows are the data source for
+    ``pablo slack``'s Slack-formatted output (see :func:`render_slack`)."""
     if state not in ALL_STATES:
         raise PabloError(f"unknown state {state!r} (expected one of {list(ALL_STATES)})")
     rows = []
@@ -378,3 +384,29 @@ def queue_tasks(
             }
         )
     return rows
+
+
+def render_slack(rows: list[dict], state: str) -> str:
+    """Render :func:`queue_tasks` rows as paste-ready Slack mrkdwn, grouped by
+    project with one bullet per task that has a PR. ``state`` selects the empty
+    message wording (review vs. QA). Output is paste-ready — no headers, no
+    commentary, no surrounding blank lines."""
+    empty_msg = _SLACK_EMPTY.get(state, "Nothing to list right now 🎉")
+
+    groups: dict[str, list[str]] = {}
+    for row in rows:
+        pr = row.get("pr")
+        if pr is None:
+            continue
+        bullets = groups.setdefault(row["project"], [])
+        bullets.append(
+            f"• <{pr['url']}|#{pr['number']} {pr['title']}>"
+        )
+
+    if not groups:
+        return empty_msg
+
+    return "\n".join(
+        f"*{project}*\n" + "\n".join(bullets)
+        for project, bullets in groups.items()
+    )
