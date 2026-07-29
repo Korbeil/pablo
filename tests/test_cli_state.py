@@ -313,3 +313,14 @@ def test_skip_ci_from_wrong_state_fails(env):
     env["store"]().save(task)
     rc = cli.main(["skip-ci"])
     assert rc == 1
+
+
+def test_retrigger_ci(env, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "_repo_slug", lambda cfg: "acme/wallet-kit")
+    monkeypatch.setattr(ghpr, "rerun_ci", lambda slug, branch: ["42", "43"])
+    rc = cli.main(["retrigger-ci"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "re-triggered CI" in out
+    assert "42" in out
+    assert "43" in out

@@ -269,3 +269,41 @@ def is_merged(repo_slug: str, pr_number: int) -> bool:
     )
     data = json.loads(out)
     return data["state"] == "MERGED" or bool(data.get("mergedAt"))
+
+
+def rerun_ci(repo_slug: str, branch: str) -> list[str]:
+    """Rerun the latest completed workflow runs on a branch.
+
+    Groups runs by workflow name and reruns the latest completed run
+    per workflow. Returns the list of rerun databaseIds.
+    """
+    out = run_cli(
+        ["gh", "run", "list", "--repo", repo_slug,
+         "--branch", branch, "--status", "completed",
+         "--limit", "20", "--json", "databaseId,workflowName"],
+        timeout=GH_CALL_TIMEOUT_S,
+    )
+    runs = json.loads(out)
+    if not runs:
+        from pablo import PabloError
+
+        raise PabloError(f"no completed workflow runs found on branch {branch}")
+
+    seen: set[str] = set()
+    latest: list[dict] = []
+    for run in runs:
+        wf = run["workflowName"]
+        if wf not in seen:
+            seen.add(wf)
+            latest.append(run)
+
+    rerun_ids: list[str] = []
+    for run in latest:
+        run_id = run["databaseId"]
+        run_cli(
+            ["gh", "run", "rerun", str(run_id), "--repo", repo_slug],
+            timeout=GH_CALL_TIMEOUT_S,
+        )
+        rerun_ids.append(str(run_id))
+
+    return rerun_ids

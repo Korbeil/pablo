@@ -430,6 +430,19 @@ def cmd_skip_ci(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_retrigger_ci(args: argparse.Namespace) -> int:
+    store = Store()
+    ctx = _resolve_ctx(store)
+    repo = _repo_slug(ctx.cfg)
+    with task_lock(store, ctx.task.project, ctx.task.branch):
+        run_ids = ghpr.rerun_ci(repo, ctx.task.branch)
+    print(
+        f"{ctx.task.branch}: re-triggered CI — {len(run_ids)} workflow run(s) "
+        f"({', '.join(run_ids)})"
+    )
+    return 0
+
+
 def cmd_close(args: argparse.Namespace) -> int:
     store = Store()
     ctx = _resolve_ctx(store)
@@ -599,6 +612,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_skip_ci = sub.add_parser("skip-ci", help="ignore failing CI checks and move the current task past ci-red")
     p_skip_ci.set_defaults(func=cmd_skip_ci)
+
+    p_retrigger = sub.add_parser("retrigger-ci", help="re-run all GitHub Actions jobs for the current task")
+    p_retrigger.set_defaults(func=cmd_retrigger_ci)
 
     p_close = sub.add_parser("close", help="close the current task (delete worktree + record)")
     p_close.add_argument("--yes", action="store_true", help="close even if agents are active")
