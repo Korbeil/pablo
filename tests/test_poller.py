@@ -90,6 +90,11 @@ def env(tmp_path, monkeypatch):
         agents, "run_startup_script",
         lambda wt, script: stubs["startups"].append(str(script)) or "t2",
     )
+    stubs["display_names"] = []
+    monkeypatch.setattr(
+        agents, "set_worktree_display_name",
+        lambda wt, name, issue_number=None: stubs["display_names"].append(name),
+    )
     monkeypatch.setattr(
         agents, "spawn_watcher", lambda *a, **k: None
     )
@@ -422,3 +427,24 @@ def test_no_relouch_within_launch_window(env):
     set_launch(env, "ci-analyst", ago=10)
     poll(env)
     assert env["stubs"]["launched"] == []
+
+
+def test_display_name_re_set_during_self_heal(env):
+    """When the poller self-heals a stuck in-progress task (no session, past
+    the launch window), it also re-fires ``set_worktree_display_name`` so
+    the Orca UI shows the issue key (e.g. ``OMS-6393``) instead of the
+    lowercase branch."""
+    set_state(env, IN_PROGRESS, pr_number=None)
+    set_launch(env, "task-analyst", ago=poller.LAUNCH_WINDOW_S + 60)
+    poll(env)
+    assert env["stubs"]["display_names"] == ["1"]  # issue.key for this fixture
+
+
+def test_display_name_not_re_set_when_sessions_exist(env):
+    """When agents are running fine (sessions present), the poller skips
+    self-heal entirely — no display name re-fire either."""
+    env["stubs"]["sessions"] = [agents.SessionInfo(handle="a", status="running")]
+    set_state(env, IN_PROGRESS, pr_number=None)
+    set_launch(env, "task-analyst", ago=poller.LAUNCH_WINDOW_S + 60)
+    poll(env)
+    assert env["stubs"]["display_names"] == []

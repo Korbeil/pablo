@@ -7,9 +7,12 @@ from pablo.agents import SessionInfo
 from pablo.config import ProjectConfig
 from pablo.ghpr import PrInfo
 from pablo.model import (
+    CI_RED,
+    DRAFT,
     IN_PROGRESS,
     NEEDS_TESTING,
     READY_TO_REVIEW,
+    TESTING_FAILED,
     WAITING_REVIEW,
     Issue,
     Task,
@@ -307,3 +310,69 @@ def test_refresh_flag_fetches_live_and_persists(env):
     reloaded = env["store"].get("wallet-kit", "wk-45")
     assert reloaded.cached_tracker_status == "In Progress"
     assert reloaded.cached_at is not None
+
+
+def test_tasks_split_waiting_feedback_first(env, monkeypatch):
+    monkeypatch.setattr(
+        agents, "bulk_active_sessions",
+        lambda worktrees: {
+            wt: [SessionInfo(handle="a", status="waiting")]
+            if str(wt) == "/tmp/x"
+            else []
+            for wt in worktrees
+        },
+    )
+
+    env["store"].save(Task(project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
+                           state=IN_PROGRESS))
+    env["store"].save(Task(project="wallet-kit", branch="wk-46", worktree_path=Path("/tmp/y"),
+                           state=NEEDS_TESTING))
+
+    table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
+    assert "⏳ Waiting for feedback" in table
+    assert "Other tasks" in table
+    # wk-45 has the waiting session, so it must be in the first section
+    other_idx = table.index("Other tasks")
+    assert table.index("wk-45") < other_idx
+    assert table.index("wk-46") > other_idx
+
+
+def test_tasks_sorted_by_state(env):
+    # Save in reverse of desired order; output must re-sort them
+    env["store"].save(Task(project="wallet-kit", branch="wk-in-progress",
+                           worktree_path=Path("/tmp/a"), state=IN_PROGRESS))
+    env["store"].save(Task(project="wallet-kit", branch="wk-testing-failed",
+                           worktree_path=Path("/tmp/b"), state=TESTING_FAILED))
+
+    table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
+    lines = [l for l in table.splitlines() if "wk-" in l]
+    assert lines[0].startswith("wk-testing-failed")
+    assert lines[1].startswith("wk-in-progress")
+
+
+def test_tasks_no_waiting_header_when_no_waiting_agents(env):
+    env["store"].save(Task(project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
+                           state=IN_PROGRESS))
+    table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
+    assert "⏳ Waiting for feedback" not in table
+    assert "Other tasks" not in table  # header omitted for single-section
+    assert "wk-45" in table
+
+
+def test_tasks_waiting_agent_excluded_for_non_eligible_state(env, monkeypatch):
+    monkeypatch.setattr(
+        agents, "bulk_active_sessions",
+        lambda worktrees: {
+            wt: [SessionInfo(handle="a", status="waiting")]
+            if str(wt) == "/tmp/x"
+            else []
+            for wt in worktrees
+        },
+    )
+    env["store"].save(Task(project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
+                           state=NEEDS_TESTING))
+
+    table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
+    assert "⏳ Waiting for feedback" not in table
+    assert "Other tasks" not in table  # single section, no header
+    assert "wk-45" in table

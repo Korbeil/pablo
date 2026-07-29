@@ -110,6 +110,16 @@ def _start_issue_task(store: Store, cfg: ProjectConfig, issue: Issue) -> int:
     base = _branch_base(cfg, issue)
     branch = naming.dedupe(base, gitrepo.all_branch_names(cfg.repo_path))
     task = _create_task(store, cfg, branch, issue=issue, prompt=None)
+    # Orca derives the workspace displayName from the branch (lowercase
+    # ``oms-6407``) until the analyst's first message self-corrects it; set
+    # it up front so the Orca UI shows ``OMS-6407`` immediately. Pass the
+    # GitHub issue number when available so Orca links the correct issue
+    # instead of auto-detecting a wrong PR from the branch's digits; pass
+    # null for non-GitHub trackers so Orca doesn't guess a stale PR.
+    # Best-effort: if Orca hasn't indexed the worktree yet (or isn't
+    # available) the poller re-tries on its next cycle.
+    gh_issue = issue.key if cfg.provider == "github" else None
+    agents.set_worktree_display_name(task.worktree_path, issue.key, gh_issue)
     print(
         f"started {issue.key} ({issue.title}) in project {cfg.name}\n"
         f"worktree: {task.worktree_path} (branch {branch})\n"
@@ -156,6 +166,9 @@ def cmd_start(args: argparse.Namespace) -> int:
     base = naming.slug_branch(cfg.project_key or "", text)
     branch = naming.dedupe(base, gitrepo.all_branch_names(cfg.repo_path))
     task = _create_task(store, cfg, branch, issue=None, prompt=text)
+    # Prompt-only tasks have no tracker issue; pass null explicitly so Orca
+    # doesn't auto-detect a stale/wrong PR from the branch's digits.
+    agents.set_worktree_display_name(task.worktree_path, branch)
     print(
         f"started task in project {cfg.name}\n"
         f"worktree: {task.worktree_path} (branch {branch})\n"

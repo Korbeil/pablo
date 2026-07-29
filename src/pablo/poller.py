@@ -18,9 +18,11 @@ non-blocking (it spawns a detached launcher and returns), so a hang inside
 session ever appeared. The poller re-fires each detached launcher (agent
 *and* the in-progress startup script — verified safely re-runnable) when
 no session is observed past the launch window, up to
-``LAUNCH_MAX_ATTEMPTS``. Post-draft states still fall through to
-``POLL_CHECKS`` after the heal, so e.g. a ``ci-red`` that went green
-transitions normally.
+``LAUNCH_MAX_ATTEMPTS``. The Orca workspace ``displayName`` is likewise
+re-set on the same heal pass (so it shows ``OMS-XXXX`` rather than the
+lowercase branch that Orca auto-derives from the path). Post-draft states
+still fall through to ``POLL_CHECKS`` after the heal, so e.g. a ``ci-red``
+that went green transitions normally.
 
 There is no git-push detection anywhere here: draft re-entry is exclusively
 /commit-and-pr's job.
@@ -172,9 +174,10 @@ def _relaunch_stuck_agents(ctx: TaskCtx, events: list[str]) -> None:
     appearing. Once the launch window has elapsed with no observed session
     and the attempt budget isn't exhausted, each spec's launcher is re-fired
     (same fire-and-forget detached call); the worktree is now warm, so the
-    retry usually succeeds in Orca. For ``in-progress`` this also makes the
-    worktree's ``displayName`` self-correct once the analyst sends its first
-    message.
+    retry usually succeeds in Orca. For ``in-progress`` the Orca workspace
+    ``displayName`` is also re-set here (via ``orca worktree set``) so it
+    shows ``OMS-XXXX`` up front instead of the lowercase branch — the
+    initial call in ``cmd_start`` may have lost the same indexing race.
 
     The startup script is included: it has been verified safely
     re-runnable (idempotent remove-then-recreate of symlinks/dirs). If a
@@ -190,6 +193,16 @@ def _relaunch_stuck_agents(ctx: TaskCtx, events: list[str]) -> None:
         # A session exists (running or done-but-still-listed in Orca): the
         # launch took, so there is nothing to heal.
         return
+    # The initial ``set_worktree_display_name`` call in ``cmd_start`` may
+    # have lost the same cold-worktree indexing race that stuck the agents;
+    # re-fire it now that the worktree should be warm. Best-effort, skipped
+    # for prompt-only tasks (no issue key) where the branch name is already
+    # the right display name.
+    if task.issue is not None:
+        gh_issue = task.issue.key if ctx.cfg.provider == "github" else None
+        agents.set_worktree_display_name(
+            task.worktree_path, task.issue.key, gh_issue
+        )
     healed: list[str] = []
     for spec in _specs_for(ctx, task.state):
         record = task.agent_launches.get(spec.label)
