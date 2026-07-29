@@ -3,7 +3,7 @@
 sync:
   strategy: rebase
   auto_apply: false
-  interval_minutes: 30
+  interval_minutes: 720
 state_polling:
   interval_minutes: 10
 review:
