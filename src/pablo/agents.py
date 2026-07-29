@@ -112,8 +112,11 @@ def _orca(
     """Run an orca command.
 
     Returns ``(result, None)`` on success or ``(None, reason)`` describing
-    why it failed (exception message, or the raw ``ok:false`` payload) so
-    callers that fall back to headless can log *why*.
+    why it failed. The reason embeds the raw ``stdout`` that orca returned
+    (Phase 1 diagnostics): the previously-opaque empty-stdout failure mode
+    surfaced only as ``JSONDecodeError: Expecting value: line 1 column 1``
+    with no record of what orca actually emitted, hiding the real cause
+    (observed 2026-07-29 on ``oms-6421`` / ``acme-8266``).
 
     Timeout matters: orca has been observed to hang when invoked outside an
     interactive session (e.g. under the systemd timer) — a hung call must
@@ -121,14 +124,47 @@ def _orca(
     lets ``terminal create`` use the tighter ``ORCA_CREATE_TIMEOUT_S`` so a
     single hang doesn't eat the whole retry budget.
     """
+    out = ""
     try:
         out = run_cli(["orca", *argv, "--json"], check=False, timeout=per_call_timeout)
         data = json.loads(out)
     except Exception as exc:
-        return None, f"{type(exc).__name__}: {exc}"
+        return None, f"{type(exc).__name__}: {exc}; raw_stdout={out!r}"
     if not isinstance(data, dict) or not data.get("ok"):
         return None, f"ok:false response: {data!r}"
     return data.get("result") or {}, None
+
+
+ORCA_PROBE_TIMEOUT_S = 8.0
+
+
+def _capture_orca_state_probe(worktree: Path) -> str:
+    """Phase 1 diagnostics: snapshot orca's current view of ``worktree``.
+
+    When ``terminal create`` has exhausted its retries we still don't know
+    *why*: a fresh worktree whose ``path:`` selector was unresolvable looks
+    the same as a genuine orca outage. This runs the cheap ``worktree list``
+    probe (the same one ``_wait_worktree_indexed`` polls) once and records
+    whether the path is present in orca's index by exhaustion time, plus
+    orca's stderr — distinguishing "selector never resolved" from "orca
+    returned an error/empty". Best-effort: short timeout, swallows all
+    exceptions so a broken orca never wedges the fallback path.
+    """
+    try:
+        proc = subprocess.run(
+            ["orca", "worktree", "list", "--json"],
+            capture_output=True,
+            text=True,
+            timeout=ORCA_PROBE_TIMEOUT_S,
+            stdin=subprocess.DEVNULL,
+        )
+        present = str(worktree) in (proc.stdout or "")
+        return (
+            f"probe rc={proc.returncode} present_in_list={present} "
+            f"stdout_len={len(proc.stdout or '')} stderr={proc.stderr[:300]!r}"
+        )
+    except Exception as exc:
+        return f"probe failed: {type(exc).__name__}: {exc}"
 
 
 def _log_orca_fallback(worktree: Path, label: str, reason: str | None) -> None:
@@ -136,6 +172,27 @@ def _log_orca_fallback(worktree: Path, label: str, reason: str | None) -> None:
     logs.mkdir(parents=True, exist_ok=True)
     with open(logs / "orca-fallback.log", "a") as f:
         f.write(f"{utcnow()} worktree={worktree} label={label} reason={reason}\n")
+
+
+def _warn_headless_fallback(worktree: Path, label: str, reason: str | None) -> None:
+    """Phase 1: surface an otherwise-silent headless degrade.
+
+    The detached launcher's stdin/stdout/stderr are all DEVNULL, so a
+    headless fallback was invisible to the user — ``pablo start`` reported
+    "task-analyst is running" while the agent was actually headless (no
+    Orca TUI). Append a one-line marker to ``last-headless-fallback.txt``
+    that ``cmd_start`` reads (and unlinks) at the end of its output, so the
+    *next* ``pablo start`` warns the user that the previous launch lost the
+    TUI (the current launch's marker arrives too late for its own output
+    since the launcher is fire-and-forget — see ``cmd_start``). The
+    per-attempt log ``orca-create-attempts.log`` is the per-run signal.
+    """
+    agents_dir().mkdir(parents=True, exist_ok=True)
+    marker = agents_dir() / "last-headless-fallback.txt"
+    with open(marker, "a") as f:
+        f.write(
+            f"{utcnow()} label={label} worktree={worktree} reason={reason}\n"
+        )
 
 
 def _wait_worktree_indexed(worktree: Path, *, timeout_s: float = ORCA_LAUNCH_INDEX_WAIT_S) -> bool:
@@ -186,19 +243,39 @@ def _acquire_launch_lock(worktree: Path):
 
 def _orca_with_retry(
     argv: list[str], *, worktree: Path, label: str, per_call_timeout: float = ORCA_CALL_TIMEOUT_S
-) -> dict | None:
+) -> tuple[dict | None, str | None]:
     """``_orca`` with a few retries, to ride out the just-created-worktree
     indexing race (Orca hasn't yet resolved a brand-new ``path:`` selector).
-    Logs the last failure reason once retries are exhausted."""
+
+    Returns ``(result, last_reason)`` — ``last_reason`` is ``None`` on
+    success so callers can pass it to ``_warn_headless_fallback`` only when
+    they actually degraded. Writes each attempt's outcome to
+    ``logs/orca-create-attempts.log`` (Phase 1: a single tail-line only
+    showed the *last* attempt, hiding whether the failure was consistently
+    empty-stdout vs a timeout that resolved later) and, on exhaustion, runs
+    ``_capture_orca_state_probe`` to record whether the ``path:`` selector
+    was resolvable by the time we gave up — distinguishing the cold-worktree
+    race from a genuine orca outage.
+    """
+    attempts_log = agents_dir() / "logs" / "orca-create-attempts.log"
+    attempts_log.parent.mkdir(parents=True, exist_ok=True)
     reason = None
     for attempt in range(ORCA_LAUNCH_RETRIES):
         result, reason = _orca(argv, per_call_timeout=per_call_timeout)
+        with open(attempts_log, "a") as f:
+            f.write(
+                f"{utcnow()} attempt={attempt + 1}/{ORCA_LAUNCH_RETRIES} "
+                f"worktree={worktree} label={label} "
+                f"ok={result is not None} reason={reason}\n"
+            )
         if result is not None:
-            return result
+            return result, None
         if attempt < ORCA_LAUNCH_RETRIES - 1:
             time.sleep(ORCA_LAUNCH_RETRY_DELAY_S)
-    _log_orca_fallback(worktree, label, reason)
-    return None
+    probe = _capture_orca_state_probe(worktree)
+    final_reason = f"{reason}; {probe}"
+    _log_orca_fallback(worktree, label, final_reason)
+    return None, final_reason
 
 
 def _do_launch_agent(worktree: Path, agent: str, prompt: str) -> str:
@@ -223,7 +300,7 @@ def _do_launch_agent(worktree: Path, agent: str, prompt: str) -> str:
     )
     with _acquire_launch_lock(worktree):
         _wait_worktree_indexed(worktree)
-        result = _orca_with_retry(
+        result, reason = _orca_with_retry(
             ["terminal", "create",
              "--worktree", f"path:{worktree}",
              "--title", f"pablo:{agent}",
@@ -242,6 +319,7 @@ def _do_launch_agent(worktree: Path, agent: str, prompt: str) -> str:
         )
         if handle:
             return str(handle)
+    _warn_headless_fallback(worktree, agent, reason)
     return _launch_headless(worktree, agent, prompt)
 
 
@@ -266,7 +344,7 @@ def _do_run_startup_script(worktree: Path, script: Path) -> str:
     command = f"bash {shlex.quote(str(script))}; exec bash"
     with _acquire_launch_lock(worktree):
         _wait_worktree_indexed(worktree)
-        result = _orca_with_retry(
+        result, reason = _orca_with_retry(
             ["terminal", "create",
              "--worktree", f"path:{worktree}",
              "--title", "pablo:startup-script",
@@ -285,6 +363,7 @@ def _do_run_startup_script(worktree: Path, script: Path) -> str:
         )
         if handle:
             return str(handle)
+    _warn_headless_fallback(worktree, "startup-script", reason)
     return _launch_headless_command(worktree, "startup-script", command)
 
 
@@ -297,6 +376,44 @@ def _spawn_detached_cli(argv: list[str]) -> int:
         start_new_session=True,
     )
     return proc.pid
+
+
+HEADLESS_FALLBACK_MAX_AGE_S = 120.0
+
+
+def consume_headless_fallback_warning() -> str | None:
+    """Phase 1: return a user-facing warning line if a headless fallback
+    was recorded recently, then unlink the marker.
+
+    The detached launcher writes ``last-headless-fallback.txt`` when it
+    degrades to headless (no Orca TUI). Because the launcher is
+    fire-and-forget, the marker for the *current* ``pablo start`` arrives
+    after that command has already returned — so this surfaces the marker
+    from a *previous* recent launch (e.g. a fallback that finished during
+    the user's last ``pablo start`` or a poller self-heal). The per-run
+    signal remains ``logs/orca-create-attempts.log``; this turns the
+    otherwise-silent degrade into at least one visible warning on the next
+    start. Returns ``None`` when the marker is absent or stale.
+    """
+    marker = agents_dir() / "last-headless-fallback.txt"
+    try:
+        if not marker.is_file():
+            return None
+        age = time.time() - marker.stat().st_mtime
+        if age > HEADLESS_FALLBACK_MAX_AGE_S:
+            marker.unlink(missing_ok=True)
+            return None
+        lines = marker.read_text().splitlines()
+    except OSError:
+        return None
+    marker.unlink(missing_ok=True)
+    if not lines:
+        return None
+    return (
+        "⚠ Orca terminal/TUI did not open for a recent launch; the agent ran "
+        "headless instead. Details: "
+        f"{agents_dir() / 'logs' / 'orca-fallback.log'}"
+    )
 
 
 def launch(worktree: Path, agent: str, prompt: str) -> str:
