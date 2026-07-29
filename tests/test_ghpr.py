@@ -1,6 +1,8 @@
 import json
 from datetime import datetime, timezone
 
+import pytest
+
 from pablo import ghpr
 
 ANCHOR = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
@@ -214,3 +216,43 @@ def test_dismissed_reviews_ignored():
 
 def test_no_reviews_returns_none():
     assert ghpr.evaluate_reviews([], anchor=ANCHOR, author="me", bot_whitelist=[]) is None
+
+
+def test_rerun_ci_reruns_latest_per_workflow(monkeypatch):
+    calls = []
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        calls.append(argv)
+        if "run" in argv and "list" in argv:
+            return json.dumps([
+                {"databaseId": 1, "workflowName": "CI"},
+                {"databaseId": 2, "workflowName": "Lint"},
+                {"databaseId": 3, "workflowName": "CI"},
+                {"databaseId": 4, "workflowName": "E2E"},
+            ])
+        # gh run rerun
+        return ""
+
+    monkeypatch.setattr(ghpr, "run_cli", fake_run_cli)
+    result = ghpr.rerun_ci("acme/wallet-kit", "wk-45")
+
+    assert result == ["1", "2", "4"]
+    # 3 reruns + 1 list = 4 calls; list must come first
+    assert len(calls) == 4
+    list_call = calls[0]
+    assert "list" in list_call
+    assert "--branch" in list_call
+    assert "wk-45" in list_call
+    rerun_ids = {argv[3] for argv in calls[1:]}
+    assert rerun_ids == {"1", "2", "4"}
+
+
+def test_rerun_ci_no_runs_raises(monkeypatch):
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        return "[]"
+
+    monkeypatch.setattr(ghpr, "run_cli", fake_run_cli)
+    from pablo import PabloError
+
+    with pytest.raises(PabloError, match="no completed workflow runs"):
+        ghpr.rerun_ci("acme/wallet-kit", "wk-45")
