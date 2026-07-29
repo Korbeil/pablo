@@ -7,7 +7,7 @@ import pytest
 from pablo import agents, cli, ghpr, gitrepo
 from pablo import states
 from pablo.config import ProjectConfig
-from pablo.model import CI_RED, DRAFT, IN_PROGRESS, REQUEST_CHANGES, WAITING, Issue, Task
+from pablo.model import CI_RED, DRAFT, IN_PROGRESS, REQUEST_CHANGES, WAITING, WAITING_REVIEW, Issue, Task
 from pablo.store import Store
 
 
@@ -292,3 +292,24 @@ def test_relaunch_unknown_label_prints_nothing(env, monkeypatch, capsys):
     assert rc == 0
     out = capsys.readouterr().out
     assert "nothing to relaunch" in out
+
+
+def test_skip_ci_from_ci_red(env, monkeypatch):
+    monkeypatch.setattr(ghpr, "mark_ready", lambda slug, pr: None)
+    monkeypatch.setattr(states, "_repo_slug", lambda cfg: "acme/wallet-kit")
+    task = env["store"]().get("wallet-kit", "wk-45")
+    task.state = CI_RED
+    env["store"]().save(task)
+    rc = cli.main(["skip-ci"])
+    assert rc == 0
+    updated = env["store"]().get("wallet-kit", "wk-45")
+    assert updated.state == WAITING_REVIEW
+    assert updated.ci_ignored is True
+
+
+def test_skip_ci_from_wrong_state_fails(env):
+    task = env["store"]().get("wallet-kit", "wk-45")
+    task.state = DRAFT
+    env["store"]().save(task)
+    rc = cli.main(["skip-ci"])
+    assert rc == 1

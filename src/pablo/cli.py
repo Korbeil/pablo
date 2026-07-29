@@ -16,7 +16,7 @@ from pathlib import Path
 
 from pablo import PabloError, agents, ghpr, gitrepo, naming
 from pablo.config import ProjectConfig, load_projects
-from pablo.model import IN_PROGRESS, Issue, Task, utcnow
+from pablo.model import CI_RED, IN_PROGRESS, Issue, READY_TO_REVIEW, Task, utcnow
 from pablo.providers import get_provider
 from pablo.states import (
     COMMIT_ALLOWED_FROM,
@@ -416,6 +416,20 @@ def cmd_waiting(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_skip_ci(args: argparse.Namespace) -> int:
+    store = Store()
+    ctx = _resolve_ctx(store)
+    if ctx.task.state != CI_RED:
+        return _fail(
+            f"task is {ctx.task.state}, not ci-red — nothing to skip"
+        )
+    with task_lock(store, ctx.task.project, ctx.task.branch):
+        ctx.task.ci_ignored = True
+        enter_state(ctx, READY_TO_REVIEW)
+    print(f"{ctx.task.branch}: CI results skipped, moved to {ctx.task.state}")
+    return 0
+
+
 def cmd_close(args: argparse.Namespace) -> int:
     store = Store()
     ctx = _resolve_ctx(store)
@@ -582,6 +596,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_waiting = sub.add_parser("waiting", help="toggle the waiting pause for the current task")
     p_waiting.set_defaults(func=cmd_waiting)
+
+    p_skip_ci = sub.add_parser("skip-ci", help="ignore failing CI checks and move the current task past ci-red")
+    p_skip_ci.set_defaults(func=cmd_skip_ci)
 
     p_close = sub.add_parser("close", help="close the current task (delete worktree + record)")
     p_close.add_argument("--yes", action="store_true", help="close even if agents are active")

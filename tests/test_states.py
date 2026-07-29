@@ -239,3 +239,10 @@ def test_analyst_prompt_for_prompt_task(ctx):
     states.enter_state(ctx, IN_PROGRESS)
     prompt = ctx.calls["launch"][0][1]
     assert "fix callback verification in the webhook handler" in prompt
+
+
+def test_enter_draft_resets_ci_ignored(ctx):
+    ctx.task.ci_ignored = True
+    ctx.task.state = WAITING_REVIEW
+    states.enter_state(ctx, DRAFT)
+    assert ctx.task.ci_ignored is False

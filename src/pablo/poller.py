@@ -84,6 +84,8 @@ Check = Callable[[TaskCtx, str], "str | None"]
 
 
 def check_ci_red(ctx: TaskCtx, slug: str) -> str | None:
+    if ctx.task.ci_ignored:
+        return None
     if ghpr.ci_status(slug, ctx.task.pr_number, ctx.cfg.ci_ignore_checks) == "red":
         return CI_RED
     return None

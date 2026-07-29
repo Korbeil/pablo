@@ -124,6 +124,10 @@ def _enter_waiting(ctx: TaskCtx) -> None:
     ctx.task.state_before_waiting = ctx.previous_state
 
 
+def _enter_draft(ctx: TaskCtx) -> None:
+    ctx.task.ci_ignored = False
+
+
 def _enter_ready_to_review(ctx: TaskCtx) -> None:
     if ctx.task.pr_number is not None:
         ghpr.mark_ready(_repo_slug(ctx.cfg), ctx.task.pr_number)
@@ -198,7 +202,7 @@ class StateDef:
 STATES: dict[str, StateDef] = {
     IN_PROGRESS: StateDef(IN_PROGRESS, "🔨", "in-progress", _enter_in_progress, False),
     WAITING: StateDef(WAITING, "⏸️", "waiting", _enter_waiting, False),
-    DRAFT: StateDef(DRAFT, "📝", "draft", None, True),
+    DRAFT: StateDef(DRAFT, "📝", "draft", _enter_draft, True),
     CI_RED: StateDef(CI_RED, "🔴", "ci-red", _enter_ci_red, True),
     # Momentary pass-through: displayed as waiting-review if ever observed.
     READY_TO_REVIEW: StateDef(
