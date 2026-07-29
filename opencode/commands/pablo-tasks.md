@@ -14,5 +14,5 @@ If the command failed, output its error message instead.
 
 State legend: 🔨 in-progress · ⏸️ waiting · 📝 draft · 🔴 ci-red ·
 👀 waiting-review · 🧪 needs-testing · 🔁 request-changes ·
-❌ testing-failed. PR: 📬 open · 📪 draft · ✅ merged (waiting on agents
-before auto-close). Agents: 🏃 running · ⏳ waiting on feedback.
+🚨 testing-failed. PR: 📬 open · 📪 draft · ✅ merged (waiting on agents
+before auto-close). Agents: 🏃 running · 💭 waiting on feedback.
