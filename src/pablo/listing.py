@@ -412,9 +412,12 @@ def render_slack(rows: list[dict], state: str) -> str:
         if pr is None:
             continue
         bullets = groups.setdefault(row["project"], [])
-        bullets.append(
-            f"• <{pr['url']}|#{pr['number']} {pr['title']}>"
-        )
+        issue = row.get("issue")
+        if issue is not None:
+            text = f"{pr['url']} {issue['key']} {issue['title']}"
+        else:
+            text = f"{pr['url']} #{pr['number']} {pr['title']}"
+        bullets.append(f"• {text}")
 
     if not groups:
         return empty_msg
