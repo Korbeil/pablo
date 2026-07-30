@@ -409,10 +409,10 @@ def test_render_slack_groups_by_project_with_mrkdwn_links():
     out = listing.render_slack(rows, WAITING_REVIEW)
     assert out == (
         "*wallet-kit*\n"
-        "• <https://github.com/acme/wallet-kit/pull/7|#7 Fix callbacks>\n"
-        "• <https://github.com/acme/wallet-kit/pull/9|#9 Tidy tests>\n"
+        "• https://github.com/acme/wallet-kit/pull/7 #7 Fix callbacks\n"
+        "• https://github.com/acme/wallet-kit/pull/9 #9 Tidy tests\n"
         "*acme-pim*\n"
-        "• <https://github.com/acme/pim/pull/12|#12 Add exports>"
+        "• https://github.com/acme/pim/pull/12 #12 Add exports"
     )
 
 
@@ -425,7 +425,24 @@ def test_render_slack_skips_tasks_without_pr_and_drops_empty_groups():
     out = listing.render_slack(rows, NEEDS_TESTING)
     assert out == (
         "*acme-pim*\n"
-        "• <https://github.com/acme/pim/pull/12|#12 Add exports>"
+        "• https://github.com/acme/pim/pull/12 #12 Add exports"
+    )
+
+
+def test_render_slack_uses_issue_key_and_title_when_issue_present():
+    rows = [
+        {
+            "project": "wallet-kit",
+            "branch": "wk-45",
+            "issue": {"key": "WK-45", "title": "Fix callbacks", "url": "https://acme.atlassian.net/browse/WK-45"},
+            "summary": None,
+            "pr": {"number": 7, "title": "PR title ignored", "url": "https://github.com/acme/wallet-kit/pull/7", "is_draft": False},
+        },
+    ]
+    out = listing.render_slack(rows, NEEDS_TESTING)
+    assert out == (
+        "*wallet-kit*\n"
+        "• https://github.com/acme/wallet-kit/pull/7 WK-45 Fix callbacks"
     )
 
 
