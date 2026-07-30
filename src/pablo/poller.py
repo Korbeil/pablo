@@ -31,6 +31,7 @@ There is no git-push detection anywhere here: draft re-entry is exclusively
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable
 
 from pablo import PabloError, agents, ghpr, gitrepo, listing
@@ -235,9 +236,14 @@ def _poll_task(ctx: TaskCtx, events: list[str]) -> None:
     task = ctx.task
     slug = _repo_slug(ctx.cfg)
 
+    try:
+        actual_branch = gitrepo.git(Path(task.worktree_path), "rev-parse", "--abbrev-ref", "HEAD")
+    except PabloError:
+        actual_branch = task.branch
+
     # A task that entered draft via /commit-and-pr may not know its PR yet.
     if task.pr_number is None and task.state not in {"in-progress", WAITING}:
-        pr = ghpr.pr_for_branch(slug, task.branch)
+        pr = ghpr.pr_for_branch(slug, actual_branch)
         if pr is not None:
             task.pr_number = pr.number
             ctx.store.save(task)
@@ -297,7 +303,11 @@ def _refresh_display_cache(ctx: TaskCtx) -> None:
         task.cached_pr_state = "-"
     else:
         try:
-            pr = ghpr.pr_for_branch(slug, task.branch)
+            try:
+                actual_branch = gitrepo.git(Path(task.worktree_path), "rev-parse", "--abbrev-ref", "HEAD")
+            except PabloError:
+                actual_branch = task.branch
+            pr = ghpr.pr_for_branch(slug, actual_branch)
             task.cached_pr_state = listing.pr_state_cell(task, pr)
         except PabloError:
             pass
