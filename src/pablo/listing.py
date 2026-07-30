@@ -365,15 +365,28 @@ def queue_tasks(
         cfg = projects.get(task.project)
         if cfg is None:
             continue
+        info: PrInfo | None = None
         try:
             info = ghpr.pr_for_branch(_repo_slug(cfg), task.branch)
         except PabloError:
-            info = None
-        pr = (
-            {"number": info.number, "title": info.title, "url": info.url, "is_draft": info.is_draft}
-            if info is not None
-            else None
-        )
+            pass
+        if info is not None:
+            pr: dict | None = {
+                "number": info.number,
+                "title": info.title,
+                "url": info.url,
+                "is_draft": info.is_draft,
+            }
+        elif task.pr_number is not None:
+            slug = _repo_slug(cfg)
+            pr = {
+                "number": task.pr_number,
+                "title": (task.issue.key if task.issue else task.summary or ""),
+                "url": f"https://github.com/{slug}/pull/{task.pr_number}",
+                "is_draft": False,
+            }
+        else:
+            pr = None
         rows.append(
             {
                 "project": task.project,
