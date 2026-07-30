@@ -299,18 +299,18 @@ def _refresh_display_cache(ctx: TaskCtx) -> None:
         except PabloError:
             pass  # keep the last known value rather than blanking it
 
-    if task.pr_number is None:
-        task.cached_pr_state = "-"
-    else:
+    try:
         try:
-            try:
-                actual_branch = gitrepo.git(Path(task.worktree_path), "rev-parse", "--abbrev-ref", "HEAD")
-            except PabloError:
-                actual_branch = task.branch
-            pr = ghpr.pr_for_branch(slug, actual_branch)
-            task.cached_pr_state = listing.pr_state_cell(task, pr)
+            actual_branch = gitrepo.git(Path(task.worktree_path), "rev-parse", "--abbrev-ref", "HEAD")
         except PabloError:
-            pass
+            actual_branch = task.branch
+        pr = ghpr.pr_for_branch(slug, actual_branch)
+        if pr is not None and task.pr_number is None:
+            task.pr_number = pr.number
+        task.cached_pr_state = listing.pr_state_cell(task, pr)
+    except PabloError:
+        if task.pr_number is None:
+            task.cached_pr_state = "-"
 
     try:
         sessions = agents.active_sessions(task.worktree_path)
