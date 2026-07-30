@@ -201,7 +201,7 @@ class StateDef:
 
 STATES: dict[str, StateDef] = {
     IN_PROGRESS: StateDef(IN_PROGRESS, "🔨", "in-progress", _enter_in_progress, False),
-    WAITING: StateDef(WAITING, "⏸️", "waiting", _enter_waiting, False),
+    WAITING: StateDef(WAITING, "🥱", "waiting", _enter_waiting, False),
     DRAFT: StateDef(DRAFT, "📝", "draft", _enter_draft, True),
     CI_RED: StateDef(CI_RED, "🔴", "ci-red", _enter_ci_red, True),
     # Momentary pass-through: displayed as waiting-review if ever observed.
