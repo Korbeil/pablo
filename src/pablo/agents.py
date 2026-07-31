@@ -105,6 +105,12 @@ ORCA_LAUNCH_INDEX_POLL_S = 1.0
 ORCA_LAUNCH_RETRIES = 10
 ORCA_LAUNCH_RETRY_DELAY_S = 3.0
 
+ORCA_SCREEN_READER_BUSY = "Another screen reader process is already running"
+ORCA_SCREEN_READER_HINT = (
+    'Orca screen-reader session is busy — run "orca --replace", '
+    'then "pablo relaunch <project> <branch>"'
+)
+
 
 def _orca(
     argv: list[str], *, per_call_timeout: float = ORCA_CALL_TIMEOUT_S
@@ -174,7 +180,19 @@ def _log_orca_fallback(worktree: Path, label: str, reason: str | None) -> None:
         f.write(f"{utcnow()} worktree={worktree} label={label} reason={reason}\n")
 
 
-def _warn_headless_fallback(worktree: Path, label: str, reason: str | None) -> None:
+def _hint_for_reason(reason: str | None) -> str | None:
+    """User-facing remediation hint for a headless-degrade reason, or
+    ``None`` for generic fallback text. Phase 2: the screen-reader-busy
+    failure is the one case with a one-liner the user can act on
+    (``orca --replace``); other failures stay generic."""
+    if reason and ORCA_SCREEN_READER_BUSY in reason:
+        return ORCA_SCREEN_READER_HINT
+    return None
+
+
+def _warn_headless_fallback(
+    worktree: Path, label: str, reason: str | None, *, hint: str | None = None
+) -> None:
     """Phase 1: surface an otherwise-silent headless degrade.
 
     The detached launcher's stdin/stdout/stderr are all DEVNULL, so a
@@ -186,12 +204,17 @@ def _warn_headless_fallback(worktree: Path, label: str, reason: str | None) -> N
     TUI (the current launch's marker arrives too late for its own output
     since the launcher is fire-and-forget — see ``cmd_start``). The
     per-attempt log ``orca-create-attempts.log`` is the per-run signal.
+
+    Phase 2: ``hint`` (when the caller knows the remediation, e.g. the
+    screen-reader-busy case) is embedded so ``consume_headless_fallback_warning``
+    can surface it verbatim instead of the generic "TUI did not open" text.
     """
     agents_dir().mkdir(parents=True, exist_ok=True)
     marker = agents_dir() / "last-headless-fallback.txt"
+    hint_part = f" hint={hint}" if hint else ""
     with open(marker, "a") as f:
         f.write(
-            f"{utcnow()} label={label} worktree={worktree} reason={reason}\n"
+            f"{utcnow()} label={label} worktree={worktree} reason={reason}{hint_part}\n"
         )
 
 
@@ -256,6 +279,17 @@ def _orca_with_retry(
     ``_capture_orca_state_probe`` to record whether the ``path:`` selector
     was resolvable by the time we gave up — distinguishing the cold-worktree
     race from a genuine orca outage.
+
+    Phase 2: fails fast on the screen-reader-busy condition — that's a
+    session-level state error (``Another screen reader process is already
+    running for this session … orca --replace``), not a transient IO hiccup,
+    so 10 retries against it just burn ~30s and wedge the poller. Observed
+    2026-07-31 on retail/oms-6503 + oms-6505: every retry returned the
+    same screen-reader error (interspersed with 12s hangs) for the full
+    budget until the user's own ``orca --replace`` cleared it ~2 min later.
+    We bail after the first such attempt and let callers retry without
+    ``--focus`` (the flag that triggers the AT registration) or surface the
+    ``--replace`` hint.
     """
     attempts_log = agents_dir() / "logs" / "orca-create-attempts.log"
     attempts_log.parent.mkdir(parents=True, exist_ok=True)
@@ -270,12 +304,76 @@ def _orca_with_retry(
             )
         if result is not None:
             return result, None
+        if reason and ORCA_SCREEN_READER_BUSY in reason:
+            _log_orca_fallback(
+                worktree, label,
+                f"{reason} (fail-fast: screen-reader busy, not retried)",
+            )
+            return None, reason
         if attempt < ORCA_LAUNCH_RETRIES - 1:
             time.sleep(ORCA_LAUNCH_RETRY_DELAY_S)
     probe = _capture_orca_state_probe(worktree)
     final_reason = f"{reason}; {probe}"
     _log_orca_fallback(worktree, label, final_reason)
     return None, final_reason
+
+
+def _terminal_handle(result: dict) -> str | None:
+    """Orca's ``terminal create`` payload shape has varied across versions
+    (``handle``, ``agentTerminalHandle``, ``startupTerminal.handle``,
+    ``terminal.handle``); normalise the lookup so callers don't repeat the
+    chain. Returns ``None`` if no handle is present (caller falls back)."""
+    return (
+        result.get("handle")
+        or result.get("agentTerminalHandle")
+        or (result.get("startupTerminal") or {}).get("handle")
+        or (result.get("terminal") or {}).get("handle")
+    )
+
+
+def _create_terminal_or_fallback(
+    worktree: Path, command: str, title: str, label: str
+) -> tuple[str | None, str | None, str | None]:
+    """Phase 2: try the focused ``terminal create``; on the screen-reader-busy
+    failure, retry once without ``--focus`` (the flag that registers orca as
+    the session's AT client and is what triggers the contention). Returns
+    ``(handle, reason, hint)`` — ``handle`` is ``None`` only when both paths
+    failed and the caller must fall back to headless; ``reason`` is the last
+    failure for logging/warning; ``hint`` is the user-facing remediation
+    string when the failure was the screen-reader case (so the caller can
+    pass it to ``_warn_headless_fallback``).
+
+    Holding ``_acquire_launch_lock`` across the warm-up + create spans
+    serialises this against a concurrent ``run_startup_script`` on the same
+    worktree (the focused attempt, the no-focus retry, and the warm-up all
+    run under the one lock so a concurrent launcher on the same worktree
+    never interleaves a create between them).
+    """
+    with _acquire_launch_lock(worktree):
+        _wait_worktree_indexed(worktree)
+        focused_argv = [
+            "terminal", "create",
+            "--worktree", f"path:{worktree}",
+            "--title", title,
+            "--command", command,
+            "--focus",
+        ]
+        result, reason = _orca_with_retry(
+            focused_argv, worktree=worktree, label=label,
+            per_call_timeout=ORCA_CREATE_TIMEOUT_S,
+        )
+        if result is not None:
+            return _terminal_handle(result), None, None
+        if reason and ORCA_SCREEN_READER_BUSY in reason:
+            unfocused_argv = focused_argv[:-1]  # drop trailing "--focus"
+            result, reason = _orca_with_retry(
+                unfocused_argv, worktree=worktree, label=f"{label} (no-focus)",
+                per_call_timeout=ORCA_CREATE_TIMEOUT_S,
+            )
+            if result is not None:
+                return _terminal_handle(result), None, None
+            return None, reason, ORCA_SCREEN_READER_HINT
+    return None, reason, _hint_for_reason(reason)
 
 
 def _do_launch_agent(worktree: Path, agent: str, prompt: str) -> str:
@@ -293,33 +391,21 @@ def _do_launch_agent(worktree: Path, agent: str, prompt: str) -> str:
     subprocess (see ``launch()``), never inline from the interactive CLI.
     The per-worktree ``_acquire_launch_lock`` serialises this against a
     concurrent ``run_startup_script`` on the same worktree.
+
+    Phase 2: when ``--focus`` is blocked by the screen-reader contention,
+    retries once without ``--focus`` (visible-but-unfocused tab beats
+    headless) before degrading to headless with the ``orca --replace`` hint.
     """
     command = (
         f"opencode {shlex.quote(str(worktree))} "
         f"--agent {agent} --prompt {shlex.quote(prompt)}"
     )
-    with _acquire_launch_lock(worktree):
-        _wait_worktree_indexed(worktree)
-        result, reason = _orca_with_retry(
-            ["terminal", "create",
-             "--worktree", f"path:{worktree}",
-             "--title", f"pablo:{agent}",
-             "--command", command,
-             "--focus"],
-            worktree=worktree,
-            label=agent,
-            per_call_timeout=ORCA_CREATE_TIMEOUT_S,
-        )
-    if result:
-        handle = (
-            result.get("handle")
-            or result.get("agentTerminalHandle")
-            or (result.get("startupTerminal") or {}).get("handle")
-            or (result.get("terminal") or {}).get("handle")
-        )
-        if handle:
-            return str(handle)
-    _warn_headless_fallback(worktree, agent, reason)
+    handle, reason, hint = _create_terminal_or_fallback(
+        worktree, command, f"pablo:{agent}", agent
+    )
+    if handle:
+        return str(handle)
+    _warn_headless_fallback(worktree, agent, reason, hint=hint)
     return _launch_headless(worktree, agent, prompt)
 
 
@@ -340,30 +426,17 @@ def _do_run_startup_script(worktree: Path, script: Path) -> str:
     an interactive shell at the worktree root instead of auto-closing
     on PTY EOF. ``opencode``'s TUI is itself long-lived and needs no
     such wrapping, so only this path does it.
+
+    Phase 2: same screen-reader-busy fallback as ``_do_launch_agent`` —
+    retries once without ``--focus`` before degrading to headless.
     """
     command = f"bash {shlex.quote(str(script))}; exec bash"
-    with _acquire_launch_lock(worktree):
-        _wait_worktree_indexed(worktree)
-        result, reason = _orca_with_retry(
-            ["terminal", "create",
-             "--worktree", f"path:{worktree}",
-             "--title", "pablo:startup-script",
-             "--command", command,
-             "--focus"],
-            worktree=worktree,
-            label="startup-script",
-            per_call_timeout=ORCA_CREATE_TIMEOUT_S,
-        )
-    if result:
-        handle = (
-            result.get("handle")
-            or result.get("agentTerminalHandle")
-            or (result.get("startupTerminal") or {}).get("handle")
-            or (result.get("terminal") or {}).get("handle")
-        )
-        if handle:
-            return str(handle)
-    _warn_headless_fallback(worktree, "startup-script", reason)
+    handle, reason, hint = _create_terminal_or_fallback(
+        worktree, command, "pablo:startup-script", "startup-script"
+    )
+    if handle:
+        return str(handle)
+    _warn_headless_fallback(worktree, "startup-script", reason, hint=hint)
     return _launch_headless_command(worktree, "startup-script", command)
 
 
@@ -409,10 +482,17 @@ def consume_headless_fallback_warning() -> str | None:
     marker.unlink(missing_ok=True)
     if not lines:
         return None
+    hint = None
+    for line in lines:
+        if " hint=" in line:
+            hint = line.split(" hint=", 1)[1].strip()
+            break
+    log_path = agents_dir() / "logs" / "orca-fallback.log"
+    if hint:
+        return f"⚠ {hint}. Details: {log_path}"
     return (
         "⚠ Orca terminal/TUI did not open for a recent launch; the agent ran "
-        "headless instead. Details: "
-        f"{agents_dir() / 'logs' / 'orca-fallback.log'}"
+        f"headless instead. Details: {log_path}"
     )
 
 

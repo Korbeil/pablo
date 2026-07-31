@@ -472,3 +472,127 @@ def test_consume_headless_fallback_warning_ignores_stale(monkeypatch, tmp_path, 
     _os.utime(marker, (old, old))
     assert agents.consume_headless_fallback_warning() is None
     assert not marker.is_file()
+
+
+# ---- Phase 2: screen-reader-busy fail-fast + no-focus retry + hint --------
+
+
+def test_orca_with_retry_fails_fast_on_screen_reader_busy(monkeypatch, tmp_path, agents_dir):
+    """The screen-reader-busy error is session-level state, not transient IO
+    — 10 retries against it just burn ~30s (observed 2026-07-31 on
+    retail/oms-6503 + oms-6505). Fail after attempt 1."""
+    calls = {"n": 0}
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        calls["n"] += 1
+        # orca returns a non-JSON screen-reader error message
+        return (
+            "The following are not valid: terminal create --worktree path:x --focus --json\n"
+            + agents.ORCA_SCREEN_READER_BUSY
+            + " for this session.\nRun \"orca --replace\"..."
+        )
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    result, reason = agents._orca_with_retry(
+        ["terminal", "create", "--worktree", f"path:{tmp_path}"],
+        worktree=tmp_path, label="task-analyst",
+        per_call_timeout=agents.ORCA_CREATE_TIMEOUT_S,
+    )
+    assert result is None
+    assert agents.ORCA_SCREEN_READER_BUSY in reason
+    assert calls["n"] == 1  # fail-fast, not 10 attempts
+
+
+def test_create_terminal_or_fallback_retries_without_focus_on_screen_reader_busy(
+    monkeypatch, tmp_path, agents_dir,
+):
+    """When ``--focus`` is blocked by the screen-reader contention, retry
+    once without ``--focus`` — a visible-but-unfocused Orca tab beats a
+    silent headless run. Returns that tab's handle (no headless)."""
+    argvs = []
+
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        argvs.append(argv)
+        if "--focus" in argv:
+            return (
+                "The following are not valid: ...\n"
+                + agents.ORCA_SCREEN_READER_BUSY + " for this session.\n"
+            )
+        return orca_ok({"terminal": {"handle": "term_unfocused"}})
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    handle, reason, hint = agents._create_terminal_or_fallback(
+        tmp_path, "true", "pablo:task-analyst", "task-analyst"
+    )
+    assert handle == "term_unfocused"
+    assert reason is None
+    assert hint is None  # no headless degrade → no hint
+    # One focused attempt (fail-fast, single call) + one no-focus attempt.
+    assert len(argvs) == 2
+    assert "--focus" in argvs[0]
+    assert "--focus" not in argvs[1]
+
+
+def test_create_terminal_or_fallback_headless_with_hint_when_both_paths_fail(
+    monkeypatch, tmp_path, agents_dir,
+):
+    """When both the focused and the no-focus ``terminal create`` fail with
+    the screen-reader error, return no handle and the ``orca --replace`` hint
+    so the caller can pass it to ``_warn_headless_fallback``."""
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        return (
+            "The following are not valid: ...\n"
+            + agents.ORCA_SCREEN_READER_BUSY + " for this session.\n"
+        )
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    handle, reason, hint = agents._create_terminal_or_fallback(
+        tmp_path, "true", "pablo:task-analyst", "task-analyst"
+    )
+    assert handle is None
+    assert agents.ORCA_SCREEN_READER_BUSY in reason
+    assert hint == agents.ORCA_SCREEN_READER_HINT
+
+
+def test_do_launch_agent_warns_with_hint_on_screen_reader_busy(
+    monkeypatch, tmp_path, agents_dir,
+):
+    """End-to-end: ``_do_launch_agent`` degrades to headless and writes the
+    marker with the ``orca --replace`` hint so ``pablo start`` surfaces it
+    verbatim instead of the generic "TUI did not open" text."""
+    def fake_run_cli(argv, *, check=True, timeout=None):
+        return (
+            "...\n" + agents.ORCA_SCREEN_READER_BUSY + " for this session.\n"
+        )
+
+    class FakeProc:
+        pid = 7070
+
+    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
+    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
+    monkeypatch.setattr(agents, "_capture_orca_state_probe", lambda wt: "probe skipped")
+    monkeypatch.setattr(agents.subprocess, "Popen", lambda *a, **k: FakeProc())
+    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
+    handle = agents._do_launch_agent(tmp_path, "task-analyst", "hello")
+    assert handle == "pid:7070"  # headless
+    marker = (agents_dir / "last-headless-fallback.txt").read_text()
+    assert f"hint={agents.ORCA_SCREEN_READER_HINT}" in marker
+
+
+def test_consume_headless_fallback_warning_surfaces_hint(monkeypatch, tmp_path, agents_dir):
+    """Phase 2: when the marker carries a ``hint=`` field, the user-facing
+    warning line is the hint (e.g. ``orca --replace``) — not the generic
+    "TUI did not open" text."""
+    agents._warn_headless_fallback(
+        tmp_path, "task-analyst", "busy", hint=agents.ORCA_SCREEN_READER_HINT,
+    )
+    warning = agents.consume_headless_fallback_warning()
+    assert warning is not None
+    assert "orca --replace" in warning
+    assert "pablo relaunch" in warning
+    assert "orca-fallback.log" in warning
