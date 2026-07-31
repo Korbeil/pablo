@@ -250,3 +250,69 @@ def test_start_prompt_without_issue_key_uses_slug(jira_env, capsys):
     )
     assert rc == 0
     assert jira_env["created"] == [("wk-fix-callback-verification-quickly", "main")]
+
+
+def make_shared_key_cfg(tmp_path: Path, name: str, repo_name: str) -> ProjectConfig:
+    return ProjectConfig(
+        name=name,
+        type="work",
+        repo_path=tmp_path / repo_name,
+        primary_branch="main",
+        worktrees_root=tmp_path / f"{name}-wt",
+        provider="jira",
+        identity="bleduc",
+        project_key="OMS",
+        sync_strategy="rebase",
+        sync_auto_apply=False,
+        sync_interval=30,
+        poll_interval=10,
+        failure_signal=None,
+        bot_whitelist=[],
+        ci_ignore_checks=[],
+    )
+
+
+@pytest.fixture
+def shared_key_env(env, tmp_path, monkeypatch):
+    oms_cfg = make_shared_key_cfg(tmp_path, "acme-oms", "ecommerce")
+    retail_cfg = make_shared_key_cfg(tmp_path, "acme-retail", "retail")
+    jira_issue = Issue(
+        provider="jira",
+        key="OMS-6393",
+        url="https://example.atlassian.net/browse/OMS-6393",
+        title="Release gallery ML",
+        project_key="OMS",
+    )
+    jira_provider = FakeProvider(jira_issue)
+    projects = {"acme-oms": oms_cfg, "acme-retail": retail_cfg}
+    monkeypatch.setattr(cli, "load_projects", lambda: projects)
+    monkeypatch.setattr(cli, "get_provider", lambda name: jira_provider)
+    env["oms_cfg"] = oms_cfg
+    env["retail_cfg"] = retail_cfg
+    env["jira_issue"] = jira_issue
+    return env
+
+
+def test_start_with_project_disambiguates_shared_key(shared_key_env, capsys):
+    rc = cli.main(
+        ["start", "--project", "acme-retail", "OMS-6393"]
+    )
+    assert rc == 0
+    task = shared_key_env["store"]().get("acme-retail", "oms-6393")
+    assert task is not None
+    assert task.project == "acme-retail"
+    assert task.issue.key == "OMS-6393"
+    out = capsys.readouterr().out
+    assert "acme-retail" in out
+
+
+def test_start_without_project_uses_first_match_for_shared_key(shared_key_env, capsys):
+    rc = cli.main(
+        ["start", "OMS-6393"]
+    )
+    assert rc == 0
+    task = shared_key_env["store"]().get("acme-oms", "oms-6393")
+    assert task is not None
+    assert task.project == "acme-oms"
+    out = capsys.readouterr().out
+    assert "acme-oms" in out
