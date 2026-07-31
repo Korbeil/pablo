@@ -36,14 +36,10 @@
   per launch and returns immediately, so `pablo state in-progress` (and
   `/pablo-state`) never blocks on Orca — even if Orca is slow, hung, or
   still indexing a just-created worktree.
-- Each detached launcher first **warms Orca's worktree index**
-  (`_wait_worktree_indexed` polls `orca worktree list` until the new path
-  appears) before issuing `orca terminal create --worktree path:<NEW>
-  --focus`. The warm-up pre-empts the just-created-worktree race where
-  Orca's `path:` selector is unresolvable and `terminal create` hangs;
-  `--focus` surfaces the new TUI tab in Orca's foreground (without it,
-  the tab is created in the background and reads as "agent not
-  opening"). A per-worktree `flock` serialises the two launchers'
+- Each detached launcher issues a single
+  `orca terminal create --worktree path:<NEW>` call (60s timeout) and
+  falls back to a headless `opencode run` if Orca refuses the `path:`
+  selector or hangs. A per-worktree `flock` serialises the two launchers'
   `terminal create` spans so they don't race on the same cold path —
   different worktrees still run in parallel as before.
 

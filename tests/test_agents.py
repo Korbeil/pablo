@@ -29,14 +29,13 @@ def test_orca_launch_builds_command(monkeypatch, tmp_path):
         return orca_ok({"handle": "term_123"})
 
     monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
     handle = agents._do_launch_agent(tmp_path, "task-analyst", "Analyze issue #45")
     assert handle == "term_123"
     argv = calls[0]
     assert argv[:3] == ["orca", "terminal", "create"]
     assert f"path:{tmp_path}" in argv
     assert "pablo:task-analyst" in argv
-    assert "--focus" in argv  # surface the new TUI tab in Orca's foreground
+    assert "--focus" not in argv
     command = argv[argv.index("--command") + 1]
     assert command.startswith("opencode ")
     assert "--agent task-analyst" in command
@@ -60,97 +59,16 @@ def test_launch_falls_back_headless_when_orca_refuses(monkeypatch, tmp_path, age
         return FakeProc()
 
     monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
     monkeypatch.setattr(agents.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    monkeypatch.setattr(
-        agents, "_capture_orca_state_probe",
-        lambda wt: "probe rc=0 present_in_list=False stdout_len=0 stderr=''",
-    )
     handle = agents._do_launch_agent(tmp_path, "task-analyst", "hello")
     assert handle == "pid:4242"
     assert launched["argv"][:3] == ["opencode", "run", "--agent"]
     assert "--dir" in launched["argv"]
-    assert len(calls) == agents.ORCA_LAUNCH_RETRIES  # retried before giving up
+    assert len(calls) == 1  # single `terminal create` call, then fall back
     fallback_log = (agents_dir / "logs" / "orca-fallback.log").read_text()
     assert "task-analyst" in fallback_log
     assert "selector_not_found" in fallback_log
-    assert "probe rc=0" in fallback_log  # Phase 1: state probe recorded at exhaustion
-    marker = (agents_dir / "last-headless-fallback.txt").read_text()
-    assert "task-analyst" in marker  # Phase 1: silent degrade surfaced via marker
-
-
-def test_launch_succeeds_on_orca_retry(monkeypatch, tmp_path):
-    attempts = {"n": 0}
-
-    def fake_run_cli(argv, *, check=True, timeout=None):
-        attempts["n"] += 1
-        if attempts["n"] < 2:
-            return orca_err("selector_not_found")
-        return orca_ok({"handle": "term_555"})
-
-    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    handle = agents._do_launch_agent(tmp_path, "task-analyst", "hello")
-    assert handle == "term_555"
-    assert attempts["n"] == 2
-
-
-def test_create_uses_tight_per_call_timeout(monkeypatch, tmp_path):
-    """A hung ``terminal create`` must not eat the whole retry budget — the
-    per-call timeout for the create call is the tighter ORCA_CREATE_TIMEOUT_S,
-    so the retry loop can iterate within its patient detached budget."""
-    seen_timeouts = []
-
-    def fake_run_cli(argv, *, check=True, timeout=None):
-        seen_timeouts.append(timeout)
-        return orca_ok({"handle": "term_x"})
-
-    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    agents._do_launch_agent(tmp_path, "task-analyst", "hi")
-    assert agents.ORCA_CREATE_TIMEOUT_S in seen_timeouts, seen_timeouts
-    assert agents.ORCA_CREATE_TIMEOUT_S < agents.ORCA_CALL_TIMEOUT_S
-
-
-def test_wait_worktree_indexed_polls_until_present(monkeypatch, tmp_path):
-    target = tmp_path / "wt"
-    calls = {"n": 0}
-
-    def fake_run_cli(argv, *, check=True, timeout=None):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return orca_ok({"worktrees": [{"path": "/elsewhere"}]})
-        return orca_ok({"worktrees": [{"path": str(target)}]})
-
-    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    assert agents._wait_worktree_indexed(target) is True
-    assert calls["n"] == 2  # polled once (missed), then again (hit)
-
-
-def test_wait_worktree_indexed_called_before_terminal_create(monkeypatch, tmp_path):
-    """Warm-up runs before the create attempt, so the ``path:`` selector is
-    resolvable by the time we ask Orca for a terminal."""
-    order = []
-
-    def spy_wait(wt, **k):
-        order.append("wait")
-        return True
-
-    def fake_run_cli(argv, *, check=True, timeout=None):
-        if argv[1:3] == ["terminal", "create"]:
-            order.append("create")
-        return orca_ok({"handle": "term_x"})
-
-    monkeypatch.setattr(agents, "_wait_worktree_indexed", spy_wait)
-    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    agents._do_launch_agent(tmp_path, "task-analyst", "hi")
-    assert order[0] == "wait"
-    assert "create" in order
 
 
 def test_launch_lock_namespacing_per_worktree(monkeypatch, tmp_path, agents_dir):
@@ -173,12 +91,11 @@ def test_launch_lock_namespacing_per_worktree(monkeypatch, tmp_path, agents_dir)
     assert len(names) == 2  # one per worktree, not one per acquire
 
 
-def test_run_startup_script_uses_focus_warmup_and_keepalive(monkeypatch, tmp_path, agents_dir):
-    """``_do_run_startup_script`` shares the warm-up + ``--focus`` path with
-    ``_do_launch_agent`` so its Orca tab also surfaces reliably, and wraps
-    the script with ``; exec bash`` so the tab drops into an interactive
-    shell at the worktree root when the script finishes (instead of
-    auto-closing on PTY EOF)."""
+def test_run_startup_script_command_and_keepalive(monkeypatch, tmp_path):
+    """``_do_run_startup_script`` opens an Orca terminal running the script,
+    wrapped with ``; exec bash`` so the tab drops into an interactive shell
+    at the worktree root when the script finishes (instead of auto-closing
+    on PTY EOF)."""
     script = tmp_path / "setup.sh"
     script.write_text("#!/bin/bash\necho hi\n")
     calls = []
@@ -188,13 +105,10 @@ def test_run_startup_script_uses_focus_warmup_and_keepalive(monkeypatch, tmp_pat
         return orca_ok({"terminal": {"handle": "term_s"}})
 
     monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
     handle = agents._do_run_startup_script(tmp_path, script)
     assert handle == "term_s"
     argv = calls[0]
     assert argv[:3] == ["orca", "terminal", "create"]
-    assert "--focus" in argv
     assert "pablo:startup-script" in argv
     command = argv[argv.index("--command") + 1]
     assert command.startswith("bash ")
@@ -387,7 +301,7 @@ def test_set_worktree_display_name_silently_ignores_failure(monkeypatch, tmp_pat
 
 
 def test_orca_reason_embeds_raw_stdout_on_empty(monkeypatch, tmp_path):
-    """Phase 1: the opaque empty-stdout failure mode (observed 2026-07-29 on
+    """The opaque empty-stdout failure mode (observed 2026-07-29 on
     oms-6421/sezane-8266 as a bare ``JSONDecodeError: Expecting value…``)
     must surface the raw stdout orca returned so the log is actionable."""
     def fake_empty(_argv, *, check=True, timeout=None):
@@ -396,203 +310,3 @@ def test_orca_reason_embeds_raw_stdout_on_empty(monkeypatch, tmp_path):
     _, reason = agents._orca(["worktree", "list"])
     assert "raw_stdout=''" in reason
     assert "JSONDecodeError" in reason
-
-
-def test_orca_with_retry_logs_each_attempt_and_probe(monkeypatch, tmp_path, agents_dir):
-    """Phase 1: per-attempt outcomes go to ``orca-create-attempts.log``
-    (one tail-line only showed the last attempt), and exhaustion runs the
-    state probe so the log distinguishes a never-resolved selector from an
-    orca outage."""
-    attempts = {"n": 0}
-
-    def fake_run_cli(argv, *, check=True, timeout=None):
-        attempts["n"] += 1
-        return orca_err("selector_not_found")
-
-    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    monkeypatch.setattr(
-        agents, "_capture_orca_state_probe",
-        lambda wt: "probe rc=0 present_in_list=False stdout_len=0 stderr=''",
-    )
-    result, reason = agents._orca_with_retry(
-        ["terminal", "create", "--worktree", f"path:{tmp_path}"],
-        worktree=tmp_path, label="task-analyst",
-        per_call_timeout=agents.ORCA_CREATE_TIMEOUT_S,
-    )
-    assert result is None
-    assert "probe rc=0" in reason
-    log = (agents_dir / "logs" / "orca-create-attempts.log").read_text()
-    assert log.count("\n") == agents.ORCA_LAUNCH_RETRIES
-    assert "attempt=1/" in log
-    assert f"attempt={agents.ORCA_LAUNCH_RETRIES}/" in log
-    assert "ok=False" in log
-
-
-def test_orca_with_retry_returns_none_reason_on_success(monkeypatch, tmp_path):
-    monkeypatch.setattr(agents, "run_cli", lambda *a, **k: orca_ok({"handle": "t"}))
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    result, reason = agents._orca_with_retry(
-        ["terminal", "create"], worktree=tmp_path, label="x",
-        per_call_timeout=agents.ORCA_CREATE_TIMEOUT_S,
-    )
-    assert result == {"handle": "t"}
-    assert reason is None
-
-
-def test_warn_headless_fallback_writes_marker(monkeypatch, tmp_path, agents_dir):
-    agents._warn_headless_fallback(tmp_path, "task-analyst", "boom")
-    marker = agents_dir / "last-headless-fallback.txt"
-    text = marker.read_text()
-    assert "task-analyst" in text
-    assert "boom" in text
-
-
-def test_consume_headless_fallback_warning_unlinks(monkeypatch, tmp_path, agents_dir):
-    """A recent marker is surfaced and removed; a stale one is just removed."""
-    agents._warn_headless_fallback(tmp_path, "task-analyst", "boom")
-    marker = agents_dir / "last-headless-fallback.txt"
-    assert marker.is_file()
-    warning = agents.consume_headless_fallback_warning()
-    assert warning is not None
-    assert "headless" in warning
-    assert "orca-fallback.log" in warning
-    assert not marker.is_file()  # consumed
-    # second consume: nothing left
-    assert agents.consume_headless_fallback_warning() is None
-
-
-def test_consume_headless_fallback_warning_ignores_stale(monkeypatch, tmp_path, agents_dir):
-    marker = agents_dir / "last-headless-fallback.txt"
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.write_text("stale\n")
-    import time as _time
-    old = _time.time() - agents.HEADLESS_FALLBACK_MAX_AGE_S - 10
-    import os as _os
-    _os.utime(marker, (old, old))
-    assert agents.consume_headless_fallback_warning() is None
-    assert not marker.is_file()
-
-
-# ---- Phase 2: screen-reader-busy fail-fast + no-focus retry + hint --------
-
-
-def test_orca_with_retry_fails_fast_on_screen_reader_busy(monkeypatch, tmp_path, agents_dir):
-    """The screen-reader-busy error is session-level state, not transient IO
-    — 10 retries against it just burn ~30s (observed 2026-07-31 on
-    retail/oms-6503 + oms-6505). Fail after attempt 1."""
-    calls = {"n": 0}
-
-    def fake_run_cli(argv, *, check=True, timeout=None):
-        calls["n"] += 1
-        # orca returns a non-JSON screen-reader error message
-        return (
-            "The following are not valid: terminal create --worktree path:x --focus --json\n"
-            + agents.ORCA_SCREEN_READER_BUSY
-            + " for this session.\nRun \"orca --replace\"..."
-        )
-
-    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    result, reason = agents._orca_with_retry(
-        ["terminal", "create", "--worktree", f"path:{tmp_path}"],
-        worktree=tmp_path, label="task-analyst",
-        per_call_timeout=agents.ORCA_CREATE_TIMEOUT_S,
-    )
-    assert result is None
-    assert agents.ORCA_SCREEN_READER_BUSY in reason
-    assert calls["n"] == 1  # fail-fast, not 10 attempts
-
-
-def test_create_terminal_or_fallback_retries_without_focus_on_screen_reader_busy(
-    monkeypatch, tmp_path, agents_dir,
-):
-    """When ``--focus`` is blocked by the screen-reader contention, retry
-    once without ``--focus`` — a visible-but-unfocused Orca tab beats a
-    silent headless run. Returns that tab's handle (no headless)."""
-    argvs = []
-
-    def fake_run_cli(argv, *, check=True, timeout=None):
-        argvs.append(argv)
-        if "--focus" in argv:
-            return (
-                "The following are not valid: ...\n"
-                + agents.ORCA_SCREEN_READER_BUSY + " for this session.\n"
-            )
-        return orca_ok({"terminal": {"handle": "term_unfocused"}})
-
-    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    handle, reason, hint = agents._create_terminal_or_fallback(
-        tmp_path, "true", "pablo:task-analyst", "task-analyst"
-    )
-    assert handle == "term_unfocused"
-    assert reason is None
-    assert hint is None  # no headless degrade → no hint
-    # One focused attempt (fail-fast, single call) + one no-focus attempt.
-    assert len(argvs) == 2
-    assert "--focus" in argvs[0]
-    assert "--focus" not in argvs[1]
-
-
-def test_create_terminal_or_fallback_headless_with_hint_when_both_paths_fail(
-    monkeypatch, tmp_path, agents_dir,
-):
-    """When both the focused and the no-focus ``terminal create`` fail with
-    the screen-reader error, return no handle and the ``orca --replace`` hint
-    so the caller can pass it to ``_warn_headless_fallback``."""
-    def fake_run_cli(argv, *, check=True, timeout=None):
-        return (
-            "The following are not valid: ...\n"
-            + agents.ORCA_SCREEN_READER_BUSY + " for this session.\n"
-        )
-
-    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    handle, reason, hint = agents._create_terminal_or_fallback(
-        tmp_path, "true", "pablo:task-analyst", "task-analyst"
-    )
-    assert handle is None
-    assert agents.ORCA_SCREEN_READER_BUSY in reason
-    assert hint == agents.ORCA_SCREEN_READER_HINT
-
-
-def test_do_launch_agent_warns_with_hint_on_screen_reader_busy(
-    monkeypatch, tmp_path, agents_dir,
-):
-    """End-to-end: ``_do_launch_agent`` degrades to headless and writes the
-    marker with the ``orca --replace`` hint so ``pablo start`` surfaces it
-    verbatim instead of the generic "TUI did not open" text."""
-    def fake_run_cli(argv, *, check=True, timeout=None):
-        return (
-            "...\n" + agents.ORCA_SCREEN_READER_BUSY + " for this session.\n"
-        )
-
-    class FakeProc:
-        pid = 7070
-
-    monkeypatch.setattr(agents, "run_cli", fake_run_cli)
-    monkeypatch.setattr(agents, "_wait_worktree_indexed", lambda wt, **k: True)
-    monkeypatch.setattr(agents, "_capture_orca_state_probe", lambda wt: "probe skipped")
-    monkeypatch.setattr(agents.subprocess, "Popen", lambda *a, **k: FakeProc())
-    monkeypatch.setattr(agents.time, "sleep", lambda s: None)
-    handle = agents._do_launch_agent(tmp_path, "task-analyst", "hello")
-    assert handle == "pid:7070"  # headless
-    marker = (agents_dir / "last-headless-fallback.txt").read_text()
-    assert f"hint={agents.ORCA_SCREEN_READER_HINT}" in marker
-
-
-def test_consume_headless_fallback_warning_surfaces_hint(monkeypatch, tmp_path, agents_dir):
-    """Phase 2: when the marker carries a ``hint=`` field, the user-facing
-    warning line is the hint (e.g. ``orca --replace``) — not the generic
-    "TUI did not open" text."""
-    agents._warn_headless_fallback(
-        tmp_path, "task-analyst", "busy", hint=agents.ORCA_SCREEN_READER_HINT,
-    )
-    warning = agents.consume_headless_fallback_warning()
-    assert warning is not None
-    assert "orca --replace" in warning
-    assert "pablo relaunch" in warning
-    assert "orca-fallback.log" in warning

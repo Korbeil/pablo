@@ -104,46 +104,6 @@ def test_start_from_url_sets_orca_display_name_to_issue_key(env):
     assert env["display_names"] == ["45"]
 
 
-def test_start_surfaces_headless_fallback_warning(env, monkeypatch, capsys):
-    """Phase 1: when the detached launcher recorded a headless fallback,
-    ``pablo start`` relays a visible warning instead of silently reporting
-    "task-analyst is running" while the agent is actually headless."""
-    monkeypatch.setattr(
-        agents, "consume_headless_fallback_warning",
-        lambda: "⚠ Orca terminal/TUI did not open; headless. "
-                "Details: ~/.pablo/agents/logs/orca-fallback.log",
-    )
-    assert cli.main(["start", env["issue"].url]) == 0
-    out = capsys.readouterr().out
-    assert "task-analyst is running" in out
-    assert "headless" in out
-    assert "orca-fallback.log" in out
-
-
-def test_start_quiet_when_no_headless_fallback(env, monkeypatch, capsys):
-    monkeypatch.setattr(agents, "consume_headless_fallback_warning", lambda: None)
-    assert cli.main(["start", env["issue"].url]) == 0
-    out = capsys.readouterr().out
-    assert "headless" not in out
-
-
-def test_start_surfaces_orca_replace_hint(env, monkeypatch, capsys):
-    """Phase 2: when a headless fallback was caused by the screen-reader-busy
-    condition, ``pablo start`` surfaces the actionable ``orca --replace`` hint
-    so the user knows the one-liner that clears the wedge (not just a generic
-    "TUI did not open")."""
-    monkeypatch.setattr(
-        agents, "consume_headless_fallback_warning",
-        lambda: '⚠ Orca screen-reader session is busy — run "orca --replace", '
-                'then "pablo relaunch <project> <branch>". '
-                "Details: ~/.pablo/agents/logs/orca-fallback.log",
-    )
-    assert cli.main(["start", env["issue"].url]) == 0
-    out = capsys.readouterr().out
-    assert "orca --replace" in out
-    assert "pablo relaunch" in out
-
-
 def test_start_unmatched_url_errors(env, capsys):
     rc = cli.main(["start", "https://github.com/other/repo/issues/1"])
     assert rc == 1
