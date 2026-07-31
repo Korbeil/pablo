@@ -61,11 +61,11 @@ from pablo.store import Store, task_lock
 POLL_LOCK_TIMEOUT_S = 2
 
 # Self-healing window for a cold-worktree Orca launch hang. Must exceed the
-# detached launcher's retry budget (ORCA_LAUNCH_RETRIES *
-# ORCA_LAUNCH_RETRY_DELAY_S + warm-up ≈ 170s in agents.py) plus margin so a
-# genuinely-running (but slow to register in Orca's `worktree ps`) session
-# is observed before we conclude it died. The poller cadence itself bounds
-# how quickly a stuck task is noticed regardless.
+# detached launcher's single `terminal create` call (60s timeout in
+# agents.py) plus margin so a genuinely-running (but slow to register in
+# Orca's `worktree ps`) session is observed before we conclude it died.
+# The poller cadence itself bounds how quickly a stuck task is noticed
+# regardless.
 LAUNCH_WINDOW_S = 240
 LAUNCH_MAX_ATTEMPTS = 3
 

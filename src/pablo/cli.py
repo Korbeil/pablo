@@ -104,18 +104,6 @@ def _create_task(
     return task
 
 
-def _relay_headless_fallback_warning() -> None:
-    """Phase 1: surface the silent headless-degrade marker (if a recent
-    launch lost the Orca TUI) as an extra line on ``pablo start``'s output.
-    Best-effort: never let a warning failure mask the successful start."""
-    try:
-        warning = agents.consume_headless_fallback_warning()
-    except Exception:
-        return
-    if warning:
-        print(warning)
-
-
 def _start_issue_task(store: Store, cfg: ProjectConfig, issue: Issue) -> int:
     for existing in store.all_tasks(cfg.name):
         if existing.issue is not None and existing.issue.key == issue.key:
@@ -142,7 +130,6 @@ def _start_issue_task(store: Store, cfg: ProjectConfig, issue: Issue) -> int:
         f"worktree: {task.worktree_path} (branch {branch})\n"
         f"state: {task.state} — task-analyst is running"
     )
-    _relay_headless_fallback_warning()
     return 0
 
 
@@ -192,7 +179,6 @@ def cmd_start(args: argparse.Namespace) -> int:
         f"worktree: {task.worktree_path} (branch {branch})\n"
         f"state: {task.state} — task-analyst is running"
     )
-    _relay_headless_fallback_warning()
     return 0
 
 
