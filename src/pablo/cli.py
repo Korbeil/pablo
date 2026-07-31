@@ -39,8 +39,9 @@ def _fail(message: str) -> int:
 # ---------------------------------------------------------------- start ---
 
 
-def _match_issue_url(url: str, projects: dict[str, ProjectConfig]):
-    for cfg in projects.values():
+def _match_issue_url(url: str, projects: dict[str, ProjectConfig], project: str | None = None):
+    candidate_cfgs = [projects[project]] if project is not None and project in projects else projects.values()
+    for cfg in candidate_cfgs:
         provider = get_provider(cfg.provider)
         ref = provider.match_url(url, cfg)
         if ref is not None:
@@ -58,14 +59,18 @@ def _branch_base(cfg: ProjectConfig, issue: Issue) -> str:
 _ISSUE_KEY_RE = re.compile(r"\b([A-Za-z][A-Za-z0-9]*)-(\d+)\b")
 
 
-def _match_issue_key(text: str, projects: dict[str, ProjectConfig]):
+def _match_issue_key(text: str, projects: dict[str, ProjectConfig], project: str | None = None):
     """Find a Jira/Linear issue key (e.g. ``OMS-6393``) mentioned anywhere in
     a free-text prompt, matched against a configured project's
     ``project_key``. GitHub is excluded: its ``project_key`` is just a
-    configured branch prefix, not part of how its issues are referenced."""
+    configured branch prefix, not part of how its issues are referenced.
+
+    When *project* is given, only that project is checked. Otherwise every
+    configured project is iterated and the first match wins."""
+    candidate_cfgs = [projects[project]] if project is not None and project in projects else projects.values()
     for match in _ISSUE_KEY_RE.finditer(text):
         prefix = match.group(1).upper()
-        for cfg in projects.values():
+        for cfg in candidate_cfgs:
             if cfg.provider not in ("jira", "linear"):
                 continue
             if (cfg.project_key or "").upper() == prefix:
@@ -149,7 +154,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         return _fail("usage: pablo start <issue-url> | pablo start --project <name> \"<prompt>\"")
 
     if text.startswith(("http://", "https://")):
-        matched = _match_issue_url(text, projects)
+        matched = _match_issue_url(text, projects, project=args.project)
         if matched is None:
             return _fail(
                 f"no managed project matches this issue URL: {text} — check the "
@@ -159,7 +164,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         issue = provider.get_issue(ref, cfg)
         return _start_issue_task(store, cfg, issue)
 
-    key_matched = _match_issue_key(text, projects)
+    key_matched = _match_issue_key(text, projects, project=args.project)
     if key_matched is not None:
         cfg, provider, key = key_matched
         issue = provider.get_issue(key, cfg)
