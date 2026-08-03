@@ -70,7 +70,8 @@ PABLO runs you automatically inside the task's worktree when a task enters
 
 ## Retrieving the failing checks
 
-Never use raw API calls with tokens beyond the `gh` CLI.
+Never use raw API calls with tokens beyond the `gh` CLI — except CircleCI
+(below), which has no widely-installed CLI.
 
 1. `gh pr checks <n> --repo <owner>/<repo>` — the per-check pass/fail list
    with names and states. Identify every check that is failing, errored,
@@ -78,14 +79,44 @@ Never use raw API calls with tokens beyond the `gh` CLI.
 2. `gh pr view <n> --repo <owner>/<repo> --json statusCheckRollup` — the
    raw rollup, useful when `gh pr checks` output is ambiguous about a
    check's exact conclusion.
-3. For each failing check backed by a GitHub Actions run: `gh run view
-   <run-id> --log-failed` (or `gh api
+
+3. For each failing check, fetch the logs:
+
+   **GitHub Actions checks** (have a `run-id`):
+   `gh run view <run-id> --log-failed` (or `gh api
    repos/<owner>/<repo>/actions/runs/<run-id>/jobs` to find the failing job
-   first, then `gh run view <run-id> --log-failed --job <job-id>`) to pull
-   the actual failing log lines. For checks backed by external CI (e.g.
-   CircleCI, status-context style checks with no GitHub Actions run), rely
-   on the check's `detailsUrl`/description in the rollup and say so if the
-   log itself isn't reachable via `gh`.
+   first, then `gh run view <run-id> --log-failed --job <job-id>`).
+
+   **CircleCI checks** (StatusContext entries, context starts with
+   `ci/circleci:`):
+   a. Validate the token:
+      ```bash
+      curl -s -H "Circle-Token: $CIRCLECI_TOKEN" \
+        "https://circleci.com/api/v2/me"
+      ```
+      The response includes `name`, `login`, and `token_expires_at` — if
+      401 (token missing/invalid) or the expiry is in the past, report that
+      logs are unavailable and skip to step (c).
+
+   b. Extract the project slug and job number from the check's `detailsUrl`
+      or `targetUrl`.  CircleCI details URLs look like:
+      `https://app.circleci.com/pipelines/github/<ORG>/<REPO>/<pipeline-number>/workflows/<uuid>/jobs/<JOB-NUMBER>`
+      Parse out `<ORG>`, `<REPO>`, and `<JOB-NUMBER>`, then fetch the job
+      output:
+      ```bash
+      curl -s -H "Circle-Token: $CIRCLECI_TOKEN" \
+        "https://circleci.com/api/v2/project/github/<ORG>/<REPO>/<JOB-NUMBER>/output"
+      ```
+      The API returns the job steps with their stdout/stderr.  If 404 (job
+      not found), 429 (rate-limited), or a 5xx error (server error), retry
+      once after 5s and include the status-text (if any) in your analysis
+      so the user knows what went wrong.
+
+   c. If `$CIRCLECI_TOKEN` is unset or the API returns 401:
+      Report the check metadata (`name`/`context`, `state`, `detailsUrl`)
+      and note that CircleCI logs are unavailable.  Remind that setting
+      `export CIRCLECI_TOKEN="..."` in `~/.bashrc` enables full log access.
+
 4. A check stuck permanently pending (e.g. a manual-approval gate with
    `conclusion: action_required`) is not a real CI failure — call this out
    explicitly rather than treating it as a bug to fix; it's a process gate,
