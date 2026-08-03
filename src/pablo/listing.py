@@ -219,7 +219,7 @@ def _agent_cells(
     return str(count), activity
 
 
-_TASKS_HEADERS = ["Task", "State", "Agents", "Activity", "Issue", "Tracker", "PR"]
+_TASKS_HEADERS = ["Project", "Task", "State", "Agents", "Activity", "Issue", "Tracker", "PR"]
 
 
 def tasks_table(
@@ -293,7 +293,8 @@ def tasks_table(
             task.cached_at = utcnow()
             store.save(task)
         row = [
-            f"{task.branch} ({task.project})",
+            task.project,
+            task.branch,
             _state_cell(task),
             count,
             activity,
@@ -314,11 +315,11 @@ def tasks_table(
 
     waiting_entries = [
         (task, row) for task, row in entries
-        if task.state in _WAITING_FEEDBACK_STATES and "💭" in row[3]
+        if task.state in _WAITING_FEEDBACK_STATES and "💭" in row[4]
     ]
     rest_entries = [
         (task, row) for task, row in entries
-        if not (task.state in _WAITING_FEEDBACK_STATES and "💭" in row[3])
+        if not (task.state in _WAITING_FEEDBACK_STATES and "💭" in row[4])
     ]
     waiting_entries = sorted(
         waiting_entries, key=lambda tr: _state_rank(tr[0].state)

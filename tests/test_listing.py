@@ -346,8 +346,8 @@ def test_tasks_sorted_by_state(env):
 
     table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
     lines = [l for l in table.splitlines() if "wk-" in l]
-    assert lines[0].startswith("wk-testing-failed")
-    assert lines[1].startswith("wk-in-progress")
+    assert "wk-testing-failed" in lines[0]
+    assert "wk-in-progress" in lines[1]
 
 
 def test_tasks_no_waiting_header_when_no_waiting_agents(env):
