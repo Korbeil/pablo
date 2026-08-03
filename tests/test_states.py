@@ -51,11 +51,11 @@ def ctx(tmp_path: Path, monkeypatch):
     calls = {"launch": [], "ready": [], "draft": [], "startup_script": []}
     monkeypatch.setattr(
         agents, "launch",
-        lambda wt, agent, prompt: calls["launch"].append((agent, prompt)) or "term_1",
+        lambda wt, agent, prompt, project, branch: calls["launch"].append((agent, prompt)) or "term_1",
     )
     monkeypatch.setattr(
         agents, "run_startup_script",
-        lambda wt, script: calls["startup_script"].append(script) or "term_2",
+        lambda wt, script, project, branch: calls["startup_script"].append(script) or "term_2",
     )
     monkeypatch.setattr(
         ghpr, "mark_ready", lambda slug, pr: calls["ready"].append(pr)

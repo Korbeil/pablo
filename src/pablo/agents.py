@@ -212,7 +212,10 @@ def _spawn_detached_cli(argv: list[str]) -> int:
     return proc.pid
 
 
-def launch(worktree: Path, agent: str, prompt: str) -> str:
+def launch(
+    worktree: Path, agent: str, prompt: str,
+    project: str, branch: str,
+) -> str:
     """Fire-and-forget: launch ``agent`` on ``worktree`` in a detached
     subprocess and return immediately. The returned ``pid:<n>`` handle
     identifies the detached launcher subprocess itself (for logs only) —
@@ -222,12 +225,17 @@ def launch(worktree: Path, agent: str, prompt: str) -> str:
         ["internal-launch-agent",
          "--worktree", str(worktree),
          "--agent", agent,
-         "--prompt", prompt]
+         "--prompt", prompt,
+         "--project", project,
+         "--branch", branch]
     )
     return f"pid:{pid}"
 
 
-def run_startup_script(worktree: Path, script: Path) -> str:
+def run_startup_script(
+    worktree: Path, script: Path,
+    project: str, branch: str,
+) -> str:
     """Fire-and-forget: run the project's startup ``script`` on
     ``worktree`` in a detached subprocess and return immediately. See
     ``launch()`` for the handle semantics and ``_do_run_startup_script``
@@ -235,7 +243,9 @@ def run_startup_script(worktree: Path, script: Path) -> str:
     pid = _spawn_detached_cli(
         ["internal-run-startup-script",
          "--worktree", str(worktree),
-         "--script", str(script)]
+         "--script", str(script),
+         "--project", project,
+         "--branch", branch]
     )
     return f"pid:{pid}"
 
@@ -263,6 +273,42 @@ def set_worktree_display_name(
          "--issue", issue_number if issue_number is not None else "null"],
         per_call_timeout=ORCA_CALL_TIMEOUT_S,
     )
+
+
+def _refresh_agent_display_cache(
+    project: str, branch: str, worktree: Path
+) -> None:
+    """Immediately refresh ``cached_agent_*`` so ``pablo list`` shows
+    agent activity without waiting for the poller cycle.
+
+    Called from the detached launcher subprocess right after the Orca
+    terminal / headless process exists, and then again when the agent
+    finishes. Non-blocking: uses a 2 s lock timeout so a concurrent
+    poller run doesn't stall the launcher; the poller recovers on its
+    next cycle anyway."""
+    try:
+        sessions = active_sessions(worktree)
+        parts: list[str] = []
+        running = sum(1 for s in sessions if s.status == "running")
+        waiting = sum(1 for s in sessions if s.status == "waiting")
+        if running:
+            parts.append(f"🏃 {running}")
+        if waiting:
+            parts.append(f"💭 {waiting}")
+        activity = " · ".join(parts) if parts else "-"
+        from pablo.store import Store, task_lock
+
+        store = Store()
+        with task_lock(store, project, branch, timeout_s=2):
+            task = store.get(project, branch)
+            if task is None:
+                return
+            task.cached_agent_count = len(sessions)
+            task.cached_agent_activity = activity
+            task.cached_at = utcnow()
+            store.save(task)
+    except Exception:
+        pass
 
 
 def _launch_headless_command(worktree: Path, label: str, command: str) -> str:

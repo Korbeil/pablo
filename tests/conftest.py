@@ -20,8 +20,8 @@ def _no_real_agent_processes(request, monkeypatch):
     if request.module.__name__.endswith("test_agents"):
         yield
         return
-    monkeypatch.setattr(agents, "launch", lambda wt, agent, prompt: "stub-handle")
-    monkeypatch.setattr(agents, "run_startup_script", lambda wt, script: "stub-handle")
+    monkeypatch.setattr(agents, "launch", lambda wt, agent, prompt, project, branch: "stub-handle")
+    monkeypatch.setattr(agents, "run_startup_script", lambda wt, script, project, branch: "stub-handle")
     monkeypatch.setattr(agents, "spawn_watcher", lambda *a, **k: None)
     monkeypatch.setattr(agents, "active_sessions", lambda wt: [])
     monkeypatch.setattr(agents, "bulk_active_sessions", lambda worktrees: {})

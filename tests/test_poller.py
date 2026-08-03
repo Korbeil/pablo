@@ -83,12 +83,12 @@ def env(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(agents, "active_sessions", lambda wt: stubs["sessions"])
     monkeypatch.setattr(
-        agents, "launch", lambda wt, a, p: stubs["launched"].append(a) or "t1"
+        agents, "launch", lambda wt, a, p, proj, br: stubs["launched"].append(a) or "t1"
     )
     stubs["startups"] = []
     monkeypatch.setattr(
         agents, "run_startup_script",
-        lambda wt, script: stubs["startups"].append(str(script)) or "t2",
+        lambda wt, script, proj, br: stubs["startups"].append(str(script)) or "t2",
     )
     stubs["display_names"] = []
     monkeypatch.setattr(

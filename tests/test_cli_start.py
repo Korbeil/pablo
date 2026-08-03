@@ -69,7 +69,7 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(gitrepo, "create_worktree", fake_create_worktree)
     launches = []
     monkeypatch.setattr(
-        agents, "launch", lambda wt, agent, prompt: launches.append(agent) or "t1"
+        agents, "launch", lambda wt, agent, prompt, project, branch: launches.append(agent) or "t1"
     )
     display_names = []
     monkeypatch.setattr(
