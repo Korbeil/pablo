@@ -110,12 +110,14 @@ def _enter_in_progress(ctx: TaskCtx) -> None:
         _launch_tracked(
             ctx, "task-analyst", agents.launch,
             ctx.task.worktree_path, "task-analyst", _analyst_prompt(ctx.task),
+            ctx.task.project, ctx.task.branch,
         )
         ctx.task.task_analyst_ran = True
     if ctx.cfg.startup_script and not ctx.task.startup_script_ran:
         _launch_tracked(
             ctx, "startup-script", agents.run_startup_script,
             ctx.task.worktree_path, ctx.cfg.startup_script,
+            ctx.task.project, ctx.task.branch,
         )
         ctx.task.startup_script_ran = True
 
@@ -165,14 +167,13 @@ def _enter_needs_testing(ctx: TaskCtx) -> None:
 
 
 def _mark_draft_then_run_agent(ctx: TaskCtx, label: str, prompt: str) -> None:
-    # Flip the GitHub PR to draft immediately so CI doesn't run on stale
-    # code while the human implements the agent's fix plan. No watcher:
-    # the agent runs in an interactive TUI (Orca path) or headless
-    # (fallback); the task stays put until /pablo-commit-and-pr re-marks
-    # the PR ready and advances state.
     if ctx.task.pr_number is not None:
         ghpr.mark_draft(_repo_slug(ctx.cfg), ctx.task.pr_number)
-    _launch_tracked(ctx, label, agents.launch, ctx.task.worktree_path, label, prompt)
+    _launch_tracked(
+        ctx, label, agents.launch,
+        ctx.task.worktree_path, label, prompt,
+        ctx.task.project, ctx.task.branch,
+    )
 
 
 def _enter_request_changes(ctx: TaskCtx) -> None:
@@ -183,6 +184,7 @@ def _enter_ci_red(ctx: TaskCtx) -> None:
     _launch_tracked(
         ctx, "ci-analyst", agents.launch,
         ctx.task.worktree_path, "ci-analyst", _ci_analyst_prompt(ctx.task),
+        ctx.task.project, ctx.task.branch,
     )
 
 
@@ -249,29 +251,29 @@ LAUNCH_SPECS: dict[str, list[_LaunchSpec]] = {
     IN_PROGRESS: [
         _LaunchSpec(
             "task-analyst",
-            lambda c: (agents.launch, (c.task.worktree_path, "task-analyst", _analyst_prompt(c.task))),
+            lambda c: (agents.launch, (c.task.worktree_path, "task-analyst", _analyst_prompt(c.task), c.task.project, c.task.branch)),
         ),
         _LaunchSpec(
             "startup-script",
-            lambda c: (agents.run_startup_script, (c.task.worktree_path, c.cfg.startup_script)),
+            lambda c: (agents.run_startup_script, (c.task.worktree_path, c.cfg.startup_script, c.task.project, c.task.branch)),
         ),
     ],
     CI_RED: [
         _LaunchSpec(
             "ci-analyst",
-            lambda c: (agents.launch, (c.task.worktree_path, "ci-analyst", _ci_analyst_prompt(c.task))),
+            lambda c: (agents.launch, (c.task.worktree_path, "ci-analyst", _ci_analyst_prompt(c.task), c.task.project, c.task.branch)),
         ),
     ],
     REQUEST_CHANGES: [
         _LaunchSpec(
             "pr-feedback",
-            lambda c: (agents.launch, (c.task.worktree_path, "pr-feedback", _pr_feedback_prompt(c.task))),
+            lambda c: (agents.launch, (c.task.worktree_path, "pr-feedback", _pr_feedback_prompt(c.task), c.task.project, c.task.branch)),
         ),
     ],
     TESTING_FAILED: [
         _LaunchSpec(
             "task-feedback",
-            lambda c: (agents.launch, (c.task.worktree_path, "task-feedback", _task_feedback_prompt(c.task))),
+            lambda c: (agents.launch, (c.task.worktree_path, "task-feedback", _task_feedback_prompt(c.task), c.task.project, c.task.branch)),
         ),
     ],
 }

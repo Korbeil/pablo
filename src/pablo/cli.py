@@ -487,12 +487,16 @@ def cmd_task_current(args: argparse.Namespace) -> int:
 
 
 def cmd_internal_launch_agent(args: argparse.Namespace) -> int:
-    agents._do_launch_agent(Path(args.worktree), args.agent, args.prompt)
+    worktree = Path(args.worktree)
+    agents._do_launch_agent(worktree, args.agent, args.prompt)
+    agents._refresh_agent_display_cache(args.project, args.branch, worktree)
     return 0
 
 
 def cmd_internal_run_startup_script(args: argparse.Namespace) -> int:
-    agents._do_run_startup_script(Path(args.worktree), Path(args.script))
+    worktree = Path(args.worktree)
+    agents._do_run_startup_script(worktree, Path(args.script))
+    agents._refresh_agent_display_cache(args.project, args.branch, worktree)
     return 0
 
 
@@ -634,11 +638,15 @@ def _build_internal_parser() -> argparse.ArgumentParser:
     p_launch.add_argument("--worktree", required=True)
     p_launch.add_argument("--agent", required=True)
     p_launch.add_argument("--prompt", required=True)
+    p_launch.add_argument("--project", required=True)
+    p_launch.add_argument("--branch", required=True)
     p_launch.set_defaults(func=cmd_internal_launch_agent)
 
     p_startup = sub.add_parser("internal-run-startup-script")
     p_startup.add_argument("--worktree", required=True)
     p_startup.add_argument("--script", required=True)
+    p_startup.add_argument("--project", required=True)
+    p_startup.add_argument("--branch", required=True)
     p_startup.set_defaults(func=cmd_internal_run_startup_script)
 
     p_watch = sub.add_parser("watch-agent")

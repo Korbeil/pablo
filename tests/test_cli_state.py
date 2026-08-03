@@ -56,7 +56,7 @@ def env(tmp_path, monkeypatch):
 def test_state_forces_with_shared_handler(env, monkeypatch, capsys):
     launched = []
     monkeypatch.setattr(
-        agents, "launch", lambda wt, agent, prompt: launched.append(agent) or "t1"
+        agents, "launch", lambda wt, agent, prompt, project, branch: launched.append(agent) or "t1"
     )
     monkeypatch.setattr(agents, "spawn_watcher", lambda *a, **k: None)
     monkeypatch.setattr(ghpr, "mark_draft", lambda slug, pr: None)
@@ -70,7 +70,7 @@ def test_state_forces_with_shared_handler(env, monkeypatch, capsys):
 def test_state_no_trigger_skips_actions(env, monkeypatch):
     launched = []
     monkeypatch.setattr(
-        agents, "launch", lambda wt, agent, prompt: launched.append(agent) or "t1"
+        agents, "launch", lambda wt, agent, prompt, project, branch: launched.append(agent) or "t1"
     )
     rc = cli.main(["state", REQUEST_CHANGES, "--no-trigger"])
     assert rc == 0
@@ -191,11 +191,11 @@ def test_relaunch_fires_both_and_resets_counters(env, monkeypatch, capsys):
     startups = []
     monkeypatch.setattr(
         agents, "launch",
-        lambda wt, agent, prompt: launched.append(agent) or "t1",
+        lambda wt, agent, prompt, project, branch: launched.append(agent) or "t1",
     )
     monkeypatch.setattr(
         agents, "run_startup_script",
-        lambda wt, script: startups.append(str(script)) or "t2",
+        lambda wt, script, project, branch: startups.append(str(script)) or "t2",
     )
     from dataclasses import replace
 
@@ -221,11 +221,11 @@ def test_relaunch_only_startup_skips_analyst(env, monkeypatch, capsys):
     startups = []
     monkeypatch.setattr(
         agents, "launch",
-        lambda wt, agent, prompt: launched.append(agent) or "t1",
+        lambda wt, agent, prompt, project, branch: launched.append(agent) or "t1",
     )
     monkeypatch.setattr(
         agents, "run_startup_script",
-        lambda wt, script: startups.append(str(script)) or "t2",
+        lambda wt, script, project, branch: startups.append(str(script)) or "t2",
     )
     from dataclasses import replace
 
@@ -242,10 +242,10 @@ def test_relaunch_only_analyst_skips_startup_when_configured(env, monkeypatch):
     launched = []
     monkeypatch.setattr(
         agents, "launch",
-        lambda wt, agent, prompt: launched.append(agent) or "t1",
+        lambda wt, agent, prompt, project, branch: launched.append(agent) or "t1",
     )
     startups = []
-    monkeypatch.setattr(agents, "run_startup_script", lambda wt, s: startups.append(s) or "t2")
+    monkeypatch.setattr(agents, "run_startup_script", lambda wt, s, project, branch: startups.append(s) or "t2")
     rc = cli.main(["relaunch", "--only", "task-analyst"])
     assert rc == 0
     assert launched == ["task-analyst"]
@@ -256,7 +256,7 @@ def test_relaunch_ci_red_fires_ci_analyst(env, monkeypatch):
     launched = []
     monkeypatch.setattr(
         agents, "launch",
-        lambda wt, agent, prompt: launched.append(agent) or "t1",
+        lambda wt, agent, prompt, project, branch: launched.append(agent) or "t1",
     )
     task = env["store"]().get("wallet-kit", "wk-45")
     task.state = CI_RED
@@ -272,7 +272,7 @@ def test_relaunch_request_changes_fires_pr_feedback(env, monkeypatch):
     launched = []
     monkeypatch.setattr(
         agents, "launch",
-        lambda wt, agent, prompt: launched.append(agent) or "t1",
+        lambda wt, agent, prompt, project, branch: launched.append(agent) or "t1",
     )
     monkeypatch.setattr(ghpr, "mark_draft", lambda slug, pr: None)
     monkeypatch.setattr(states, "_repo_slug", lambda cfg: "acme/wallet-kit")

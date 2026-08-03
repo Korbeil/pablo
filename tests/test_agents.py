@@ -132,7 +132,7 @@ def test_launch_detaches_and_returns_immediately(monkeypatch, tmp_path):
 
     monkeypatch.setattr(agents.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(agents, "run_cli", fail_run_cli)
-    handle = agents.launch(tmp_path, "task-analyst", "hello")
+    handle = agents.launch(tmp_path, "task-analyst", "hello", "test-proj", "test-branch")
     assert handle == "pid:777"
     assert spawned["argv"][:3] == [agents.sys.executable, "-m", "pablo.cli"]
     assert "internal-launch-agent" in spawned["argv"]
@@ -142,6 +142,10 @@ def test_launch_detaches_and_returns_immediately(monkeypatch, tmp_path):
     assert "task-analyst" in spawned["argv"]
     assert "--prompt" in spawned["argv"]
     assert "hello" in spawned["argv"]
+    assert "--project" in spawned["argv"]
+    assert "test-proj" in spawned["argv"]
+    assert "--branch" in spawned["argv"]
+    assert "test-branch" in spawned["argv"]
     assert spawned["kwargs"].get("start_new_session") is True
     assert spawned["kwargs"].get("stdin") is agents.subprocess.DEVNULL
     assert spawned["kwargs"].get("stdout") is agents.subprocess.DEVNULL
@@ -165,13 +169,17 @@ def test_run_startup_script_detaches_and_returns_immediately(monkeypatch, tmp_pa
 
     monkeypatch.setattr(agents.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(agents, "run_cli", fail_run_cli)
-    handle = agents.run_startup_script(tmp_path, script)
+    handle = agents.run_startup_script(tmp_path, script, "test-proj", "test-branch")
     assert handle == "pid:888"
     assert "internal-run-startup-script" in spawned["argv"]
     assert "--worktree" in spawned["argv"]
     assert str(tmp_path) in spawned["argv"]
     assert "--script" in spawned["argv"]
     assert str(script) in spawned["argv"]
+    assert "--project" in spawned["argv"]
+    assert "test-proj" in spawned["argv"]
+    assert "--branch" in spawned["argv"]
+    assert "test-branch" in spawned["argv"]
     assert spawned["kwargs"].get("start_new_session") is True
 
 
