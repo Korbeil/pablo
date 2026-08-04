@@ -449,3 +449,72 @@ def test_render_slack_uses_issue_key_and_title_when_issue_present():
 def test_render_slack_all_prs_missing_returns_empty_message():
     rows = [_row("wallet-kit", None)]
     assert listing.render_slack(rows, WAITING_REVIEW) == "No PRs waiting for review right now 🎉"
+
+
+# ------------------------------------------------------- column alignment --
+
+
+def test_display_width_ascii():
+    assert listing._display_width("hello") == 5
+    assert listing._display_width("") == 0
+
+
+def test_display_width_emoji():
+    assert listing._display_width("🔨") == 2
+    assert listing._display_width("✅") == 2
+    assert listing._display_width("💭") == 2
+
+
+def test_display_width_mixed():
+    assert listing._display_width("🔨 in-progress") == 14
+    assert listing._display_width("🏃 1 · 💭 1") == 11
+
+def test_pad_right_emoji_cell():
+    assert listing._pad_right("hello", 8) == "hello   "
+    assert listing._pad_right("🔨 x", 6) == "🔨 x  "  # display width 4, needs 2 spaces
+    assert listing._pad_right("✅ merged #7", 15) == "✅ merged #7   "
+
+
+def test_all_task_rows_aligned(env, monkeypatch):
+    monkeypatch.setattr(
+        agents, "bulk_active_sessions",
+        lambda worktrees: {
+            wt: [SessionInfo(handle="a", status="running"), SessionInfo(handle="b", status="waiting")]
+            for wt in worktrees
+        },
+    )
+    monkeypatch.setattr(
+        ghpr, "prs_for_branches",
+        lambda slug, branches: {
+            b: PrInfo(number=7, title="PR", state="OPEN", is_draft=True, url="u", merged_at=None)
+            for b in branches
+        },
+    )
+    env["store"].save(
+        Task(project="wallet-kit", branch="wk-45", worktree_path=Path("/tmp/x"),
+             state=IN_PROGRESS, pr_number=7,
+             issue=Issue(provider="github", key="45", url="u", title="Fix callbacks", project_key="WK"))
+    )
+    env["store"].save(
+        Task(project="wallet-kit", branch="wk-fix-hooks", worktree_path=Path("/tmp/y"),
+             state=NEEDS_TESTING, summary="fix flaky webhooks")
+    )
+
+    table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
+    lines = table.splitlines()
+
+    separator = next(l for l in lines if l.strip() and all(c in "- " for c in l))
+    expected_width = listing._display_width(separator)
+
+    data_lines = [
+        l for l in lines
+        if l.strip()
+        and not l.startswith("Project")
+        and not l.startswith("-")
+        and not l.startswith("💭")
+        and not l.startswith("Other")
+    ]
+
+    for i, line in enumerate(data_lines):
+        assert listing._display_width(line) == expected_width, \
+            f"Line {i} display width {listing._display_width(line)} != {expected_width}: {line!r}"
