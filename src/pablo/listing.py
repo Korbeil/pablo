@@ -12,6 +12,7 @@ agents 🏃 running · 💭 waiting on feedback.
 from __future__ import annotations
 
 import datetime
+import unicodedata
 
 from pablo import PabloError, agents, ghpr, gitrepo
 from pablo.agents import SessionInfo
@@ -89,18 +90,30 @@ def _repo_slug(cfg: ProjectConfig) -> str:
     return repo_slug(cfg)
 
 
+def _display_width(s: str) -> int:
+    """Terminal display-column width of *s* (emoji = 2, ASCII = 1)."""
+    w = 0
+    for ch in s:
+        w += 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+    return w
+
+
+def _pad_right(s: str, width: int) -> str:
+    return s + " " * (width - _display_width(s))
+
+
 def _render(headers: list[str], rows: list[list[str]], widths: list[int] | None = None) -> str:
     if widths is None:
         widths = [
-            max(len(headers[i]), *(len(row[i]) for row in rows)) if rows else len(headers[i])
+            max(_display_width(headers[i]), *(_display_width(row[i]) for row in rows)) if rows else _display_width(headers[i])
             for i in range(len(headers))
         ]
     lines = [
-        "  ".join(headers[i].ljust(widths[i]) for i in range(len(headers))),
+        "  ".join(_pad_right(headers[i], widths[i]) for i in range(len(headers))),
         "  ".join("-" * widths[i] for i in range(len(headers))),
     ]
     for row in rows:
-        lines.append("  ".join(row[i].ljust(widths[i]) for i in range(len(headers))))
+        lines.append("  ".join(_pad_right(row[i], widths[i]) for i in range(len(headers))))
     return "\n".join(lines)
 
 
@@ -331,7 +344,7 @@ def tasks_table(
 
     all_rows = [row for _, row in entries]
     global_widths = [
-        max(len(_TASKS_HEADERS[i]), *(len(row[i]) for row in all_rows))
+        max(_display_width(_TASKS_HEADERS[i]), *(_display_width(row[i]) for row in all_rows))
         for i in range(len(_TASKS_HEADERS))
     ]
 
