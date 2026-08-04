@@ -162,6 +162,80 @@ final class GitRepo
         return 0 === $process->getExitCode();
     }
 
+    /** @var callable|null test seam: (string, string, string): string */
+    private static $recreateWorktree;
+
+    public static function setRecreateWorktree(?callable $fn): void
+    {
+        self::$recreateWorktree = $fn;
+    }
+
+    /**
+     * Recreate a task worktree from its remote branch (restore path).
+     *
+     * Unlike createWorktree this checks out an existing pushed branch rather
+     * than branching off the primary, so the task continues exactly where it
+     * was left on origin.
+     */
+    public static function recreateWorktree(string $repo, string $worktreesRoot, string $branch): string
+    {
+        if (null !== self::$recreateWorktree) {
+            return (self::$recreateWorktree)($repo, $worktreesRoot, $branch);
+        }
+        self::git($repo, ['fetch', 'origin'], check: false);
+        @mkdir($worktreesRoot, 0o777, true);
+        $path = rtrim($worktreesRoot, '/').'/'.$branch;
+        if (file_exists($path)) {
+            throw new PabloError("worktree path already exists: {$path}");
+        }
+        if (self::refExists($repo, $branch)) {
+            self::git($repo, ['worktree', 'add', $path, $branch]);
+        } else {
+            self::git($repo, ['worktree', 'add', '-b', $branch, $path, "origin/{$branch}"]);
+        }
+
+        return $path;
+    }
+
+    public static function remoteBranchExists(string $repo, string $branch): bool
+    {
+        return self::refExists($repo, "origin/{$branch}");
+    }
+
+    /** @var callable|null test seam: (string, string): void */
+    private static $cloneRepo;
+
+    public static function setCloneRepo(?callable $fn): void
+    {
+        self::$cloneRepo = $fn;
+    }
+
+    public static function cloneRepo(string $originUrl, string $path): void
+    {
+        if (null !== self::$cloneRepo) {
+            (self::$cloneRepo)($originUrl, $path);
+
+            return;
+        }
+        @mkdir(\dirname($path), 0o777, true);
+        $process = new Process(['git', 'clone', $originUrl, $path]);
+        $process->run();
+        if (!$process->isSuccessful()) {
+            $err = '' !== trim($process->getErrorOutput()) ? trim($process->getErrorOutput()) : trim($process->getOutput());
+            throw new PabloError("git clone {$originUrl} failed: {$err}");
+        }
+    }
+
+    public static function addOrigin(string $repo, string $url): void
+    {
+        self::git($repo, ['remote', 'add', 'origin', $url]);
+    }
+
+    public static function fetchOrigin(string $repo): void
+    {
+        self::git($repo, ['fetch', 'origin']);
+    }
+
     public static function pushWithLease(string $worktree, string $branch): void
     {
         self::git($worktree, ['push', '--force-with-lease', 'origin', $branch]);

@@ -48,6 +48,33 @@ agents and advancing the task's state automatically. See
 [docs/state-machine.md](docs/state-machine.md) for the full flow and
 [docs/agents-commands.md](docs/agents-commands.md) for every command.
 
+## Backups and restore
+
+Everything PABLO knows about your tasks lives in one place — `~/.pablo/`
+(state store, poller stamps, rebase logs, cache). Move or reinstall PABLO and
+pick up exactly where you left off:
+
+```bash
+pablo backup                    # write ~/.pablo-backups/pablo-backup-<ts>.tar.gz
+pablo backup /path/to/backup.gz # choose the destination
+pablo restore /path/to/backup.gz
+```
+
+A backup bundles all state under `~/.pablo/` **except agent sessions
+(`agents/`, the opencode sessions) and transient worktree checkouts**. It
+also embeds your `projects/*.yaml` configs and a manifest of every task
+worktree (project, origin URL, branch).
+
+Restore is interactive: it re-materialises the state store and configs, then
+— one repository at a time — asks where to create each checkout (cloning from
+the recorded origin if needed) and recreates every task worktree from its
+remote branch, rewriting each task record's `worktree_path`. Branches with
+local-only (unpushed) commits are skipped with a warning. Use
+`pablo restore <archive> --skip-worktrees` to restore state without touching
+the worktrees, and `--yes` to answer every overwrite prompt non-interactively.
+Tracker credentials / auth are not migrated — run `pablo doctor` on the new
+host.
+
 ## Example workflow
 
 A task's life from issue to merge, alternating what you do and what
