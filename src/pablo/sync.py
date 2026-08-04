@@ -24,14 +24,13 @@ from pablo.store import Store, task_lock
 SYNC_LOCK_TIMEOUT_S = 2
 
 ACTION_ICONS = {
-    "up-to-date": "✅",
+    "up-to-date": "\U0001f49a",
     "would-sync": "🔄",
-    "synced": "✅",
-    "conflict": "⚠️",
+    "synced": "\U0001f49a",
+    "conflict": "\U0001f6ab",
     "lease-failed": "🔁",
-    "dirty": "✋",
-    "locked": "🔒",
-    "unregistered": "❓",
+    "dirty": "\U0001f4dd",
+    "locked": "\U0001f510",
 }
 
 
