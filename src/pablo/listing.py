@@ -12,7 +12,9 @@ agents 🏃 running · 💭 waiting on feedback.
 from __future__ import annotations
 
 import datetime
+import os
 import unicodedata
+from pathlib import Path
 
 from pablo import PabloError, agents, ghpr, gitrepo
 from pablo.agents import SessionInfo
@@ -82,6 +84,42 @@ def _time_since(iso_timestamp: str) -> str:
         return f"{hours}h ago"
     days = hours // 24
     return f"{days}d ago"
+
+
+def _poller_stamps_dir() -> Path:
+    override = os.environ.get("PABLO_STAMPS_DIR")
+    if override:
+        return Path(override)
+    return Path("~/.pablo/stamps").expanduser()
+
+
+def _last_poll_header(projects: dict[str, ProjectConfig]) -> str:
+    stamps_dir = _poller_stamps_dir()
+    latest: datetime.datetime | None = None
+    for name in projects:
+        stamp_file = stamps_dir / f"{name}.poll"
+        if not stamp_file.exists():
+            continue
+        try:
+            ts = float(stamp_file.read_text().strip())
+        except ValueError:
+            continue
+        dt = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
+        if latest is None or dt > latest:
+            latest = dt
+    if latest is None:
+        return ""
+    delta = datetime.datetime.now(datetime.timezone.utc) - latest
+    seconds = int(delta.total_seconds())
+    if seconds < 60:
+        ago = "just now"
+    elif seconds < 3600:
+        ago = f"{seconds // 60}m ago"
+    elif seconds < 86400:
+        ago = f"{seconds // 3600}h ago"
+    else:
+        ago = f"{seconds // 86400}d ago"
+    return f"Poller last ran: {ago} ({latest.strftime('%H:%M')})"
 
 
 def _repo_slug(cfg: ProjectConfig) -> str:
@@ -374,6 +412,9 @@ def tasks_table(
         sections.append(
             header + _render(_TASKS_HEADERS, [row for _, row in rest_entries], widths=global_widths)
         )
+    poll_header = _last_poll_header(projects)
+    if poll_header:
+        sections.insert(0, poll_header)
     return "\n\n".join(sections)
 
 
