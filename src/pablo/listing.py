@@ -104,12 +104,12 @@ def _last_poll_header(projects: dict[str, ProjectConfig]) -> str:
             ts = float(stamp_file.read_text().strip())
         except ValueError:
             continue
-        dt = datetime.datetime.fromtimestamp(ts, tz=datetime.timezone.utc)
+        dt = datetime.datetime.fromtimestamp(ts).astimezone()
         if latest is None or dt > latest:
             latest = dt
     if latest is None:
         return ""
-    delta = datetime.datetime.now(datetime.timezone.utc) - latest
+    delta = datetime.datetime.now().astimezone() - latest
     seconds = int(delta.total_seconds())
     if seconds < 60:
         ago = "just now"
