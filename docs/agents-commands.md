@@ -43,6 +43,8 @@ Following the conventions of the user's other OpenCode agents (flat
 | `/pablo-relaunch` | `pablo relaunch` | re-fire the current state's agent/startup launchers (recover from a cold-worktree Orca hang) |
 | `/pablo-close` | `pablo close` | manual close (escape hatch) |
 | `/pablo-doctor` | `pablo doctor` | CLI preflight check |
+| `pablo backup` | `pablo backup` | write a restorable archive of all `~/.pablo` state (agent sessions excluded) |
+| `pablo restore` | `pablo restore` | restore state/configs and recreate task worktrees from the archive |
 | `/pablo-commit-and-pr` | (agentic) | commit, push, draft PR, state → `draft` |
 
 **Naming note:** the spec calls the last one `/commit-and-pr`, but the
