@@ -226,9 +226,6 @@ final class Sync
             if (\in_array($report->action, ['would-sync', 'synced'], true) && ($report->behind || $report->ahead)) {
                 $line .= " (behind {$report->behind}, ahead {$report->ahead})";
             }
-            if ('conflict' === $report->action && '' !== $report->agentHandle) {
-                $line .= ' (agent: '.$report->agentHandle.')';
-            }
             if ('' !== $report->detail && 'conflict' !== $report->action) {
                 $line .= ' — '.$report->detail;
             }
@@ -236,7 +233,7 @@ final class Sync
             if ('conflict' === $report->action) {
                 $lines[] = '   conflicting files: '.implode(', ', $report->conflictFiles);
                 if ('' !== $report->agentHandle) {
-                    $lines[] = '   fix agent running — attach with opencode -s <session> to inspect';
+                    $lines[] = '   fix agent running — opencode -s '.$report->agentHandle;
                 }
             }
         }
