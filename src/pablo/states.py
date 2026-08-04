@@ -128,6 +128,7 @@ def _enter_waiting(ctx: TaskCtx) -> None:
 
 def _enter_draft(ctx: TaskCtx) -> None:
     ctx.task.ci_ignored = False
+    agents._refresh_agent_display_cache(ctx.task.project, ctx.task.branch, ctx.task.worktree_path)
 
 
 def _enter_ready_to_review(ctx: TaskCtx) -> None:
