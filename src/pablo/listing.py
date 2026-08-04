@@ -344,9 +344,9 @@ def tasks_table(
         if not (task.state in _WAITING_FEEDBACK_STATES and "💭" in row[4])
     ]
     waiting_entries = sorted(
-        waiting_entries, key=lambda tr: _state_rank(tr[0].state)
+        waiting_entries, key=lambda tr: (_state_rank(tr[0].state), tr[0].state_entered_at)
     )
-    rest_entries = sorted(rest_entries, key=lambda tr: _state_rank(tr[0].state))
+    rest_entries = sorted(rest_entries, key=lambda tr: (_state_rank(tr[0].state), tr[0].state_entered_at))
 
     sections: list[str] = []
     if waiting_entries:
