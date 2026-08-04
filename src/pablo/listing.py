@@ -11,6 +11,8 @@ agents 🏃 running · 💭 waiting on feedback.
 
 from __future__ import annotations
 
+import datetime
+
 from pablo import PabloError, agents, ghpr, gitrepo
 from pablo.agents import SessionInfo
 from pablo.config import ProjectConfig
@@ -60,6 +62,25 @@ _WAITING_FEEDBACK_STATES = {IN_PROGRESS, CI_RED, REQUEST_CHANGES, TESTING_FAILED
 def _state_rank(state: str) -> int:
     """Index into _TASKS_SORT_ORDER; unknown states sort last (stable)."""
     return _TASKS_SORT_INDEX.get(state, len(_TASKS_SORT_ORDER))
+
+
+def _time_since(iso_timestamp: str) -> str:
+    try:
+        dt = datetime.datetime.fromisoformat(iso_timestamp)
+    except ValueError:
+        return "?"
+    delta = datetime.datetime.now(datetime.timezone.utc) - dt
+    seconds = int(delta.total_seconds())
+    if seconds < 60:
+        return "just now"
+    minutes = seconds // 60
+    if minutes < 60:
+        return f"{minutes}m ago"
+    hours = minutes // 60
+    if hours < 24:
+        return f"{hours}h ago"
+    days = hours // 24
+    return f"{days}d ago"
 
 
 def _repo_slug(cfg: ProjectConfig) -> str:
@@ -219,7 +240,7 @@ def _agent_cells(
     return str(count), activity
 
 
-_TASKS_HEADERS = ["Project", "Task", "State", "Agents", "Activity", "Issue", "Tracker", "PR"]
+_TASKS_HEADERS = ["Project", "Task", "State", "Agents", "Activity", "Issue", "Tracker", "PR", "Since"]
 
 
 def tasks_table(
@@ -301,6 +322,7 @@ def tasks_table(
             _issue_cell(task),
             tracker,
             pr,
+            _time_since(task.state_entered_at),
         ]
         entries.append((task, row))
 
