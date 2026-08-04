@@ -1,0 +1,34 @@
+{
+    "name": "pablo/pablo",
+    "description": "PABLO - Personal Assistant for Boring Logic & Operations. AI orchestrator for OpenCode/Orca-managed projects.",
+    "type": "project",
+    "license": "proprietary",
+    "autoload": {
+        "psr-4": {
+            "Pablo\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Pablo\\Tests\\": "tests/"
+        }
+    },
+    "require": {
+        "php": ">=8.3",
+        "ext-mbstring": "*",
+        "symfony/config": "^7.4",
+        "symfony/console": "^7.0",
+        "symfony/dependency-injection": "^7.4",
+        "symfony/process": "^7.0",
+        "symfony/yaml": "^7.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "sort-packages": true
+    }
+}

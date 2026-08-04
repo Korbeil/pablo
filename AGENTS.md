@@ -4,9 +4,10 @@ Guidance for agents working in this repository.
 
 ## What this is
 
-PABLO is an AI task orchestrator: a small Python engine (Poetry package
-`pablo`) plus OpenCode agents/commands, and a background scheduler
-(systemd on Linux, launchd on macOS). Not a standalone product.
+PABLO is an AI task orchestrator: a small PHP engine (a standalone Symfony
+Console application, Composer package `pablo`) plus OpenCode agents/commands,
+and a background scheduler (systemd on Linux, launchd on macOS). Not a
+standalone product.
 
 **`README.md` + `docs/*.md` are the source of truth for behavior** — read
 the relevant doc before non-trivial changes. `docs/specification.md` is
@@ -21,42 +22,58 @@ README's explicit rules.
 
 ## Commands
 
+The application lives in `app/` (Composer package `pablo`). Tooling runs from
+the repo root via the global **Castor** binary + remote `castor-php/php-qa`.
+
 ```bash
-poetry install && poetry run pytest         # setup + full test suite
-poetry run pytest tests/test_states.py      # one file
-poetry run pytest tests/test_states.py::test_name  # one test
+castor qa:test                              # PHPUnit suite (app/)
+castor qa:phpstan                           # static analysis, level 8 (app/src)
+castor qa:phpstan --generate-baseline       # regenerate phpstan-baseline.neon
+castor qa:cs-fixer                          # php-cs-fixer (@Symfony + @Symfony:risky)
+(cd app && composer test)                   # same as castor qa:test
+(cd app && composer exec phpunit tests/StateMachineTest.php)  # one file
 pablo --help                                # engine subcommands
-./bin/install.sh / ./bin/uninstall.sh       # install/remove symlinks + scheduler
+./bin/install.sh / ./bin/uninstall.sh       # install/remove shim + scheduler
 journalctl --user -u pablo-dispatch.service -f  # dispatcher logs (Linux)
 ```
 
-No lint/format config exists — match surrounding style.
+Code style is enforced by php-cs-fixer (`app/.php-cs-fixer.php`) and PHPStan
+at **level 8** (`app/phpstan.neon`) — raise it further by fixing
+reported errors, never by ignoring or baseline-suppressing them. Run both via
+`castor qa:*` before non-trivial changes.
 
 ## Architecture
 
-`src/pablo/`: `cli.py` (entry point, one `cmd_*` per subcommand) ·
-`config.py` (loads `projects/*.yaml`, merges with `projects/default.yaml`)
-· `model.py` (`Task`/`Issue` dataclasses, state constants) · `store.py`
-(state store + per-task flock) · `states.py` (state machine — see below) ·
-`naming.py` (branch naming) · `gitrepo.py` (worktrees, lease-safe sync) ·
-`sync.py` / `poller.py` (per-project background jobs) · `ghpr.py` (GitHub
-PR/CI/review plumbing) · `agents.py` (launches agents via Orca) ·
-`confluence.py` (Confluence page fetch via the `acli` CLI, used by
-`pablo docs` / `/pablo-docs` and by interactive agents) · `listing.py`
-(table rendering) · `dispatch.py` (cron entry point) · `doctor.py`
-(preflight checks) · `providers/` (`github.py`/`jira.py`/`linear.py`
-behind a common interface).
+The application lives under `app/`; namespaces mirror folders
+(`Pablo\ => src/`, i.e. `app/src`). Paths below are relative to `app/`
+unless noted. Entry: `bin/pablo` (boots
+`App\Kernel`, a compiled Symfony DI container) · `src/App/Kernel.php` +
+`config/services.php` (service wiring; commands are `console.command`
+services) · `src/App/ConsoleApplication.php` (registers `src/Command/*.php`)
+· `src/Command/*.php` (one Symfony Console command per subcommand, grouped
+by topic under `Task/` `Sync/` `Report/` `System/` `Internal/`; commands are
+DI services tagged `console.command`) ·
+`src/Config/` (project YAML loading + `ProjectConfig`) · `src/Domain/`
+(`Task`/`Issue` records, the `State` and `Agent` enums, `Time`) ·
+`src/StateMachine/` (the data-driven state machine) · `src/Store/` (state
+store + per-task flock) · `src/Poller/` (state polling) ·
+`src/Provider/` (all external integrations): `Gh/` (`gh` PR/CI),
+`Git/` (worktrees, lease-safe sync), `Confluence/` (`acli`),
+`Tracker/` (`ProviderInterface` + `Github`/`Jira`/`Linear`) ·
+`src/Agents/` (launches agents via Orca) · `src/Listing/` (tables) ·
+`src/Doctor/` (preflight checks) · `src/Dispatch/` (cron entry point) ·
+`src/Support/` (`PabloError`, `Proc`, `Naming`, `RepoSlug`).
 
-**New state**: add to `ALL_STATES` in `model.py` + a `StateDef` in
-`STATES` in `states.py`. Always transition via `enter_state()`, never
-mutate `task.state` directly.
+**New state**: add a case to `State` in `src/Domain/State.php` + a
+`StateDef` in the `states()` table in `StateMachine.php`. Always transition
+via `StateMachine::enterState()`, never mutate `task.state` directly.
 
-**New provider**: implement the `providers/*.py` interface, register in
-`providers/__init__.py`.
+**New provider**: implement `ProviderInterface`, register in
+`ProviderRegistry`.
 
 **Two layers**: interactive (OpenCode agents/commands the user invokes
 directly — commands wrap `pablo` CLI calls; agents are read-only,
-auto-launched by `states.py` on certain state transitions) and background
+auto-launched on certain state transitions) and background
 (`pablo dispatch`, run every 5 min by systemd/launchd; global flock, per
 project × {sync, poll} checks a stamp in `~/.pablo/stamps/` against that
 project's own interval; one project's failure never blocks others).
@@ -75,10 +92,9 @@ cases, read before touching transition logic.
 repo/worktree — `state/<project>/<branch>.json` (+ `.lock`),
 `stamps/<project>.{sync,poll}`, `agents/` (pidfiles+logs),
 `worktrees/`. Atomic writes, UTC ISO-8601 timestamps. The `Task` record
-also holds a poller-written **display cache**
-(`cached_tracker_status`/`cached_pr_state`/`cached_agent_count`/
-`cached_agent_activity`/`cached_at`) so `pablo tasks` renders instantly;
-`None` means never-polled and `listing.py` falls back to a live fetch.
+also holds a poller-written **display cache** (`DisplayCache` value object
+in `src/Domain/`) so `pablo tasks` renders instantly;
+`null` means never-polled and `Listing` falls back to a live fetch.
 `--live` forces a live fetch, `--refresh` forces the poller first.
 
 **Agent execution**: via the Orca CLI (`orca terminal create` /
@@ -88,10 +104,15 @@ repos not registered in Orca.
 
 ## Testing
 
-`tests/conftest.py` autouse-stubs `agents.launch`/`spawn_watcher`/
-`active_sessions` for every test **except** `test_agents.py` — this stops
-a forgotten stub from starting a real `opencode run` (a real LLM call)
-during `pytest`. Never remove it or widen the exemption.
+Tests live under `app/tests/` mirroring `app/src/` (e.g. `app/src/Store/Store.php`
+is covered by `app/tests/Store/StoreTest.php`) so a test is found next to its
+subject. `tests/FakeAgents.php` is injected through `AgentLauncherInterface` (via the
+shared base `TestCase`) for every test **except** the `Agents` tests — this
+stops a forgotten real `Agents` from starting a real `opencode run` (a real
+LLM call) during PHPUnit. Never remove it or widen the exemption.
+`tests/PortabilityTest.php` is a tripwire scanning `src/**/*.php` for
+`systemctl`/`journalctl`/`/etc/`/`/proc/`/`/opt/` to keep the engine
+Linux+macOS portable.
 
 ## Config (`projects/*.yaml`)
 

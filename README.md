@@ -4,7 +4,7 @@
 PABLO is an AI orchestrator for the projects the user works on. It is not
 a standalone CLI product: it plugs into an existing OpenCode/Orca agent
 setup as a set of **OpenCode agents, commands, and skills**, backed by a
-small Python engine and an unattended background layer.
+small PHP engine (Symfony Console) and an unattended background layer.
 
 PABLO's philosophy: **agents are read-only and analysis-first**. PABLO
 never writes or modifies code, never resolves conflicts, and never mutates
@@ -16,13 +16,13 @@ rules documented below, never on its own judgement.
 
 ## Quick start
 
-Prerequisites: Python 3.12 + Poetry, `gh` (+ `gh auth login`), the Orca
+Prerequisites: PHP 8.3+ + Composer, `gh` (+ `gh auth login`), the Orca
 and opencode apps, the Atlassian CLI `acli` (`acli auth login`). Full details and
 platform-specific steps: [docs/installation.md](docs/installation.md).
 
 ```bash
-./bin/install.sh    # poetry install, symlinks agents/commands, starts the
-                     # background scheduler, finishes with `pablo doctor`
+./bin/install.sh    # composer install, writes the pablo shim + agent/command links,
+                     # starts the background scheduler, finishes with `pablo doctor`
 pablo doctor        # verify everything's installed and authenticated
 ```
 
@@ -81,11 +81,17 @@ pablo/
 ├── README.md                  ← you are here (short overview)
 ├── docs/                      ← one file per subject, source of truth for details
 ├── docs/specification.md      ← original build prompt, not the reference
-├── pyproject.toml             ← Poetry package `pablo` (Python 3.12 + PyYAML)
-├── projects/                  ← one YAML per managed project + default.yaml
-├── src/pablo/                 ← the engine (see "Engine modules")
-├── tests/                     ← pytest suite
-├── bin/install.sh             ← symlinks agents/commands/units, enables timer
+├── app/                       ← the Symfony Console application (composer package `pablo`)
+│   ├── bin/pablo              ← the `pablo` console binary (Symfony Console)
+│   ├── config/services.php    ← service-container wiring (php)
+│   ├── src/                   ← the engine (see "Engine modules")
+│   ├── tests/                 ← PHPUnit suite
+│   ├── projects/              ← one YAML per managed project + default.yaml
+│   ├── composer.json / phpunit.xml / phpstan.neon / .php-cs-fixer.php
+├── castor.php                 ← QA tasks (cs-fixer, phpstan, test) via castor-php/php-qa
+├── castor.composer.json       ← remote castor package (castor-php/php-qa)
+├── python/                    ← archived Python engine (src/pablo + pytest, kept for reference)
+├── bin/install.sh             ← composer install, shim, agent/command/unit links
 ├── bin/uninstall.sh           ← reverse of install.sh (keeps ~/.pablo data)
 ├── systemd/                   ← pablo-dispatch.service + .timer (user units)
 └── opencode/
@@ -99,25 +105,29 @@ only creates **new symlinks** pointing into this repo (and refuses to
 overwrite anything that isn't already such a symlink). Runtime data lives
 in `~/.pablo/` (see [docs/state-machine.md](docs/state-machine.md#task-state-storage)).
 
-### Engine modules (`src/pablo/`)
+### Engine modules (`app/src/`)
 
-| module | responsibility |
+Namespaces mirror folders (`Pablo\ => src/`).
+
+| file | responsibility |
 |---|---|
-| `cli.py` | the `pablo` entry point; every command/timer wraps a subcommand here |
-| `config.py` | project YAML loading + per-key defaults merge |
-| `model.py` | `Task` / `Issue` records, state-name constants |
-| `store.py` | central state store + per-task lock |
-| `states.py` | the data-driven state machine (single on-enter handler) |
-| `naming.py` | branch naming convention + `-2`/`-3` dedupe |
-| `gitrepo.py` | git plumbing: worktrees, lease-safe sync |
-| `sync.py` | the per-project worktree-sync job |
-| `poller.py` | the per-project state-polling job + merge auto-close |
-| `ghpr.py` | GitHub PR plumbing: CI evaluation, review evaluation, draft/ready |
-| `agents.py` | launching OpenCode agents via Orca, activity queries |
-| `listing.py` | the `pablo issues` / `pablo tasks` terminal tables |
-| `dispatch.py` | the cron dispatcher fired by the systemd timer |
-| `doctor.py` | CLI preflight checks (`pablo doctor`) |
-| `providers/` | one module per issue tracker behind a small interface |
+| `bin/pablo` | the `pablo` console binary (Symfony Console), boots the DI container |
+| `App/Kernel.php`, `App/ConsoleApplication.php` | service container build + command registration |
+| `Command/*.php` | one Symfony Console command per subcommand (grouped by topic) |
+| `Config/` | project YAML loading + per-key defaults merge (`Config`, `ProjectConfig`) |
+| `Domain/` | `Task`/`Issue` records, `State` + `Agent` enums, `Time`, `DisplayCache`/`AgentLaunch` VOs |
+| `StateMachine/` | the data-driven state machine (single on-enter handler) |
+| `Store/` | central state store + per-task flock |
+| `Poller/` | the per-project state-polling job + merge auto-close |
+| `Provider/Gh/` | GitHub PR plumbing: CI evaluation, review evaluation, draft/ready |
+| `Provider/Git/` | git worktrees, lease-safe sync, per-project sync job |
+| `Provider/Confluence/` | Confluence page fetch via the `acli` CLI |
+| `Provider/Tracker/` | one class per issue tracker + `ProviderInterface`/registry |
+| `Agents/` | launching OpenCode agents via Orca, activity queries |
+| `Listing/` | the `pablo issues` / `pablo tasks` terminal tables |
+| `Doctor/` | CLI preflight checks (`pablo doctor`) |
+| `Dispatch/` | the cron dispatcher fired by the systemd timer |
+| `Support/` | `PabloError`, `Proc` (shell helper), `Naming`, `RepoSlug` |
 
 ## Documentation
 
@@ -145,8 +155,22 @@ before making non-trivial changes in that area:
 
 ## Development
 
+The QA tooling runs through **Castor** (global binary) + the remote
+`castor-php/php-qa` package; the PHP tools are downloaded on demand, never
+installed locally.
+
 ```bash
-poetry install && poetry run pytest              # full test suite
-pablo --help                                     # engine subcommands
+castor install                          # everything: app deps, tools, shim, agents, scheduler
+castor qa:test                          # PHPUnit suite (in app/)
+castor qa:phpstan                       # static analysis, level 8 (app/src)
+castor qa:phpstan --generate-baseline   # (re)generate phpstan-baseline.neon
+castor qa:cs-fixer                      # php-cs-fixer with @Symfony + @Symfony:risky
+cd app && composer test                 # same as castor qa:test
+pablo --help                          # engine subcommands
 journalctl --user -u pablo-dispatch.service -f   # background layer logs
 ```
+
+Composer/analysis caches land under `app/var/cache/` (gitignored). PHPStan is
+configured at **level 8**; raise it further by fixing the errors it reports,
+never by ignoring them. The tests mirror the `app/src` layout under
+`app/tests/` (e.g. `app/src/Config/Config.php` → `app/tests/Config/ConfigTest.php`).
