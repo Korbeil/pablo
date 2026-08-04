@@ -26,6 +26,7 @@ def _no_real_agent_processes(request, monkeypatch):
     monkeypatch.setattr(agents, "active_sessions", lambda wt: [])
     monkeypatch.setattr(agents, "bulk_active_sessions", lambda worktrees: {})
     monkeypatch.setattr(agents, "set_worktree_display_name", lambda wt, name, issue_number=None: None)
+    monkeypatch.setattr(agents, "_launch_headless", lambda wt, agent, prompt: "pid:99999")
     yield
 
 

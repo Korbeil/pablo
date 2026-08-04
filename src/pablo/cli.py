@@ -238,14 +238,18 @@ def cmd_rebase_log(args: argparse.Namespace) -> int:
             detail = r.get("detail", "")
             if detail and r["action"] not in {"conflict"}:
                 line += f" — {detail}"
+            if r["action"] == "conflict":
+                agent_handle = r.get("agent_handle", "")
+                if agent_handle:
+                    line += f" (agent: {agent_handle})"
             print(line)
             if r["action"] == "conflict":
+                agent_handle = r.get("agent_handle", "")
                 conflict_files = r.get("conflict_files", [])
                 if conflict_files:
                     print(f"   conflicting files: {', '.join(conflict_files)}")
-                for hunk_line in detail.splitlines()[:20]:
-                    print(f"   {hunk_line}")
-                print("   left as-is — resolve manually, PABLO never auto-resolves")
+                if agent_handle:
+                    print("   fix agent running — attach with opencode -s <session> to inspect")
     if not found:
         print("no rebase logs found — run `pablo sync` first")
     return 0
