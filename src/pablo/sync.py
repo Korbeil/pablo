@@ -36,20 +36,13 @@ ACTION_ICONS = {
 
 
 def _discover(cfg: ProjectConfig) -> list[tuple[Path, str]]:
-    """Task worktrees: git worktree list minus the primary checkout, plus
-    any stray directory under worktrees_root (reported, not synced)."""
-    worktrees = [
+    """Task worktrees: git worktree list minus the primary checkout."""
+    return [
         (path, branch)
         for path, branch in gitrepo.list_worktrees(cfg.repo_path)
         if path.resolve() != cfg.repo_path.resolve()
         and branch != cfg.primary_branch
     ]
-    known = {path.resolve() for path, _ in worktrees}
-    if cfg.worktrees_root.is_dir():
-        for entry in sorted(cfg.worktrees_root.iterdir()):
-            if entry.is_dir() and entry.resolve() not in known:
-                worktrees.append((entry, ""))
-    return worktrees
 
 
 def sync_project(
