@@ -49,9 +49,6 @@ final class RebaseLogCommand extends Command
                 if (!empty($r['detail']) && 'conflict' !== $r['action']) {
                     $line .= ' — '.$r['detail'];
                 }
-                if ('conflict' === $r['action'] && !empty($r['agent_handle'])) {
-                    $line .= ' (agent: '.$r['agent_handle'].')';
-                }
                 $output->writeln($line);
                 if ('conflict' === $r['action']) {
                     $files = $r['conflict_files'] ?? [];
@@ -59,7 +56,7 @@ final class RebaseLogCommand extends Command
                         $output->writeln('   conflicting files: '.implode(', ', $files));
                     }
                     if (!empty($r['agent_handle'])) {
-                        $output->writeln('   fix agent running — attach with opencode -s <session> to inspect');
+                        $output->writeln('   fix agent running — opencode -s '.$r['agent_handle']);
                     }
                 }
             }
