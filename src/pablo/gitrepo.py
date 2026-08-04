@@ -103,6 +103,7 @@ class SyncReport:
     ahead: int = 0
     conflict_files: list[str] = field(default_factory=list)
     detail: str = ""
+    agent_handle: str = ""  # opencode session ID when conflict agent launched
 
 
 def _counts(wt: Path, upstream: str) -> tuple[int, int]:

@@ -11,12 +11,14 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
-from pablo import PabloError, gitrepo
+from pablo import PabloError, agents, gitrepo
 from pablo.config import ProjectConfig
 from pablo.gitrepo import SyncReport
 from pablo.model import utcnow
+from pablo.providers import run_cli
 from pablo.store import Store, task_lock
 
 # A locked task is skipped quickly and retried on the next cycle rather
@@ -87,6 +89,13 @@ def sync_project(
                     apply=effective_apply,
                 )
             )
+    for report in reports:
+        if report.action == "conflict" and effective_apply:
+            prompt = _build_conflict_agent_prompt(report, cfg)
+            agents._launch_headless(report.worktree, "rebase-conflict-resolver", prompt)
+            time.sleep(1)
+            session_id = _find_recent_session(report.worktree, "rebase-conflict-resolver")
+            report.agent_handle = session_id or "launched"
     _save_last_log(cfg.name, cfg.sync_strategy, reports)
     return reports
 
@@ -113,11 +122,54 @@ def _save_last_log(project_name: str, strategy: str, reports: list[SyncReport]) 
                 "ahead": r.ahead,
                 "conflict_files": r.conflict_files,
                 "detail": r.detail,
+                "agent_handle": r.agent_handle,
             }
             for r in reports
         ],
     }
     path.write_text(json.dumps(payload, indent=2) + "\n")
+
+
+def _build_conflict_agent_prompt(report: SyncReport, cfg: ProjectConfig) -> str:
+    target = f"origin/{cfg.primary_branch}"
+    lines = [
+        f"PABLO sync hit rebase conflicts on branch `{report.branch}`.",
+        f"Rebase onto `{target}` using strategy `{cfg.sync_strategy}` was aborted.",
+        f"The worktree is clean — you must re-run the rebase yourself.",
+        "",
+        "1. `git fetch --prune origin`",
+        f"2. If `origin/{report.branch}` has new commits, rebase onto it first.",
+        f"3. `git rebase {target}`",
+        "4. Resolve every conflict. `git add` resolved files, `git rebase --continue`.",
+        "5. Repeat until the rebase completes cleanly.",
+        f"6. `git push --force-with-lease origin {report.branch}`",
+        "",
+        "Conflicting files from the original attempt:",
+    ]
+    for f in report.conflict_files:
+        lines.append(f"  - {f}")
+    lines.append("")
+    return "\n".join(lines)
+
+
+def _find_recent_session(worktree: Path, agent: str) -> str | None:
+    try:
+        result = run_cli(
+            [
+                "opencode", "db",
+                f"SELECT id FROM session WHERE directory = '{worktree}'"
+                f" AND agent = '{agent}'"
+                " ORDER BY time_created DESC LIMIT 1",
+                "--format", "json",
+            ],
+            check=False, timeout=5,
+        )
+        rows = json.loads(result)
+        if rows and isinstance(rows, list) and len(rows) > 0:
+            return rows[0].get("id")
+    except Exception:
+        pass
+    return None
 
 
 def load_last_log(project_name: str) -> dict | None:
@@ -136,12 +188,13 @@ def render_reports(reports: list[SyncReport]) -> str:
         line = f"{icon} {report.branch:<24} {report.action}"
         if report.action in {"would-sync", "synced"} and (report.behind or report.ahead):
             line += f" (behind {report.behind}, ahead {report.ahead})"
+        if report.action == "conflict" and report.agent_handle:
+            line += f" (agent: {report.agent_handle})"
         if report.detail and report.action not in {"conflict"}:
             line += f" — {report.detail}"
         lines.append(line)
         if report.action == "conflict":
             lines.append(f"   conflicting files: {', '.join(report.conflict_files)}")
-            for hunk_line in report.detail.splitlines()[:20]:
-                lines.append(f"   {hunk_line}")
-            lines.append("   left as-is — resolve manually, PABLO never auto-resolves")
+            if report.agent_handle:
+                lines.append("   fix agent running — attach with opencode -s <session> to inspect")
     return "\n".join(lines)
