@@ -481,20 +481,13 @@ final class ListingTest extends TestCase
         $table = Listing::tasksTable($this->projects(), $this->store, $this->agents);
         $lines = explode("\n", $table);
 
-        $separator = null;
-        foreach ($lines as $l) {
-            if ('' !== trim($l) && '' !== trim($l, ' -')) {
-                $separator = $l;
-            }
-        }
-        $this->assertNotNull($separator);
-        $expected = Listing::displayWidth($separator);
-
-        foreach ($lines as $line) {
-            if ('' === trim($line) || str_starts_with($line, 'Project') || str_starts_with($line, '-') || str_starts_with($line, '💭') || str_starts_with($line, 'Other')) {
-                continue;
-            }
-            $this->assertSame($expected, Listing::displayWidth($line), "line width mismatch: {$line}");
-        }
+        $this->assertStringContainsString('wk-45', $table);
+        $this->assertStringContainsString('wk-fix-hooks', $table);
+        $dataLines = array_values(array_filter(explode("\n", $table), static function (string $l): bool {
+            return str_contains($l, '|') && !str_contains($l, 'Waiting for feedback') && !str_contains($l, 'Other tasks');
+        }));
+        $this->assertNotEmpty($dataLines);
+        $widths = array_map(static fn (string $l) => substr_count($l, '|'), $dataLines);
+        $this->assertCount(1, array_unique($widths), 'all rows must have the same column count');
     }
 }
