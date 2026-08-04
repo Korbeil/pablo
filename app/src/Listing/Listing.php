@@ -20,6 +20,8 @@ use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
+use Symfony\Component\Console\Helper\Table;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 /**
  * Terminal tables: the issue-tracking view and the active-task listing.
@@ -131,6 +133,21 @@ final class Listing
         return 'Poller last ran: '.$ago.' ('.$latest->format('H:i').')';
     }
 
+    /**
+     * @param array<int, string>             $headers
+     * @param array<int, array<int, string>> $rows
+     */
+    private static function table(array $headers, array $rows): string
+    {
+        $output = new BufferedOutput();
+        $table = new Table($output);
+        $table->setHeaders($headers);
+        $table->setRows($rows);
+        $table->render();
+
+        return $output->fetch();
+    }
+
     /** Terminal display-column width of $s (emoji = 2, ASCII = 1). */
     public static function displayWidth(string $s): int
     {
@@ -236,7 +253,7 @@ final class Listing
             ];
         }
 
-        return self::render(['Issue', 'Title', 'Status', 'PR', 'Branch'], $rows);
+        return self::table(['Issue', 'Title', 'Status', 'PR', 'Branch'], $rows);
     }
 
     // ---------------------------------------------------- tasks table ----
@@ -438,16 +455,6 @@ final class Listing
             return 'no active tasks';
         }
 
-        $allRows = array_map(static fn ($e) => $e[1], $entries);
-        $globalWidths = [];
-        foreach (self::TASKS_HEADERS as $i => $header) {
-            $w = self::displayWidth($header);
-            foreach ($allRows as $row) {
-                $w = max($w, self::displayWidth($row[$i]));
-            }
-            $globalWidths[] = $w;
-        }
-
         $split = static function (array $e) {
             $task = $e[0];
             $inWaiting = \in_array($task->state, self::WAITING_FEEDBACK_STATES, true) && str_contains($e[1][4], '💭');
@@ -471,12 +478,12 @@ final class Listing
         $sections = [];
         if ([] !== $waitingEntries) {
             $rows = array_map(static fn ($e) => $e[1], $waitingEntries);
-            $sections[] = "💭 Waiting for feedback\n\n".self::render(self::TASKS_HEADERS, $rows, $globalWidths);
+            $sections[] = "💭 Waiting for feedback\n\n".self::table(self::TASKS_HEADERS, $rows);
         }
         if ([] !== $restEntries) {
             $rows = array_map(static fn ($e) => $e[1], $restEntries);
             $header = [] !== $waitingEntries ? "Other tasks\n\n" : '';
-            $sections[] = $header.self::render(self::TASKS_HEADERS, $rows, $globalWidths);
+            $sections[] = $header.self::table(self::TASKS_HEADERS, $rows);
         }
         $pollHeader = self::lastPollHeader($projects);
         if ('' !== $pollHeader) {
