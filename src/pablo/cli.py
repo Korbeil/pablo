@@ -205,6 +205,52 @@ def cmd_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_rebase_log(args: argparse.Namespace) -> int:
+    from pablo import sync as sync_mod
+
+    projects = load_projects()
+    if args.project:
+        if args.project not in projects:
+            return _fail(
+                f"unknown project {args.project!r}; configured projects: "
+                + ", ".join(sorted(projects))
+            )
+        names = [args.project]
+    else:
+        names = sorted(projects)
+
+    found = False
+    for name in names:
+        log = sync_mod.load_last_log(name)
+        if log is None:
+            continue
+        found = True
+        ts = log["timestamp"]
+        strategy = log.get("strategy", "unknown")
+        print(f"# {name} — {ts} ({strategy})")
+        for r in log["reports"]:
+            icon = sync_mod.ACTION_ICONS.get(r["action"], "•")
+            line = f"{icon} {r['branch']:<24} {r['action']}"
+            behind = r.get("behind", 0)
+            ahead = r.get("ahead", 0)
+            if r["action"] in {"would-sync", "synced"} and (behind or ahead):
+                line += f" (behind {behind}, ahead {ahead})"
+            detail = r.get("detail", "")
+            if detail and r["action"] not in {"conflict"}:
+                line += f" — {detail}"
+            print(line)
+            if r["action"] == "conflict":
+                conflict_files = r.get("conflict_files", [])
+                if conflict_files:
+                    print(f"   conflicting files: {', '.join(conflict_files)}")
+                for hunk_line in detail.splitlines()[:20]:
+                    print(f"   {hunk_line}")
+                print("   left as-is — resolve manually, PABLO never auto-resolves")
+    if not found:
+        print("no rebase logs found — run `pablo sync` first")
+    return 0
+
+
 def cmd_issues(args: argparse.Namespace) -> int:
     from pablo import listing
 
@@ -535,6 +581,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="actually sync (default is a dry-run unless sync.auto_apply is set)",
     )
     p_sync.set_defaults(func=cmd_sync)
+
+    p_rebase_log = sub.add_parser(
+        "rebase-log", help="show the last sync/rebase session log"
+    )
+    p_rebase_log.add_argument("project", nargs="?", help="limit to one project")
+    p_rebase_log.set_defaults(func=cmd_rebase_log)
 
     p_issues = sub.add_parser("issues", help="issues assigned to me, per project")
     p_issues.add_argument("project", nargs="?", help="limit to one project")

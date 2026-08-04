@@ -9,11 +9,14 @@ from the config; it never implies apply on its own.
 
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 
 from pablo import PabloError, gitrepo
 from pablo.config import ProjectConfig
 from pablo.gitrepo import SyncReport
+from pablo.model import utcnow
 from pablo.store import Store, task_lock
 
 # A locked task is skipped quickly and retried on the next cycle rather
@@ -92,7 +95,44 @@ def sync_project(
                     apply=effective_apply,
                 )
             )
+    _save_last_log(cfg.name, cfg.sync_strategy, reports)
     return reports
+
+
+def logs_dir() -> Path:
+    override = os.environ.get("PABLO_LOGS_DIR")
+    if override:
+        return Path(override)
+    return Path("~/.pablo/logs").expanduser()
+
+
+def _save_last_log(project_name: str, strategy: str, reports: list[SyncReport]) -> None:
+    path = logs_dir() / f"rebase-last-{project_name}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "timestamp": utcnow(),
+        "project": project_name,
+        "strategy": strategy,
+        "reports": [
+            {
+                "branch": r.branch,
+                "action": r.action,
+                "behind": r.behind,
+                "ahead": r.ahead,
+                "conflict_files": r.conflict_files,
+                "detail": r.detail,
+            }
+            for r in reports
+        ],
+    }
+    path.write_text(json.dumps(payload, indent=2) + "\n")
+
+
+def load_last_log(project_name: str) -> dict | None:
+    path = logs_dir() / f"rebase-last-{project_name}.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
 
 
 def render_reports(reports: list[SyncReport]) -> str:
