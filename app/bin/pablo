@@ -1,0 +1,20 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Pablo\App\ConsoleApplication;
+use Pablo\App\Kernel;
+
+/**
+ * PABLO — AI orchestrator. Standalone Symfony Console application.
+ *
+ * The ~/.local/bin/pablo shim execs this binary directly; it runs from other
+ * repositories' worktrees (cwd is used verbatim).
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+$container = Kernel::build();
+$application = $container->get(ConsoleApplication::class);
+exit($application->run());

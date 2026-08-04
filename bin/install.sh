@@ -15,19 +15,23 @@ die() { printf '❌ %s\n' "$*" >&2; exit 1; }
 
 # Portable `readlink -f` (BSD readlink lacks -f on older macOS).
 resolve_path() {
-    python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"
+    php -r 'echo realpath($argv[1]);' "$1"
 }
 
-# 1. Python environment ------------------------------------------------------
-info "poetry install (main deps only)"
-(cd "$REPO_DIR" && poetry install --only main --quiet)
+# 1. PHP dependencies --------------------------------------------------------
+info "composer install (no-dev)"
+(cd "$REPO_DIR/app" && composer install --no-dev --quiet)
 
 # 2. pablo on PATH -----------------------------------------------------------
-VENV_PATH="$(cd "$REPO_DIR" && poetry env info --path)"
-[ -x "$VENV_PATH/bin/pablo" ] || die "poetry venv has no pablo entry point at $VENV_PATH/bin/pablo"
+PABLO_BIN="$REPO_DIR/app/bin/pablo"
+[ -x "$PABLO_BIN" ] || die "pablo entrypoint not found at $PABLO_BIN"
 mkdir -p "$BIN_DIR"
-ln -sfn "$VENV_PATH/bin/pablo" "$BIN_DIR/pablo"
-info "linked $BIN_DIR/pablo -> $VENV_PATH/bin/pablo"
+cat > "$BIN_DIR/pablo" <<SHIM
+#!/usr/bin/env bash
+exec php '$PABLO_BIN' "\$@"
+SHIM
+chmod +x "$BIN_DIR/pablo"
+info "wrote $BIN_DIR/pablo shim -> php $PABLO_BIN"
 
 # 3. OpenCode agents + commands ---------------------------------------------
 link_into() { # link_into <src-file> <dest-dir>
@@ -86,4 +90,4 @@ info "running pablo doctor (a failure here is a warning at install time —"
 info "projects may not be configured yet):"
 "$BIN_DIR/pablo" doctor || true
 
-info "done. Add project configs under $REPO_DIR/projects/ to get started."
+info "done. Add project configs under $REPO_DIR/app/projects/ to get started."

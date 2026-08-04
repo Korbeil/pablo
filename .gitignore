@@ -6,5 +6,15 @@ dist/
 *.pyc
 
 # Project configs are per-machine/personal; only the shared defaults are committed.
-projects/*.yaml
-!projects/default.yaml
+app/projects/*.yaml
+!app/projects/default.yaml
+
+# php stuff
+vendor/
+.phpunit.result.cache
+composer.lock
+.castor.stub.php
+
+# Castor remote packages + QA caches
+.castor/
+app/var/

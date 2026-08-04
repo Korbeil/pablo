@@ -4,15 +4,15 @@
 ./bin/install.sh
 ```
 
-Runs `poetry install`, links the venv's `pablo` into `~/.local/bin/pablo`,
-symlinks `opencode/agents/*.md` and `opencode/commands/*.md` into
-`~/.config/opencode/`, installs the background dispatcher for the
+Runs `composer install`, writes the `~/.local/bin/pablo` shim (which execs
+`php bin/pablo`), symlinks `opencode/agents/*.md` and `opencode/commands/*.md`
+into `~/.config/opencode/`, installs the background dispatcher for the
 detected platform, and finishes with a `pablo doctor` run.
 `./bin/uninstall.sh` reverses it (only removing symlinks/files PABLO
 created; `~/.pablo` data is kept).
 
 Per-platform dispatcher (the engine itself is OS-portable — guarded by
-`tests/test_portability.py`):
+`tests/PortabilityTest.php`):
 
 | | Linux | macOS |
 |---|---|---|
@@ -25,7 +25,7 @@ Per-platform dispatcher (the engine itself is OS-portable — guarded by
 The launchd path was written portable-by-construction on Linux — walk
 this once on the Mac:
 
-1. Prerequisites: Python 3.12 + Poetry, `gh` (+ `gh auth login`),
+1. Prerequisites: PHP 8.3+ + Composer, `gh` (+ `gh auth login`),
    the Atlassian CLI `acli` (+ `acli auth login` — covers both Jira and
    Confluence under one OAuth grant), the Orca and opencode apps.
 2. `./bin/install.sh` → expect "com.pablo.dispatch loaded".
@@ -41,4 +41,4 @@ Orca's `--worktree path:` selector only resolves worktrees of repos
 `externalWorktreeVisibility: show`). Register each managed project's repo
 in Orca so PABLO's agent runs appear as Orca terminals; for unregistered
 repos PABLO transparently falls back to headless `opencode run` (see
-[agent-running.md](agent-running.md)).
+[background-layer.md](background-layer.md)).
