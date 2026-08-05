@@ -130,9 +130,13 @@ final class Poller
     /** @param list<string> $events */
     private static function close(TaskCtx $ctx, array &$events): void
     {
-        GitRepo::removeWorktree($ctx->cfg->repoPath, $ctx->task->worktreePath, $ctx->task->branch);
+        try {
+            GitRepo::removeWorktree($ctx->cfg->repoPath, $ctx->task->worktreePath, $ctx->task->branch);
+            $events[] = "{$ctx->task->branch}: PR merged → task closed, worktree removed";
+        } catch (PabloError $e) {
+            $events[] = "{$ctx->task->branch}: PR merged → task closed (worktree already gone: {$e->getMessage()})";
+        }
         $ctx->store->delete($ctx->task->project, $ctx->task->branch);
-        $events[] = "{$ctx->task->branch}: PR merged → task closed, worktree removed";
     }
 
     /** @param list<string> $events */
