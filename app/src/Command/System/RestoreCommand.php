@@ -10,6 +10,7 @@ use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Support\PabloError;
+use Pablo\Support\Proc;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -27,6 +28,7 @@ final class RestoreCommand extends Command
             ->setDescription('restore a PABLO state backup and recreate task worktrees')
             ->addArgument('archive', InputArgument::REQUIRED, 'path to a pablo-backup-*.tar.gz archive')
             ->addOption('skip-worktrees', null, InputOption::VALUE_NONE, 'restore state and configs only, do not recreate worktrees')
+            ->addOption('skip-orca', null, InputOption::VALUE_NONE, 'do not re-register repos with Orca')
             ->addOption('yes', 'y', InputOption::VALUE_NONE, 'answer yes to all overwrite prompts');
     }
 
@@ -56,10 +58,15 @@ final class RestoreCommand extends Command
                 $output->writeln('  restored '.$restored);
             }
 
+            $repoPaths = [];
             if (!(bool) $input->getOption('skip-worktrees')) {
-                $this->recreateWorktrees($input, $output, $manifest, $pabloRoot);
+                $repoPaths = $this->recreateWorktrees($input, $output, $manifest, $pabloRoot);
             } else {
                 $output->writeln('worktrees skipped (--skip-worktrees) — task records keep their original paths');
+            }
+
+            if ([] !== $repoPaths && !(bool) $input->getOption('skip-orca')) {
+                $this->registerOrcaRepos($output, $repoPaths);
             }
 
             $output->writeln('restore complete. Run `pablo show:tasks` to verify.');
@@ -97,10 +104,13 @@ final class RestoreCommand extends Command
 
     /**
      * @param array<string, mixed> $manifest
+     *
+     * @return list<string>
      */
-    private function recreateWorktrees(InputInterface $input, OutputInterface $output, array $manifest, string $pabloRoot): void
+    private function recreateWorktrees(InputInterface $input, OutputInterface $output, array $manifest, string $pabloRoot): array
     {
         $helper = new QuestionHelper();
+        $repoPaths = [];
         foreach ($manifest['projects'] ?? [] as $project) {
             $name = (string) $project['name'];
             $origin = $project['origin_url'] ?? null;
@@ -131,6 +141,7 @@ final class RestoreCommand extends Command
                 $hasOrigin = true;
             }
             GitRepo::fetchOrigin($repoPath);
+            $repoPaths[] = $repoPath;
 
             $cfg = $this->localProject($name);
             $wtRoot = null !== $cfg ? $cfg->worktreesRoot : rtrim($pabloRoot, '/').'/worktrees/'.basename($repoPath);
@@ -151,6 +162,8 @@ final class RestoreCommand extends Command
                 $output->writeln('  ✔ '.$branch.' → '.$path);
             }
         }
+
+        return $repoPaths;
     }
 
     private function askRepoPath(QuestionHelper $helper, InputInterface $input, OutputInterface $output, string $name, ?string $origin): string
@@ -172,6 +185,21 @@ final class RestoreCommand extends Command
             return $this->projects()[$name] ?? null;
         } catch (PabloError) {
             return null;
+        }
+    }
+
+    /**
+     * @param list<string> $repoPaths
+     */
+    private function registerOrcaRepos(OutputInterface $output, array $repoPaths): void
+    {
+        foreach ($repoPaths as $repoPath) {
+            try {
+                Proc::run(['orca', 'repo', 'add', '--path', $repoPath, '--json'], true, 30);
+                $output->writeln("  ✔ orca: registered {$repoPath}");
+            } catch (\Throwable) {
+                $output->writeln("  ⚠ orca: could not register {$repoPath} (Orca may not be running — run `orca repo add --path {$repoPath}` manually)");
+            }
         }
     }
 }

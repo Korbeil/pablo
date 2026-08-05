@@ -62,16 +62,20 @@ pablo archive:restore /path/to/backup.gz
 
 A backup bundles all state under `~/.pablo/` **except agent sessions
 (`agents/`, the opencode sessions) and transient worktree checkouts**. It
-also embeds your `projects/*.yaml` configs and a manifest of every task
-worktree (project, origin URL, branch).
+also embeds your `projects/*.yaml` configs, a manifest of every task
+worktree (project, origin URL, branch), and a best-effort snapshot of
+Orca-registered repos.
 
 Restore is interactive: it re-materialises the state store and configs, then
 — one repository at a time — asks where to create each checkout (cloning from
 the recorded origin if needed) and recreates every task worktree from its
-remote branch, rewriting each task record's `worktree_path`. Branches with
-local-only (unpushed) commits are skipped with a warning. Use
-`pablo archive:restore <archive> --skip-worktrees` to restore state without touching
-the worktrees, and `--yes` to answer every overwrite prompt non-interactively.
+remote branch, rewriting each task record's `worktree_path`. After worktrees
+are restored, each project's repository is re-registered with Orca via `orca
+repo add` so that agent launching works on the new host (best-effort: warns if
+Orca isn't running). Branches with local-only (unpushed) commits are skipped
+with a warning. Use `pablo archive:restore <archive> --skip-worktrees` to
+restore state without touching the worktrees, `--skip-orca` to skip Orca repo
+registration, and `--yes` to answer every overwrite prompt non-interactively.
 Tracker credentials / auth are not migrated — run `pablo system:doctor` on the new
 host.
 
