@@ -503,7 +503,7 @@ final class PollerTest extends TestCase
         $this->poll($cfg, $store);
         $task = $this->taskOrFail($store);
         $this->assertSame('In Progress', $task->displayCache->trackerStatus);
-        $this->assertSame('📪 draft #7', $task->displayCache->prState);
+        $this->assertSame('📝 draft #7', $task->displayCache->prState);
         $this->assertSame(1, $task->displayCache->agentCount);
         $this->assertSame('🏃 1', $task->displayCache->agentActivity);
         $this->assertNotNull($task->displayCache->at);

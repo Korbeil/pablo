@@ -337,7 +337,7 @@ def test_poll_persists_display_cache(env, monkeypatch):
     poll(env)
     task = get_task(env)
     assert task.cached_tracker_status == "In Progress"
-    assert task.cached_pr_state == "📪 draft #7"
+    assert task.cached_pr_state == "📝 draft #7"
     assert task.cached_agent_count == 1
     assert task.cached_agent_activity == "🏃 1"
     assert task.cached_at is not None

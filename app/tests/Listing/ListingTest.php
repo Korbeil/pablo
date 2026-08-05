@@ -286,7 +286,7 @@ final class ListingTest extends TestCase
         GhPr::setPrsForBranches(static fn ($slug, $branches) => [$branches[0] => new PrInfo(7, 'PR', 'OPEN', true, 'u', null)]);
         $this->store->save($this->task('wk-45', State::InProgress, 7));
         $table = Listing::tasksTable($this->projects(), $this->store, $this->agents);
-        $this->assertStringContainsString('📪 draft', $table);
+        $this->assertStringContainsString('📝 draft', $table);
     }
 
     public function testAgentColumns(): void
@@ -309,12 +309,12 @@ final class ListingTest extends TestCase
         $this->agents->active = [new SessionInfo('x', 'running')];
 
         $t = $this->task('wk-45', State::NeedsTesting, 7, new Issue('github', '45', 'u', 'Fix callbacks', 'WK'));
-        $t->displayCache = new \Pablo\Domain\DisplayCache('In Review', '📬 open #7', 2, '🏃 2', null);
+        $t->displayCache = new \Pablo\Domain\DisplayCache('In Review', '📖 open #7', 2, '🏃 2', null);
         $this->store->save($t);
 
         $table = Listing::tasksTable($this->projects(), $this->store, $this->agents);
         $this->assertStringContainsString('In Review', $table);
-        $this->assertStringContainsString('📬 open #7', $table);
+        $this->assertStringContainsString('📖 open #7', $table);
         $this->assertStringContainsString('🏃 2', $table);
     }
 
