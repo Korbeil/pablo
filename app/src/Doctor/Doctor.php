@@ -12,7 +12,7 @@ use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
 
 /**
- * CLI preflight checks — pablo doctor / /pablo-doctor.
+ * CLI preflight checks — pablo system:doctor / /pablo-doctor.
  *
  * Derives the required CLI set from the configured projects. gh is always
  * required; acli (Jira) and a separate acli-confluence probe when a project

@@ -13,7 +13,7 @@ final class InternalLaunchAgentCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('internal-launch-agent')
+        $this->setName('internal:launch-agent')
             ->addOption('worktree', null, InputOption::VALUE_REQUIRED)
             ->addOption('agent', null, InputOption::VALUE_REQUIRED)
             ->addOption('prompt', null, InputOption::VALUE_REQUIRED)

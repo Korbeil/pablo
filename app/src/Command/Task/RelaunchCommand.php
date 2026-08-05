@@ -18,7 +18,7 @@ final class RelaunchCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('relaunch')
+        $this->setName('task:relaunch')
             ->setDescription('re-fire the current state\'s agent/startup launchers on the current task')
             ->addOption('only', null, InputOption::VALUE_REQUIRED, 're-fire only one label', null, ['task-analyst', 'startup-script', 'ci-analyst', 'pr-feedback', 'task-feedback']);
     }

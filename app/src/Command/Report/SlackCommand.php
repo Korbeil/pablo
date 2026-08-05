@@ -14,7 +14,7 @@ final class SlackCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('slack')
+        $this->setName('show:prs')
             ->setDescription('paste-ready Slack list of PRs to review and/or QA (waiting-review / needs-testing)')
             ->addArgument('state', InputArgument::OPTIONAL, 'one queue only; omit to print both', null, ['waiting-review', 'needs-testing']);
     }

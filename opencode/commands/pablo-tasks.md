@@ -5,7 +5,7 @@ subtask: true
 
 ## Context (auto-injected)
 
-!`pablo tasks`
+!`pablo show:tasks`
 
 ## Output
 

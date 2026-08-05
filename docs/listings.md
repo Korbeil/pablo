@@ -35,7 +35,7 @@ column; note that Table measures string length rather than terminal
 display width, so wide emoji (🏃💭🧪) may align slightly differently
 than a hand-tuned width calculator would.
 
-**`pablo slack [waiting-review|needs-testing]`** — paste-ready Slack
+**`pablo show:prs [waiting-review|needs-testing]`** — paste-ready Slack
 (mrkdwn) list of PRs awaiting review and/or QA, run from a shell (not an
 OpenCode command). With no argument it prints both queues separated by a
 `―――― review above · QA below ――――` divider so each block can be

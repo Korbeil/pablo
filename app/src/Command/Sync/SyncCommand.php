@@ -16,7 +16,7 @@ final class SyncCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('sync')
+        $this->setName('sync:run')
             ->setDescription('sync task worktrees with the primary branch')
             ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project')
             ->addOption('apply', null, InputOption::VALUE_NONE, 'actually sync (default dry-run unless sync.auto_apply is set)');

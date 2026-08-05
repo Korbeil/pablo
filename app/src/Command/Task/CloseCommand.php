@@ -16,7 +16,7 @@ final class CloseCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('close')
+        $this->setName('task:close')
             ->setDescription('close the current task (delete worktree + record)')
             ->addOption('yes', null, InputOption::VALUE_NONE, 'close even if agents are active');
     }

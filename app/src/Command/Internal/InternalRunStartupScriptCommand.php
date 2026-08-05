@@ -13,7 +13,7 @@ final class InternalRunStartupScriptCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('internal-run-startup-script')
+        $this->setName('internal:run-startup-script')
             ->addOption('worktree', null, InputOption::VALUE_REQUIRED)
             ->addOption('script', null, InputOption::VALUE_REQUIRED)
             ->addOption('project', null, InputOption::VALUE_REQUIRED)

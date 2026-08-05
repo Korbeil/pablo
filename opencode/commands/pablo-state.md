@@ -7,7 +7,7 @@ worktree the session is currently in — no branch argument.
 
 ## Steps
 
-1. Run `pablo state $ARGUMENTS` from the current directory. `$ARGUMENTS`
+1. Run `pablo task:state $ARGUMENTS` from the current directory. `$ARGUMENTS`
    is the target state (`in-progress`, `waiting`, `draft`, `ci-red`,
    `ready-to-review`, `waiting-review`, `needs-testing`,
    `request-changes`, `testing-failed`), optionally followed by

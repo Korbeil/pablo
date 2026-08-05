@@ -5,7 +5,7 @@ subtask: true
 
 ## Context (auto-injected)
 
-!`pablo issues $ARGUMENTS`
+!`pablo show:issues $ARGUMENTS`
 
 ## Output
 

@@ -74,7 +74,7 @@ via `StateMachine::enterState()`, never mutate `task.state` directly.
 **Two layers**: interactive (OpenCode agents/commands the user invokes
 directly — commands wrap `pablo` CLI calls; agents are read-only,
 auto-launched on certain state transitions) and background
-(`pablo dispatch`, run every 5 min by systemd/launchd; global flock, per
+(`pablo system:dispatch`, run every 5 min by systemd/launchd; global flock, per
 project × {sync, poll} checks a stamp in `~/.pablo/stamps/` against that
 project's own interval; one project's failure never blocks others).
 
@@ -93,7 +93,7 @@ repo/worktree — `state/<project>/<branch>.json` (+ `.lock`),
 `stamps/<project>.{sync,poll}`, `agents/` (pidfiles+logs),
 `worktrees/`. Atomic writes, UTC ISO-8601 timestamps. The `Task` record
 also holds a poller-written **display cache** (`DisplayCache` value object
-in `src/Domain/`) so `pablo tasks` renders instantly;
+in `src/Domain/`) so `pablo show:tasks` renders instantly;
 `null` means never-polled and `Listing` falls back to a live fetch.
 `--live` forces a live fetch, `--refresh` forces the poller first.
 

@@ -497,7 +497,7 @@ final class Listing
 
     /**
      * Tasks currently in $state, across all projects, each enriched with a
-     * live-fetched PR. Rows feed pablo slack's renderSlack().
+     * live-fetched PR. Rows feed pablo show:prs renderSlack().
      *
      * @param array<string, ProjectConfig> $projects
      *

@@ -28,9 +28,9 @@ final class ConsoleTest extends TestCase
         $app = $this->app();
         $names = array_keys($app->all());
         foreach ([
-            'start', 'sync', 'rebase-log', 'issues', 'tasks', 'slack', 'projects',
-            'doctor', 'dispatch', 'poll', 'docs', 'state', 'relaunch', 'waiting',
-            'skip-ci', 'retrigger-ci', 'close', 'precommit-check', 'task',
+            'task:start', 'sync:run', 'sync:log', 'show:issues', 'show:tasks', 'show:prs', 'show:projects',
+            'system:doctor', 'system:dispatch', 'system:poll', 'show:docs', 'task:state', 'task:relaunch', 'task:waiting',
+            'task:skip-ci', 'task:retrigger-ci', 'task:close', 'task:precommit-check', 'task:info',
         ] as $name) {
             $this->assertContains($name, $names, "missing command {$name}");
         }
@@ -38,14 +38,14 @@ final class ConsoleTest extends TestCase
 
     public function testProjectsExitsZero(): void
     {
-        $tester = new CommandTester($this->app()->find('projects'));
+        $tester = new CommandTester($this->app()->find('show:projects'));
         $tester->execute([]);
         $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
     }
 
     public function testPrecommitCheckOutsideWorktreeIsInvalid(): void
     {
-        $tester = new CommandTester($this->app()->find('precommit-check'));
+        $tester = new CommandTester($this->app()->find('task:precommit-check'));
         $tester->execute([]);
         $this->assertSame(Command::INVALID, $tester->getStatusCode());
     }

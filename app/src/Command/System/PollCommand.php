@@ -15,7 +15,7 @@ final class PollCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('poll')
+        $this->setName('system:poll')
             ->setDescription('run the task-state polling once')
             ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project');
     }

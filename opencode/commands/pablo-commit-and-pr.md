@@ -9,8 +9,8 @@ permission:
   list: allow
   webfetch: deny
   bash:
-    "pablo precommit-check*": allow
-    "pablo state*": allow
+    "pablo task:precommit-check*": allow
+    "pablo task:state*": allow
     "git branch --show-current": allow
     "git status*": allow
     "git diff*": allow
@@ -35,7 +35,7 @@ state to `draft`.
 ## Context (auto-injected)
 
 PABLO task check:
-!`pablo precommit-check --json 2>&1`
+!`pablo task:precommit-check --json 2>&1`
 
 Current branch:
 !`git branch --show-current`
@@ -166,7 +166,7 @@ Existing PR for this branch:
    - If a PR already exists: just push; do not edit the existing PR.
 
 4. **State switch** — final step, only after the push (and PR creation if
-   any) succeeded: run `pablo state draft`. This is what moves the PABLO
+    any) succeeded: run `pablo task:state draft`. This is what moves the PABLO
    task back into the automatic draft → CI → review cycle. (A raw
    `git push` without this command never changes PABLO state — there is
    no push detection.)

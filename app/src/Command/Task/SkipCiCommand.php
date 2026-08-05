@@ -16,7 +16,7 @@ final class SkipCiCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('skip-ci')->setDescription('ignore failing CI checks and move the current task past ci-red');
+        $this->setName('task:skip-ci')->setDescription('ignore failing CI checks and move the current task past ci-red');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

@@ -8,16 +8,16 @@ GitHub, Linear) or a free-text task prompt.
 ## Context (auto-injected)
 
 Configured projects:
-!`pablo projects`
+!`pablo show:projects`
 
 ## Steps
 
 1. Look at `$ARGUMENTS`:
    - If it is an **issue URL** (starts with http): run
-     `pablo start <url>` exactly as given.
+      `pablo task:start <url>` exactly as given.
    - If it is a **free-text prompt**: it needs a target project. If the
      user already named one (e.g. "--project wallet-kit" or "on
-     wallet-kit"), run `pablo start --project <name> "<prompt>"`.
+     wallet-kit"),       run `pablo task:start --project <name> "<prompt>"`.
      Otherwise ask the user which project (list the configured projects
      from the context above), then run the command.
 2. Relay the command's output verbatim — it reports the worktree path, the

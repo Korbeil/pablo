@@ -22,8 +22,8 @@ platform-specific steps: [docs/installation.md](docs/installation.md).
 
 ```bash
 ./bin/install.sh    # composer install, writes the pablo shim + agent/command links,
-                     # starts the background scheduler, finishes with `pablo doctor`
-pablo doctor        # verify everything's installed and authenticated
+                     # starts the background scheduler, finishes with `pablo system:doctor`
+pablo system:doctor        # verify everything's installed and authenticated
 ```
 
 Add a project by dropping a YAML file in `projects/` (copy an existing
@@ -55,9 +55,9 @@ Everything PABLO knows about your tasks lives in one place — `~/.pablo/`
 pick up exactly where you left off:
 
 ```bash
-pablo backup                    # write ~/.pablo-backups/pablo-backup-<ts>.tar.gz
-pablo backup /path/to/backup.gz # choose the destination
-pablo restore /path/to/backup.gz
+pablo archive:backup                    # write ~/.pablo-backups/pablo-backup-<ts>.tar.gz
+pablo archive:backup /path/to/backup.gz # choose the destination
+pablo archive:restore /path/to/backup.gz
 ```
 
 A backup bundles all state under `~/.pablo/` **except agent sessions
@@ -70,9 +70,9 @@ Restore is interactive: it re-materialises the state store and configs, then
 the recorded origin if needed) and recreates every task worktree from its
 remote branch, rewriting each task record's `worktree_path`. Branches with
 local-only (unpushed) commits are skipped with a warning. Use
-`pablo restore <archive> --skip-worktrees` to restore state without touching
+`pablo archive:restore <archive> --skip-worktrees` to restore state without touching
 the worktrees, and `--yes` to answer every overwrite prompt non-interactively.
-Tracker credentials / auth are not migrated — run `pablo doctor` on the new
+Tracker credentials / auth are not migrated — run `pablo system:doctor` on the new
 host.
 
 ## Example workflow
@@ -151,8 +151,8 @@ Namespaces mirror folders (`Pablo\ => src/`).
 | `Provider/Confluence/` | Confluence page fetch via the `acli` CLI |
 | `Provider/Tracker/` | one class per issue tracker + `ProviderInterface`/registry |
 | `Agents/` | launching OpenCode agents via Orca, activity queries |
-| `Listing/` | the `pablo issues` / `pablo tasks` terminal tables |
-| `Doctor/` | CLI preflight checks (`pablo doctor`) |
+| `Listing/` | the `pablo show:issues` / `pablo show:tasks` terminal tables |
+| `Doctor/` | CLI preflight checks (`pablo system:doctor`) |
 | `Dispatch/` | the cron dispatcher fired by the systemd timer |
 | `Support/` | `PabloError`, `Proc` (shell helper), `Naming`, `RepoSlug` |
 
@@ -170,7 +170,7 @@ before making non-trivial changes in that area:
 - [docs/background-layer.md](docs/background-layer.md) — the two layers,
   worktree sync, closing a task, agent execution via Orca
 - [docs/providers.md](docs/providers.md) — GitHub/Jira/Linear/Confluence
-  access via `acli`/`gh`/`linear`, `pablo doctor` preflight
+  access via `acli`/`gh`/`linear`, `pablo system:doctor` preflight
 - [docs/configuration.md](docs/configuration.md) — project YAML schema,
   branch naming convention
 - [docs/listings.md](docs/listings.md) — `/pablo-issues` and

@@ -5,7 +5,7 @@ subtask: true
 
 ## Context (auto-injected)
 
-!`pablo doctor 2>&1`
+!`pablo system:doctor 2>&1`
 
 ## Output
 

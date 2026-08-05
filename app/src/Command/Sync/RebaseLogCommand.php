@@ -15,7 +15,7 @@ final class RebaseLogCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('rebase-log')
+        $this->setName('sync:log')
             ->setDescription('show the last sync/rebase session log')
             ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project');
     }
@@ -62,7 +62,7 @@ final class RebaseLogCommand extends Command
             }
         }
         if (!$found) {
-            $output->writeln('no rebase logs found — run `pablo sync` first');
+            $output->writeln('no rebase logs found — run `pablo sync:run` first');
         }
 
         return self::SUCCESS;

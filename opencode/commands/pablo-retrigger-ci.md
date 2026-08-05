@@ -7,7 +7,7 @@ Reruns the latest completed run per workflow.
 
 ## Steps
 
-1. Run `pablo retrigger-ci` from the current directory.
+1. Run `pablo task:retrigger-ci` from the current directory.
 2. Relay the output verbatim.
 
 User request: $ARGUMENTS

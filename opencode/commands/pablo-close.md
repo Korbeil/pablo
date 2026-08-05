@@ -9,7 +9,7 @@ when the PR is merged. This never merges or closes the GitHub PR itself.
 ## Context (auto-injected)
 
 Current task:
-!`pablo task current --json 2>&1`
+!`pablo task:info current --json 2>&1`
 
 ## Steps
 
@@ -21,7 +21,7 @@ Current task:
 3. **`cd` to the `repo_path` from the context above first** — the command
    deletes the very worktree we are standing in, and the shell must not
    be left in a deleted directory.
-4. Run `pablo close` (add `--yes` only if the user explicitly wants to
+4. Run `pablo task:close` (add `--yes` only if the user explicitly wants to
    close despite active agent sessions).
 5. Relay the output or error verbatim.
 

@@ -7,8 +7,8 @@
 /pablo-start --project wallet-kit "fix callback verification"   # from a prompt
 ```
 
-(the OpenCode command wraps `pablo start <url>` /
-`pablo start --project <name> "<prompt>"`)
+(the OpenCode command wraps `pablo task:start <url>` /
+`pablo task:start --project <name> "<prompt>"`)
 
 - Issue URLs are matched against each project's `issue_tracker` config
   (and the repo's GitHub remote for GitHub issues); no match → error,
@@ -32,8 +32,8 @@
   finishes the tab drops into an interactive shell at the worktree root
   (showing the script's output) instead of auto-closing on PTY EOF.
 - Both launches are asynchronous: entering `in-progress` spawns a detached
-  `pablo internal-launch-agent`/`internal-run-startup-script` subprocess
-  per launch and returns immediately, so `pablo state in-progress` (and
+  `pablo internal:launch-agent`/`internal:run-startup-script` subprocess
+  per launch and returns immediately, so `pablo task:state in-progress` (and
   `/pablo-state`) never blocks on Orca — even if Orca is slow, hung, or
   still indexing a just-created worktree.
 - Each detached launcher issues a single
@@ -60,7 +60,7 @@
   `in-progress` startup script is included too (verified safely
   re-runnable); a future project's non-idempotent startup script must be
   scoped out or fixed, not special-cased in the poller. Recover manually
-  with `pablo relaunch` (see `agents-commands.md`). Post-draft states
+  with `pablo task:relaunch` (see `agents-commands.md`). Post-draft states
   still fall through to `POLL_CHECKS` after the heal, so e.g. a `ci-red`
   that went green transitions normally.
 
@@ -103,11 +103,11 @@ behavior is never duplicated.
 
 The single, uniform way work (re-)enters `draft`, valid from exactly
 **`in-progress`, `ci-red`, `request-changes`, `testing-failed`** (guarded
-by `pablo precommit-check`; it refuses outside a PABLO task worktree —
+by `pablo task:precommit-check`; it refuses outside a PABLO task worktree —
 the original `/commit-and-pr` still exists for non-PABLO work). It
 commits (house staging/message rules), pushes, creates the GitHub PR **as
 a draft** with a French description if none exists, and finishes with
-`pablo state draft`. **If there is nothing to commit it stops early and
+`pablo task:state draft`. **If there is nothing to commit it stops early and
 does nothing** — unless `--force`, which skips only the commit step and
 runs the rest (for manually committed work). **There is no git-push
 detection anywhere**: a raw `git push` never changes PABLO state.
@@ -124,7 +124,7 @@ polling except **merge detection**, and worktree sync keeps running.
 
 ### `/pablo-state` (manual override)
 
-`pablo state <state> [--no-trigger]`, cwd-resolved like
+`pablo task:state <state> [--no-trigger]`, cwd-resolved like
 `/pablo-waiting` / `/pablo-close`. Forcing a state runs the same on-enter
 actions as the automatic transition would; `--no-trigger` skips them
 (bookkeeping-only) **except for `waiting`**, whose on-enter (saving the
@@ -164,7 +164,7 @@ on vacation — force the task past it.
   time anyway.
 - On entering `request-changes` / `testing-failed`, the corresponding
   agent runs and **once it finishes** a detached watcher
-  (`pablo watch-agent`) switches the GitHub PR to draft
+  (`pablo internal:watch-agent`) switches the GitHub PR to draft
   (`gh pr ready --undo`) — skipped if the task already moved on.
 
 ## Task state storage

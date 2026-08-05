@@ -54,14 +54,14 @@ cached by acli itself. Provider in `src/pablo/providers/jira.py`;
 ## Confluence — `acli confluence`
 
 Same `acli` CLI, same OAuth grant; the **documentation** path
-(`src/pablo/confluence.py`, exposed as `pablo docs` / `/pablo-docs` and
+(`src/pablo/confluence.py`, exposed as `pablo show:docs` / `/pablo-docs` and
 used by interactive agents when an issue references a wiki page):
 
 - page: `acli confluence page view --id <id> --json --body-format storage`
   → `{id, title, _links:{base,webui}, body:{storage:{value:"<XHTML>"}}}`.
   The body is **Confluence storage-format XHTML** (with `<ac:*>` macros);
   returned verbatim — rendering to Markdown is the caller's job (agents
-  tolerate raw XHTML; `pablo docs` prints it as-is).
+  tolerate raw XHTML; `pablo show:docs` prints it as-is).
 - space discovery: `acli confluence space list --json`
   (advisory; the optional `confluence.space` project config scopes agents'
   doc lookups but acli's OAuth grant is the real gatekeeper).
@@ -83,7 +83,7 @@ subcommand spellings above are the provider's assumptions; verify against
 `linear --help` on first install and adjust
 `src/pablo/providers/linear.py` if they differ.
 
-## CLI preflight — `pablo doctor` / `/pablo-doctor`
+## CLI preflight — `pablo system:doctor` / `/pablo-doctor`
 
 A **Python** check (`src/pablo/doctor.py`). Required set is derived from
 the configured projects: `gh`, `opencode`, `orca` always
@@ -99,4 +99,4 @@ fail-fast guard. Probes are capped at 30s (`orca` has been observed
 hanging when invoked outside an interactive session), and in the
 **dispatcher** preflight an `orca` failure is soft — a warning, not an
 abort — because agent runs fall back to headless `opencode run`;
-interactively, `pablo doctor` still reports it as ❌.
+interactively, `pablo system:doctor` still reports it as ❌.

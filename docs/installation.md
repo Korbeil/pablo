@@ -7,7 +7,7 @@
 Runs `composer install`, writes the `~/.local/bin/pablo` shim (which execs
 `php bin/pablo`), symlinks `opencode/agents/*.md` and `opencode/commands/*.md`
 into `~/.config/opencode/`, installs the background dispatcher for the
-detected platform, and finishes with a `pablo doctor` run.
+detected platform, and finishes with a `pablo system:doctor` run.
 `./bin/uninstall.sh` reverses it (only removing symlinks/files PABLO
 created; `~/.pablo` data is kept).
 
@@ -29,10 +29,10 @@ this once on the Mac:
    the Atlassian CLI `acli` (+ `acli auth login` — covers both Jira and
    Confluence under one OAuth grant), the Orca and opencode apps.
 2. `./bin/install.sh` → expect "com.pablo.dispatch loaded".
-3. `pablo doctor` → all ✅.
+3. `pablo system:doctor` → all ✅.
 4. `tail -f ~/.pablo/logs/dispatch.log` across one 5-minute tick → a
    clean dispatch run.
-5. `pablo start …` + `/pablo-tasks` round trip on a real project.
+5. `pablo task:start …` + `/pablo-tasks` round trip on a real project.
 
 ## Orca visibility (verified 2026-07-26)
 
