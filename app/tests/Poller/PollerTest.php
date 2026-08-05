@@ -20,6 +20,7 @@ use Pablo\Provider\Tracker\ProviderRegistry;
 use Pablo\StateMachine\StateMachine;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
+use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\FakeAgents;
 use PHPUnit\Framework\TestCase;
@@ -428,6 +429,21 @@ final class PollerTest extends TestCase
         $this->poll($cfg, $store);
         $this->assertNull($this->getTask($store));
         $this->assertSame(['pr-1'], $this->stubs['removed']);
+    }
+
+    public function testCloseSurvivesMissingWorktree(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp']));
+        $this->stubs['merged'] = true;
+        GitRepo::setRemoveWorktree(static function (string $repo, string $path, string $branch): void {
+            throw new PabloError("git worktree remove {$path} failed: fatal: '{$path}' is not a working tree");
+        });
+        $events = $this->poll($cfg, $store);
+        $this->assertNull($this->getTask($store));
+        $this->assertStringContainsString('worktree already gone', implode("\n", $events));
     }
 
     public function testMergeWithActiveAgentsDefersClose(): void
