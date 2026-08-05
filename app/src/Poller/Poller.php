@@ -319,9 +319,17 @@ final class Poller
                         continue;
                     }
                     $ctx = new TaskCtx(task: $fresh, cfg: $cfg, store: $store, agents: $agents);
-                    self::pollTask($ctx, $events);
-                    if (null !== $store->get($cfg->name, $task->branch)) {
-                        self::refreshDisplayCache($ctx, $agents);
+                    try {
+                        self::pollTask($ctx, $events);
+                    } catch (\Throwable $e) {
+                        $events[] = "{$task->branch}: poll check failed: {$e->getMessage()}";
+                    }
+                    try {
+                        if (null !== $store->get($cfg->name, $task->branch)) {
+                            self::refreshDisplayCache($ctx, $agents);
+                        }
+                    } catch (\Throwable $e) {
+                        $events[] = "{$task->branch}: display cache refresh failed: {$e->getMessage()}";
                     }
                 } finally {
                     $lock->release();
