@@ -321,13 +321,19 @@ final class Listing
         return [\count($sessions), implode(' · ', $parts)];
     }
 
-    private static function remoteStatusCell(Task $task, ProjectConfig $cfg, bool $live): string
+    /**
+     * @param array<string, string>|null $prefetched key => status map from batch lookup
+     */
+    private static function remoteStatusCell(Task $task, ProjectConfig $cfg, bool $live, ?array $prefetched = null): string
     {
         if (null === $task->issue) {
             return 'N/A';
         }
         if (!$live && null !== $task->displayCache->trackerStatus) {
             return $task->displayCache->trackerStatus;
+        }
+        if (null !== $prefetched && isset($prefetched[$task->issue->key])) {
+            return $prefetched[$task->issue->key];
         }
         try {
             return ProviderRegistry::get($cfg->provider)->issueStatus($task->issue->key, $cfg);
@@ -398,28 +404,54 @@ final class Listing
             ? $agents->bulkActiveSessions(array_map(static fn (Task $t) => $t->worktreePath, $needsAgentCheck))
             : [];
 
+        $needsTracker = array_values(array_filter(
+            $tasks,
+            static fn (Task $t) => null !== $t->issue && ($fetchLive || null === $t->displayCache->trackerStatus),
+        ));
+        $trackerStatuses = [];
+        if ([] !== $needsTracker) {
+            $byProvider = [];
+            foreach ($needsTracker as $task) {
+                $cfg = $projects[$task->project];
+                $issue = $task->issue;
+                if (null === $issue) {
+                    continue;
+                }
+                $byProvider[$cfg->provider][] = [$issue->key, $cfg];
+            }
+            foreach ($byProvider as $providerName => $pairs) {
+                try {
+                    $trackerStatuses[$providerName] = ProviderRegistry::get($providerName)->batchIssueStatus($pairs);
+                } catch (PabloError) {
+                    $trackerStatuses[$providerName] = [];
+                }
+            }
+        }
+
         $needsPrCheck = array_values(array_filter(
             $tasks,
             static fn (Task $t) => !$t->merged && null !== $t->prNumber && ($fetchLive || null === $t->displayCache->prState),
         ));
-        $branchesByRepo = [];
+        $repoBranches = [];
+        $seen = [];
         foreach ($needsPrCheck as $task) {
             $slug = RepoSlug::for($projects[$task->project]);
-            $branchesByRepo[$slug][] = $task->branch;
-        }
-        $prsByRepo = [];
-        foreach ($branchesByRepo as $slug => $branches) {
-            try {
-                $prsByRepo[$slug] = GhPr::prsForBranches($slug, $branches);
-            } catch (PabloError) {
-                $prsByRepo[$slug] = [];
+            if (!isset($seen[$slug])) {
+                $seen[$slug] = [];
             }
+            $seen[$slug][] = $task->branch;
         }
+        foreach ($seen as $slug => $branches) {
+            $repoBranches[] = [$slug, $branches];
+        }
+        $prsByRepo = [] !== $repoBranches
+            ? GhPr::prsForBranchesBulk($repoBranches)
+            : [];
 
         $entries = [];
         foreach ($tasks as $task) {
             $cfg = $projects[$task->project];
-            $tracker = self::remoteStatusCell($task, $cfg, $fetchLive);
+            $tracker = self::remoteStatusCell($task, $cfg, $fetchLive, $trackerStatuses[$cfg->provider] ?? null);
             $slug = RepoSlug::for($cfg);
             $pr = self::prCell($task, $cfg, $fetchLive, $prsByRepo[$slug] ?? null);
             [$count, $activity] = self::agentCells(

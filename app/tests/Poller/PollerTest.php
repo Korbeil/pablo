@@ -46,6 +46,17 @@ final class FakePollProvider implements Provider
         return $this->issueStatus;
     }
 
+    public function batchIssueStatus(array $pairs): array
+    {
+        $result = [];
+        foreach ($pairs as [$key]) {
+            $result[$key] = $this->issueStatus;
+        }
+        $this->statusCalls += \count($pairs);
+
+        return $result;
+    }
+
     public function name(): string
     {
         return 'github';

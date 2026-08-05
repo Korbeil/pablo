@@ -134,6 +134,73 @@ GQL;
     }
 
     /**
+     * @param list<array{0: string, 1: list<string>}> $repoBranches [slug, branches]
+     *
+     * @return array<string, array<string, PrInfo>> slug => branch => PrInfo
+     */
+    public static function prsForBranchesBulk(array $repoBranches): array
+    {
+        if ([] === $repoBranches) {
+            return [];
+        }
+
+        if (null !== self::$prsForBranches) {
+            $result = [];
+            foreach ($repoBranches as [$slug, $branches]) {
+                $result[$slug] = (self::$prsForBranches)($slug, $branches);
+            }
+
+            return $result;
+        }
+
+        $commands = [];
+        $slugIndex = [];
+        $branchesByIndex = [];
+        foreach ($repoBranches as $i => [$slug, $branches]) {
+            $slugIndex[$i] = $slug;
+            $branchesByIndex[$i] = $branches;
+            $limit = min(max(\count($branches) * 5, 50), 500);
+            $commands[] = [
+                'gh', 'pr', 'list', '--repo', $slug,
+                '--state', 'all', '--json',
+                'number,title,state,isDraft,mergedAt,url,headRefName',
+                '--limit', (string) $limit,
+            ];
+        }
+
+        $results = Proc::runParallel($commands, check: false, timeout: self::GH_CALL_TIMEOUT_S);
+        $all = [];
+        foreach ($results as $i => $out) {
+            $slug = $slugIndex[$i];
+            $branches = $branchesByIndex[$i];
+            $wanted = array_fill_keys($branches, true);
+            $all[$slug] = [];
+            try {
+                /** @var array<int, array<string, mixed>> $items */
+                $items = json_decode($out, true, 512, \JSON_THROW_ON_ERROR);
+            } catch (\Throwable) {
+                continue;
+            }
+            foreach ($items as $item) {
+                $head = $item['headRefName'] ?? null;
+                if (null === $head || !isset($wanted[$head]) || isset($all[$slug][$head])) {
+                    continue;
+                }
+                $all[$slug][$head] = new PrInfo(
+                    number: (int) $item['number'],
+                    title: (string) $item['title'],
+                    state: (string) $item['state'],
+                    isDraft: (bool) $item['isDraft'],
+                    url: (string) $item['url'],
+                    mergedAt: null !== $item['mergedAt'] ? (string) $item['mergedAt'] : null,
+                );
+            }
+        }
+
+        return $all;
+    }
+
+    /**
      * @param array<string, mixed> $check
      * @param list<string>         $ignoreChecks
      */

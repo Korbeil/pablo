@@ -60,6 +60,16 @@ final class FakeStartProvider implements Provider
         return 'todo';
     }
 
+    public function batchIssueStatus(array $pairs): array
+    {
+        $result = [];
+        foreach ($pairs as [$key]) {
+            $result[$key] = 'todo';
+        }
+
+        return $result;
+    }
+
     public function failureSignalEvents(\Pablo\Domain\Task $task, ProjectConfig $cfg): array
     {
         return [];

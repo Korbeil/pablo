@@ -56,6 +56,70 @@ final class Proc
     }
 
     /**
+     * @param list<list<string>> $commandGroups
+     *
+     * @return list<string> stdout for each command, in same order
+     */
+    public static function runParallel(array $commandGroups, bool $check = true, ?float $timeout = null): array
+    {
+        if ([] === $commandGroups) {
+            return [];
+        }
+
+        if (null !== self::$runner) {
+            $results = [];
+            foreach ($commandGroups as $argv) {
+                $results[] = (self::$runner)($argv, $check, $timeout);
+            }
+
+            return $results;
+        }
+
+        $processes = [];
+        foreach ($commandGroups as $i => $argv) {
+            $p = new Process($argv);
+            if (null !== $timeout) {
+                $p->setTimeout($timeout);
+            }
+            $p->start();
+            $processes[$i] = $p;
+        }
+
+        $results = [];
+        foreach ($processes as $i => $p) {
+            try {
+                $p->wait();
+            } catch (ProcessTimedOutException $e) {
+                if ($check) {
+                    throw new PabloError(\sprintf('%s timed out after %ss: %s', $commandGroups[$i][0], $timeout, implode(' ', $commandGroups[$i])));
+                }
+                $results[$i] = '';
+
+                continue;
+            } catch (ProcessRuntimeException $e) {
+                if ($check) {
+                    throw new PabloError(\sprintf('%s is not installed (required for this project\'s provider)', $commandGroups[$i][0]));
+                }
+                $results[$i] = '';
+
+                continue;
+            }
+
+            if ($check && !$p->isSuccessful()) {
+                $message = '' !== trim($p->getErrorOutput())
+                    ? trim($p->getErrorOutput())
+                    : trim($p->getOutput());
+                throw new PabloError(\sprintf('%s failed: %s', $commandGroups[$i][0], $message));
+            }
+            $results[$i] = $p->getOutput();
+        }
+
+        ksort($results);
+
+        return array_values($results);
+    }
+
+    /**
      * Parse an ISO-8601 timestamp (accepting a trailing Z) as UTC.
      */
     public static function parseTs(string $value): \DateTimeImmutable

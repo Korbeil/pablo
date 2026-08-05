@@ -35,6 +35,15 @@ interface Provider
 
     public function issueStatus(string $key, ProjectConfig $cfg): string;
 
+    /**
+     * Issue status for multiple keys, run in parallel.
+     *
+     * @param list<array{0: string, 1: ProjectConfig}> $pairs [key, cfg] tuples
+     *
+     * @return array<string, string> key => status; failed keys mapped to '?'
+     */
+    public function batchIssueStatus(array $pairs): array;
+
     /** @return array<int, \DateTimeImmutable> */
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array;
 
