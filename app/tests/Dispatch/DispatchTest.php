@@ -194,4 +194,40 @@ final class DispatchTest extends TestCase
         $this->assertSame(1, $rc);
         $this->assertSame([], $this->ran);
     }
+
+    public function testSameRepoSyncsOnlyOnce(): void
+    {
+        $sharedRepo = $this->tmp.'/shared-repo';
+        mkdir($sharedRepo, 0o777, true);
+
+        $a = new ProjectConfig(
+            name: 'a', type: 'work', repoPath: $sharedRepo,
+            primaryBranch: 'main', worktreesRoot: $this->tmp.'/wt/a',
+            provider: 'github', identity: 'user', projectKey: 'PR',
+            syncStrategy: 'rebase', syncAutoApply: false,
+            syncInterval: 30, pollInterval: 10,
+            failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+        );
+        $b = new ProjectConfig(
+            name: 'b', type: 'work', repoPath: $sharedRepo,
+            primaryBranch: 'main', worktreesRoot: $this->tmp.'/wt/b',
+            provider: 'github', identity: 'user', projectKey: 'PB',
+            syncStrategy: 'rebase', syncAutoApply: false,
+            syncInterval: 30, pollInterval: 10,
+            failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+        );
+
+        $store = new Store($this->tmp.'/state');
+        $runners = [
+            'sync' => function (ProjectConfig $c, Store $_): void { $this->ran[] = ['sync', $c->name]; },
+            'poll' => function (ProjectConfig $c, Store $_): void { $this->ran[] = ['poll', $c->name]; },
+        ];
+
+        $rc = Dispatch::run(['a' => $a, 'b' => $b], $store, $runners);
+        $this->assertSame(0, $rc);
+
+        $pairs = array_map(static fn ($p) => $p[1].':'.$p[0], $this->ran);
+        sort($pairs);
+        $this->assertSame(['a:poll', 'a:sync', 'b:poll'], $pairs);
+    }
 }
