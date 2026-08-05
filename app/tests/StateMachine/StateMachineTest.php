@@ -361,6 +361,16 @@ final class FakeStatusProvider implements \Pablo\Provider\Tracker\Provider
         return $this->status;
     }
 
+    public function batchIssueStatus(array $pairs): array
+    {
+        $result = [];
+        foreach ($pairs as [$key]) {
+            $result[$key] = $this->status;
+        }
+
+        return $result;
+    }
+
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
     {
         return [];

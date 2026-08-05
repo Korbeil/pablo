@@ -87,6 +87,35 @@ final class Linear implements Provider
         return (string) $data['state']['name'];
     }
 
+    public function batchIssueStatus(array $pairs): array
+    {
+        if ([] === $pairs) {
+            return [];
+        }
+
+        $commands = [];
+        $keyIndex = [];
+        foreach ($pairs as $i => [$key]) {
+            $keyIndex[$i] = $key;
+            $commands[] = ['linear', 'issue', 'view', $key, '--json'];
+        }
+
+        $results = Proc::runParallel($commands, check: false);
+        $statuses = [];
+        foreach ($results as $i => $out) {
+            $key = $keyIndex[$i];
+            try {
+                /** @var array<string, mixed> $data */
+                $data = json_decode($out, true, 512, \JSON_THROW_ON_ERROR);
+                $statuses[$key] = (string) $data['state']['name'];
+            } catch (\Throwable) {
+                $statuses[$key] = '?';
+            }
+        }
+
+        return $statuses;
+    }
+
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
     {
         if (null === $task->issue || null === $cfg->failureSignal) {

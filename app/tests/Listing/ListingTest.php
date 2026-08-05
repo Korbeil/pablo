@@ -38,6 +38,16 @@ final class FakeProvider implements Provider
         return $this->status;
     }
 
+    public function batchIssueStatus(array $pairs): array
+    {
+        $result = [];
+        foreach ($pairs as [$key]) {
+            $result[$key] = $this->status;
+        }
+
+        return $result;
+    }
+
     public function name(): string
     {
         return 'github';

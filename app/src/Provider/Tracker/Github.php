@@ -120,6 +120,38 @@ final class Github implements Provider
         return self::STATUS[$state] ?? $state;
     }
 
+    public function batchIssueStatus(array $pairs): array
+    {
+        if ([] === $pairs) {
+            return [];
+        }
+
+        $commands = [];
+        $keyIndex = [];
+        foreach ($pairs as $i => [$key, $cfg]) {
+            $keyIndex[$i] = $key;
+            $commands[] = [
+                'gh', 'issue', 'view', $key, '--repo', $this->repoSlug($cfg), '--json', 'state',
+            ];
+        }
+
+        $results = Proc::runParallel($commands, check: false, timeout: self::GH_CALL_TIMEOUT_S);
+        $statuses = [];
+        foreach ($results as $i => $out) {
+            $key = $keyIndex[$i];
+            try {
+                /** @var array<string, mixed> $data */
+                $data = json_decode($out, true, 512, \JSON_THROW_ON_ERROR);
+                $state = $data['state'];
+                $statuses[$key] = self::STATUS[$state] ?? $state;
+            } catch (\Throwable) {
+                $statuses[$key] = '?';
+            }
+        }
+
+        return $statuses;
+    }
+
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
     {
         if (null === $task->prNumber || null === $cfg->failureSignal) {

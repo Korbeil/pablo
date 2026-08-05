@@ -107,6 +107,36 @@ final class Jira implements Provider
         return (string) ($fields['status']['name'] ?? '?');
     }
 
+    public function batchIssueStatus(array $pairs): array
+    {
+        if ([] === $pairs) {
+            return [];
+        }
+
+        $commands = [];
+        $keyIndex = [];
+        foreach ($pairs as $i => [$key]) {
+            $keyIndex[$i] = $key;
+            $commands[] = ['acli', 'jira', 'workitem', 'view', $key, '--json', '--fields', 'status'];
+        }
+
+        $results = Proc::runParallel($commands, check: false, timeout: self::JIRA_CALL_TIMEOUT_S);
+        $statuses = [];
+        foreach ($results as $i => $out) {
+            $key = $keyIndex[$i];
+            try {
+                /** @var array<string, mixed> $data */
+                $data = json_decode($out, true, 512, \JSON_THROW_ON_ERROR);
+                $fields = $data['fields'] ?? [];
+                $statuses[$key] = (string) ($fields['status']['name'] ?? '?');
+            } catch (\Throwable) {
+                $statuses[$key] = '?';
+            }
+        }
+
+        return $statuses;
+    }
+
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
     {
         return [];
