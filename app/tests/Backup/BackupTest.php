@@ -10,6 +10,7 @@ use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Store\Store;
+use Pablo\Support\Proc;
 use PHPUnit\Framework\TestCase;
 
 final class BackupTest extends TestCase
@@ -85,10 +86,15 @@ YAML,
         $this->store->save($task);
 
         GitRepo::setOriginUrl(static fn () => 'git@example.com:acme/acme.git');
+        Proc::setRunner(static fn (array $argv) => match (true) {
+            \in_array('orca', $argv, true) && \in_array('repo', $argv, true) && \in_array('list', $argv, true) => '{"ok":true,"result":{"repos":[{"path":"/tmp/acme"}]}}',
+            default => throw new \RuntimeException('unexpected proc call: '.implode(' ', $argv)),
+        });
     }
 
     protected function tearDown(): void
     {
+        Proc::setRunner(null);
         GitRepo::setOriginUrl(null);
         Backup::cleanupDir($this->tmp);
     }
@@ -111,6 +117,11 @@ YAML,
         $this->assertDirectoryExists($extracted.'/logs');
         $this->assertDirectoryExists($extracted.'/cache');
         $this->assertFileExists($extracted.'/projects/acme.yaml');
+
+        $this->assertFileExists($extracted.'/orca-repos.json');
+        $orcaRepos = json_decode((string) file_get_contents($extracted.'/orca-repos.json'), true);
+        $this->assertIsArray($orcaRepos);
+        $this->assertTrue($orcaRepos['ok']);
 
         $this->assertDirectoryDoesNotExist($extracted.'/agents');
         $this->assertDirectoryDoesNotExist($extracted.'/worktrees');

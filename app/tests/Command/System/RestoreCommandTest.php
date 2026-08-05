@@ -10,6 +10,7 @@ use Pablo\Config\Config;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Store\Store;
+use Pablo\Support\Proc;
 use Pablo\Tests\Git\RepoHelper;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -23,6 +24,8 @@ final class RestoreCommandTest extends TestCase
     private string $wt;
     private string $prevCwd;
     private Store $store;
+    /** @var list<list<string>> */
+    private array $orcaCalls = [];
 
     protected function setUp(): void
     {
@@ -86,6 +89,19 @@ YAML,
 
         putenv('PABLO_ROOT='.$this->pabloRoot);
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
+        $this->orcaCalls = [];
+        Proc::setRunner(function (array $argv): string {
+            if (\in_array('orca', $argv, true) && \in_array('repo', $argv, true) && \in_array('list', $argv, true)) {
+                return '{"ok":true,"result":{"repos":[{"path":"/tmp/acme"}]}}';
+            }
+            if (\in_array('orca', $argv, true) && \in_array('repo', $argv, true) && \in_array('add', $argv, true)) {
+                $this->orcaCalls[] = array_values($argv);
+
+                return '{"ok":true,"result":{}}';
+            }
+
+            throw new \RuntimeException('unexpected proc call: '.implode(' ', $argv));
+        });
         $this->prevCwd = (string) getcwd();
     }
 
@@ -94,6 +110,7 @@ YAML,
         chdir($this->prevCwd);
         putenv('PABLO_ROOT');
         putenv('PABLO_PROJECTS_DIR');
+        Proc::setRunner(null);
         Backup::cleanupDir($this->tmp);
     }
 
@@ -118,6 +135,10 @@ YAML,
         $this->assertNotNull($task);
         $this->assertSame($recreated, $task->worktreePath);
         $this->assertSame(State::InProgress, $task->state);
+
+        $this->assertCount(1, $this->orcaCalls);
+        $this->assertContains('--path', $this->orcaCalls[0]);
+        $this->assertContains($this->clone, $this->orcaCalls[0]);
     }
 
     public function testRestoreSkipsUnpushedBranchWithWarning(): void
@@ -150,5 +171,21 @@ YAML,
 
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertDirectoryDoesNotExist($this->wt.'/oms-1');
+        $this->assertCount(0, $this->orcaCalls);
+    }
+
+    public function testSkipOrcaRegistersNoRepos(): void
+    {
+        $projects = Config::loadProjects($this->projectsDir);
+        $archive = Backup::writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
+
+        $command = new RestoreCommand($this->store);
+        $tester = new CommandTester($command);
+        $tester->setInputs([$this->clone]);
+        $tester->execute(['archive' => $archive, '--yes' => true, '--skip-orca' => true]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertDirectoryExists($this->wt.'/oms-1');
+        $this->assertCount(0, $this->orcaCalls);
     }
 }

@@ -11,6 +11,7 @@ use Pablo\Domain\Time;
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
+use Pablo\Support\Proc;
 
 /**
  * PABLO backup/restore.
@@ -18,10 +19,12 @@ use Pablo\Support\PabloError;
  * A backup is a single .tar.gz captured on the source machine: the state
  * store, poller stamps, rebase logs and cache (everything under ~/.pablo
  * except agents/ — opencode sessions are never saved) plus the embedded
- * project configs and a manifest of every task worktree. Worktree contents
- * are transient checkouts, so only their metadata (origin URL + branch) is
- * kept; restore recreates them from git by checking the remote branch back
- * out, then rewrites each task record's worktree_path.
+ * project configs, a manifest of every task worktree, and a best-effort
+ * snapshot of Orca-registered repos. Worktree contents are transient
+ * checkouts, so only their metadata (origin URL + branch) is kept;
+ * restore recreates them from git by checking the remote branch back
+ * out, then rewrites each task record's worktree_path and re-registers
+ * repos with Orca.
  */
 final class Backup
 {
@@ -254,7 +257,21 @@ final class Backup
             )."\n",
         );
 
+        $orcaRepos = self::captureOrcaRepos();
+        if (null !== $orcaRepos) {
+            file_put_contents($staging.'/orca-repos.json', $orcaRepos);
+        }
+
         return $staging;
+    }
+
+    private static function captureOrcaRepos(): ?string
+    {
+        try {
+            return Proc::run(['orca', 'repo', 'list', '--json'], false, 30);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private static function copyDir(string $src, string $dest): void
