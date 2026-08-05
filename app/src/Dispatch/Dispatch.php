@@ -183,17 +183,30 @@ final class Dispatch
             }
 
             $failed = false;
+            $syncedRepos = [];
             foreach ($projects as $cfgValue) {
                 foreach ($runners as $job => $runner) {
                     if (!self::isDue($cfgValue, $job, $now)) {
                         continue;
                     }
-                    try {
-                        $runner($cfgValue, $store);
-                    } catch (\Throwable $e) {
-                        $failed = true;
-                        fwrite(\STDERR, "pablo dispatch: {$job} failed for project {$cfgValue->name}:\n{$e}\n");
-                        continue; // stamp not written: retried next tick
+                    $skip = false;
+                    if ('sync' === $job) {
+                        $repoKey = realpath($cfgValue->repoPath) ?: $cfgValue->repoPath;
+                        if (isset($syncedRepos[$repoKey])) {
+                            echo "[{$cfgValue->name}] sync skipped: repo {$cfgValue->repoPath} already synced in this run\n";
+                            $skip = true;
+                        } else {
+                            $syncedRepos[$repoKey] = true;
+                        }
+                    }
+                    if (!$skip) {
+                        try {
+                            $runner($cfgValue, $store);
+                        } catch (\Throwable $e) {
+                            $failed = true;
+                            fwrite(\STDERR, "pablo dispatch: {$job} failed for project {$cfgValue->name}:\n{$e}\n");
+                            continue; // stamp not written: retried next tick
+                        }
                     }
                     $stamp = self::stampsDir()."/{$cfgValue->name}.{$job}";
                     @mkdir(\dirname($stamp), 0o777, true);
