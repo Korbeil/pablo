@@ -4,7 +4,7 @@ Both are strictly read-only. Legend (documented in @docs/listings.md):
 states 🔨 in-progress · ⏸️ waiting · 📝 draft · 🔴 ci-red ·
 👀 waiting-review (also used for the momentary ready-to-review) ·
 🧪 needs-testing · 🔁 request-changes · 🚨 testing-failed;
-PRs 📬 open · 📪 draft · ✅ merged (merged only appears when auto-close is
+PRs 📖 open · 📝 draft · ✅ merged (merged only appears when auto-close is
 deferred because agents are still running);
 agents 🏃 running · 💭 waiting on feedback.
 """
@@ -234,8 +234,8 @@ def pr_state_cell(task: Task, pr: PrInfo | None) -> str:
     if pr.state == "MERGED":
         return f"✅ merged #{pr.number}"
     if pr.is_draft:
-        return f"📪 draft #{pr.number}"
-    return f"📬 open #{pr.number}"
+        return f"📝 draft #{pr.number}"
+    return f"📖 open #{pr.number}"
 
 
 def agent_activity_summary(sessions: list[SessionInfo]) -> tuple[int, str]:

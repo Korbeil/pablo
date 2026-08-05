@@ -225,7 +225,7 @@ def test_pr_states_rendered(env, monkeypatch):
              state=IN_PROGRESS, pr_number=7)
     )
     table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
-    assert "📪 draft" in table
+    assert "📝 draft" in table
 
 
 def test_agent_columns(env, monkeypatch):
@@ -269,14 +269,14 @@ def test_cached_task_renders_without_live_calls(env, monkeypatch):
             issue=Issue(provider="github", key="45", url="u", title="Fix callbacks",
                         project_key="WK"),
             cached_tracker_status="In Review",
-            cached_pr_state="📬 open #7",
+            cached_pr_state="📖 open #7",
             cached_agent_count=2,
             cached_agent_activity="🏃 2",
         )
     )
     table = listing.tasks_table({"wallet-kit": env["cfg"]}, env["store"])
     assert "In Review" in table
-    assert "📬 open #7" in table
+    assert "📖 open #7" in table
     assert "🏃 2" in table
 
 

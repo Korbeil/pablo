@@ -292,10 +292,10 @@ final class Listing
             return "✅ merged #{$pr->number}";
         }
         if ($pr->isDraft) {
-            return "📪 draft #{$pr->number}";
+            return "📝 draft #{$pr->number}";
         }
 
-        return "📬 open #{$pr->number}";
+        return "📖 open #{$pr->number}";
     }
 
     /**
