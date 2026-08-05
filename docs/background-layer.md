@@ -11,12 +11,13 @@ timer on Linux, launchd LaunchAgent on macOS — see
 [installation.md](installation.md)) running `pablo system:dispatch`:
 
 - The dispatcher holds a global flock (a second invocation exits
-  immediately), preflights the required CLIs (aborts loudly if one is
-  missing/unauthenticated), then for **each project × {sync, poll}**
-  checks a last-run stamp in `~/.pablo/stamps/` against the project's own
-  `sync.interval_minutes` / `state_polling.interval_minutes` and runs the
-  jobs that are due. A failed job's stamp is not written, so it retries
-  on the next tick; one project's failure never blocks the others.
+  immediately), preflights the required CLIs then, for **each project ×
+  {sync, poll}** checks a last-run stamp in `~/.pablo/stamps/` against the
+  project's own `sync.interval_minutes` / `state_polling.interval_minutes`
+  and runs the jobs that are due. A hard preflight failure (`gh`/`opencode`)
+  aborts loudly; a soft one (provider CLIs — `acli`, `acli-confluence`,
+  `linear`, `orca`) only warns. A failed job's stamp is not written, so it
+  retries on the next tick; one project's failure never blocks the others.
 - **Adding/removing a project needs no scheduler change at all** — the
   per-project cadence lives in the YAML, the single timer never changes.
   This is why one dispatcher timer was chosen over per-project units.

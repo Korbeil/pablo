@@ -95,8 +95,11 @@ uses that provider. CLIs are checked for **installed** (PATH; the probe's
 first argv element is the binary — `acli` appears in two probes) and
 **authenticated/ready** (each CLI's own status command). Per-check ✅/❌
 lines, non-zero exit — the dispatcher runs the same check as its
-fail-fast guard. Probes are capped at 30s (`orca` has been observed
-hanging when invoked outside an interactive session), and in the
-**dispatcher** preflight an `orca` failure is soft — a warning, not an
-abort — because agent runs fall back to headless `opencode run`;
-interactively, `pablo system:doctor` still reports it as ❌.
+fail-fast guard for the **hard** requirements. Probes are capped at 30s
+(`orca` has been observed hanging when invoked outside an interactive
+session), and in the **dispatcher** the provider CLIs (`acli`,
+`acli-confluence`, `linear`, `orca`) are **soft** — a failure warns and
+continues, degrading only the projects that use that provider (they fail
+per-project at runtime), never aborting the whole run; only `gh` and
+`opencode` are hard (a failure there aborts). Interactively,
+`pablo system:doctor` still reports every failing check as ❌.

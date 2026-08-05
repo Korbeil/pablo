@@ -173,7 +173,27 @@ final class DispatchTest extends TestCase
         $errors = Dispatch::preflightErrors([]);
         $out = (string) ob_get_clean();
         $this->assertSame([], $errors);
-        $this->assertStringContainsString('headless fallback', $out);
+        $this->assertStringContainsString('warning: orca not usable', $out);
+    }
+
+    public function testPreflightProviderCliFailuresAreSoft(): void
+    {
+        $results = [
+            new CheckResult('gh', true, true, 'ok', ''),
+            new CheckResult('acli', true, false, 'unauthorized', 'run: acli auth login'),
+            new CheckResult('acli-confluence', true, false, 'not authenticated', 'run: acli confluence auth login'),
+            new CheckResult('linear', true, false, 'not logged in', 'run: linear auth login'),
+        ];
+        Dispatch::setPreflightErrors(null);
+        Doctor::setCheckAll(static fn () => $results);
+        ob_start();
+        $errors = Dispatch::preflightErrors([]);
+        $out = (string) ob_get_clean();
+        $this->assertSame([], $errors);
+        foreach (['acli', 'acli-confluence', 'linear'] as $cli) {
+            $this->assertStringContainsString("warning: {$cli} not usable", $out);
+        }
+        $this->assertStringNotContainsString('gh', $out);
     }
 
     public function testPreflightGhFailureIsHard(): void
