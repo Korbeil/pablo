@@ -43,7 +43,7 @@ bash makes sense.
 - The public contract is **already a CLI boundary**. All 13
   `opencode/commands/*.md` and 5 `opencode/agents/*.md` are pure prompt text
   that only ever call `pablo <subcommand>`; `systemd/pablo-dispatch.service`
-  and the launchd plist call `~/.local/bin/pablo dispatch`. **None of these
+  and the launchd plist call `~/.local/bin/pablo system:dispatch`. **None of these
   files change** so long as subcommand names and output formats hold.
 
 Decisions taken: port the test suite to PHPUnit; big-bang on a feature branch;
@@ -119,17 +119,17 @@ Real logic — these carry the behavioural risk:
 
 Externally depended on (by `opencode/commands/*.md` and the scheduler units):
 
-`start` · `sync` · `issues` · `tasks` · `projects` · `doctor` · `state` ·
-`waiting` · `skip-ci` · `retrigger-ci` · `close` · `precommit-check` ·
-`task current` · `docs` · `dispatch`
+`task:start` · `sync:run` · `show:issues` · `show:tasks` · `show:projects` · `system:doctor` · `task:state` ·
+`task:waiting` · `task:skip-ci` · `task:retrigger-ci` · `task:close` · `task:precommit-check` ·
+`task:info current` · `show:docs` · `system:dispatch`
 
-Not yet wrapped by a command, but still part of the CLI: `poll`, `slack`,
-`rebase-log`, `relaunch`, plus the internals `internal-launch-agent`,
-`internal-run-startup-script`, `watch-agent`.
+Not yet wrapped by a command, but still part of the CLI: `system:poll`, `show:prs`,
+`sync:log`, `task:relaunch`, plus the internals `internal:launch-agent`,
+`internal:run-startup-script`, `internal:watch-agent`.
 
 Declare each with `#[AsTask(name: '<name>', namespace: '')]` — the empty
 namespace is required, or Castor derives one from the file path and you get
-`pablo command:start`. Verified working. `pablo task current --json` is called
+`pablo command:start`. Verified working. `pablo task:info current --json` is called
 as that exact string by `pablo-close.md`, so match it however renders identically.
 
 Flags to keep identical: `--json` (`precommit-check`, `task current`),
@@ -289,7 +289,7 @@ Only three Python touchpoints in `bin/install.sh`:
    `php -r 'echo realpath($argv[1]);'`, or drop it for a bash loop
 
 Everything else — the "refuse to overwrite non-PABLO symlinks" guard, the
-systemd/launchd branches, the closing `pablo doctor` — is untouched.
+systemd/launchd branches, the closing `pablo system:doctor` — is untouched.
 `bin/uninstall.sh` needs no change (it only removes symlinks).
 
 ## Files deleted at cutover
@@ -329,14 +329,14 @@ Run in order; each is a real gate, not a smoke test.
 1. `composer test` — full PHPUnit suite green.
 2. **Shim from a foreign cwd**: `cd ~/Sites/acme/ecommerce && pablo --help`
    must list PABLO's subcommands (guards Gotcha 1).
-3. `pablo doctor` — all preflight checks pass (gh/acli/orca auth).
-4. `pablo projects` and `pablo issues` — YAML loading + provider reads.
-5. **Read live state without writing**: `pablo tasks` against the existing
+3. `pablo system:doctor` — all preflight checks pass (gh/acli/orca auth).
+4. `pablo show:projects` and `pablo show:issues` — YAML loading + provider reads.
+5. **Read live state without writing**: `pablo show:tasks` against the existing
    `~/.pablo/state/` must render every current task with correct emoji column
-   alignment, and `pablo tasks --live` must match. Back up `~/.pablo/` first.
-6. `pablo task current --json` from inside a real task worktree — same JSON
+   alignment, and `pablo show:tasks --live` must match. Back up `~/.pablo/` first.
+6. `pablo task:info current --json` from inside a real task worktree — same JSON
    shape as the Python version (diff them before deleting `src/pablo/`).
-7. `pablo dispatch` by hand — stamps update in `~/.pablo/stamps/` and the
+7. `pablo system:dispatch` by hand — stamps update in `~/.pablo/stamps/` and the
    global flock holds (run two concurrently; the second must no-op).
 8. Detached-agent check: trigger a launch, confirm a pidfile appears in
    `~/.pablo/agents/`, the process survives its parent exiting, and it shows in

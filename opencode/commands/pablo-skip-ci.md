@@ -10,7 +10,7 @@ other state (there is nothing to skip).
 
 ## Steps
 
-1. Run `pablo skip-ci` from the current directory.
+1. Run `pablo task:skip-ci` from the current directory.
 2. Relay the output verbatim.
 
 After this the task moves through `ready-to-review` → `waiting-review`

@@ -16,7 +16,7 @@ final class DocsCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('docs')
+        $this->setName('show:docs')
             ->setDescription('fetch a Confluence documentation page (via acli)')
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'scope to a configured project (optional)')
             ->addArgument('page', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'page id or Confluence URL');
@@ -26,7 +26,7 @@ final class DocsCommand extends Command
     {
         $target = trim(implode(' ', (array) $input->getArgument('page')));
         if ('' === $target) {
-            throw new PabloError('usage: pablo docs <page-id | confluence-url> [--project <name>]');
+            throw new PabloError('usage: pablo show:docs <page-id | confluence-url> [--project <name>]');
         }
         $projects = $this->projects();
         $project = $input->getOption('project') ?: null;

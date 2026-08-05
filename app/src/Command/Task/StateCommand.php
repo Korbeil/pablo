@@ -17,7 +17,7 @@ final class StateCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('state')
+        $this->setName('task:state')
             ->setDescription('force the current task to a state')
             ->addArgument('state', InputArgument::REQUIRED, 'target state')
             ->addOption('no-trigger', null, InputOption::VALUE_NONE, 'skip the state\'s on-enter actions (ignored for waiting)');

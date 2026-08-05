@@ -180,7 +180,7 @@ final class Agents implements AgentLauncherInterface
     public function launch(string $worktree, \Pablo\Domain\Agent $agent, string $prompt, string $project, string $branch): string
     {
         $pid = $this->spawnDetached([
-            $this->shimPath, 'internal-launch-agent',
+            $this->shimPath, 'internal:launch-agent',
             '--worktree', $worktree,
             '--agent', $agent->value,
             '--prompt', $prompt,
@@ -194,7 +194,7 @@ final class Agents implements AgentLauncherInterface
     public function runStartupScript(string $worktree, string $script, string $project, string $branch): string
     {
         $pid = $this->spawnDetached([
-            $this->shimPath, 'internal-run-startup-script',
+            $this->shimPath, 'internal:run-startup-script',
             '--worktree', $worktree,
             '--script', $script,
             '--project', $project,
@@ -384,7 +384,7 @@ final class Agents implements AgentLauncherInterface
     public function spawnWatcher(string $project, string $branch, string $handle, string $then, ?string $expectState = null): void
     {
         $argv = [
-            $this->shimPath, 'watch-agent',
+            $this->shimPath, 'internal:watch-agent',
             '--project', $project, '--branch', $branch,
             '--handle', $handle, '--then', $then,
         ];

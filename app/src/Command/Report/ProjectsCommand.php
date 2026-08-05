@@ -12,7 +12,7 @@ final class ProjectsCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('projects')->setDescription('list configured projects');
+        $this->setName('show:projects')->setDescription('list configured projects');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

@@ -15,7 +15,7 @@ final class IssuesCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('issues')
+        $this->setName('show:issues')
             ->setDescription('issues assigned to me, per project')
             ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project');
     }

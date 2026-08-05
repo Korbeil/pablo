@@ -7,7 +7,7 @@ worktree, like /pablo-state and /pablo-close).
 
 ## Steps
 
-1. Run `pablo waiting` from the current directory.
+1. Run `pablo task:waiting` from the current directory.
 2. Relay the output verbatim:
    - First call: the task saves its current state and switches to
      ⏸️ waiting. While paused, state polling skips it (except merge

@@ -163,7 +163,7 @@ that service's CLI rather than raw API calls with stored tokens:
   the OAuth login itself (`acli auth login`), so the no-tokens rule holds —
   PABLO stores nothing. The same `acli` grant also covers **Confluence**
   via `acli confluence page view --id <id> --json` (the documentation path,
-  exposed as `pablo docs` / `/pablo-docs` and used by agents when an issue
+  exposed as `pablo show:docs` / `/pablo-docs` and used by agents when an issue
   references a wiki page). Interactive agents invoke `acli` directly via
   bash; the background layer shells out to the same CLI.
 - **Linear**: the corresponding Linear CLI — pick one, and document which
@@ -179,7 +179,7 @@ bridge isn't authenticated, surface its own error/instructions rather
 than inventing a token mechanism.
 
 **CLI preflight check.** PABLO includes a **Python module**
-(`src/pablo/doctor.py`, exposed as `pablo doctor` and `/pablo-doctor` —
+(`src/pablo/doctor.py`, exposed as `pablo system:doctor` and `/pablo-doctor` —
 not a bash script; decided 2026-07-26) that verifies all required CLIs are
 ready before anything relies on them:
 

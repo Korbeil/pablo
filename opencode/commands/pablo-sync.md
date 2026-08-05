@@ -6,7 +6,7 @@ Run PABLO's worktree sync and relay its report.
 
 ## Steps
 
-1. Run `pablo sync $ARGUMENTS` (arguments may name a project and/or
+1. Run `pablo sync:run $ARGUMENTS` (arguments may name a project and/or
    `--apply`; without `--apply` this is a dry-run unless a project has
    `sync.auto_apply: true`).
 2. Relay the report verbatim. For ⚠️ conflicts, show the affected

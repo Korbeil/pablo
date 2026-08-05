@@ -86,8 +86,8 @@ Darwin)
 esac
 
 # 5. Preflight ---------------------------------------------------------------
-info "running pablo doctor (a failure here is a warning at install time —"
+info "running pablo system:doctor (a failure here is a warning at install time —"
 info "projects may not be configured yet):"
-"$BIN_DIR/pablo" doctor || true
+"$BIN_DIR/pablo" system:doctor || true
 
 info "done. Add project configs under $REPO_DIR/app/projects/ to get started."

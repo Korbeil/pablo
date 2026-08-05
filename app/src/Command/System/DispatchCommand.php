@@ -13,7 +13,7 @@ final class DispatchCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('dispatch')->setDescription('cron entry point: run due sync/poll jobs for all projects');
+        $this->setName('system:dispatch')->setDescription('cron entry point: run due sync/poll jobs for all projects');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

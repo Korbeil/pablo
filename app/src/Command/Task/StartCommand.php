@@ -28,7 +28,8 @@ final class StartCommand extends Command
 
     protected function configure(): void
     {
-        $this->setName('start')
+        $this->setName('task:start')
+            ->setAliases(['start'])
             ->setDescription('start a task (issue URL or --project + prompt)')
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'project name for plain-prompt tasks')
             ->addArgument('input', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'issue URL or task prompt');
@@ -137,7 +138,7 @@ final class StartCommand extends Command
         $agents = $this->agents();
         $text = trim(implode(' ', (array) $input->getArgument('input')));
         if ('' === $text) {
-            throw new PabloError('usage: pablo start <issue-url> | pablo start --project <name> "<prompt>"');
+            throw new PabloError('usage: pablo task:start <issue-url> | pablo task:start --project <name> "<prompt>"');
         }
 
         if (str_starts_with($text, 'http://') || str_starts_with($text, 'https://')) {

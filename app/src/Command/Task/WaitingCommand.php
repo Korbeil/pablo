@@ -15,7 +15,7 @@ final class WaitingCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('waiting')->setDescription('toggle the waiting pause for the current task');
+        $this->setName('task:waiting')->setDescription('toggle the waiting pause for the current task');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

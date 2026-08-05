@@ -23,7 +23,7 @@ final class RestoreCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('restore')
+        $this->setName('archive:restore')
             ->setDescription('restore a PABLO state backup and recreate task worktrees')
             ->addArgument('archive', InputArgument::REQUIRED, 'path to a pablo-backup-*.tar.gz archive')
             ->addOption('skip-worktrees', null, InputOption::VALUE_NONE, 'restore state and configs only, do not recreate worktrees')
@@ -62,7 +62,7 @@ final class RestoreCommand extends Command
                 $output->writeln('worktrees skipped (--skip-worktrees) — task records keep their original paths');
             }
 
-            $output->writeln('restore complete. Run `pablo tasks` to verify.');
+            $output->writeln('restore complete. Run `pablo show:tasks` to verify.');
 
             return self::SUCCESS;
         } finally {

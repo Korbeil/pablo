@@ -34,17 +34,17 @@ Following the conventions of the user's other OpenCode agents (flat
 
 | command | wraps | purpose |
 |---|---|---|
-| `/pablo-start` | `pablo start` | start a task from an issue URL or a prompt |
-| `/pablo-issues` | `pablo issues` | issues assigned to me, per project |
-| `/pablo-tasks` | `pablo tasks` | active worktrees + states listing |
-| `/pablo-sync` | `pablo sync` | worktree sync (dry-run by default) |
-| `/pablo-state` | `pablo state` | manually force the current task's state |
-| `/pablo-waiting` | `pablo waiting` | pause/resume toggle |
-| `/pablo-relaunch` | `pablo relaunch` | re-fire the current state's agent/startup launchers (recover from a cold-worktree Orca hang) |
-| `/pablo-close` | `pablo close` | manual close (escape hatch) |
-| `/pablo-doctor` | `pablo doctor` | CLI preflight check |
-| `pablo backup` | `pablo backup` | write a restorable archive of all `~/.pablo` state (agent sessions excluded) |
-| `pablo restore` | `pablo restore` | restore state/configs and recreate task worktrees from the archive |
+| `/pablo-start` | `pablo task:start` | start a task from an issue URL or a prompt |
+| `/pablo-issues` | `pablo show:issues` | issues assigned to me, per project |
+| `/pablo-tasks` | `pablo show:tasks` | active worktrees + states listing |
+| `/pablo-sync` | `pablo sync:run` | worktree sync (dry-run by default) |
+| `/pablo-state` | `pablo task:state` | manually force the current task's state |
+| `/pablo-waiting` | `pablo task:waiting` | pause/resume toggle |
+| `/pablo-relaunch` | `pablo task:relaunch` | re-fire the current state's agent/startup launchers (recover from a cold-worktree Orca hang) |
+| `/pablo-close` | `pablo task:close` | manual close (escape hatch) |
+| `/pablo-doctor` | `pablo system:doctor` | CLI preflight check |
+| `pablo archive:backup` | `pablo archive:backup` | write a restorable archive of all `~/.pablo` state (agent sessions excluded) |
+| `pablo archive:restore` | `pablo archive:restore` | restore state/configs and recreate task worktrees from the archive |
 | `/pablo-commit-and-pr` | (agentic) | commit, push, draft PR, state → `draft` |
 
 **Naming note:** the spec calls the last one `/commit-and-pr`, but the

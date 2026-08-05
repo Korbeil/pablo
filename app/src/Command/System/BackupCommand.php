@@ -16,7 +16,7 @@ final class BackupCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('backup')
+        $this->setName('archive:backup')
             ->setDescription('create a restorable archive of all PABLO state (agent sessions excluded)')
             ->addArgument('destination', InputArgument::OPTIONAL, 'output file or directory; defaults to ~/.pablo-backups/');
     }

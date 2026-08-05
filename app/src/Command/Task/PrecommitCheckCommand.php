@@ -14,7 +14,7 @@ final class PrecommitCheckCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('precommit-check')->setDescription('check /commit-and-pr is allowed here');
+        $this->setName('task:precommit-check')->setDescription('check /commit-and-pr is allowed here');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

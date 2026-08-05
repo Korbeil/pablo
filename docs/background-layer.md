@@ -8,7 +8,7 @@ OpenCode session.
 
 **Background layer** — a 5-minute scheduler per platform (systemd user
 timer on Linux, launchd LaunchAgent on macOS — see
-[installation.md](installation.md)) running `pablo dispatch`:
+[installation.md](installation.md)) running `pablo system:dispatch`:
 
 - The dispatcher holds a global flock (a second invocation exits
   immediately), preflights the required CLIs (aborts loudly if one is
@@ -70,7 +70,7 @@ re-fires each of the state's detached launchers (including the
 `in-progress` startup script) up to `LAUNCH_MAX_ATTEMPTS`. The
 `in-progress` startup script is included because it's verified safely
 re-runnable; any future project's non-idempotent startup script must be
-scoped out, not special-cased. Recover manually with `pablo relaunch`.
+scoped out, not special-cased. Recover manually with `pablo task:relaunch`.
 
 ## Closing a task
 
@@ -103,7 +103,7 @@ orca terminal create --worktree path:<worktree> \
 orca terminal create --worktree path:<worktree> \
      --title "pablo:startup-script" \
      --command "bash <startup_script>; exec bash" --json
-# completion (the pablo watch-agent watcher):
+# completion (the pablo internal:watch-agent watcher):
 orca terminal wait --terminal <handle> --for exit --timeout-ms 3600000 --json
 # activity (task listing + close checks):
 orca worktree ps --limit 200 --json     # per-worktree agents[] with state

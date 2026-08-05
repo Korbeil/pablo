@@ -15,7 +15,7 @@ final class RetriggerCiCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('retrigger-ci')->setDescription('re-run all GitHub Actions jobs for the current task');
+        $this->setName('task:retrigger-ci')->setDescription('re-run all GitHub Actions jobs for the current task');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

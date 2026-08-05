@@ -15,7 +15,7 @@ final class TaskCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('task')
+        $this->setName('task:info')
             ->setDescription('task record utilities')
             ->addArgument('current', InputArgument::REQUIRED, 'task record verb (current)')
             ->addOption('json', null, InputOption::VALUE_NONE, 'emit JSON (accepted for back-compat)');
@@ -24,7 +24,7 @@ final class TaskCommand extends Command
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         if ('current' !== (string) $input->getArgument('current')) {
-            throw new PabloError('usage: pablo task current');
+            throw new PabloError('usage: pablo task:info current');
         }
         $store = $this->store();
         $ctx = $this->resolveCtx($store, $this->agents());

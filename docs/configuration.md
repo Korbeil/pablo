@@ -25,7 +25,7 @@ identity: bfontaine        # account used to filter "assigned to me" (required;
                               # default = "jira"
 confluence:                    # optional; only relevant for jira projects (acli
   space: PIM                   # owns both Jira and Confluence auth). Scopes doc
-                              # lookups (`pablo docs` / agents) to this space key.
+                              # lookups (`pablo show:docs` / agents) to this space key.
 sync:
   strategy: rebase           # rebase | merge
   auto_apply: false          # false → cron sync is dry-run/report-only
@@ -50,7 +50,7 @@ startup_script: ~/scripts/pablo-setup.sh
                              # task, in its own Orca terminal, alongside task-analyst
                              # on /pablo-start. Default: null (skipped). Launched via a
                              # detached subprocess, so it never blocks the /pablo-start
-                             # or pablo state command that triggers it.
+                             # or pablo task:state command that triggers it.
 ```
 
 **Default-eligible keys** (fall back per key to `projects/default.yaml`

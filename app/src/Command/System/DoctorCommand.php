@@ -13,7 +13,7 @@ final class DoctorCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('doctor')->setDescription('check required CLIs are installed and authenticated');
+        $this->setName('system:doctor')->setDescription('check required CLIs are installed and authenticated');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

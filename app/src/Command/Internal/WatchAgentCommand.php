@@ -17,7 +17,7 @@ final class WatchAgentCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('watch-agent')
+        $this->setName('internal:watch-agent')
             ->addOption('project', null, InputOption::VALUE_REQUIRED)
             ->addOption('branch', null, InputOption::VALUE_REQUIRED)
             ->addOption('handle', null, InputOption::VALUE_REQUIRED)
