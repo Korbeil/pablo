@@ -56,7 +56,10 @@ final class AgentsTest extends TestCase
 
         $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'Analyze issue #45');
         $this->assertSame('term_123', $handle);
-        $argv = $calls[0];
+        $this->assertCount(2, $calls);
+        // First: the cold-worktree adoption poll; then the terminal create.
+        $this->assertSame(['orca', 'worktree', 'show'], \array_slice($calls[0], 0, 3));
+        $argv = $calls[1];
         $this->assertSame(['orca', 'terminal', 'create'], \array_slice($argv, 0, 3));
         $this->assertContains('path:'.$this->tmp, $argv);
         $this->assertContains('pablo:task-analyst', $argv);

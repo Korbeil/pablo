@@ -26,6 +26,7 @@ final class Agents implements AgentLauncherInterface
 {
     public const ORCA_WAIT_TIMEOUT_MS = 3_600_000;
     public const ORCA_CALL_TIMEOUT_S = 60;
+    public const ORCA_ADOPT_WAIT_S = 15;
     public const RUNNING_STATES = ['working', 'running'];
 
     private string $agentsDir;
@@ -120,11 +121,35 @@ final class Agents implements AgentLauncherInterface
         );
     }
 
+    /**
+     * Orca discovers newly `git worktree add`'d branches of registered repos
+     * asynchronously; a `terminal create` on a not-yet-adopted path fails with
+     * `selector_not_found`. Poll `worktree show` (which fails fast) until Orca
+     * adopts the worktree or $maxWaitS elapses.
+     */
+    private function waitForOrcaAdoption(string $worktree, int $maxWaitS = self::ORCA_ADOPT_WAIT_S): bool
+    {
+        $deadline = microtime(true) + $maxWaitS;
+        while (microtime(true) < $deadline) {
+            [$result] = $this->orca(['worktree', 'show', '--worktree', 'path:'.$worktree]);
+            if (null !== $result) {
+                return true;
+            }
+            usleep(1_000_000);
+        }
+
+        return false;
+    }
+
     public function doLaunchAgent(string $worktree, string $agent, string $prompt): string
     {
         $command = 'opencode '.escapeshellarg($worktree)
             ." --agent {$agent} --prompt ".escapeshellarg($prompt);
         [$result, $reason] = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
+            if (!$this->waitForOrcaAdoption($worktree)) {
+                return [null, 'orca adoption timeout for '.$worktree];
+            }
+
             return $this->orca([
                 'terminal', 'create',
                 '--worktree', 'path:'.$worktree,
@@ -147,6 +172,10 @@ final class Agents implements AgentLauncherInterface
     {
         $command = 'bash '.escapeshellarg($script).'; exec bash';
         [$result, $reason] = $this->withLaunchLock($worktree, function () use ($worktree, $command) {
+            if (!$this->waitForOrcaAdoption($worktree)) {
+                return [null, 'orca adoption timeout for '.$worktree];
+            }
+
             return $this->orca([
                 'terminal', 'create',
                 '--worktree', 'path:'.$worktree,
