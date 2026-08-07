@@ -143,7 +143,7 @@ final class DashboardControllerTest extends WebTestCase
             ->each(static fn ($n) => $n->attr('data-live-name-value'));
 
         sort($names);
-        $this->assertSame(['PollProgress', 'SlackModal', 'TaskBoard'], $names);
+        $this->assertSame(['PollProgress', 'RebaseLog', 'SlackModal', 'TaskBoard'], $names);
     }
 
     /**

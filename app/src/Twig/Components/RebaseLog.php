@@ -6,15 +6,20 @@ namespace Pablo\Twig\Components;
 
 use Pablo\Dashboard\Dashboard;
 use Pablo\Dashboard\RebaseLogView;
-use Symfony\UX\TwigComponent\Attribute\AsTwigComponent;
+use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
+use Symfony\UX\LiveComponent\DefaultActionTrait;
 
 /**
  * The last sync/rebase session per project. Reads one small JSON file per
- * project, so it renders with the page rather than polling.
+ * project; re-renders every minute.
  */
-#[AsTwigComponent]
+#[AsLiveComponent]
 final class RebaseLog
 {
+    use DefaultActionTrait;
+
+    public const POLL_MS = 60000;
+
     public function __construct(
         private readonly RebaseLogView $view,
         private readonly Dashboard $dashboard,

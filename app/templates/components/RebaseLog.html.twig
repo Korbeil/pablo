@@ -1,5 +1,5 @@
 {# @var this \Pablo\Twig\Components\RebaseLog #}
-<div {{ attributes }}>
+<div {{ attributes.defaults({'data-poll': 'delay(' ~ constant('Pablo\\Twig\\Components\\RebaseLog::POLL_MS') ~ ')|$render'}) }}>
     {% set logs = this.logs %}
     {% if logs is empty %}
         <p class="pablo-empty">No sync has run yet — try <code>pablo sync:run &lt;project&gt;</code>.</p>
