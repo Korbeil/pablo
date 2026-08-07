@@ -1,0 +1,35 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}PABLO dashboard{% endblock %}
+
+{% block body %}
+    <header class="pablo-header">
+        <div class="pablo-container pablo-header-inner">
+            <div>
+                <h1 class="pablo-title">P.A.B.L.O.</h1>
+                <p class="pablo-tagline">Personal Assistant for Boring Logic &amp; Operations</p>
+            </div>
+            <twig:SlackModal />
+        </div>
+    </header>
+
+    <main class="pablo-container">
+        <section class="pablo-section">
+            <h2 class="pablo-heading">
+                {{ ux_icon('lucide:clock', {class: 'pablo-icon'}) }}
+                Poller
+            </h2>
+            <twig:PollProgress />
+        </section>
+
+        <twig:TaskBoard />
+
+        <section class="pablo-section">
+            <h2 class="pablo-heading">
+                {{ ux_icon('lucide:refresh-cw', {class: 'pablo-icon'}) }}
+                Last sync
+            </h2>
+            <twig:RebaseLog />
+        </section>
+    </main>
+{% endblock %}

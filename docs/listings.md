@@ -43,11 +43,20 @@ copied into its own Slack channel; pass `waiting-review` or
 `needs-testing` to print just one block.
 
 Each block is grouped by project (one `*<project>*` header per group),
-one bullet per task that has a PR, using Slack's link syntax
-`<pr.url|#<n> <title>`. Tasks without a PR are skipped; a project whose
+one bullet per task that has a PR, formatted as the bare PR URL followed
+by the issue key and title (or `#<n> <title>` when the task has no
+issue) — Slack unfurls the URL itself. Tasks without a PR are skipped; a project whose
 tasks all lack PRs is omitted. An empty queue (or one with no PRs)
 prints `No PRs waiting for review right now 🎉` / `Nothing needs testing
 right now 🎉`. No headers, no commentary — the output is paste-ready
 as-is. Replaces the former `/pablo-waiting-review` and
 `/pablo-needs-testing` OpenCode commands (which relied on an LLM to
 format the same JSON); the formatting is now deterministic in the engine.
+
+## Web equivalent
+
+The same three listings are also rendered as a local web dashboard —
+`pablo web`, see [docs/dashboard.md](dashboard.md). It reads the poller's
+display cache rather than fetching live, and its "needs attention" split
+is deliberately wider than the terminal's "💭 Waiting for feedback"
+section.

@@ -29,6 +29,17 @@ final class Dispatch
     private const SOFT_CLIS = ['orca', 'acli', 'acli-confluence', 'linear'];
 
     /**
+     * How often the scheduler fires this dispatcher. Per-project cadence is
+     * enforced by the stamps below, so a project can never be polled more often
+     * than this — which is why the dashboard rounds its "next poll" estimate up
+     * to the next tick.
+     *
+     * Must match systemd/pablo-dispatch.timer (OnCalendar=*:0/5) and
+     * launchd/com.pablo.dispatch.plist.template (StartInterval 300).
+     */
+    public const TICK_MINUTES = 5;
+
+    /**
      * @param array<string, ProjectConfig> $projects
      *
      * @return list<string>
@@ -98,6 +109,9 @@ final class Dispatch
     /** @var resource|null */
     private static $lockFd;
 
+    /** @var resource|null test seam: redirect stderr for tests */
+    public static $stderr;
+
     public static function releaseDispatchLock(): void
     {
         if (\is_resource(self::$lockFd)) {
@@ -108,13 +122,14 @@ final class Dispatch
 
     public static function runSync(ProjectConfig $cfg, Store $store): void
     {
-        $reports = Sync::syncProject($cfg, $store, null);
+        $agents = new Agents();
+        $reports = Sync::syncProject($cfg, $store, null, $agents);
         echo "[{$cfg->name}] sync:\n".Sync::renderReports($reports)."\n";
     }
 
     public static function runPoll(ProjectConfig $cfg, Store $store): void
     {
-        $agents = new Agents(static::shimPath());
+        $agents = new Agents();
         foreach (Poller::pollProject($cfg, $store, $agents) as $event) {
             echo "[{$cfg->name}] {$event}\n";
         }
@@ -122,12 +137,7 @@ final class Dispatch
 
     public static function shimPath(): string
     {
-        $env = getenv('PABLO_SHIM');
-        if (false !== $env && '' !== $env) {
-            return $env;
-        }
-
-        return (getenv('HOME') ?: '~').'/.local/bin/pablo';
+        return Agents::defaultShimPath();
     }
 
     /** @return array<string, callable(ProjectConfig, Store): void> */
@@ -186,7 +196,7 @@ final class Dispatch
         try {
             $errors = self::preflightErrors($projects);
             if ([] !== $errors) {
-                fwrite(\STDERR, "pablo dispatch: CLI preflight failed, aborting:\n"
+                fwrite(self::$stderr ?? \STDERR, "pablo dispatch: CLI preflight failed, aborting:\n"
                     .implode("\n", array_map(static fn ($e) => "  ❌ {$e}", $errors))."\n");
 
                 return 1;
@@ -214,7 +224,7 @@ final class Dispatch
                             $runner($cfgValue, $store);
                         } catch (\Throwable $e) {
                             $failed = true;
-                            fwrite(\STDERR, "pablo dispatch: {$job} failed for project {$cfgValue->name}:\n{$e}\n");
+                            fwrite(self::$stderr ?? \STDERR, "pablo dispatch: {$job} failed for project {$cfgValue->name}:\n{$e}\n");
                             continue; // stamp not written: retried next tick
                         }
                     }

@@ -27,6 +27,9 @@ final class DispatchTest extends TestCase
         putenv('PABLO_STAMPS_DIR='.$this->stamps);
         $this->ran = [];
         Dispatch::setPreflightErrors(static fn () => []);
+        $fh = fopen('/dev/null', 'w');
+        \assert(false !== $fh);
+        Dispatch::$stderr = $fh;
     }
 
     protected function tearDown(): void
@@ -34,6 +37,7 @@ final class DispatchTest extends TestCase
         putenv('PABLO_STAMPS_DIR');
         Dispatch::setPreflightErrors(null);
         Doctor::setCheckAll(null);
+        Dispatch::$stderr = null;
     }
 
     private function cfg(string $name): ProjectConfig
@@ -210,7 +214,9 @@ final class DispatchTest extends TestCase
     {
         $env = $this->env();
         Dispatch::setPreflightErrors(static fn () => ['gh: not authenticated']);
+        ob_start();
         $rc = $this->runDispatch($env['projects'], $env['store'], $env['runners']);
+        ob_end_clean();
         $this->assertSame(1, $rc);
         $this->assertSame([], $this->ran);
     }
@@ -243,7 +249,9 @@ final class DispatchTest extends TestCase
             'poll' => function (ProjectConfig $c, Store $_): void { $this->ran[] = ['poll', $c->name]; },
         ];
 
+        ob_start();
         $rc = Dispatch::run(['a' => $a, 'b' => $b], $store, $runners);
+        ob_end_clean();
         $this->assertSame(0, $rc);
 
         $pairs = array_map(static fn ($p) => $p[1].':'.$p[0], $this->ran);

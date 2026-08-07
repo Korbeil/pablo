@@ -117,7 +117,11 @@ final class StoreTest extends TestCase
     {
         $l = Store::taskLock($this->store, 'p', 'b');
         $l->release();
-        $l2 = Store::taskLock($this->store, 'p', 'b'); // re-acquirable -> was released
+        // A still-held lock makes this throw TaskLockedException once the
+        // (deliberately short) timeout elapses; getting a fresh, distinct lock
+        // back is the proof that release() actually released.
+        $l2 = Store::taskLock($this->store, 'p', 'b', timeoutS: 1.0);
+        $this->assertNotSame($l, $l2);
         $l2->release();
     }
 

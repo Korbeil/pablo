@@ -31,9 +31,26 @@ final class Agents implements AgentLauncherInterface
 
     private string $agentsDir;
 
-    /** @param string $shimPath absolute path used for detached self-reinvocation */
-    public function __construct(private string $shimPath)
+    private readonly string $shimPath;
+
+    /**
+     * Mirrors Store::defaultRoot(): resolved per process, never at container
+     * compile time (the compiled container is cached under app/var/cache).
+     */
+    public static function defaultShimPath(): string
     {
+        $override = getenv('PABLO_SHIM');
+        if (false !== $override && '' !== $override) {
+            return $override;
+        }
+
+        return (getenv('HOME') ?: '~').'/.local/bin/pablo';
+    }
+
+    /** @param string|null $shimPath absolute path used for detached self-reinvocation */
+    public function __construct(?string $shimPath = null)
+    {
+        $this->shimPath = $shimPath ?? self::defaultShimPath();
         $override = getenv('PABLO_AGENTS_DIR');
         $this->agentsDir = (false !== $override && '' !== $override)
             ? $override
@@ -258,7 +275,7 @@ final class Agents implements AgentLauncherInterface
             }
             $activity = [] !== $parts ? implode(' · ', $parts) : '-';
 
-            $store = new Store(Store::defaultRoot());
+            $store = new Store();
             $lock = Store::taskLock($store, $project, $branch, timeoutS: 2);
             try {
                 $task = $store->get($project, $branch);

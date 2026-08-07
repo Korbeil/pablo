@@ -30,29 +30,51 @@ castor qa:test                              # PHPUnit suite (app/)
 castor qa:phpstan                           # static analysis, level 8 (app/src)
 castor qa:phpstan --generate-baseline       # regenerate phpstan-baseline.neon
 castor qa:cs-fixer                          # php-cs-fixer (@Symfony + @Symfony:risky)
+castor qa:twig-cs-fixer                     # twig-cs-fixer (app/templates)
 (cd app && composer test)                   # same as castor qa:test
 (cd app && composer exec phpunit tests/StateMachineTest.php)  # one file
 pablo --help                                # engine subcommands
+pablo web                                   # read-only dashboard on 127.0.0.1:8321
+php app/bin/console cache:clear             # framework CLI: cache:clear, lint:twig, debug:router,
+                                            # importmap:*, ux:icons:import
 ./bin/install.sh / ./bin/uninstall.sh       # install/remove shim + scheduler
 journalctl --user -u pablo-dispatch.service -f  # dispatcher logs (Linux)
 ```
 
 Code style is enforced by php-cs-fixer (`app/.php-cs-fixer.php`) and PHPStan
-at **level 8** (`app/phpstan.neon`) — raise it further by fixing
-reported errors, never by ignoring or baseline-suppressing them. Run both via
-`castor qa:*` before non-trivial changes.
+at **level 8** (`app/phpstan.neon`), both over `src`, `tests`, `config` and
+`public` — raise it further by fixing reported errors, never by ignoring or
+baseline-suppressing them. Run both via `castor qa:*` before non-trivial
+changes. `qa:cs-fixer` uses `--path-mode intersection`, so a new top-level
+directory must be added to **both** `castor.php` and `.php-cs-fixer.php`.
 
 ## Architecture
 
 The application lives under `app/`; namespaces mirror folders
 (`Pablo\ => src/`, i.e. `app/src`). Paths below are relative to `app/`
-unless noted. Entry: `bin/pablo` (boots
-`App\Kernel`, a compiled Symfony DI container) · `src/App/Kernel.php` +
-`config/services.php` (service wiring; commands are `console.command`
-services) · `src/App/ConsoleApplication.php` (registers `src/Command/*.php`)
-· `src/Command/*.php` (one Symfony Console command per subcommand, grouped
-by topic under `Task/` `Sync/` `Report/` `System/` `Internal/`; commands are
-DI services tagged `console.command`) ·
+unless noted.
+
+**One kernel, three entry points.** `src/App/Kernel.php` is a
+FrameworkBundle `MicroKernelTrait` kernel (project dir = `app/`, container
+cached in `var/cache/<env>`) serving `bin/pablo` (the user-facing CLI),
+`bin/console` (framework maintenance) and `public/index.php` (the
+dashboard). `PABLO_ENV` defaults to `dev` — **not** `prod`, where the
+container cache is never checked for freshness and a `git pull` would leave
+a stale container forever. `MicroKernelTrait`'s default
+`configureContainer`/`configureRoutes` are used as-is; config lives in
+`config/{bundles,services,routes}.php` + `config/packages/`.
+
+⚠️ **Never resolve a `PABLO_*` env var (or `HOME`) at container compile
+time** — the container is cached, so a compile-time value freezes on
+whichever process warmed the cache. `Store` and `Agents` resolve their own
+defaults in their constructors for exactly this reason; don't turn them
+back into container parameters.
+
+`src/App/ConsoleApplication.php` consumes the **`pablo.command`** tag (not
+`console.command`, which every bundle now contributes to) so `pablo --help`
+lists PABLO subcommands only · `src/Command/*.php` (one Symfony Console
+command per subcommand, grouped by topic under `Task/` `Sync/` `Report/`
+`System/` `Internal/`) ·
 `src/Config/` (project YAML loading + `ProjectConfig`) · `src/Domain/`
 (`Task`/`Issue` records, the `State` and `Agent` enums, `Time`) ·
 `src/StateMachine/` (the data-driven state machine) · `src/Store/` (state
@@ -60,9 +82,20 @@ store + per-task flock) · `src/Poller/` (state polling) ·
 `src/Provider/` (all external integrations): `Gh/` (`gh` PR/CI),
 `Git/` (worktrees, lease-safe sync), `Confluence/` (`acli`),
 `Tracker/` (`ProviderInterface` + `Github`/`Jira`/`Linear`) ·
-`src/Agents/` (launches agents via Orca) · `src/Listing/` (tables) ·
+`src/Agents/` (launches agents via Orca) · `src/Listing/` (terminal tables) ·
 `src/Doctor/` (preflight checks) · `src/Dispatch/` (cron entry point) ·
 `src/Support/` (`PabloError`, `Proc`, `Naming`, `RepoSlug`).
+
+**Dashboard** (`pablo web`, see `docs/dashboard.md`): `src/Dashboard/`
+(`Dashboard` — the cache-only data service, `TaskView`, `PollSchedule`,
+`RebaseLogView`) · `src/Controller/` (the single `GET /`) ·
+`src/Twig/Components/` (UX Twig/Live components) · `templates/` ·
+`assets/`. Two hard rules: the page is **strictly read-only**, and a page
+render must never call `gh`/`orca`/a tracker CLI — it reads the poller's
+`DisplayCache`. Only the Slack modal fetches live, on demand.
+`Domain/PrBadge` and `Domain/AgentActivity` are the shared value objects
+`Listing` renders terminal cells over, so the two surfaces cannot drift;
+`tests/Listing/ListingTest.php` is what proves terminal output unchanged.
 
 **New state**: add a case to `State` in `src/Domain/State.php` + a
 `StateDef` in the `states()` table in `StateMachine.php`. Always transition
@@ -106,13 +139,23 @@ repos not registered in Orca.
 
 Tests live under `app/tests/` mirroring `app/src/` (e.g. `app/src/Store/Store.php`
 is covered by `app/tests/Store/StoreTest.php`) so a test is found next to its
-subject. `tests/FakeAgents.php` is injected through `AgentLauncherInterface` (via the
-shared base `TestCase`) for every test **except** the `Agents` tests — this
-stops a forgotten real `Agents` from starting a real `opencode run` (a real
-LLM call) during PHPUnit. Never remove it or widen the exemption.
+subject. `tests/FakeAgents.php` is injected through `AgentLauncherInterface`
+wherever a test could otherwise reach a real `Agents` — this stops a forgotten
+real `Agents` from starting a real `opencode run` (a real LLM call) during
+PHPUnit. Never remove it or widen the exemption. (There is no shared base
+`TestCase`: classes extend PHPUnit's directly, and `tests/Command/CommandTestBed.php`
+is the abstract bed for command tests, with static seams — `RepoSlug::setFor`,
+`GhPr::set*`, `GitRepo::set*` — reset in `tearDown`.)
 `tests/PortabilityTest.php` is a tripwire scanning `src/**/*.php` for
 `systemctl`/`journalctl`/`/etc/`/`/proc/`/`/opt/` to keep the engine
 Linux+macOS portable.
+
+Any test that **boots the kernel** must `use Pablo\Tests\RestoresErrorHandlers`
+and bracket the boot with `snapshotErrorHandlers()`/`restoreErrorHandlers()`:
+`FrameworkBundle::boot()` installs Symfony's `ErrorHandler` globally and
+nothing removes it, which PHPUnit reports as a risky test. It registers with
+`$replace=false`, so an unconditional `restore_error_handler()` would pop
+PHPUnit's own handlers on the second boot — hence snapshot-then-compare.
 
 ## Config (`projects/*.yaml`)
 

@@ -22,6 +22,22 @@ resolve_path() {
 info "composer install (no-dev)"
 (cd "$REPO_DIR/app" && composer install --no-dev --quiet)
 
+# 1b. Container cache --------------------------------------------------------
+# The DI container is compiled into app/var/cache/<env>. A stray `sudo pablo`
+# leaves root-owned files there and every later user-run dies with "Unable to
+# write in the cache directory" — check before we warm, since a kernel that
+# cannot boot also cannot run system:doctor to tell you why.
+CACHE_DIR="$REPO_DIR/app/var/cache"
+if [ -e "$CACHE_DIR" ] && [ ! -w "$CACHE_DIR" ]; then
+    die "$CACHE_DIR is not writable by $(id -un) (root-owned from a sudo run?). Fix with: sudo rm -rf '$CACHE_DIR'"
+fi
+
+# Warm it here, as the installing user, so the first systemd dispatch tick
+# doesn't pay for it and a container compiled from a previous checkout can
+# never survive an install.
+info "warming the container cache"
+php "$REPO_DIR/app/bin/console" cache:clear --env="${PABLO_ENV:-dev}" --no-interaction >/dev/null
+
 # 2. pablo on PATH -----------------------------------------------------------
 PABLO_BIN="$REPO_DIR/app/bin/pablo"
 [ -x "$PABLO_BIN" ] || die "pablo entrypoint not found at $PABLO_BIN"

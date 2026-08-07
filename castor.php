@@ -7,6 +7,7 @@ use Castor\Attribute\AsTask;
 use function Castor\context;
 use function Castor\PHPQa\php_cs_fixer;
 use function Castor\PHPQa\phpstan;
+use function Castor\PHPQa\twig_cs_fixer;
 use function Castor\run;
 
 /**
@@ -14,14 +15,23 @@ use function Castor\run;
  * (see castor.composer.json). Runs against the Symfony Console app in app/.
  */
 
-#[AsTask(name: 'cs-fixer', namespace: 'qa', description: 'Fix coding standards in app/src and app/tests')]
+#[AsTask(name: 'cs-fixer', namespace: 'qa', description: 'Fix coding standards in app/{src,tests,config,public}')]
 function qa_cs_fixer(): void
 {
+    // --path-mode intersection means only paths listed here are ever fixed,
+    // whatever the Finder in .php-cs-fixer.php sees. Keep the two in step.
     php_cs_fixer([
         'fix', '--config', __DIR__ . '/app/.php-cs-fixer.php',
         '--path-mode', 'intersection',
         __DIR__ . '/app/src', __DIR__ . '/app/tests',
+        __DIR__ . '/app/config', __DIR__ . '/app/public',
     ]);
+}
+
+#[AsTask(name: 'twig-cs-fixer', namespace: 'qa', description: 'Lint and fix Twig templates in app/templates')]
+function qa_twig_cs_fixer(): void
+{
+    twig_cs_fixer(['lint', '--fix', __DIR__ . '/app/templates']);
 }
 
 #[AsTask(name: 'phpstan', namespace: 'qa', description: 'Run PHPStan static analysis on app/src and app/tests', aliases: ['phpstan'])]
@@ -33,7 +43,14 @@ function qa_phpstan(bool $generateBaseline = false): void
         $params[] = 'app/phpstan-baseline.neon';
     }
 
-    phpstan($params);
+    // The Symfony extension is installed into the phpstan tool sandbox, not
+    // app/composer.json — that is not where this phpstan runs from.
+    // containerXmlPath is deliberately NOT configured: it would require a
+    // warmed debug cache and break analysis on a clean checkout.
+    phpstan($params, extraDependencies: [
+        'phpstan/extension-installer' => '^1.4',
+        'phpstan/phpstan-symfony' => '^2.0',
+    ]);
 }
 
 #[AsTask(name: 'test', namespace: 'qa', description: 'Run the PHPUnit suite', aliases: ['test'])]

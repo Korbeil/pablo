@@ -24,7 +24,7 @@ final class InternalLaunchAgentCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $agents = new \Pablo\Agents\Agents(\Pablo\Dispatch\Dispatch::shimPath());
+        $agents = new \Pablo\Agents\Agents();
         $agents->doLaunchAgent((string) $input->getOption('worktree'), (string) $input->getOption('agent'), (string) $input->getOption('prompt'));
         $agents->refreshAgentDisplayCache((string) $input->getOption('project'), (string) $input->getOption('branch'), (string) $input->getOption('worktree'));
 

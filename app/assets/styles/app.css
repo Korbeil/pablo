@@ -1,0 +1,345 @@
+/* PABLO dashboard. Bulma is loaded via importmap (see assets/app.js); this
+   file only adds the layout and density Bulma has no opinion about. */
+
+:root {
+    --pablo-gap: 1.25rem;
+}
+
+body {
+    background: var(--bulma-scheme-main-bis, #fafafa);
+}
+
+.pablo-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 var(--pablo-gap);
+}
+
+/* ------------------------------------------------------------- header --- */
+
+.pablo-header {
+    border-bottom: 1px solid var(--bulma-border-weak, #ededed);
+    background: var(--bulma-scheme-main, #fff);
+    padding: 1.5rem 0;
+    margin-bottom: 2rem;
+}
+
+.pablo-header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--pablo-gap);
+    flex-wrap: wrap;
+}
+
+.pablo-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin: 0;
+}
+
+.pablo-tagline {
+    color: var(--bulma-text-weak, #7a7a7a);
+    font-size: 0.9rem;
+    margin: 0.15rem 0 0;
+}
+
+/* ------------------------------------------------------------ sections -- */
+
+.pablo-section {
+    margin-bottom: 2.5rem;
+}
+
+.pablo-heading {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bulma-text-weak, #7a7a7a);
+    margin-bottom: 0.85rem;
+}
+
+.pablo-empty {
+    color: var(--bulma-text-weak, #7a7a7a);
+    font-style: italic;
+    padding: 0.75rem 0;
+}
+
+/* --------------------------------------------------------------- icons -- */
+
+.pablo-icon {
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    flex: none;
+}
+
+.pablo-icon-dim {
+    opacity: 0.55;
+}
+
+/* Buttons place the icon directly beside its label with no wrapper, so give
+   it its own breathing room (Bulma only spaces its own .icon element). */
+.button .pablo-icon {
+    margin-right: 0.45em;
+}
+
+.pablo-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+/* Neutral chips.
+ *
+ * Never use `is-light` on its own for a .tag, and never `is-grey` at all:
+ *
+ *  - `class="tag is-light"` also matches Bulma's `.tag.is-light.is-light`
+ *    rule (a selector may repeat a class and still match one occurrence),
+ *    which wins on specificity and sets --bulma-tag-color-l to the
+ *    *undefined* --bulma-light-light-invert-l. The colour declaration is
+ *    then invalid at computed-value time and the chip inherits the page
+ *    text colour — white text on a 96%-lightness chip in dark mode.
+ *  - `is-grey` is not a Bulma class at all; it silently renders an
+ *    unstyled tag.
+ *
+ * These two are explicit in both channels, so they are immune to the
+ * colour scheme and to Bulma's variable plumbing. tests/Assets/BulmaClassTest
+ * keeps the banned classes from creeping back.
+ */
+.tag.pablo-chip {
+    background-color: hsl(221deg 14% 91%);
+    color: #14161a;
+}
+
+.tag.pablo-chip-muted {
+    background-color: hsl(221deg 10% 84%);
+    color: #14161a;
+}
+
+/* --------------------------------------------------------------- poller - */
+
+.pablo-poll {
+    background: var(--bulma-scheme-main, #fff);
+    border: 1px solid var(--bulma-border-weak, #ededed);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+}
+
+.pablo-poll-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.pablo-poll-name {
+    font-weight: 600;
+}
+
+.pablo-poll-remaining {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    color: var(--bulma-text-weak, #7a7a7a);
+}
+
+.pablo-poll .progress {
+    margin-bottom: 0.5rem;
+    /* the countdown controller writes `value` every second */
+    transition: none;
+}
+
+.pablo-poll-foot {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+    font-size: 0.78rem;
+    color: var(--bulma-text-weak, #7a7a7a);
+}
+
+/* One tick polls every due project, so the countdown is shared and each
+   project only needs its own "last seen" line. */
+.pablo-poll-recap {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 0.35rem 1.25rem;
+    margin-top: 0.85rem;
+}
+
+.pablo-poll-recap-item {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--bulma-border-weak, #ededed);
+    font-size: 0.82rem;
+}
+
+.pablo-poll-recap-project {
+    font-weight: 600;
+}
+
+.pablo-poll-recap-time {
+    font-variant-numeric: tabular-nums;
+    color: var(--bulma-text-weak, #7a7a7a);
+    white-space: nowrap;
+}
+
+.pablo-poll-recap-ago {
+    opacity: 0.7;
+}
+
+/* --------------------------------------------------------------- tables - */
+
+.pablo-table {
+    background: var(--bulma-scheme-main, #fff);
+    font-size: 0.9rem;
+}
+
+.pablo-table th {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bulma-text-weak, #7a7a7a);
+    white-space: nowrap;
+}
+
+.pablo-table td {
+    vertical-align: middle;
+}
+
+.pablo-nowrap {
+    white-space: nowrap;
+}
+
+.pablo-branch {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.pablo-branch code {
+    background: none;
+    padding: 0;
+    color: inherit;
+    font-weight: 600;
+}
+
+.pablo-label {
+    color: var(--bulma-text-weak, #7a7a7a);
+    font-size: 0.83rem;
+    margin-top: 0.15rem;
+    max-width: 60ch;
+}
+
+/* ------------------------------------------------------------ sync logs - */
+
+.pablo-logs {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1rem;
+}
+
+.pablo-log {
+    padding: 1rem 1.15rem;
+}
+
+.pablo-log-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+}
+
+.pablo-log-project {
+    font-weight: 600;
+}
+
+.pablo-log-time {
+    margin-left: auto;
+    font-size: 0.78rem;
+    color: var(--bulma-text-weak, #7a7a7a);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.pablo-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.pablo-log-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+}
+
+.pablo-log-branch {
+    background: none;
+    padding: 0;
+    color: inherit;
+}
+
+.pablo-log-counts,
+.pablo-log-detail {
+    color: var(--bulma-text-weak, #7a7a7a);
+    font-size: 0.8rem;
+}
+
+.pablo-conflicts {
+    flex-basis: 100%;
+    margin: 0.15rem 0 0 1.5rem;
+    font-size: 0.78rem;
+    list-style: disc;
+}
+
+.pablo-log-agent {
+    flex-basis: 100%;
+    margin-left: 1.5rem;
+    font-size: 0.78rem;
+    color: var(--bulma-text-weak, #7a7a7a);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+/* ----------------------------------------------------------- slack modal - */
+
+.pablo-modal {
+    width: min(860px, 92vw);
+}
+
+.pablo-slack-block + .pablo-slack-block {
+    margin-top: 1.5rem;
+}
+
+.pablo-slack-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.pablo-slack-head .label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0;
+}
+
+.pablo-slack-block textarea {
+    font-size: 0.82rem;
+}

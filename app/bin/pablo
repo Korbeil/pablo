@@ -7,14 +7,29 @@ use Pablo\App\ConsoleApplication;
 use Pablo\App\Kernel;
 
 /**
- * PABLO — AI orchestrator. Standalone Symfony Console application.
+ * PABLO — AI orchestrator. The user-facing CLI.
  *
  * The ~/.local/bin/pablo shim execs this binary directly; it runs from other
  * repositories' worktrees (cwd is used verbatim).
+ *
+ * Boots the same kernel as public/index.php but runs ConsoleApplication, which
+ * consumes the `pablo.command` tag — so framework/bundle commands never leak
+ * into `pablo --help`. Those live in bin/console.
+ *
+ * PABLO_ENV defaults to `dev`: in `prod` the container cache is never checked
+ * for freshness, so a `git pull` would leave a stale compiled container in
+ * place forever. Even `dev` is faster than the pre-FrameworkBundle behaviour
+ * of recompiling the container on every single invocation.
  */
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$container = Kernel::build();
-$application = $container->get(ConsoleApplication::class);
+$env = (string) (getenv('PABLO_ENV') ?: 'dev');
+
+$kernel = new Kernel($env, 'prod' !== $env);
+$kernel->boot();
+
+$application = $kernel->getContainer()->get(ConsoleApplication::class);
+\assert($application instanceof ConsoleApplication);
+
 exit($application->run());

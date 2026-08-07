@@ -1,0 +1,63 @@
+{# @var this \Pablo\Twig\Components\SlackModal #}
+<div {{ attributes }}>
+    <button type="button"
+            class="button is-link is-light"
+            data-action="live#action"
+            data-live-action-param="open"
+            data-loading="addClass(is-loading)">
+        {{ ux_icon('lucide:send', {class: 'pablo-icon'}) }}
+        <span>Slack messages</span>
+    </button>
+
+    <div class="modal {{ this.open ? 'is-active' : '' }}">
+        <div class="modal-background"
+             data-action="live#action"
+             data-live-action-param="close"></div>
+
+        <div class="modal-card pablo-modal">
+            <header class="modal-card-head">
+                <p class="modal-card-title">
+                    {{ ux_icon('lucide:send', {class: 'pablo-icon'}) }}
+                    Slack messages
+                </p>
+                <button class="delete" aria-label="close"
+                        data-action="live#action"
+                        data-live-action-param="close"></button>
+            </header>
+
+            <section class="modal-card-body">
+                {% if this.error %}
+                    <div class="notification is-danger is-light">
+                        {{ ux_icon('lucide:triangle-alert', {class: 'pablo-icon'}) }}
+                        {{ this.error }}
+                    </div>
+                {% elseif this.loaded %}
+                    <twig:SlackBlock
+                        title="Waiting for review"
+                        icon="lucide:eye"
+                        id="slack-review"
+                        :text="this.reviewBlock" />
+
+                    <twig:SlackBlock
+                        title="Needs testing / QA"
+                        icon="lucide:flask-conical"
+                        id="slack-testing"
+                        :text="this.testingBlock" />
+                {% endif %}
+            </section>
+
+            <footer class="modal-card-foot">
+                <button class="button is-small"
+                        data-action="live#action"
+                        data-live-action-param="refresh"
+                        data-loading="addClass(is-loading)">
+                    {{ ux_icon('lucide:refresh-cw', {class: 'pablo-icon'}) }}
+                    <span>Refresh</span>
+                </button>
+                <button class="button is-small"
+                        data-action="live#action"
+                        data-live-action-param="close">Close</button>
+            </footer>
+        </div>
+    </div>
+</div>

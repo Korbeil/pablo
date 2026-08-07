@@ -1,0 +1,27 @@
+{# Anonymous component: one labelled textarea with a copy-to-clipboard button. #}
+{# @var title string #}
+{# @var icon string #}
+{# @var id string #}
+{# @var text string #}
+<div class="pablo-slack-block" data-controller="clipboard">
+    <div class="pablo-slack-head">
+        <label class="label" for="{{ id }}">
+            {{ ux_icon(icon, {class: 'pablo-icon'}) }}
+            {{ title }}
+        </label>
+        <button type="button" class="button is-small is-light" data-action="clipboard#copy">
+            <span data-clipboard-target="idle">
+                {{ ux_icon('lucide:clipboard', {class: 'pablo-icon'}) }} Copy
+            </span>
+            <span data-clipboard-target="done" hidden>
+                {{ ux_icon('lucide:clipboard-check', {class: 'pablo-icon'}) }} Copied
+            </span>
+        </button>
+    </div>
+
+    <textarea id="{{ id }}"
+              class="textarea is-family-monospace"
+              rows="8"
+              readonly
+              data-clipboard-target="source">{{ text }}</textarea>
+</div>
