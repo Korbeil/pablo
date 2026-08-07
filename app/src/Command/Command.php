@@ -8,7 +8,6 @@ use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\Agents as AgentsService;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
-use Pablo\Dispatch\Dispatch;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
@@ -35,12 +34,12 @@ abstract class Command extends SymfonyCommand
 
     protected function store(): Store
     {
-        return $this->store ??= new Store(Store::defaultRoot());
+        return $this->store ??= new Store();
     }
 
     protected function agents(): AgentLauncherInterface
     {
-        return $this->agents ??= new AgentsService(Dispatch::shimPath());
+        return $this->agents ??= new AgentsService();
     }
 
     /** @return array<string, ProjectConfig> */

@@ -4,12 +4,38 @@
 ./bin/install.sh
 ```
 
-Runs `composer install`, writes the `~/.local/bin/pablo` shim (which execs
-`php bin/pablo`), symlinks `opencode/agents/*.md` and `opencode/commands/*.md`
-into `~/.config/opencode/`, installs the background dispatcher for the
+Runs `composer install`, warms the DI container cache, writes the
+`~/.local/bin/pablo` shim (which execs `php bin/pablo`), symlinks
+`opencode/agents/*.md` and `opencode/commands/*.md` into
+`~/.config/opencode/`, installs the background dispatcher for the
 detected platform, and finishes with a `pablo system:doctor` run.
 `./bin/uninstall.sh` reverses it (only removing symlinks/files PABLO
 created; `~/.pablo` data is kept).
+
+## Environment
+
+| var | default | effect |
+|---|---|---|
+| `PABLO_ENV` | `dev` | Symfony environment for every entry point. `prod` never revalidates the container cache, so a `git pull` would keep serving a stale container and AssetMapper would 404 until `asset-map:compile` — only set it if you know you want that. |
+| `PABLO_SECRET` | a fixed local string | signs Live Component payloads; irrelevant for a loopback-only dashboard |
+| `PABLO_STATE_DIR`, `PABLO_PROJECTS_DIR`, `PABLO_STAMPS_DIR`, `PABLO_LOGS_DIR`, `PABLO_AGENTS_DIR` | under `~/.pablo` | relocate runtime data (all resolved per process, so they work even though the container is cached) |
+
+The compiled container lives in `app/var/cache/<env>`. If a `sudo pablo`
+ever leaves root-owned files there, every later run fails with "Unable to
+write in the cache directory" — `install.sh` checks for this and tells you
+to `sudo rm -rf app/var/cache`.
+
+## Dashboard
+
+```bash
+pablo web                      # http://127.0.0.1:8321
+pablo web --port 9000 --open
+```
+
+Serves the read-only dashboard from PHP's built-in web server — no Docker
+and no `symfony` binary needed. Binds loopback only. There is no
+scheduler unit for it: start it when you want it. See
+[dashboard.md](dashboard.md).
 
 Per-platform dispatcher (the engine itself is OS-portable — guarded by
 `tests/PortabilityTest.php`):
@@ -25,7 +51,7 @@ Per-platform dispatcher (the engine itself is OS-portable — guarded by
 The launchd path was written portable-by-construction on Linux — walk
 this once on the Mac:
 
-1. Prerequisites: PHP 8.3+ + Composer, `gh` (+ `gh auth login`),
+1. Prerequisites: PHP 8.4.1+ + Composer, `gh` (+ `gh auth login`),
    the Atlassian CLI `acli` (+ `acli auth login` — covers both Jira and
    Confluence under one OAuth grant), the Orca and opencode apps.
 2. `./bin/install.sh` → expect "com.pablo.dispatch loaded".

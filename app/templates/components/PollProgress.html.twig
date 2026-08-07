@@ -1,0 +1,44 @@
+{# @var this \Pablo\Twig\Components\PollProgress #}
+<div {{ attributes.defaults({'data-poll': 'delay(' ~ constant('Pablo\\Twig\\Components\\PollProgress::POLL_MS') ~ ')|$render'}) }}>
+    {% set next = this.next %}
+
+    {% if next is null %}
+        <p class="pablo-empty">No projects configured.</p>
+    {% else %}
+        <div class="pablo-poll"
+             data-controller="countdown"
+             data-countdown-start-value="{{ next.lastRunAt ? next.lastRunAt.timestamp : next.now.timestamp }}"
+             data-countdown-end-value="{{ next.nextRunAt.timestamp }}">
+            <div class="pablo-poll-head">
+                <span class="pablo-poll-name">Next poll</span>
+                <span class="pablo-poll-remaining" data-countdown-target="label">{{ next.remainingLabel }}</span>
+            </div>
+
+            <progress class="progress is-small {{ next.secondsRemaining == 0 ? 'is-warning' : 'is-link' }}"
+                      data-countdown-target="bar"
+                      value="{{ next.percentRemaining }}" max="100">{{ next.percentRemaining }}%</progress>
+
+            <div class="pablo-poll-foot">
+                {{ ux_icon('lucide:clock', {class: 'pablo-icon pablo-icon-dim'}) }}
+                due at {{ next.nextRunAt|date('H:i') }}
+            </div>
+        </div>
+
+        <ul class="pablo-poll-recap">
+            {% for w in this.recap %}
+                <li class="pablo-poll-recap-item"
+                    title="every {{ w.intervalMinutes }}m · next {{ w.nextRunAt|date('H:i') }}">
+                    <span class="pablo-poll-recap-project">{{ w.project }}</span>
+                    <span class="pablo-poll-recap-time">
+                        {% if w.lastRunAt %}
+                            {{ w.lastRunAt|date('H:i') }}
+                            <span class="pablo-poll-recap-ago">{{ w.lastRunLabel }}</span>
+                        {% else %}
+                            <span class="pablo-poll-recap-ago">never polled</span>
+                        {% endif %}
+                    </span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</div>

@@ -1,0 +1,27 @@
+{# @var pr \Pablo\Domain\PrBadge #}
+{# @var url string|null #}
+{% set style = {
+    merged: {class: 'is-success', icon: 'lucide:git-merge', label: 'merged'},
+    draft: {class: 'pablo-chip-muted', icon: 'lucide:file-text', label: 'draft'},
+    open: {class: 'is-link', icon: 'lucide:git-pull-request', label: 'open'},
+    unknown: {class: 'pablo-chip', icon: 'lucide:git-pull-request', label: 'PR'},
+} %}
+
+{% if pr.kind.value == 'none' %}
+    <span class="has-text-grey-light">—</span>
+{% else %}
+    {% set s = style[pr.kind.value] %}
+    {% set body %}
+        {{ ux_icon(s.icon, {class: 'pablo-icon'}) }}
+        <span>{{ s.label }}{% if pr.number %} #{{ pr.number }}{% endif %}</span>
+    {% endset %}
+
+    {% if url %}
+        <a class="tag {{ s.class }} pablo-state" href="{{ url }}" target="_blank" rel="noopener">
+            {{ body }}
+            {{ ux_icon('lucide:external-link', {class: 'pablo-icon pablo-icon-dim'}) }}
+        </a>
+    {% else %}
+        <span class="tag {{ s.class }} pablo-state">{{ body }}</span>
+    {% endif %}
+{% endif %}

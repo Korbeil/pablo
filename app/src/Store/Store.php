@@ -21,8 +21,17 @@ final class Store
 {
     public const LOCK_TIMEOUT_S = 30.0;
 
-    public function __construct(private string $root)
+    private readonly string $root;
+
+    /**
+     * $root is resolved here rather than by the DI container: the compiled
+     * container is cached under app/var/cache/<env>, so a compile-time value
+     * would freeze PABLO_STATE_DIR (and HOME) as they were on the process that
+     * first warmed the cache.
+     */
+    public function __construct(?string $root = null)
     {
+        $this->root = $root ?? self::defaultRoot();
     }
 
     public static function defaultRoot(): string

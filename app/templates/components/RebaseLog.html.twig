@@ -1,0 +1,67 @@
+{# @var this \Pablo\Twig\Components\RebaseLog #}
+<div {{ attributes }}>
+    {% set logs = this.logs %}
+    {% if logs is empty %}
+        <p class="pablo-empty">No sync has run yet — try <code>pablo sync:run &lt;project&gt;</code>.</p>
+    {% else %}
+        <div class="pablo-logs">
+            {% for log in logs %}
+                <div class="box pablo-log">
+                    <div class="pablo-log-head">
+                        <span class="pablo-log-project">{{ log.project }}</span>
+                        <span class="tag pablo-chip">{{ log.strategy }}</span>
+                        {% if log.timestamp %}
+                            <span class="pablo-log-time" title="{{ log.timestamp }}">
+                                {{ ux_icon('lucide:clock', {class: 'pablo-icon pablo-icon-dim'}) }}
+                                {{ log.timestamp|date('d M H:i') }}
+                            </span>
+                        {% endif %}
+                    </div>
+
+                    {% if log.reports is empty %}
+                        <p class="pablo-empty">No task worktrees to sync.</p>
+                    {% else %}
+                        <ul class="pablo-log-list">
+                            {% for r in log.reports %}
+                                <li class="pablo-log-row">
+                                    <span class="tag {{ r.color }}">
+                                        {{ ux_icon(r.icon, {class: 'pablo-icon'}) }}
+                                        <span>{{ r.label }}</span>
+                                    </span>
+
+                                    <code class="pablo-log-branch">{{ r.branch }}</code>
+
+                                    {% if r.behind or r.ahead %}
+                                        <span class="pablo-log-counts">
+                                            behind {{ r.behind }} · ahead {{ r.ahead }}
+                                        </span>
+                                    {% endif %}
+
+                                    {% if r.detail and r.action != 'conflict' %}
+                                        <span class="pablo-log-detail">{{ r.detail }}</span>
+                                    {% endif %}
+
+                                    {% if r.conflict_files %}
+                                        <ul class="pablo-conflicts">
+                                            {% for f in r.conflict_files %}
+                                                <li><code>{{ f }}</code></li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+
+                                    {% if r.agent_handle %}
+                                        <div class="pablo-log-agent">
+                                            {{ ux_icon('lucide:activity', {class: 'pablo-icon pablo-icon-dim'}) }}
+                                            fix agent running —
+                                            <code>opencode -s {{ r.agent_handle }}</code>
+                                        </div>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>

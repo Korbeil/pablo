@@ -5,6 +5,11 @@
          colors="true"
          failOnWarning="true"
          cacheDirectory=".phpunit.result.cache">
+    <php>
+        <!-- KernelTestCase/WebTestCase need this: there is no .env, so APP_ENV
+             and APP_DEBUG are unset and they default to test/true. -->
+        <server name="KERNEL_CLASS" value="Pablo\App\Kernel"/>
+    </php>
     <testsuites>
         <testsuite name="pablo">
             <directory>tests</directory>

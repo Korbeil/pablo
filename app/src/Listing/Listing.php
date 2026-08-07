@@ -7,8 +7,10 @@ namespace Pablo\Listing;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Config\ProjectConfig;
+use Pablo\Domain\AgentActivity;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Issue;
+use Pablo\Domain\PrBadge;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
@@ -49,6 +51,19 @@ final class Listing
         State::RequestChanges,
         State::TestingFailed,
     ];
+
+    /**
+     * Is this task blocked on the user right now?
+     *
+     * The single definition of the "💭 Waiting for feedback" split, shared by
+     * the terminal listing and the web dashboard so the two cannot drift. Note
+     * it deliberately excludes needs-testing and waiting-review: those mean the
+     * ball is with QA/reviewers, not with you.
+     */
+    public static function isWaitingForFeedback(State $state, AgentActivity $agents): bool
+    {
+        return \in_array($state, self::WAITING_FEEDBACK_STATES, true) && $agents->isWaiting();
+    }
 
     private const SLACK_EMPTY = [
         State::WaitingReview->value => 'No PRs waiting for review right now 🎉',
@@ -279,23 +294,7 @@ final class Listing
 
     public static function prStateCell(Task $task, ?PrInfo $pr): string
     {
-        if ($task->merged) {
-            return '✅ merged';
-        }
-        if (null === $task->prNumber) {
-            return '-';
-        }
-        if (null === $pr) {
-            return "#{$task->prNumber}";
-        }
-        if ('MERGED' === $pr->state) {
-            return "✅ merged #{$pr->number}";
-        }
-        if ($pr->isDraft) {
-            return "📝 draft #{$pr->number}";
-        }
-
-        return "📖 open #{$pr->number}";
+        return PrBadge::fromTask($task, $pr)->render();
     }
 
     /**
@@ -305,20 +304,9 @@ final class Listing
      */
     public static function agentActivitySummary(array $sessions): array
     {
-        if ([] === $sessions) {
-            return [0, '-'];
-        }
-        $running = \count(array_filter($sessions, static fn (SessionInfo $s) => 'running' === $s->status));
-        $waiting = \count(array_filter($sessions, static fn (SessionInfo $s) => 'waiting' === $s->status));
-        $parts = [];
-        if ($running) {
-            $parts[] = "🏃 {$running}";
-        }
-        if ($waiting) {
-            $parts[] = "💭 {$waiting}";
-        }
+        $activity = AgentActivity::fromSessions($sessions);
 
-        return [\count($sessions), implode(' · ', $parts)];
+        return [$activity->total, $activity->render()];
     }
 
     /**
@@ -489,9 +477,11 @@ final class Listing
 
         $split = static function (array $e) {
             $task = $e[0];
-            $inWaiting = \in_array($task->state, self::WAITING_FEEDBACK_STATES, true) && str_contains($e[1][4], '💭');
 
-            return $inWaiting;
+            return self::isWaitingForFeedback(
+                $task->state,
+                AgentActivity::fromDisplay((int) $e[1][3], $e[1][4]),
+            );
         };
         $waitingEntries = array_values(array_filter($entries, $split));
         $restEntries = array_values(array_filter($entries, static fn ($e) => !$split($e)));

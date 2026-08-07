@@ -1,0 +1,54 @@
+{# @var task \Pablo\Dashboard\TaskView #}
+<tr>
+    <td class="pablo-nowrap">
+        <span class="has-text-grey">{{ task.project }}</span>
+    </td>
+
+    <td>
+        <div class="pablo-branch">
+            {{ ux_icon('lucide:git-branch', {class: 'pablo-icon pablo-icon-dim'}) }}
+            <code>{{ task.branch }}</code>
+        </div>
+        <div class="pablo-label">
+            {% if task.issue %}
+                <a href="{{ task.issue.url }}" target="_blank" rel="noopener">{{ task.issue.key }}</a>
+                {{ task.issue.title }}
+            {% elseif task.summary %}
+                {{ task.summary }}
+            {% else %}
+                <span class="has-text-grey-light">—</span>
+            {% endif %}
+        </div>
+    </td>
+
+    <td><twig:StateBadge :task="task" /></td>
+
+    <td class="pablo-nowrap">
+        {% if task.agents.total == 0 %}
+            <span class="has-text-grey-light">—</span>
+        {% else %}
+            {% if task.agents.running %}
+                <span class="tag pablo-chip" title="{{ task.agents.running }} agent(s) running">
+                    {{ ux_icon('lucide:activity', {class: 'pablo-icon'}) }} {{ task.agents.running }}
+                </span>
+            {% endif %}
+            {% if task.agents.waiting %}
+                <span class="tag is-warning" title="{{ task.agents.waiting }} agent(s) waiting for you">
+                    {{ ux_icon('lucide:message-circle', {class: 'pablo-icon'}) }} {{ task.agents.waiting }}
+                </span>
+            {% endif %}
+        {% endif %}
+    </td>
+
+    <td class="pablo-nowrap">
+        {% if task.trackerStatus %}
+            <span class="tag pablo-chip">{{ task.trackerStatus }}</span>
+        {% else %}
+            <span class="has-text-grey-light">—</span>
+        {% endif %}
+    </td>
+
+    <td class="pablo-nowrap"><twig:PrTag :pr="task.pr" :url="task.prUrl" /></td>
+
+    <td class="pablo-nowrap has-text-grey" title="entered {{ task.stateEnteredAt }}">{{ task.since }}</td>
+</tr>

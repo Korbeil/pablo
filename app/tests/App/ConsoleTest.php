@@ -12,9 +12,26 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 final class ConsoleTest extends TestCase
 {
+    use RestoresErrorHandlers;
+
+    private ?Kernel $kernel = null;
+
+    protected function tearDown(): void
+    {
+        $this->kernel?->shutdown();
+        $this->kernel = null;
+        $this->restoreErrorHandlers();
+    }
+
     private function app(): ConsoleApplication
     {
-        $app = Kernel::build()->get(ConsoleApplication::class);
+        $this->snapshotErrorHandlers();
+
+        // debug:false — this asserts command wiring, not the debug toolchain.
+        $this->kernel = new Kernel('test', false);
+        $this->kernel->boot();
+
+        $app = $this->kernel->getContainer()->get(ConsoleApplication::class);
         if (!$app instanceof ConsoleApplication) {
             throw new \RuntimeException('Container did not return a ConsoleApplication');
         }

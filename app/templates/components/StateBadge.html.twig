@@ -1,0 +1,5 @@
+{# @var task \Pablo\Dashboard\TaskView #}
+<span class="tag {{ task.stateColor }} is-medium pablo-state">
+    {{ ux_icon(task.stateIcon, {class: 'pablo-icon'}) }}
+    <span>{{ task.stateLabel }}</span>
+</span>

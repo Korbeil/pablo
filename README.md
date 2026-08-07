@@ -16,7 +16,7 @@ rules documented below, never on its own judgement.
 
 ## Quick start
 
-Prerequisites: PHP 8.3+ + Composer, `gh` (+ `gh auth login`), the Orca
+Prerequisites: PHP 8.4.1+ + Composer, `gh` (+ `gh auth login`), the Orca
 and opencode apps, the Atlassian CLI `acli` (`acli auth login`). Full details and
 platform-specific steps: [docs/installation.md](docs/installation.md).
 
@@ -42,6 +42,16 @@ Then, day to day, from an OpenCode session:
 /pablo-waiting           # pause/resume a task
 /pablo-close             # abandon/clean up a task (escape hatch)
 ```
+
+Or, for the same picture in a browser:
+
+```bash
+pablo web           # read-only dashboard on http://127.0.0.1:8321
+```
+
+Two task tables (what needs you, and everything else), a live poller
+countdown, the paste-ready Slack messages, and the last rebase log —
+see [docs/dashboard.md](docs/dashboard.md).
 
 PABLO takes it from there in the background — running review/CI/testing
 agents and advancing the task's state automatically. See
@@ -112,10 +122,15 @@ pablo/
 ├── README.md                  ← you are here (short overview)
 ├── docs/                      ← one file per subject, source of truth for details
 ├── docs/specification.md      ← original build prompt, not the reference
-├── app/                       ← the Symfony Console application (composer package `pablo`)
-│   ├── bin/pablo              ← the `pablo` console binary (Symfony Console)
-│   ├── config/services.php    ← service-container wiring (php)
+├── app/                       ← the Symfony application (composer package `pablo`)
+│   ├── bin/pablo              ← the `pablo` CLI (PABLO subcommands only)
+│   ├── bin/console            ← framework maintenance CLI (cache:clear, lint:twig, …)
+│   ├── public/index.php       ← dashboard front controller (`pablo web`)
+│   ├── config/                ← bundles.php, services.php, routes.php, packages/
 │   ├── src/                   ← the engine (see "Engine modules")
+│   ├── templates/             ← Twig: base + dashboard page + UX components
+│   ├── assets/                ← app.js, styles, Stimulus controllers, vendored JS, icons
+│   ├── importmap.php          ← AssetMapper importmap (Bulma, Stimulus, LiveComponent)
 │   ├── tests/                 ← PHPUnit suite
 │   ├── projects/              ← one YAML per managed project + default.yaml
 │   ├── composer.json / phpunit.xml / phpstan.neon / .php-cs-fixer.php
@@ -142,8 +157,11 @@ Namespaces mirror folders (`Pablo\ => src/`).
 
 | file | responsibility |
 |---|---|
-| `bin/pablo` | the `pablo` console binary (Symfony Console), boots the DI container |
-| `App/Kernel.php`, `App/ConsoleApplication.php` | service container build + command registration |
+| `bin/pablo`, `bin/console` | the `pablo` CLI (`pablo.command` tag only) and the framework maintenance CLI |
+| `App/Kernel.php`, `App/ConsoleApplication.php` | the single FrameworkBundle kernel (CLI + web) + command registration |
+| `Controller/` | the dashboard route (`GET /`) |
+| `Dashboard/` | dashboard data: task board, poll countdown, sync-log view |
+| `Twig/Components/` | Twig/Live components rendering the dashboard |
 | `Command/*.php` | one Symfony Console command per subcommand (grouped by topic) |
 | `Config/` | project YAML loading + per-key defaults merge (`Config`, `ProjectConfig`) |
 | `Domain/` | `Task`/`Issue` records, `State` + `Agent` enums, `Time`, `DisplayCache`/`AgentLaunch` VOs |
@@ -156,6 +174,7 @@ Namespaces mirror folders (`Pablo\ => src/`).
 | `Provider/Tracker/` | one class per issue tracker + `ProviderInterface`/registry |
 | `Agents/` | launching OpenCode agents via Orca, activity queries |
 | `Listing/` | the `pablo show:issues` / `pablo show:tasks` terminal tables |
+| `Domain/PrBadge`, `Domain/AgentActivity` | PR/agent state as structure, shared by the terminal and web renderers |
 | `Doctor/` | CLI preflight checks (`pablo system:doctor`) |
 | `Dispatch/` | the cron dispatcher fired by the systemd timer |
 | `Support/` | `PabloError`, `Proc` (shell helper), `Naming`, `RepoSlug` |
@@ -179,10 +198,8 @@ before making non-trivial changes in that area:
   branch naming convention
 - [docs/listings.md](docs/listings.md) — `/pablo-issues` and
   `/pablo-tasks` output
-- [docs/configuration.md](docs/configuration.md) — project YAML schema,
-  branch naming convention
-- [docs/listings.md](docs/listings.md) — `/pablo-issues` and
-  `/pablo-tasks` output
+- [docs/dashboard.md](docs/dashboard.md) — the `pablo web` dashboard: what
+  it shows, what it guarantees, how its assets are vendored
 
 ## Development
 
@@ -196,8 +213,11 @@ castor qa:test                          # PHPUnit suite (in app/)
 castor qa:phpstan                       # static analysis, level 8 (app/src)
 castor qa:phpstan --generate-baseline   # (re)generate phpstan-baseline.neon
 castor qa:cs-fixer                      # php-cs-fixer with @Symfony + @Symfony:risky
+castor qa:twig-cs-fixer                 # lint/fix app/templates
 cd app && composer test                 # same as castor qa:test
 pablo --help                          # engine subcommands
+pablo web                             # the read-only dashboard on 127.0.0.1:8321
+php app/bin/console cache:clear       # framework maintenance CLI (also lint:twig, debug:router)
 journalctl --user -u pablo-dispatch.service -f   # background layer logs
 ```
 

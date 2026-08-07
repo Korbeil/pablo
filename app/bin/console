@@ -1,0 +1,30 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Pablo\App\Kernel;
+use Symfony\Bundle\FrameworkBundle\Console\Application;
+use Symfony\Component\Console\Input\ArgvInput;
+
+/**
+ * Framework maintenance CLI: cache:clear, lint:twig, debug:router,
+ * importmap:*, asset-map:*, ux:icons:*.
+ *
+ * Deliberately separate from bin/pablo, which stays a clean list of PABLO
+ * subcommands. Not installed as a shim — run it as `php app/bin/console`.
+ */
+
+require __DIR__ . '/../vendor/autoload.php';
+
+// Nothing parses --env/--no-debug before the kernel is built (that is normally
+// symfony/runtime's job, and we deliberately don't depend on it). Without this,
+// FrameworkBundle's Application declares both options but ignores them, so
+// `cache:clear --env=prod` would silently clear dev.
+$input = new ArgvInput();
+$env = (string) $input->getParameterOption(['--env', '-e'], getenv('PABLO_ENV') ?: 'dev', true);
+$debug = 'prod' !== $env && !$input->hasParameterOption('--no-debug', true);
+
+$application = new Application(new Kernel($env, $debug));
+
+exit($application->run($input));

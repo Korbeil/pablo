@@ -1,0 +1,26 @@
+{# @var tasks \Pablo\Dashboard\TaskView[] #}
+{# @var empty string #}
+{% if tasks is empty %}
+    <p class="pablo-empty">{{ empty }}</p>
+{% else %}
+    <div class="table-container">
+        <table class="table is-fullwidth is-hoverable pablo-table">
+            <thead>
+            <tr>
+                <th>Project</th>
+                <th>Task</th>
+                <th>State</th>
+                <th>Agents</th>
+                <th>Tracker</th>
+                <th>PR</th>
+                <th>Since</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for task in tasks %}
+                <twig:TaskRow :task="task" />
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
