@@ -1,26 +1,26 @@
 {# @var this \Pablo\Twig\Components\PollProgress #}
 <div {{ attributes.defaults({'data-poll': 'delay(' ~ constant('Pablo\\Twig\\Components\\PollProgress::POLL_MS') ~ ')|$render'}) }}>
-    {% set next = this.next %}
+    {% set bar = this.bar %}
 
-    {% if next is null %}
+    {% if bar is null %}
         <p class="pablo-empty">No projects configured.</p>
     {% else %}
         <div class="pablo-poll"
              data-controller="countdown"
-             data-countdown-start-value="{{ next.lastRunAt ? next.lastRunAt.timestamp : next.now.timestamp }}"
-             data-countdown-end-value="{{ next.nextRunAt.timestamp }}">
+             data-countdown-start-value="{{ bar.lastRunAt ? bar.lastRunAt.timestamp : bar.now.timestamp }}"
+             data-countdown-end-value="{{ bar.nextRunAt.timestamp }}">
             <div class="pablo-poll-head">
                 <span class="pablo-poll-name">Next poll</span>
-                <span class="pablo-poll-remaining" data-countdown-target="label">{{ next.remainingLabel }}</span>
+                <span class="pablo-poll-remaining" data-countdown-target="label">{{ bar.remainingLabel }}</span>
             </div>
 
-            <progress class="progress is-small {{ next.secondsRemaining == 0 ? 'is-warning' : 'is-link' }}"
+            <progress class="progress is-small {{ bar.secondsRemaining == 0 ? 'is-warning' : 'is-link' }}"
                       data-countdown-target="bar"
-                      value="{{ next.percentRemaining }}" max="100">{{ next.percentRemaining }}%</progress>
+                      value="{{ bar.percentRemaining }}" max="100">{{ bar.percentRemaining }}%</progress>
 
             <div class="pablo-poll-foot">
                 {{ ux_icon('lucide:clock', {class: 'pablo-icon pablo-icon-dim'}) }}
-                due at {{ next.nextRunAt|date('H:i') }}
+                due at {{ bar.nextRunAt|date('H:i') }}
             </div>
         </div>
 

@@ -72,6 +72,44 @@ final class PollSchedule
         return $latest;
     }
 
+    /**
+     * The window driving the shared dashboard countdown bar.
+     *
+     * One scheduler tick polls every due project at once, so the bar is
+     * anchored to the most recent poll across all projects (start) and drains
+     * to the soonest upcoming poll (end). Anchoring the start to the last poll
+     * *across* projects — rather than the focus project's own stamp — is what
+     * makes the bar read full again right after a poll: when the focus
+     * switches to a project whose window has already partially elapsed, the
+     * bar resets to full instead of snapping to a partially-drained value.
+     *
+     * @param array<string, ProjectConfig> $projects
+     */
+    public function barWindow(array $projects, ?\DateTimeImmutable $now = null): ?PollWindow
+    {
+        $windows = $this->windows($projects, $now);
+        if ([] === $windows) {
+            return null;
+        }
+
+        $lastPoll = null;
+        foreach ($windows as $window) {
+            if (null !== $window->lastRunAt && (null === $lastPoll || $window->lastRunAt > $lastPoll)) {
+                $lastPoll = $window->lastRunAt;
+            }
+        }
+
+        $focus = $windows[0];
+
+        return new PollWindow(
+            project: 'all',
+            lastRunAt: $lastPoll,
+            intervalMinutes: $focus->intervalMinutes,
+            nextRunAt: $focus->nextRunAt,
+            now: $focus->now,
+        );
+    }
+
     public function lastPollAt(string $project): ?\DateTimeImmutable
     {
         $stamp = rtrim(Dispatch::stampsDir(), '/')."/{$project}.poll";

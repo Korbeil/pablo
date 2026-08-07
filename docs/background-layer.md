@@ -40,9 +40,9 @@ especially stacked on an already-working OpenCode/Orca agent ecosystem.
 ## Worktree sync
 
 Per project, on its own `sync.interval_minutes` cadence (plus
-`/pablo-sync` manually): discovers task worktrees via `git worktree list`
-(+ stray directories under `worktrees_root`, reported as ❓
-unregistered), and for each one, **regardless of PABLO state**:
+`/pablo-sync` manually): discovers worktrees via `git worktree list`
+and **syncs only those backed by an active PABLO task**. Orphaned,
+foreign, or stale worktrees are left alone.:
 
 1. fetch; **integrate the branch's own remote first** (a collaborator's
    push is never clobbered and won't trip the lease);

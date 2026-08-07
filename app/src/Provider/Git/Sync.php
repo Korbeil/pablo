@@ -57,45 +57,31 @@ final class Sync
         $effectiveApply = $apply ?? $cfg->syncAutoApply;
         $reports = [];
         foreach (self::discover($cfg) as [$path, $branch]) {
-            if ('' === $branch) {
-                $reports[] = new SyncReport(
-                    worktree: $path,
-                    branch: '?',
-                    action: 'unregistered',
-                    detail: 'directory under worktrees_root is not a worktree of the repo',
-                );
+            if ('' === $branch || null === $store->get($cfg->name, $branch)) {
+                // Not (or no longer) a PABLO task worktree: leave it alone. Only
+                // active tasks are kept in sync, so an orphaned or foreign
+                // worktree is never rebased and never shows up in the log.
                 continue;
             }
-            $task = $store->get($cfg->name, $branch);
-            if (null !== $task) {
+            try {
+                $lock = Store::taskLock($store, $cfg->name, $branch, self::SYNC_LOCK_TIMEOUT_S);
                 try {
-                    $lock = Store::taskLock($store, $cfg->name, $branch, self::SYNC_LOCK_TIMEOUT_S);
-                    try {
-                        $reports[] = GitRepo::syncWorktree(
-                            $path,
-                            $branch,
-                            $cfg->primaryBranch,
-                            $cfg->syncStrategy,
-                            $effectiveApply,
-                        );
-                    } finally {
-                        $lock->release();
-                    }
-                } catch (TaskLockedException) {
-                    $reports[] = new SyncReport(
-                        worktree: $path,
-                        branch: $branch,
-                        action: 'locked',
-                        detail: 'task busy (state poller or a command holds it); will retry next cycle',
+                    $reports[] = GitRepo::syncWorktree(
+                        $path,
+                        $branch,
+                        $cfg->primaryBranch,
+                        $cfg->syncStrategy,
+                        $effectiveApply,
                     );
+                } finally {
+                    $lock->release();
                 }
-            } else {
-                $reports[] = GitRepo::syncWorktree(
-                    $path,
-                    $branch,
-                    $cfg->primaryBranch,
-                    $cfg->syncStrategy,
-                    $effectiveApply,
+            } catch (TaskLockedException) {
+                $reports[] = new SyncReport(
+                    worktree: $path,
+                    branch: $branch,
+                    action: 'locked',
+                    detail: 'task busy (state poller or a command holds it); will retry next cycle',
                 );
             }
         }

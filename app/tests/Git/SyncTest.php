@@ -111,14 +111,17 @@ final class SyncTest extends TestCase
         $this->assertFileDoesNotExist($this->wt.'/new.txt');
     }
 
-    public function testUntrackedWorktreeStillSynced(): void
+    public function testUntrackedWorktreeIsSkipped(): void
     {
         $wt2 = \Pablo\Provider\Git\GitRepo::createWorktree($this->clone, $this->cfg->worktreesRoot, 'pr-x', 'main');
         RepoHelper::commitFile($this->other, 'new2.txt', "y\n", 'advance main again');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
         $reports = Sync::syncProject($this->cfg, $this->store, true);
-        $this->assertSame('synced', $this->byBranch($reports)['pr-x']->action);
-        $this->assertFileExists($wt2.'/new2.txt');
+
+        // A worktree not backed by an active task is never synced or reported.
+        $branches = array_map(static fn ($r) => $r->branch, $reports);
+        $this->assertNotContains('pr-x', $branches);
+        $this->assertFileDoesNotExist($wt2.'/new2.txt');
     }
 
     public function testReportsRenderConflicts(): void
