@@ -115,7 +115,10 @@ final class Backup
 
         $staging = self::stage($pabloRoot, $projectsDir, $projects, $store);
         try {
-            @mkdir(\dirname($gz), 0o777, true);
+            $dir = \dirname($gz);
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0o777, true);
+            }
             $phar = new \PharData($rawTar);
             $phar->buildFromDirectory($staging);
             unset($phar);
@@ -138,7 +141,9 @@ final class Backup
         if (!is_file($archive)) {
             throw new PabloError("backup archive not found: {$archive}");
         }
-        @mkdir($dest, 0o777, true);
+        if (!is_dir($dest)) {
+            @mkdir($dest, 0o777, true);
+        }
         $phar = new \PharData($archive);
         $phar->extractTo($dest, null, true);
 
@@ -192,7 +197,9 @@ final class Backup
         if (!is_dir($src)) {
             return [];
         }
-        @mkdir($projectsDir, 0o777, true);
+        if (!is_dir($projectsDir)) {
+            @mkdir($projectsDir, 0o777, true);
+        }
         $written = [];
         foreach (glob(rtrim($src, '/').'/*.yaml') ?: [] as $yamlPath) {
             $dest = $projectsDir.'/'.basename($yamlPath);
@@ -237,7 +244,10 @@ final class Backup
         if (is_dir($projectsDir)) {
             foreach (glob(rtrim($projectsDir, '/').'/*.yaml') ?: [] as $yamlPath) {
                 $dest = $staging.'/projects/'.basename($yamlPath);
-                @mkdir(\dirname($dest), 0o777, true);
+                $dir = \dirname($dest);
+                if (!is_dir($dir)) {
+                    @mkdir($dir, 0o777, true);
+                }
                 copy($yamlPath, $dest);
             }
         }
@@ -276,7 +286,9 @@ final class Backup
 
     private static function copyDir(string $src, string $dest): void
     {
-        @mkdir($dest, 0o777, true);
+        if (!is_dir($dest)) {
+            @mkdir($dest, 0o777, true);
+        }
         foreach (scandir($src) ?: [] as $item) {
             if ('.' === $item || '..' === $item) {
                 continue;

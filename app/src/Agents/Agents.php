@@ -87,7 +87,9 @@ final class Agents implements AgentLauncherInterface
     private function logOrcaFallback(string $worktree, string $label, ?string $reason): void
     {
         $logs = $this->agentsDir.'/logs';
-        @mkdir($logs, 0o777, true);
+        if (!is_dir($logs)) {
+            @mkdir($logs, 0o777, true);
+        }
         file_put_contents(
             $logs.'/orca-fallback.log',
             Time::utcnow()." worktree={$worktree} label={$label} reason={$reason}\n",
@@ -101,7 +103,9 @@ final class Agents implements AgentLauncherInterface
     private function withLaunchLock(string $worktree, callable $fn): mixed
     {
         $locks = $this->agentsDir.'/locks';
-        @mkdir($locks, 0o777, true);
+        if (!is_dir($locks)) {
+            @mkdir($locks, 0o777, true);
+        }
         $stem = preg_replace('/[^a-zA-Z0-9]/', '_', $worktree) ?: 'root';
         $fd = fopen($locks.'/'.$stem.'.launch.lock', 'w');
         if (false === $fd) {
@@ -120,7 +124,9 @@ final class Agents implements AgentLauncherInterface
     private function logFor(string $label): string
     {
         $logs = $this->agentsDir.'/logs';
-        @mkdir($logs, 0o777, true);
+        if (!is_dir($logs)) {
+            @mkdir($logs, 0o777, true);
+        }
 
         return $logs.'/'.time().'-'.$label.'.log';
     }

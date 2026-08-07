@@ -113,7 +113,10 @@ final class Sync
     public static function saveLastLog(string $projectName, string $strategy, array $reports): void
     {
         $path = self::logsDir()."/rebase-last-{$projectName}.json";
-        @mkdir(\dirname($path), 0o777, true);
+        $dir = \dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0o777, true);
+        }
         $payload = [
             'timestamp' => Time::utcnow(),
             'project' => $projectName,

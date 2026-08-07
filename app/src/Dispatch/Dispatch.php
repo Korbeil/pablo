@@ -89,7 +89,10 @@ final class Dispatch
     private static function tryDispatchLock(): bool
     {
         $path = self::stampsDir().'/dispatch.lock';
-        @mkdir(\dirname($path), 0o777, true);
+        $dir = \dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0o777, true);
+        }
         $fd = fopen($path, 'c+');
         if (false === $fd) {
             return false;
@@ -229,7 +232,10 @@ final class Dispatch
                         }
                     }
                     $stamp = self::stampsDir()."/{$cfgValue->name}.{$job}";
-                    @mkdir(\dirname($stamp), 0o777, true);
+                    $dir = \dirname($stamp);
+                    if (!is_dir($dir)) {
+                        @mkdir($dir, 0o777, true);
+                    }
                     file_put_contents($stamp, (string) $now);
                 }
             }
