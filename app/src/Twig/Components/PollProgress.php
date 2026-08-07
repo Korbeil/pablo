@@ -39,10 +39,20 @@ final class PollProgress
         return $this->dashboard->pollWindows();
     }
 
-    /** The window driving the bar: whichever project is polled next. */
-    public function next(): ?PollWindow
+    /**
+     * The window driving the shared countdown bar.
+     *
+     * One scheduler tick polls every due project at once, so the single bar is
+     * anchored to the most recent poll across all projects and drains to the
+     * soonest upcoming poll. Anchoring the start to the last poll *across*
+     * projects (rather than the focus project's own stamp) is what makes the
+     * bar read full again right after a poll — otherwise, when the focus
+     * switches to a project whose window has already partially elapsed, the
+     * bar would snap to a partially-drained value instead of resetting.
+     */
+    public function bar(): ?PollWindow
     {
-        return $this->windows()[0] ?? null;
+        return $this->dashboard->barWindow();
     }
 
     /**

@@ -152,6 +152,32 @@ final class PollScheduleTest extends TestCase
         $this->assertSame(['fast', 'slow'], array_map(static fn ($w) => $w->project, $windows));
     }
 
+    public function testBarWindowAnchoredToMostRecentPollReadsFull(): void
+    {
+        // The focus of the shared bar is whichever project polls soonest. Here
+        // that project last polled at 09:56, but another project polled more
+        // recently at 10:04. Anchoring the bar to the focus project's own stamp
+        // would render it partially drained at this instant; anchoring to the
+        // most recent poll across all projects resets it to full.
+        $this->stamp('focus', $this->at('2026-08-06T09:56:00+00:00')->getTimestamp());
+        $this->stamp('other', $this->at('2026-08-06T10:04:00+00:00')->getTimestamp());
+        $now = $this->at('2026-08-06T10:04:00+00:00');
+
+        $bar = $this->schedule->barWindow(
+            ['focus' => $this->cfg('focus', 10), 'other' => $this->cfg('other', 120)],
+            $now,
+        );
+
+        $this->assertNotNull($bar);
+        $this->assertSame('2026-08-06T10:04:00+00:00', $bar->lastRunAt?->format('c'));
+        $this->assertSame(100.0, $bar->percentRemaining());
+    }
+
+    public function testBarWindowIsNullWithoutProjects(): void
+    {
+        $this->assertNull($this->schedule->barWindow([], $this->at('2026-08-06T10:04:00+00:00')));
+    }
+
     public function testLastPollAcrossProjectsTakesTheMostRecent(): void
     {
         $this->stamp('a', $this->at('2026-08-06T10:00:00+00:00')->getTimestamp());

@@ -90,6 +90,17 @@ final class Dashboard
         return $this->pollSchedule->windows($projects ?? $this->projects());
     }
 
+    /**
+     * The window driving the shared countdown bar, anchored to the most recent
+     * poll across all projects.
+     *
+     * @param array<string, ProjectConfig>|null $projects
+     */
+    public function barWindow(?array $projects = null): ?PollWindow
+    {
+        return $this->pollSchedule->barWindow($projects ?? $this->projects());
+    }
+
     /** @param list<TaskView> $views */
     private function sort(array &$views): void
     {
