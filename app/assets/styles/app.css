@@ -32,6 +32,17 @@ body {
     flex-wrap: wrap;
 }
 
+.pablo-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+.pablo-logo {
+    height: 3rem;
+    width: auto;
+}
+
 .pablo-title {
     font-size: 1.75rem;
     font-weight: 700;

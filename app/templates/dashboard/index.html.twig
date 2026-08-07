@@ -5,9 +5,12 @@
 {% block body %}
     <header class="pablo-header">
         <div class="pablo-container pablo-header-inner">
-            <div>
-                <h1 class="pablo-title">P.A.B.L.O.</h1>
-                <p class="pablo-tagline">Personal Assistant for Boring Logic &amp; Operations</p>
+            <div class="pablo-brand">
+                <img class="pablo-logo" src="{{ asset('images/pablo.png') }}" alt="PABLO logo">
+                <div>
+                    <h1 class="pablo-title">P.A.B.L.O.</h1>
+                    <p class="pablo-tagline">Personal Assistant for Boring Logic &amp; Operations</p>
+                </div>
             </div>
             <twig:SlackModal />
         </div>
