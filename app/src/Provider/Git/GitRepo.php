@@ -121,7 +121,9 @@ final class GitRepo
         if (null !== self::$createWorktree) {
             return (self::$createWorktree)($repo, $worktreesRoot, $branch, $base);
         }
-        @mkdir($worktreesRoot, 0o777, true);
+        if (!is_dir($worktreesRoot)) {
+            @mkdir($worktreesRoot, 0o777, true);
+        }
         $path = rtrim($worktreesRoot, '/').'/'.$branch;
         if (file_exists($path)) {
             throw new PabloError("worktree path already exists: {$path}");
@@ -183,7 +185,9 @@ final class GitRepo
             return (self::$recreateWorktree)($repo, $worktreesRoot, $branch);
         }
         self::git($repo, ['fetch', 'origin'], check: false);
-        @mkdir($worktreesRoot, 0o777, true);
+        if (!is_dir($worktreesRoot)) {
+            @mkdir($worktreesRoot, 0o777, true);
+        }
         $path = rtrim($worktreesRoot, '/').'/'.$branch;
         if (file_exists($path)) {
             throw new PabloError("worktree path already exists: {$path}");
@@ -217,7 +221,10 @@ final class GitRepo
 
             return;
         }
-        @mkdir(\dirname($path), 0o777, true);
+        $dir = \dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0o777, true);
+        }
         $process = new Process(['git', 'clone', $originUrl, $path]);
         $process->run();
         if (!$process->isSuccessful()) {

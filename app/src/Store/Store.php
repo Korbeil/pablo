@@ -77,7 +77,10 @@ final class Store
     {
         $task->updatedAt = Time::utcnow();
         $path = $this->path($task->project, $task->branch);
-        @mkdir(\dirname($path), 0o777, true);
+        $dir = \dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0o777, true);
+        }
         $tmp = $path.'.tmp';
         file_put_contents($tmp, $this->encode($task->toJson()));
         rename($tmp, $path);
@@ -139,7 +142,10 @@ final class Store
     public static function taskLock(self $store, string $project, string $branch, float $timeoutS = self::LOCK_TIMEOUT_S): TaskLock
     {
         $path = $store->lockPath($project, $branch);
-        @mkdir(\dirname($path), 0o777, true);
+        $dir = \dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0o777, true);
+        }
         $fd = fopen($path, 'c+');
         if (false === $fd) {
             throw new PabloError("cannot open lock file: {$path}");
