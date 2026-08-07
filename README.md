@@ -1,4 +1,7 @@
 # P.A.B.L.O.
+
+![PABLO](docs/assets/pablo.png)
+
 <i>Personal Assistant for Boring Logic & Operations</i>
 
 PABLO is an AI orchestrator for the projects the user works on. It is not
