@@ -10,6 +10,13 @@ pablo web                  # → http://127.0.0.1:8321
 pablo web --port 9000 --open
 ```
 
+To keep the dashboard up as a background service instead of a foreground
+`pablo web`, install with `./bin/install.sh --with-web`. On Linux this
+enables a systemd user unit (`pablo-web.service`, auto-restart — logs:
+`journalctl --user -u pablo-web.service`); on macOS a launchd agent
+`com.pablo.web` (`~/.pablo/logs/web.log`). It's the same server, just
+supervised; the page itself is unchanged and strictly read-only.
+
 ## Guarantees
 
 **Read-only.** Nothing reachable from the page mutates task state, a

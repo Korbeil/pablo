@@ -29,6 +29,8 @@ Linux)
     systemctl --user disable --now pablo-dispatch.timer 2>/dev/null || true
     remove_if_ours "$SYSTEMD_DIR/pablo-dispatch.service"
     remove_if_ours "$SYSTEMD_DIR/pablo-dispatch.timer"
+    systemctl --user disable --now pablo-web.service 2>/dev/null || true
+    remove_if_ours "$SYSTEMD_DIR/pablo-web.service"
     systemctl --user daemon-reload
     ;;
 Darwin)
@@ -37,6 +39,12 @@ Darwin)
     if [ -f "$PLIST" ] && grep -q "marker: com.pablo.dispatch" "$PLIST"; then
         rm "$PLIST"
         info "removed $PLIST"
+    fi
+    WEB_PLIST="${HOME}/Library/LaunchAgents/com.pablo.web.plist"
+    launchctl bootout "gui/$(id -u)/com.pablo.web" 2>/dev/null || true
+    if [ -f "$WEB_PLIST" ] && grep -q "marker: com.pablo.web" "$WEB_PLIST"; then
+        rm "$WEB_PLIST"
+        info "removed $WEB_PLIST"
     fi
     ;;
 esac

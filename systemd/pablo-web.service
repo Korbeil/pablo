@@ -1,0 +1,18 @@
+[Unit]
+Description=PABLO read-only dashboard (127.0.0.1)
+Documentation=file://%h/Sites/korbeil/pablo/README.md
+
+[Service]
+Type=simple
+# Same corrected PATH as pablo-dispatch.service (Orca shim dir first), kept
+# for parity even though the dashboard only runs one local php -S.
+Environment=PATH=%h/.config/orca/linux-orca-cli-shim:%h/.opencode/bin:%h/.local/bin:%h/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+ExecStart=%h/.local/bin/pablo web
+# The dashboard is long-running: self-heal if the PHP server exits. A plain
+# `systemctl --user stop` still stops it (default KillMode=control-group
+# tears down the child server).
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

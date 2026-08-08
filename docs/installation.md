@@ -1,7 +1,8 @@
 # Installation
 
 ```bash
-./bin/install.sh
+./bin/install.sh                # dispatcher only
+./bin/install.sh --with-web     # dispatcher + dashboard as a background service
 ```
 
 Runs `composer install`, warms the DI container cache, writes the
@@ -9,7 +10,9 @@ Runs `composer install`, warms the DI container cache, writes the
 `opencode/agents/*.md` and `opencode/commands/*.md` into
 `~/.config/opencode/`, installs the background dispatcher for the
 detected platform, and finishes with a `pablo system:doctor` run.
-`./bin/uninstall.sh` reverses it (only removing symlinks/files PABLO
+Pass `--with-web` to also install the dashboard as a long-running
+background service (see [Dashboard](#dashboard) below).
+`./bin/uninstall.sh` reverses it all (only removing symlinks/files PABLO
 created; `~/.pablo` data is kept).
 
 ## Environment
@@ -33,18 +36,23 @@ pablo web --port 9000 --open
 ```
 
 Serves the read-only dashboard from PHP's built-in web server — no Docker
-and no `symfony` binary needed. Binds loopback only. There is no
-scheduler unit for it: start it when you want it. See
+and no `symfony` binary needed. Binds loopback only. Run it by hand with
+`pablo web`, or keep it up as a background service by installing with
+`./bin/install.sh --with-web` (stopped with `systemctl --user stop
+pablo-web.service` / `launchctl bootout gui/$UID/com.pablo.web`). See
 [dashboard.md](dashboard.md).
 
-Per-platform dispatcher (the engine itself is OS-portable — guarded by
-`tests/PortabilityTest.php`):
+Per-platform scheduler and dashboard service (the engine itself is
+OS-portable — guarded by `tests/PortabilityTest.php`):
 
 | | Linux | macOS |
 |---|---|---|
 | scheduler | systemd user timer (`systemd/`, symlinked + enabled) | launchd LaunchAgent (`launchd/*.template` rendered to `~/Library/LaunchAgents/com.pablo.dispatch.plist`, `StartInterval` 300) |
-| logs | `journalctl --user -u pablo-dispatch.service` | `~/.pablo/logs/dispatch.log` (+ `.err.log`) |
-| status | `systemctl --user list-timers pablo-dispatch.timer` | `launchctl print gui/$UID/com.pablo.dispatch` |
+| scheduler logs | `journalctl --user -u pablo-dispatch.service` | `~/.pablo/logs/dispatch.log` (+ `.err.log`) |
+| scheduler status | `systemctl --user list-timers pablo-dispatch.timer` | `launchctl print gui/$UID/com.pablo.dispatch` |
+| dashboard (`--with-web`) | `systemd/pablo-web.service`, enabled + auto-restart (`Restart=always`) | `launchd/com.pablo.web.plist.template` → `com.pablo.web.plist`, `KeepAlive` |
+| dashboard logs | `journalctl --user -u pablo-web.service` | `~/.pablo/logs/web.log` (+ `.err.log`) |
+| dashboard status | `systemctl --user status pablo-web.service` | `launchctl print gui/$UID/com.pablo.web` |
 
 ## macOS first-install smoke checklist
 

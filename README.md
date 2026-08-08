@@ -26,6 +26,7 @@ platform-specific steps: [docs/installation.md](docs/installation.md).
 ```bash
 ./bin/install.sh    # composer install, writes the pablo shim + agent/command links,
                      # starts the background scheduler, finishes with `pablo system:doctor`
+./bin/install.sh --with-web  # ...also keeps the dashboard running as a background service
 pablo system:doctor        # verify everything's installed and authenticated
 ```
 
@@ -50,6 +51,7 @@ Or, for the same picture in a browser:
 
 ```bash
 pablo web           # read-only dashboard on http://127.0.0.1:8321
+                    # ...or ./bin/install.sh --with-web to run it as a background service
 ```
 
 Two task tables (what needs you, and everything else), a live poller
