@@ -10,6 +10,20 @@ OPENCODE_DIR="${HOME}/.config/opencode"
 BIN_DIR="${HOME}/.local/bin"
 OS="$(uname -s)"
 
+# Install the web dashboard as a background service only when explicitly
+# requested: ./bin/install.sh --with-web
+WITH_WEB=false
+for arg in "$@"; do
+    case "$arg" in
+    --with-web)
+        WITH_WEB=true
+        ;;
+    *)
+        die "unknown option: $arg (supported: --with-web)"
+        ;;
+    esac
+done
+
 info() { printf '➜ %s\n' "$*"; }
 die() { printf '❌ %s\n' "$*" >&2; exit 1; }
 
@@ -80,6 +94,13 @@ Linux)
     systemctl --user daemon-reload
     systemctl --user enable --now pablo-dispatch.timer
     info "pablo-dispatch.timer enabled (every 5 minutes; logs: journalctl --user -u pablo-dispatch.service)"
+    if $WITH_WEB; then
+        ln -sfn "$REPO_DIR/systemd/pablo-web.service" "$SYSTEMD_DIR/pablo-web.service"
+        info "linked $SYSTEMD_DIR/pablo-web.service"
+        systemctl --user daemon-reload
+        systemctl --user enable --now pablo-web.service
+        info "pablo-web.service enabled (dashboard on http://127.0.0.1:8321; logs: journalctl --user -u pablo-web.service)"
+    fi
     ;;
 Darwin)
     LOG_DIR="${HOME}/.pablo/logs"
@@ -95,6 +116,17 @@ Darwin)
     launchctl bootout "gui/$(id -u)/com.pablo.dispatch" 2>/dev/null || true
     launchctl bootstrap "gui/$(id -u)" "$PLIST"
     info "com.pablo.dispatch loaded (every 5 minutes; logs: $LOG_DIR/dispatch.log)"
+    if $WITH_WEB; then
+        WEB_PLIST="$AGENTS_DIR/com.pablo.web.plist"
+        if [ -e "$WEB_PLIST" ] && ! grep -q "marker: com.pablo.web" "$WEB_PLIST"; then
+            die "$WEB_PLIST exists and was not written by PABLO — refusing to overwrite"
+        fi
+        sed -e "s|@PABLO_BIN@|$BIN_DIR/pablo|g" -e "s|@LOG_DIR@|$LOG_DIR|g" \
+            "$REPO_DIR/launchd/com.pablo.web.plist.template" > "$WEB_PLIST"
+        launchctl bootout "gui/$(id -u)/com.pablo.web" 2>/dev/null || true
+        launchctl bootstrap "gui/$(id -u)" "$WEB_PLIST"
+        info "com.pablo.web loaded (dashboard on http://127.0.0.1:8321; logs: $LOG_DIR/web.log)"
+    fi
     ;;
 *)
     die "unsupported platform: $OS (Linux and Darwin are supported)"
