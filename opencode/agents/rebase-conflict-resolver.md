@@ -59,11 +59,41 @@ Re-run the rebase from scratch and push:
    sides of the change, and resolve intelligently.
 3. `git add` the resolved files, then `git rebase --continue`.
 4. Repeat steps 2–3 until the rebase completes cleanly.
-5. Push with `git push --force-with-lease origin <branch>`.
+5. Push with `git push --force-with-lease` to the canonical branch resolved in
+   "Branch identity check". If the local branch has a `@{upstream}`, that ref
+   is the target. Verify the target ref exists before pushing; never push under
+   a name with no existing remote ref.
 
 If there is an additional step (e.g., first rebase onto `origin/<branch>`
 to integrate a collaborator's push, then rebase onto the primary), do it
 in order.
+
+## Branch identity check (do this FIRST)
+
+The branch name in your prompt may be truncated, mis-suffixed (e.g. a `-2`),
+or just wrong. Never assume it is the real branch name. Before ANY git
+operation:
+
+1. Get the real local branch: `git branch --show-current`.
+2. List ALL matching remote refs with
+   `git for-each-ref refs/remotes --format='%(refname:short)' | grep -F <ticket-id>`
+   (prefer `for-each-ref` over `git branch -r` — column output is unreliable).
+3. If local name and a remote name differ only by a suffix/punctuation
+   (e.g. local `...-produ-2` vs remote `...-produ`), they are the SAME branch.
+   The canonical name is:
+   - the branch the local tracks (`@{upstream}`, if set), else
+   - the remote branch that already carries the feature commits, else
+   - the ticket-matching name without any extra suffix.
+4. Never push "as a new branch": if the local branch name has NO matching
+   remote ref, the name is wrong — reconcile it, don't create a new ref.
+
+Reconciling a mismatch:
+- If local is the mis-named duplicate: `git branch -m <local> <canonical>`
+  to rename it, then proceed. Do NOT push under the old name.
+- If a stray remote ref already exists under the wrong name, delete it:
+  `git push origin --delete <stray-branch>`.
+- If you cannot determine the canonical name confidently, stop and print
+  `PABLO_CONFLICT_UNRESOLVABLE: branch naming — <details>`. Do NOT push.
 
 ## Conflict resolution principles
 
@@ -81,6 +111,8 @@ in order.
 ## Push rule
 
 ALWAYS use `--force-with-lease`, NEVER bare `--force`.
+Before pushing, confirm the target ref is the canonical branch resolved above;
+when in doubt, favor `@{upstream}` over the branch name from the prompt.
 After a successful push, print `PABLO_SYNC_OK`.
 
 ## Exit
