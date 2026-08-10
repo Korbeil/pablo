@@ -29,6 +29,8 @@ final class FakeAgents implements AgentLauncherInterface
     /** @var list<string> recorded display names */
     public array $displayNames = [];
 
+    public bool $hasAnyOrcaAgent = false;
+
     public ?string $workingTreeSessionsKey = null;
 
     public function launch(string $worktree, \Pablo\Domain\Agent $agent, string $prompt, string $project, string $branch): string
@@ -88,5 +90,10 @@ final class FakeAgents implements AgentLauncherInterface
     public function launchHeadless(string $worktree, string $agent, string $prompt): string
     {
         return 'pid:0';
+    }
+
+    public function hasAnyOrcaAgent(string $worktree): bool
+    {
+        return $this->hasAnyOrcaAgent;
     }
 }

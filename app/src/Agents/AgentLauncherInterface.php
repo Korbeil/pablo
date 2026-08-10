@@ -36,4 +36,6 @@ interface AgentLauncherInterface
     public function refreshAgentDisplayCache(string $project, string $branch, string $worktree): void;
 
     public function launchHeadless(string $worktree, string $agent, string $prompt): string;
+
+    public function hasAnyOrcaAgent(string $worktree): bool;
 }

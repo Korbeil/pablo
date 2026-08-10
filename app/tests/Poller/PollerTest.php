@@ -600,6 +600,39 @@ final class PollerTest extends TestCase
         $this->assertSame(['/setup.sh'], $this->stubs['startups']);
     }
 
+    public function testNoRelaunchWhenFinishedAgentInOrca(): void
+    {
+        $e = $this->newEnv();
+        $cfg = new ProjectConfig(
+            name: 'proj',
+            type: 'work',
+            repoPath: $e['tmp'].'/repo',
+            primaryBranch: 'main',
+            worktreesRoot: $e['tmp'].'/wt',
+            provider: 'github',
+            identity: 'user',
+            projectKey: 'PR',
+            syncStrategy: 'rebase',
+            syncAutoApply: false,
+            syncInterval: 30,
+            pollInterval: 10,
+            failureSignal: 'qa-failed',
+            botWhitelist: [],
+            ciIgnoreChecks: [],
+            startupScript: '/setup.sh',
+        );
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::InProgress));
+        $this->setState($store, State::InProgress, ['prNumber' => null]);
+        $this->setLaunch($store, 'task-analyst', 1, 301);
+        $this->setLaunch($store, 'startup-script', 1, 301);
+        $this->agents->startupScript = &$this->stubs['startups'];
+        $this->agents->hasAnyOrcaAgent = true;
+        $this->poll($cfg, $store);
+        $this->assertSame([], $this->stubs['launched']);
+        $this->assertSame([], $this->stubs['startups']);
+    }
+
     public function testNoRelaunchWithinLaunchWindow(): void
     {
         $e = $this->newEnv();

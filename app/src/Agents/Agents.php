@@ -28,6 +28,7 @@ final class Agents implements AgentLauncherInterface
     public const ORCA_CALL_TIMEOUT_S = 60;
     public const ORCA_ADOPT_WAIT_S = 15;
     public const RUNNING_STATES = ['working', 'running'];
+    public const FINISHED_STATES = ['done', 'completed'];
 
     private string $agentsDir;
 
@@ -343,7 +344,11 @@ final class Agents implements AgentLauncherInterface
         foreach ($orcaWorktrees as $wt) {
             $path = (string) ($wt['path'] ?? '');
             foreach ($wt['agents'] ?? [] as $agent) {
-                $status = \in_array($agent['state'] ?? null, self::RUNNING_STATES, true) ? 'running' : 'waiting';
+                $state = $agent['state'] ?? null;
+                if (\in_array($state, self::FINISHED_STATES, true)) {
+                    continue; // a finished agent (e.g. "done") must not count as active
+                }
+                $status = \in_array($state, self::RUNNING_STATES, true) ? 'running' : 'waiting';
                 $grouped[$path][] = new SessionInfo((string) ($agent['paneKey'] ?? ''), $status);
             }
         }
@@ -405,6 +410,21 @@ final class Agents implements AgentLauncherInterface
         }
 
         return $out;
+    }
+
+    public function hasAnyOrcaAgent(string $worktree): bool
+    {
+        [$result] = $this->orca(['worktree', 'ps', '--limit', '200']);
+        if (null === $result) {
+            return false;
+        }
+        foreach ($result['worktrees'] ?? [] as $wt) {
+            if ($wt['path'] === $worktree && [] !== ($wt['agents'] ?? [])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function pidAlive(int $pid): bool

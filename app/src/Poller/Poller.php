@@ -151,6 +151,9 @@ final class Poller
         if ([] !== $sessions) {
             return;
         }
+        if ($ctx->agents->hasAnyOrcaAgent($task->worktreePath)) {
+            return;
+        }
         if (null !== $task->issue) {
             $ghIssue = 'github' === $ctx->cfg->provider ? $task->issue->key : null;
             $ctx->agents->setWorktreeDisplayName($task->worktreePath, $task->issue->key, $ghIssue);
