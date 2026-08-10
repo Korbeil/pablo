@@ -69,6 +69,22 @@ final class FakeAgents implements AgentLauncherInterface
         return $byWorktree;
     }
 
+    /** @return array<int, SessionInfo> */
+    public function displaySessions(string $worktree): array
+    {
+        return $this->activeSessions($worktree);
+    }
+
+    /**
+     * @param list<string> $worktrees
+     *
+     * @return array<string, array<int, SessionInfo>>
+     */
+    public function bulkDisplaySessions(array $worktrees): array
+    {
+        return $this->bulkActiveSessions($worktrees);
+    }
+
     public function waitForHandle(string $handle, int $timeoutS = 0): void
     {
     }

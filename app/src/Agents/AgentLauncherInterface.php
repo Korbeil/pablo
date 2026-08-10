@@ -27,6 +27,23 @@ interface AgentLauncherInterface
      */
     public function bulkActiveSessions(array $worktrees): array;
 
+    /**
+     * Sessions for display/rendering, counting a finished (orca "done") analyst
+     * as waiting so the "💭 Waiting for feedback" split surfaces it.
+     *
+     * @return array<int, SessionInfo>
+     */
+    public function displaySessions(string $worktree): array;
+
+    /**
+     * Bulk variant of displaySessions().
+     *
+     * @param list<string> $worktrees
+     *
+     * @return array<string, list<SessionInfo>>
+     */
+    public function bulkDisplaySessions(array $worktrees): array;
+
     public function waitForHandle(string $handle, int $timeoutS = 0): void;
 
     public function spawnWatcher(string $project, string $branch, string $handle, string $then, ?string $expectState = null): void;

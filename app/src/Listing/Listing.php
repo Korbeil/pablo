@@ -389,7 +389,7 @@ final class Listing
             static fn (Task $t) => $fetchLive || null === $t->displayCache->agentCount,
         ));
         $sessionsByWorktree = [] !== $needsAgentCheck
-            ? $agents->bulkActiveSessions(array_map(static fn (Task $t) => $t->worktreePath, $needsAgentCheck))
+            ? $agents->bulkDisplaySessions(array_map(static fn (Task $t) => $t->worktreePath, $needsAgentCheck))
             : [];
 
         $needsTracker = array_values(array_filter(
