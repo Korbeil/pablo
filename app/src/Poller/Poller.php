@@ -291,7 +291,7 @@ final class Poller
         }
 
         try {
-            $sessions = $agents->activeSessions($task->worktreePath);
+            $sessions = $agents->displaySessions($task->worktreePath);
             [$count, $activity] = Listing::agentActivitySummary($sessions);
             $agentCount = $count;
             $agentActivity = $activity;

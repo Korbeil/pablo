@@ -270,7 +270,7 @@ final class Agents implements AgentLauncherInterface
     public function refreshAgentDisplayCache(string $project, string $branch, string $worktree): void
     {
         try {
-            $sessions = $this->activeSessions($worktree);
+            $sessions = $this->displaySessions($worktree);
             $parts = [];
             $running = \count(array_filter($sessions, static fn ($s) => 'running' === $s->status));
             $waiting = \count(array_filter($sessions, static fn ($s) => 'waiting' === $s->status));
@@ -338,7 +338,7 @@ final class Agents implements AgentLauncherInterface
      *
      * @return array<string, list<SessionInfo>>
      */
-    private function sessionsByWorktreeFromOrca(array $orcaWorktrees): array
+    private function sessionsByWorktreeFromOrca(array $orcaWorktrees, bool $includeFinishedAsWaiting = false): array
     {
         $grouped = [];
         foreach ($orcaWorktrees as $wt) {
@@ -346,9 +346,18 @@ final class Agents implements AgentLauncherInterface
             foreach ($wt['agents'] ?? [] as $agent) {
                 $state = $agent['state'] ?? null;
                 if (\in_array($state, self::FINISHED_STATES, true)) {
-                    continue; // a finished agent (e.g. "done") must not count as active
+                    if (!$includeFinishedAsWaiting) {
+                        continue; // a finished agent (e.g. "done") must not count as an active session
+                    }
+                    // For the display/split path a finished analyst is parked
+                    // awaiting the user (review the plan and /commit-and-pr), so
+                    // it reports as waiting so the "💭 Waiting for feedback" split
+                    // surfaces it. It still never blocks closure or relaunch,
+                    // which keep using activeSessions() (this flag off).
+                    $status = 'waiting';
+                } else {
+                    $status = \in_array($state, self::RUNNING_STATES, true) ? 'running' : 'waiting';
                 }
-                $status = \in_array($state, self::RUNNING_STATES, true) ? 'running' : 'waiting';
                 $grouped[$path][] = new SessionInfo((string) ($agent['paneKey'] ?? ''), $status);
             }
         }
@@ -384,12 +393,7 @@ final class Agents implements AgentLauncherInterface
     /** @return array<int, SessionInfo> */
     public function activeSessions(string $worktree): array
     {
-        [$result] = $this->orca(['worktree', 'ps', '--limit', '200']);
-        $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? []) : [];
-        $sessions = $orcaGrouped[$worktree] ?? [];
-        $sessions = array_merge($sessions, $this->headlessSessionsByWorktree()[$worktree] ?? []);
-
-        return $sessions;
+        return $this->sessionsForWorktree($worktree, false);
     }
 
     /** @param array<int, string> $worktrees @return array<string, array<int, SessionInfo>> */
@@ -400,9 +404,51 @@ final class Agents implements AgentLauncherInterface
      */
     public function bulkActiveSessions(array $worktrees): array
     {
+        return $this->bulkSessionsForWorktrees($worktrees, false);
+    }
+
+    /**
+     * Active agents for display/rendering, counting a finished (orca "done")
+     * analyst as waiting so the "💭 Waiting for feedback" split surfaces it.
+     *
+     * @return array<int, SessionInfo>
+     */
+    public function displaySessions(string $worktree): array
+    {
+        return $this->sessionsForWorktree($worktree, true);
+    }
+
+    /**
+     * Bulk variant of displaySessions().
+     *
+     * @param list<string> $worktrees
+     *
+     * @return array<string, list<SessionInfo>>
+     */
+    public function bulkDisplaySessions(array $worktrees): array
+    {
+        return $this->bulkSessionsForWorktrees($worktrees, true);
+    }
+
+    /** @return array<int, SessionInfo> */
+    private function sessionsForWorktree(string $worktree, bool $includeFinishedAsWaiting): array
+    {
+        [$result] = $this->orca(['worktree', 'ps', '--limit', '200']);
+        $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? [], $includeFinishedAsWaiting) : [];
+        $sessions = $orcaGrouped[$worktree] ?? [];
+        $sessions = array_merge($sessions, $this->headlessSessionsByWorktree()[$worktree] ?? []);
+
+        return $sessions;
+    }
+
+    /** @param list<string> $worktrees
+     * @return array<string, list<SessionInfo>>
+     */
+    private function bulkSessionsForWorktrees(array $worktrees, bool $includeFinishedAsWaiting): array
+    {
         $wanted = array_fill_keys($worktrees, true);
         [$result] = $this->orca(['worktree', 'ps', '--limit', '200']);
-        $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? []) : [];
+        $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? [], $includeFinishedAsWaiting) : [];
         $headlessGrouped = $this->headlessSessionsByWorktree();
         $out = [];
         foreach ($wanted as $wt => $_) {

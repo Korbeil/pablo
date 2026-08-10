@@ -89,6 +89,88 @@ final class AgentsTest extends TestCase
         $this->assertSame([['a', 'running'], ['b', 'waiting']], array_map(static fn ($s) => [$s->handle, $s->status], $sessions));
     }
 
+    public function testFinishedAgentDoesNotCountAsActiveSession(): void
+    {
+        $ps = [
+            'worktrees' => [
+                [
+                    'path' => $this->tmp,
+                    'agents' => [
+                        ['paneKey' => 'a', 'state' => 'done'],
+                        ['paneKey' => 'b', 'state' => 'working'],
+                    ],
+                ],
+            ],
+        ];
+        Proc::setRunner(fn (array $argv): string => $this->orcaOk($ps));
+        $sessions = $this->agents->activeSessions($this->tmp);
+        // The finished "done" agent is skipped so the worktree can be closed.
+        $this->assertSame([['b', 'running']], array_map(static fn ($s) => [$s->handle, $s->status], $sessions));
+    }
+
+    public function testOnlyFinishedAgentBlocksNothing(): void
+    {
+        $ps = [
+            'worktrees' => [
+                [
+                    'path' => $this->tmp,
+                    'agents' => [
+                        ['paneKey' => 'a', 'state' => 'done'],
+                        ['paneKey' => 'b', 'state' => 'completed'],
+                    ],
+                ],
+            ],
+        ];
+        Proc::setRunner(fn (array $argv): string => $this->orcaOk($ps));
+        $this->assertSame([], $this->agents->activeSessions($this->tmp));
+    }
+
+    public function testDisplaySessionsCountsFinishedAgentAsWaiting(): void
+    {
+        $ps = [
+            'worktrees' => [
+                [
+                    'path' => $this->tmp,
+                    'agents' => [
+                        ['paneKey' => 'a', 'state' => 'done'],
+                        ['paneKey' => 'b', 'state' => 'completed'],
+                        ['paneKey' => 'c', 'state' => 'working'],
+                    ],
+                ],
+            ],
+        ];
+        Proc::setRunner(fn (array $argv): string => $this->orcaOk($ps));
+        // Display-only path: finished analysts surface as waiting so the
+        // "💭 Waiting for feedback" split can surface them.
+        $this->assertSame(
+            [['a', 'waiting'], ['b', 'waiting'], ['c', 'running']],
+            array_map(static fn ($s) => [$s->handle, $s->status], $this->agents->displaySessions($this->tmp)),
+        );
+        // The operational path keeps excluding them (closure/relaunch).
+        $this->assertSame(
+            [['c', 'running']],
+            array_map(static fn ($s) => [$s->handle, $s->status], $this->agents->activeSessions($this->tmp)),
+        );
+    }
+
+    public function testBulkDisplaySessionsCountsFinishedAgentAsWaiting(): void
+    {
+        $wtA = $this->tmp.'/a';
+        $wtB = $this->tmp.'/b';
+        mkdir($wtA, 0o777, true);
+        mkdir($wtB, 0o777, true);
+        $ps = [
+            'worktrees' => [
+                ['path' => $wtA, 'agents' => [['paneKey' => 'a1', 'state' => 'done']]],
+                ['path' => $wtB, 'agents' => [['paneKey' => 'b1', 'state' => 'working']]],
+            ],
+        ];
+        Proc::setRunner(fn (array $argv): string => $this->orcaOk($ps));
+        $result = $this->agents->bulkDisplaySessions([$wtA, $wtB]);
+        $this->assertSame([['a1', 'waiting']], array_map(static fn ($s) => [$s->handle, $s->status], $result[$wtA]));
+        $this->assertSame([['b1', 'running']], array_map(static fn ($s) => [$s->handle, $s->status], $result[$wtB]));
+    }
+
     public function testBulkActiveSessionsOneOrcaCallForManyWorktrees(): void
     {
         $wtA = $this->tmp.'/a';
