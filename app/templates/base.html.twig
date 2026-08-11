@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}PABLO{% endblock %}</title>
     <link rel="icon" href="{{ asset('images/pablo.png') }}">
+    <script>
+        (function () {
+            var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            if (tz && document.cookie.indexOf('pablo_tz=') === -1) {
+                document.cookie = 'pablo_tz=' + encodeURIComponent(tz) + ';path=/;max-age=31536000';
+            }
+        })();
+    </script>
     {% block stylesheets %}{% endblock %}
     {% block javascripts %}
         {{ importmap('app') }}
