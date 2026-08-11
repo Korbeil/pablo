@@ -221,7 +221,7 @@ final class DispatchTest extends TestCase
         $this->assertSame([], $this->ran);
     }
 
-    public function testSameRepoSyncsOnlyOnce(): void
+    public function testSameRepoSyncsEachProjectsTasks(): void
     {
         $sharedRepo = $this->tmp.'/shared-repo';
         mkdir($sharedRepo, 0o777, true);
@@ -254,8 +254,9 @@ final class DispatchTest extends TestCase
         ob_end_clean();
         $this->assertSame(0, $rc);
 
+        // Projects sharing a repo each sync their own tasks; neither is skipped.
         $pairs = array_map(static fn ($p) => $p[1].':'.$p[0], $this->ran);
         sort($pairs);
-        $this->assertSame(['a:poll', 'a:sync', 'b:poll'], $pairs);
+        $this->assertSame(['a:poll', 'a:sync', 'b:poll', 'b:sync'], $pairs);
     }
 }
