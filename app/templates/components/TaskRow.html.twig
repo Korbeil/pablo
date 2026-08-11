@@ -50,5 +50,5 @@
 
     <td class="pablo-nowrap"><twig:PrTag :pr="task.pr" :url="task.prUrl" /></td>
 
-    <td class="pablo-nowrap has-text-grey" title="entered {{ task.stateEnteredAt }}">{{ task.since }}</td>
+    <td class="pablo-nowrap has-text-grey" title="entered {{ task.stateEnteredAt|date('Y-m-d H:i') }}">{{ task.since }}</td>
 </tr>
