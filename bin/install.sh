@@ -10,6 +10,9 @@ OPENCODE_DIR="${HOME}/.config/opencode"
 BIN_DIR="${HOME}/.local/bin"
 OS="$(uname -s)"
 
+info() { printf '➜ %s\n' "$*"; }
+die() { printf '❌ %s\n' "$*" >&2; exit 1; }
+
 # Install the web dashboard as a background service only when explicitly
 # requested: ./bin/install.sh --with-web
 WITH_WEB=false
@@ -23,9 +26,6 @@ for arg in "$@"; do
         ;;
     esac
 done
-
-info() { printf '➜ %s\n' "$*"; }
-die() { printf '❌ %s\n' "$*" >&2; exit 1; }
 
 # Portable `readlink -f` (BSD readlink lacks -f on older macOS).
 resolve_path() {
