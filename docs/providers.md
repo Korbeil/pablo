@@ -54,7 +54,7 @@ cached by acli itself. Provider in `src/pablo/providers/jira.py`;
 ## Confluence — `acli confluence`
 
 Same `acli` CLI, same OAuth grant; the **documentation** path
-(`src/pablo/confluence.py`, exposed as `pablo show:docs` / `/pablo-docs` and
+(`src/pablo/confluence.py`, exposed as `pablo show:docs` and
 used by interactive agents when an issue references a wiki page):
 
 - page: `acli confluence page view --id <id> --json --body-format storage`
@@ -83,7 +83,7 @@ subcommand spellings above are the provider's assumptions; verify against
 `linear --help` on first install and adjust
 `src/pablo/providers/linear.py` if they differ.
 
-## CLI preflight — `pablo system:doctor` / `/pablo-doctor`
+## CLI preflight — `pablo system:doctor`
 
 A **Python** check (`src/pablo/doctor.py`). Required set is derived from
 the configured projects: `gh`, `opencode`, `orca` always

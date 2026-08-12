@@ -34,17 +34,17 @@ Add a project by dropping a YAML file in `projects/` (copy an existing
 one, e.g. `projects/acme-pim.yaml`, or see the full schema in
 [docs/configuration.md](docs/configuration.md)).
 
-Then, day to day, from an OpenCode session:
+Then, day to day:
 
 ```
-/pablo-start https://acme.atlassian.net/browse/XXX-123          # start a task from an issue
-/pablo-start --project wallet-kit "fix callback verification"   # ...or from a prompt
-/pablo-tasks             # see all active tasks and their state
-/pablo-issues            # see issues assigned to you, per project
-/pablo-docs <page-id>    # fetch a Confluence documentation page (via acli)
-/pablo-commit-and-pr     # commit, push, open a draft PR
-/pablo-waiting           # pause/resume a task
-/pablo-close             # abandon/clean up a task (escape hatch)
+pablo task:start https://acme.atlassian.net/browse/XXX-123          # start a task from an issue
+pablo task:start --project wallet-kit "fix callback verification"   # ...or from a prompt
+pablo show:tasks             # see all active tasks and their state
+pablo show:issues            # see issues assigned to you, per project
+pablo show:docs <page-id>    # fetch a Confluence documentation page (via acli)
+/pablo-commit-and-pr         # commit, push, open a draft PR
+pablo task:waiting           # pause/resume a task
+pablo task:close             # abandon/clean up a task (escape hatch)
 ```
 
 Or, for the same picture in a browser:
@@ -99,9 +99,9 @@ host.
 A task's life from issue to merge, alternating what you do and what
 PABLO does in the background:
 
-1. `/pablo-start https://acme.atlassian.net/browse/XXX-123` — the task
+1. `pablo task:start https://acme.atlassian.net/browse/XXX-123` — the task
    starts: worktree and branch created, a **task-analyst** agent launches.
-2. `/pablo-tasks` — check that it's running.
+2. `pablo show:tasks` — check that it's running.
 3. The task-analyst agent finishes. Open it in Orca and read its plan.
 4. Chat with the agent in that session to fine-tune the plan.
 5. `/pablo-commit-and-pr` — commits, pushes, opens the PR as **draft**.
@@ -147,7 +147,7 @@ pablo/
 ├── systemd/                   ← pablo-dispatch.service + .timer (user units)
 └── opencode/
     ├── agents/                ← task-analyst.md, task-feedback.md, ...
-    └── commands/               ← the /pablo-* command set
+    └── commands/               ← pablo-commit-and-pr.md
 ```
 
 Everything PABLO creates lives inside this repository. The originals in
@@ -192,7 +192,7 @@ before making non-trivial changes in that area:
 - [docs/installation.md](docs/installation.md) — install script, per-platform
   dispatcher, macOS smoke checklist, Orca visibility
 - [docs/agents-commands.md](docs/agents-commands.md) — the agents, the
-  `/pablo-*` commands, skills
+  OpenCode command, skills
 - [docs/state-machine.md](docs/state-machine.md) — starting a task, every
   state and transition, task storage format
 - [docs/background-layer.md](docs/background-layer.md) — the two layers,
@@ -201,8 +201,8 @@ before making non-trivial changes in that area:
   access via `acli`/`gh`/`linear`, `pablo system:doctor` preflight
 - [docs/configuration.md](docs/configuration.md) — project YAML schema,
   branch naming convention
-- [docs/listings.md](docs/listings.md) — `/pablo-issues` and
-  `/pablo-tasks` output
+- [docs/listings.md](docs/listings.md) — `pablo show:issues` and
+  `pablo show:tasks` output
 - [docs/dashboard.md](docs/dashboard.md) — the `pablo web` dashboard: what
   it shows, what it guarantees, how its assets are vendored
 

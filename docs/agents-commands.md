@@ -30,22 +30,32 @@ Following the conventions of the user's other OpenCode agents (flat
   `pr-feedback`/`task-feedback`, it never flips the PR to draft (CI
   turning red never changes the PR's ready status on GitHub).
 
-## Commands (explicit entry points, thin wrappers over the `pablo` CLI)
+## Commands
 
-| command | wraps | purpose |
-|---|---|---|
-| `/pablo-start` | `pablo task:start` | start a task from an issue URL or a prompt |
-| `/pablo-issues` | `pablo show:issues` | issues assigned to me, per project |
-| `/pablo-tasks` | `pablo show:tasks` | active worktrees + states listing |
-| `/pablo-sync` | `pablo sync:run` | worktree sync (dry-run by default) |
-| `/pablo-state` | `pablo task:state` | manually force the current task's state |
-| `/pablo-waiting` | `pablo task:waiting` | pause/resume toggle |
-| `/pablo-relaunch` | `pablo task:relaunch` | re-fire the current state's agent/startup launchers (recover from a cold-worktree Orca hang) |
-| `/pablo-close` | `pablo task:close` | manual close (escape hatch) |
-| `/pablo-doctor` | `pablo system:doctor` | CLI preflight check |
-| `pablo archive:backup` | `pablo archive:backup` | write a restorable archive of all `~/.pablo` state (agent sessions excluded) |
-| `pablo archive:restore` | `pablo archive:restore` | restore state/configs and recreate task worktrees from the archive |
-| `/pablo-commit-and-pr` | (agentic) | commit, push, draft PR, state → `draft` |
+All PABLO operations are invoked via the `pablo` CLI directly.
+Key subcommands:
+
+- `pablo task:start` — start a task from an issue URL or a prompt
+- `pablo show:issues` — issues assigned to me, per project
+- `pablo show:tasks` — active worktrees + states listing
+- `pablo sync:run` — worktree sync (dry-run by default)
+- `pablo task:state` — manually force the current task's state
+- `pablo task:waiting` — pause/resume toggle
+- `pablo task:relaunch` — re-fire the current state's agent/startup launchers
+- `pablo task:close` — manual close (escape hatch)
+- `pablo system:doctor` — CLI preflight check
+- `pablo archive:backup` — write a restorable archive of all `~/.pablo` state
+- `pablo archive:restore` — restore state/configs and recreate task worktrees
+- `pablo task:retrigger-ci` — re-run all CI workflow jobs for the current task
+- `pablo task:skip-ci` — skip failing CI checks, move past `ci-red`
+- `pablo show:docs` — fetch a Confluence documentation page
+- `pablo show:prs` — paste-ready Slack PR lists for review/QA
+
+There is one OpenCode command:
+
+- **`/pablo-commit-and-pr`** — commit, push, draft PR, state → `draft`.
+  This is the only PABLO operation that still runs as an OpenCode command
+  (it needs direct git/gh access that a thin `pablo` CLI wrapper can't provide).
 
 **Naming note:** the spec calls the last one `/commit-and-pr`, but the
 user's original `commit-and-pr` command must keep existing untouched for

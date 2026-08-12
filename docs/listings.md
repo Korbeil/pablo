@@ -1,12 +1,12 @@
 # Listings
 
-**`/pablo-issues [project]`** — issues assigned to me (via
+**`pablo show:issues [project]`** — issues assigned to me (via
 `issue_tracker.identity`), one table per project: issue key + title,
 tracker status, related PR (matched via the branch convention incl.
 `-2`/`-3` variants), local branch. Cells show `-` when nothing matches —
 no guessing. Read-only.
 
-**`/pablo-tasks`** — active tasks, split into two tables (each sorted
+**`pablo show:tasks`** — active tasks, split into two tables (each sorted
 by state, in this order: 🚨 testing-failed · 🧪 needs-testing ·
 🔁 request-changes · 👀 waiting-review · 👀 ready-to-review · 🔴 ci-red
 · 📝 draft · ⏸️ waiting · 🔨 in-progress; ties keep store insertion
@@ -49,8 +49,8 @@ issue) — Slack unfurls the URL itself. Tasks without a PR are skipped; a proje
 tasks all lack PRs is omitted. An empty queue (or one with no PRs)
 prints `No PRs waiting for review right now 🎉` / `Nothing needs testing
 right now 🎉`. No headers, no commentary — the output is paste-ready
-as-is. Replaces the former `/pablo-waiting-review` and
-`/pablo-needs-testing` OpenCode commands (which relied on an LLM to
+as-is. Replaces the former `pablo show:prs waiting-review` and
+`pablo show:prs needs-testing` OpenCode commands (which relied on an LLM to
 format the same JSON); the formatting is now deterministic in the engine.
 
 ## Web equivalent

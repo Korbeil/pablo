@@ -344,5 +344,5 @@ Run in order; each is a real gate, not a smoke test.
 9. Reinstall end-to-end: `./bin/uninstall.sh && ./bin/install.sh`, then
    `systemctl --user status pablo-dispatch.timer` and watch one real timer fire
    via `journalctl --user -u pablo-dispatch.service -f`.
-10. Full loop on one throwaway task: `/pablo-start` → `/pablo-tasks` →
-    `/pablo-commit-and-pr` → `/pablo-close`.
+10. Full loop on one throwaway task: `pablo task:start` → `pablo show:tasks` →
+    `/pablo-commit-and-pr` → `pablo task:close`.
