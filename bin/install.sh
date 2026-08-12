@@ -91,6 +91,12 @@ Linux)
         ln -sfn "$REPO_DIR/systemd/$unit" "$SYSTEMD_DIR/$unit"
         info "linked $SYSTEMD_DIR/$unit"
     done
+    # User units only start at boot if the user lingers; otherwise systemd waits for a
+    # login that never comes on a headless box, and everything stays down after a reboot
+    # even though it is `enabled`. This is what left the dispatcher and the dashboard
+    # dead for ~45 minutes after the 2026-08-12 power cycle on orca.
+    loginctl enable-linger "$(id -un)" ||
+        info "⚠ could not enable lingering — PABLO units will NOT start until you log in"
     systemctl --user daemon-reload
     systemctl --user enable --now pablo-dispatch.timer
     info "pablo-dispatch.timer enabled (every 5 minutes; logs: journalctl --user -u pablo-dispatch.service)"
