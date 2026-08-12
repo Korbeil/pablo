@@ -8,13 +8,16 @@ use Pablo\Command\Command;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 final class PrecommitCheckCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('task:precommit-check')->setDescription('check /commit-and-pr is allowed here');
+        $this->setName('task:precommit-check')
+            ->setDescription('check /commit-and-pr is allowed here')
+            ->addOption('json', null, InputOption::VALUE_NONE, 'emit JSON (accepted for back-compat)');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
