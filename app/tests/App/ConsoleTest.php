@@ -66,4 +66,11 @@ final class ConsoleTest extends TestCase
         $tester->execute([]);
         $this->assertSame(Command::INVALID, $tester->getStatusCode());
     }
+
+    public function testPrecommitCheckAcceptsJsonFlag(): void
+    {
+        $tester = new CommandTester($this->app()->find('task:precommit-check'));
+        $tester->execute(['--json' => true]);
+        $this->assertSame(Command::INVALID, $tester->getStatusCode());
+    }
 }
