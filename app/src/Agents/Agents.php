@@ -499,12 +499,13 @@ final class Agents implements AgentLauncherInterface
         }
     }
 
-    public function spawnWatcher(string $project, string $branch, string $handle, string $then, ?string $expectState = null): void
+    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null): void
     {
         $argv = [
             $this->shimPath, 'internal:watch-agent',
             '--project', $project, '--branch', $branch,
-            '--handle', $handle, '--then', $then,
+            '--handle', $handle, '--agent', $agent,
+            '--then', $then,
         ];
         if (null !== $expectState) {
             $argv[] = '--expect-state';

@@ -6,9 +6,12 @@ namespace Pablo\Tests\Listing;
 
 use Pablo\Agents\SessionInfo;
 use Pablo\Config\ProjectConfig;
+use Pablo\Domain\Agent;
+use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
+use Pablo\Domain\Time;
 use Pablo\Listing\Listing;
 use Pablo\Provider\Gh\GhPr;
 use Pablo\Provider\Gh\PrInfo;
@@ -169,6 +172,13 @@ final class ListingTest extends TestCase
         $t->prNumber = $prNumber;
         $t->issue = $issue;
         $t->summary = $summary;
+
+        return $t;
+    }
+
+    private function finished(Task $t): Task
+    {
+        $t->agentLaunches[Agent::TaskAnalyst->value] = new AgentLaunch(Agent::TaskAnalyst, Time::utcnow(), 1, Time::utcnow());
 
         return $t;
     }
@@ -347,8 +357,7 @@ final class ListingTest extends TestCase
 
     public function testTasksSplitWaitingFeedbackFirst(): void
     {
-        $this->agents->bulk = ['/tmp/x' => [new SessionInfo('a', 'waiting')]];
-        $this->store->save($this->task('wk-45', State::InProgress));
+        $this->store->save($this->finished($this->task('wk-45', State::InProgress)));
         $this->store->save($this->task('wk-46', State::NeedsTesting, null, null, null, '/tmp/y'));
 
         $table = Listing::tasksTable($this->projects(), $this->store, $this->agents);
@@ -370,7 +379,7 @@ final class ListingTest extends TestCase
         $this->assertStringContainsString('wk-in-progress', $lines[1]);
     }
 
-    public function testTasksNoWaitingHeaderWhenNoWaitingAgents(): void
+    public function testTasksNoWaitingHeaderWhenNoCompletedAgent(): void
     {
         $this->store->save($this->task('wk-45', State::InProgress));
         $table = Listing::tasksTable($this->projects(), $this->store, $this->agents);
@@ -381,8 +390,7 @@ final class ListingTest extends TestCase
 
     public function testTasksWaitingAgentExcludedForNonEligibleState(): void
     {
-        $this->agents->bulk = ['/tmp/x' => [new SessionInfo('a', 'waiting')]];
-        $this->store->save($this->task('wk-45', State::NeedsTesting));
+        $this->store->save($this->finished($this->task('wk-45', State::NeedsTesting)));
         $table = Listing::tasksTable($this->projects(), $this->store, $this->agents);
         $this->assertStringNotContainsString('💭 Waiting for feedback', $table);
         $this->assertStringNotContainsString('Other tasks', $table);

@@ -140,6 +140,41 @@ final class Poller
     }
 
     /** @param list<string> $events */
+    private static function stampFinishedAgents(TaskCtx $ctx, array &$events): void
+    {
+        $task = $ctx->task;
+        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->getTimestamp();
+        $changed = false;
+        foreach ($task->agentLaunches as $label => $record) {
+            if (null !== $record->finishedAt || null === $record->launchedAt) {
+                continue;
+            }
+            if ($record->attempts < self::LAUNCH_MAX_ATTEMPTS) {
+                continue; // still within the healing window; don't preempt relaunch
+            }
+            $ageS = $now - (new \DateTimeImmutable($record->launchedAt))->getTimestamp();
+            if ($ageS < self::LAUNCH_WINDOW_S) {
+                continue; // give the agent time to show up before declaring it done
+            }
+            // PABLO gave up retrying a PABLO-triggered agent, it launched a
+            // while back and the task hasn't moved: its run has concluded and
+            // the ball is with the user (review the plan, commit-and-PR).
+            // PABLO-owned, so it never depends on Orca reporting the agent.
+            $task->agentLaunches[$label] = new AgentLaunch(
+                $record->agent,
+                $record->launchedAt,
+                $record->attempts,
+                Time::utcnow(),
+            );
+            $events[] = "{$task->branch}: {$record->agent->value} finished → waiting for feedback";
+            $changed = true;
+        }
+        if ($changed) {
+            $ctx->store->save($task);
+        }
+    }
+
+    /** @param list<string> $events */
     private static function relaunchStuckAgents(TaskCtx $ctx, array &$events): void
     {
         $task = $ctx->task;
@@ -163,6 +198,9 @@ final class Poller
             $record = $task->agentLaunches[$spec['label']->value] ?? null;
             if (null === $record || null === $record->launchedAt) {
                 continue;
+            }
+            if (null !== $record->finishedAt) {
+                continue; // already concluded; don't re-fire a done agent
             }
             $ageS = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->getTimestamp()
                 - (new \DateTimeImmutable($record->launchedAt))->getTimestamp();
@@ -234,6 +272,7 @@ final class Poller
         }
 
         if (\in_array($task->state, StateMachine::AGENT_LAUNCH_STATES, true)) {
+            self::stampFinishedAgents($ctx, $events);
             self::relaunchStuckAgents($ctx, $events);
         }
         if (State::InProgress === $task->state) {

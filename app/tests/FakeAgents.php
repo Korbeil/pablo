@@ -89,7 +89,7 @@ final class FakeAgents implements AgentLauncherInterface
     {
     }
 
-    public function spawnWatcher(string $project, string $branch, string $handle, string $then, ?string $expectState = null): void
+    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null): void
     {
     }
 

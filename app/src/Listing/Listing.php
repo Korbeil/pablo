@@ -56,13 +56,21 @@ final class Listing
      * Is this task blocked on the user right now?
      *
      * The single definition of the "💭 Waiting for feedback" split, shared by
-     * the terminal listing and the web dashboard so the two cannot drift. Note
-     * it deliberately excludes needs-testing and waiting-review: those mean the
-     * ball is with QA/reviewers, not with you.
+     * the terminal listing and the web dashboard so the two cannot drift. A
+     * task counts when its state is eligible and either PABLO has triggered an
+     * agent (task-analyst, ci-analyst, pr/task-feedback) on it whose run has
+     * concluded (`Task::hasFinishedAgent()`, stamped by the watch-agent/backfill),
+     * or a live/waiting session is currently reported on its worktree. That
+     * union keeps existing behaviour while adding the PABLO-owned signal, which
+     * is what surfaces an agent Orca has already evicted from its list.
+     *
+     * Note it deliberately excludes needs-testing and waiting-review: those
+     * mean the ball is with QA/reviewers, not with you.
      */
-    public static function isWaitingForFeedback(State $state, AgentActivity $agents): bool
+    public static function isWaitingForFeedback(Task $task, ?AgentActivity $agents = null): bool
     {
-        return \in_array($state, self::WAITING_FEEDBACK_STATES, true) && $agents->isWaiting();
+        return \in_array($task->state, self::WAITING_FEEDBACK_STATES, true)
+            && ($task->hasFinishedAgent() || (null !== $agents && $agents->isWaiting()));
     }
 
     private const SLACK_EMPTY = [
@@ -476,10 +484,8 @@ final class Listing
         }
 
         $split = static function (array $e) {
-            $task = $e[0];
-
             return self::isWaitingForFeedback(
-                $task->state,
+                $e[0],
                 AgentActivity::fromDisplay((int) $e[1][3], $e[1][4]),
             );
         };
