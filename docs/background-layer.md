@@ -40,7 +40,7 @@ especially stacked on an already-working OpenCode/Orca agent ecosystem.
 ## Worktree sync
 
 Per project, on its own `sync.interval_minutes` cadence (plus
-`/pablo-sync` manually): discovers worktrees via `git worktree list`
+`pablo sync:run` manually): discovers worktrees via `git worktree list`
 and **syncs only those backed by an active PABLO task**. Orphaned,
 foreign, or stale worktrees are left alone.:
 
@@ -84,7 +84,7 @@ other transition evaluation stops (merged PRs' branches may be gone on
 GitHub), and the close completes on a later poll once the agents are
 done. Merge detection keeps running even in `waiting`.
 
-**Fallback — `/pablo-close`**, run from inside the worktree: the escape
+**Fallback — `pablo task:close`**, run from inside the worktree: the escape
 hatch for abandoning/cleaning up. It refuses while agents are active
 (`--yes` overrides), and `cd`s to the project's `repo_path` before
 deleting the worktree so the shell isn't left in a deleted cwd.

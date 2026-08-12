@@ -111,7 +111,7 @@ auto-launched on certain state transitions) and background
 project × {sync, poll} checks a stamp in `~/.pablo/stamps/` against that
 project's own interval; one project's failure never blocks others).
 
-**State machine**: one task = one worktree (`/pablo-start`). Rough flow:
+**State machine**: one task = one worktree (`pablo task:start`). Rough flow:
 `in-progress` → `waiting` (pausable, forbidden from
 `request-changes`/`testing-failed`) → `draft` → `ci-red` /
 `ready-to-review` → `waiting-review` → `needs-testing` /

@@ -1,10 +1,10 @@
 # Task state machine
 
-## Starting a task — `/pablo-start`
+## Starting a task — `pablo task:start`
 
 ```
-/pablo-start https://acme.atlassian.net/browse/XXX-123          # from an issue link
-/pablo-start --project wallet-kit "fix callback verification"   # from a prompt
+pablo task:start https://acme.atlassian.net/browse/XXX-123          # from an issue link
+pablo task:start --project wallet-kit "fix callback verification"   # from a prompt
 ```
 
 (the OpenCode command wraps `pablo task:start <url>` /
@@ -23,7 +23,7 @@
 - The task starts in `in-progress`, which auto-runs `task-analyst` in the
   worktree — **once per task** (`task_analyst_ran` flag in the store;
   re-entering `in-progress` later, e.g. from `waiting`, does not re-run
-  it). The `/pablo-tasks` agents column shows when the run has finished.
+  it). The `pablo show:tasks` agents column shows when the run has finished.
 - If the project config sets `startup_script`
   ([configuration.md](configuration.md)), it also runs — once per task,
   in its own Orca terminal, in parallel with `task-analyst` (neither waits
@@ -34,7 +34,7 @@
 - Both launches are asynchronous: entering `in-progress` spawns a detached
   `pablo internal:launch-agent`/`internal:run-startup-script` subprocess
   per launch and returns immediately, so `pablo task:state in-progress` (and
-  `/pablo-state`) never blocks on Orca — even if Orca is slow, hung, or
+  `pablo task:state`) never blocks on Orca — even if Orca is slow, hung, or
   still indexing a just-created worktree.
 - Each detached launcher issues a single
   `orca terminal create --worktree path:<NEW>` call (60s timeout) and
@@ -73,7 +73,7 @@ One state per task:
 and `testing-failed`.
 
 There is deliberately **no `todo` state** (an unstarted assigned issue
-simply has no task/worktree — it only appears in `/pablo-issues`) and
+simply has no task/worktree — it only appears in `pablo show:issues`) and
 **no `init` state** (creation and the first agent run are part of
 entering `in-progress`).
 
@@ -86,8 +86,8 @@ behavior is never duplicated.
 
 | state | legend | entered by | on-enter action |
 |---|---|---|---|
-| `in-progress` | 🔨 in-progress | `/pablo-start` (initial) | run `task-analyst` (once per task); run `startup_script` if configured (once per task, parallel) |
-| `waiting` | ⏸️ waiting | `/pablo-waiting` toggle | save `state_before_waiting` |
+| `in-progress` | 🔨 in-progress | `pablo task:start` (initial) | run `task-analyst` (once per task); run `startup_script` if configured (once per task, parallel) |
+| `waiting` | ⏸️ waiting | `pablo task:waiting` toggle | save `state_before_waiting` |
 | `draft` | 📝 draft | `/pablo-commit-and-pr` | — |
 | `ci-red` | 🔴 ci-red | poller: CI failure | run `ci-analyst` |
 | `ready-to-review` | 👀 waiting-review | poller: CI green | `gh pr ready`, then chain to `waiting-review` |
@@ -112,20 +112,20 @@ does nothing** — unless `--force`, which skips only the commit step and
 runs the rest (for manually committed work). **There is no git-push
 detection anywhere**: a raw `git push` never changes PABLO state.
 
-### `/pablo-waiting` (pause toggle)
+### `pablo task:waiting` (pause toggle)
 
 First call saves the current state and switches to ⏸️ `waiting`; second
 call restores the saved state and runs its normal on-enter actions
 (subject to run-once flags; restoring into `needs-testing` keeps the
 existing failure-signal baseline so pause-time events are deferred, not
 lost). **Forbidden from `request-changes` and `testing-failed`** — also
-when forcing `waiting` via `/pablo-state`. While paused: no transition
+when forcing `waiting` via `pablo task:state`. While paused: no transition
 polling except **merge detection**, and worktree sync keeps running.
 
-### `/pablo-state` (manual override)
+### `pablo task:state` (manual override)
 
 `pablo task:state <state> [--no-trigger]`, cwd-resolved like
-`/pablo-waiting` / `/pablo-close`. Forcing a state runs the same on-enter
+`pablo task:waiting` / `pablo task:close`. Forcing a state runs the same on-enter
 actions as the automatic transition would; `--no-trigger` skips them
 (bookkeeping-only) **except for `waiting`**, whose on-enter (saving the
 previous state) is what makes the pause restorable. Typical use: a

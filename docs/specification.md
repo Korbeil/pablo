@@ -26,7 +26,7 @@ Concretely, this means:
   reviews worktree sync status across all projects and reports what it
   finds).
 - **Commands** are the explicit, scriptable entry points I invoke directly
-  (e.g. `/pablo-sync`, `/pablo-issues`), each mapped to one clear action.
+  (e.g. `pablo sync:run`, `pablo show:issues`), each mapped to one clear action.
 
 Document the agent/command/skill breakdown, naming, and folder layout in
 `@README.md`, matching the conventions already used in my other OpenCode
@@ -86,8 +86,8 @@ sense running inside an interactive OpenCode session, and part of it has
 to run unattended on a schedule with no session open.
 
 **Interactive layer — OpenCode agents/skills/commands.** Everything I
-invoke myself: `/pablo-start`, the task tracking agent, the task listing,
-`/pablo-close`, `/pablo-waiting`, `/pablo-state` (manual override), and
+invoke myself: `pablo task:start`, the task tracking agent, the task listing,
+`pablo task:close`, `pablo task:waiting`, `pablo task:state` (manual override), and
 `/commit-and-pr` (PABLO's own version, built from my existing
 `commit-and-pr` command — see "Local paths"). This is the
 layer described throughout the rest of this document.
@@ -163,7 +163,7 @@ that service's CLI rather than raw API calls with stored tokens:
   the OAuth login itself (`acli auth login`), so the no-tokens rule holds —
   PABLO stores nothing. The same `acli` grant also covers **Confluence**
   via `acli confluence page view --id <id> --json` (the documentation path,
-  exposed as `pablo show:docs` / `/pablo-docs` and used by agents when an issue
+  exposed as `pablo show:docs` and used by agents when an issue
   references a wiki page). Interactive agents invoke `acli` directly via
   bash; the background layer shells out to the same CLI.
 - **Linear**: the corresponding Linear CLI — pick one, and document which
@@ -179,7 +179,7 @@ bridge isn't authenticated, surface its own error/instructions rather
 than inventing a token mechanism.
 
 **CLI preflight check.** PABLO includes a **Python module**
-(`src/pablo/doctor.py`, exposed as `pablo system:doctor` and `/pablo-doctor` —
+(`src/pablo/doctor.py`, exposed as `pablo system:doctor` —
 not a bash script; decided 2026-07-26) that verifies all required CLIs are
 ready before anything relies on them:
 
@@ -445,7 +445,7 @@ for the target project. It supports two entry points:
 
 In both cases, this command only creates the worktree/branch itself — it
 does not open an editor or make any code changes on its own. Document the
-exact command name and flags (e.g. `/pablo-start <link>` vs `/pablo-start
+exact command name and flags (e.g. `pablo task:start <link>` vs `pablo task:start
 --project=wallet-kit "fix callback verification"`) in `@README.md`. Once
 created, the task's state is set to `in-progress` (see "Task state"
 below), and PABLO automatically runs the `task-analyst` agent (see "Local
@@ -467,8 +467,8 @@ new task" command) has exactly one state at a time:
   finished, so I know when it's safe to go in and start working myself.
 - `waiting` — I'm blocked waiting on feedback from the issue
   reporter/reviewer. No automatic trigger; entered and exited via the
-  `/pablo-waiting` command (run from inside the worktree — same cwd
-  convention as `/pablo-state` and `/pablo-close`), which is a **toggle**:
+  `pablo task:waiting` command (run from inside the worktree — same cwd
+  convention as `pablo task:state` and `pablo task:close`), which is a **toggle**:
   - First call: the current state is **saved** in the central store
     (`state_before_waiting`), then the task switches to `waiting`.
   - Second call (while in `waiting`): the task is **restored to the saved
@@ -479,7 +479,7 @@ new task" command) has exactly one state at a time:
     refuses to run from those two states (with a clear error message) —
     it is impossible to go from `request-changes` or `testing-failed` to
     `waiting`. The same restriction applies when forcing `waiting` via
-    the generic `/pablo-state waiting`, which otherwise uses the same
+    the generic `pablo task:state waiting`, which otherwise uses the same
     on-enter handler and also saves the previous state.
   - **While a task is in `waiting`, the state poller skips it — with one
     exception: merge detection still runs.** No CI/review/testing-signal
@@ -533,7 +533,7 @@ new task" command) has exactly one state at a time:
   for how this triggers and what runs automatically.
 
 When testing from `needs-testing` succeeds, there's no further automatic
-state — the task is closed via `/pablo-close` (see "Closing a task"),
+state — the task is closed via `pablo task:close` (see "Closing a task"),
 either manually or automatically once the PR is merged on GitHub. This is
 what resolves the "what happens after needs-testing" question rather than
 inventing a `merged`/`done` state.
@@ -571,7 +571,7 @@ a different job (gathering feedback on what went wrong, rather than
 initial issue analysis). Same treatment: read `jira-feedback`'s actual
 content and generalize it the same way into `task-feedback`.
 
-`waiting` is manual-only, via the `/pablo-waiting` toggle described above
+`waiting` is manual-only, via the `pablo task:waiting` toggle described above
 — PABLO does not infer it from PR/CI activity. The `draft` → ... →
 `draft` cycle described below, however, *is* automatic; see "Post-draft
 state transitions".
@@ -584,9 +584,9 @@ switches state automatically, without me running a command:
 ```mermaid
 stateDiagram-v2
     direction TB
-    [*] --> in_progress: /pablo-start (worktree created)
-    in_progress --> waiting: /pablo-waiting (saves current state)
-    waiting --> in_progress: /pablo-waiting again (restores saved state)
+    [*] --> in_progress: pablo task:start (worktree created)
+    in_progress --> waiting: pablo task:waiting (saves current state)
+    waiting --> in_progress: pablo task:waiting again (restores saved state)
     in_progress --> draft: /commit-and-pr (draft PR created/pushed)
     draft --> ci_red: CI fails
     draft --> ready_to_review: CI green
@@ -605,7 +605,7 @@ stateDiagram-v2
 Notes on the diagram:
 
 - The `waiting` edges are drawn from `in_progress` for readability, but
-  `/pablo-waiting` actually works as a toggle from **any state except
+  `pablo task:waiting` actually works as a toggle from **any state except
   `request-changes` and `testing-failed`** (where it's forbidden): it
   saves the current state, and the second call restores it — pausing from
   `waiting-review` returns to `waiting-review`, etc. While paused, the
@@ -691,7 +691,7 @@ Notes on the diagram:
     truth.
   - If a reviewer's stale "changes requested" blocks progress (e.g.
     they're on vacation and never re-review), I can always unblock
-    manually with `/pablo-state` — the manual override exists precisely
+    manually with `pablo task:state` — the manual override exists precisely
     for this.
 - **`waiting-review` → `needs-testing`**: automatic, when the review
   evaluation above resolves to approved.
@@ -739,7 +739,7 @@ Notes on the diagram:
   `task-feedback`'s output) — same mechanism as
   `request-changes` → `draft` above, no push detection.
 - **`needs-testing` → task closed**: not a state transition at all — when
-  testing succeeds, close the task via `/pablo-close` (see "Closing a
+  testing succeeds, close the task via `pablo task:close` (see "Closing a
   task") — either manually, or automatically once the PR is merged on
   GitHub (see "Closing a task" for the automatic trigger).
 
@@ -828,8 +828,8 @@ those checks would error or return garbage) — the only remaining check is
 "are the agents done yet → close".
 
 **Fallback — manual command, last resort.** PABLO also exposes a manual
-close command (e.g. `/pablo-close`, run from inside the worktree — same
-no-branch-argument convention as `/pablo-state`) for cases the automatic
+close command (e.g. `pablo task:close`, run from inside the worktree — same
+no-branch-argument convention as `pablo task:state`) for cases the automatic
 path doesn't cover: abandoning a task without merging, cleaning up
 something stuck, or similar edge cases. It shouldn't be the normal way I
 close a task — treat it as an escape hatch, not the main flow. Note: since
@@ -845,9 +845,9 @@ Document the exact command name and the merge-detection polling in
 
 PABLO includes a command to manually set the *current* task to any state,
 overriding whatever it's currently in. It takes no branch/project argument
-— it operates on whatever worktree I'm currently in (e.g. `/pablo-state
+— it operates on whatever worktree I'm currently in (e.g. `pablo task:state
 <state>`, run from inside the worktree), the same convention as
-`/pablo-close`. PABLO resolves the target task from the current working
+`pablo task:close`. PABLO resolves the target task from the current working
 directory rather than me having to name the branch.
 
 - Forcing a state runs the **same automatic entry actions** that would
