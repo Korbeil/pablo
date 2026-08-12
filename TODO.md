@@ -43,3 +43,8 @@ Classified task list for this repository. Grouped by intent.
 ## E. CI / tooling
 
 - [ ] **Add CI** (inspired by `jolicode/automapper`) — GitHub Actions running the `castor qa:*` gates (test, phpstan, cs-fixer).
+
+## F. Developer experience (DX)
+
+- [ ] **Setup wizard (provider CLI detection)** — interactively detect which issue-tracker CLIs are installed (`gh`, `acli`, `linear`) and propose how to install/authenticate the missing ones.
+- [ ] **Project-creation wizard** — interactively scaffold a new project config in PABLO (name, type, repo path, issue tracker, identity, project key, etc.), writing it to `~/.pablo/projects/`.
