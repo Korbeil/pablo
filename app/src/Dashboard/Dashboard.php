@@ -134,7 +134,7 @@ final class Dashboard
             stateEnteredAt: $task->stateEnteredAt,
             since: Listing::timeSince($task->stateEnteredAt),
             worktreePath: $task->worktreePath,
-            needsAttention: Listing::isWaitingForFeedback($task->state, $agents),
+            needsAttention: Listing::isWaitingForFeedback($task, $agents),
             polledAt: $cache->at,
         );
     }

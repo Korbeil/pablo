@@ -46,7 +46,7 @@ interface AgentLauncherInterface
 
     public function waitForHandle(string $handle, int $timeoutS = 0): void;
 
-    public function spawnWatcher(string $project, string $branch, string $handle, string $then, ?string $expectState = null): void;
+    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null): void;
 
     public function setWorktreeDisplayName(string $worktree, string $name, ?string $issueNumber = null): void;
 

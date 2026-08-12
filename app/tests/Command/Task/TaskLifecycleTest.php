@@ -145,6 +145,24 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->assertSame([], $this->drafts);
     }
 
+    public function testWatchAgentStampsFinishedWhenAgentGiven(): void
+    {
+        $task = $this->getTask();
+        $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, '2026-08-11T00:00:00+00:00', 1);
+        $this->store->save($task);
+
+        $tester = $this->runCommand(new WatchAgentCommand($this->store, $this->agents), [
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+            '--handle' => 't1',
+            '--agent' => 'task-analyst',
+        ]);
+        $this->assertSame(0, $tester->getStatusCode());
+
+        $launch = $this->getTask()->agentLaunches['task-analyst'];
+        $this->assertNotNull($launch->finishedAt);
+    }
+
     public function testRelaunchFiresBothAndResetsCounters(): void
     {
         $this->writeProjects('/setup.sh');
