@@ -41,7 +41,8 @@ final class Poller
 
     // ------------------------------------------------------------- checks ---
 
-    public static function checkCiRed(TaskCtx $ctx, string $slug): ?State
+    /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
+    public static function checkCiRed(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if ($ctx->task->ciIgnored || null === $prNumber) {
@@ -54,7 +55,8 @@ final class Poller
         return null;
     }
 
-    public static function checkCiGreen(TaskCtx $ctx, string $slug): ?State
+    /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
+    public static function checkCiGreen(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if (null === $prNumber) {
@@ -67,7 +69,8 @@ final class Poller
         return null;
     }
 
-    public static function checkReviews(TaskCtx $ctx, string $slug): ?State
+    /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
+    public static function checkReviews(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if (null === $prNumber) {
@@ -86,7 +89,8 @@ final class Poller
         return null;
     }
 
-    public static function checkFailureSignal(TaskCtx $ctx, string $slug): ?State
+    /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
+    public static function checkFailureSignal(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
     {
         $task = $ctx->task;
         if (null === $ctx->cfg->failureSignal || null === $task->needsTestingEnteredAt) {
@@ -111,7 +115,9 @@ final class Poller
         // Observed-transition fallback (Jira): seeing the issue *enter* the
         // failure status between two polls counts as one event.
         if ($provider->supportsSignalViaStatus() && null !== $task->issue) {
-            $current = $provider->issueStatus($task->issue->key, $ctx->cfg);
+            $current = null !== $trackerStatuses && isset($trackerStatuses[$task->issue->key])
+                ? $trackerStatuses[$task->issue->key]
+                : $provider->issueStatus($task->issue->key, $ctx->cfg);
             $previous = $task->lastSeenIssueStatus;
             $task->lastSeenIssueStatus = $current;
             $ctx->store->save($task);
@@ -226,8 +232,11 @@ final class Poller
         }
     }
 
-    /** @param list<string> $events */
-    private static function pollTask(TaskCtx $ctx, array &$events): void
+    /**
+     * @param list<string>               $events
+     * @param array<string, string>|null $trackerStatuses
+     */
+    private static function pollTask(TaskCtx $ctx, array &$events, ?array $trackerStatuses = null): void
     {
         $task = $ctx->task;
         $slug = RepoSlug::for($ctx->cfg);
@@ -283,7 +292,7 @@ final class Poller
         }
 
         foreach (self::POLL_CHECKS[$task->state->value] ?? [] as $checkName) {
-            $target = self::{$checkName}($ctx, $slug);
+            $target = self::{$checkName}($ctx, $slug, $trackerStatuses);
             if (null !== $target) {
                 StateMachine::enterState($ctx, $target);
                 $events[] = "{$task->branch}: → {$ctx->task->state->value}";
@@ -293,7 +302,8 @@ final class Poller
         }
     }
 
-    public static function refreshDisplayCache(TaskCtx $ctx, AgentLauncherInterface $agents): void
+    /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
+    public static function refreshDisplayCache(TaskCtx $ctx, AgentLauncherInterface $agents, ?array $trackerStatuses = null): void
     {
         $task = $ctx->task;
         $cfg = $ctx->cfg;
@@ -306,7 +316,9 @@ final class Poller
 
         if (null !== $task->issue) {
             try {
-                $trackerStatus = ProviderRegistry::get($cfg->provider)->issueStatus($task->issue->key, $cfg);
+                $trackerStatus = null !== $trackerStatuses && isset($trackerStatuses[$task->issue->key])
+                    ? $trackerStatuses[$task->issue->key]
+                    : ProviderRegistry::get($cfg->provider)->issueStatus($task->issue->key, $cfg);
             } catch (PabloError) {
                 // keep the last known value rather than blanking it
             }
@@ -348,10 +360,37 @@ final class Poller
         $ctx->store->save($task);
     }
 
+    /**
+     * Batch tracker status lookups for every open task's issue in this project,
+     * so the whole poll cycle costs one parallel fetch per provider instead of
+     * N sequential CLI calls (each up to JIRA_CALL_TIMEOUT_S). Falls back to a
+     * per-task live fetch if the batch fails.
+     *
+     * @return array<string, string> key => status
+     */
+    private static function fetchTrackerStatuses(ProjectConfig $cfg, Store $store): array
+    {
+        $pairs = [];
+        foreach ($store->allTasks($cfg->name) as $task) {
+            if (null !== $task->issue) {
+                $pairs[] = [$task->issue->key, $cfg];
+            }
+        }
+        if ([] === $pairs) {
+            return [];
+        }
+        try {
+            return ProviderRegistry::get($cfg->provider)->batchIssueStatus($pairs);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
     /** @return array<int, string> */
     public static function pollProject(ProjectConfig $cfg, Store $store, AgentLauncherInterface $agents): array
     {
         $events = [];
+        $trackerStatuses = self::fetchTrackerStatuses($cfg, $store);
         foreach ($store->allTasks($cfg->name) as $task) {
             try {
                 $lock = Store::taskLock($store, $cfg->name, $task->branch, self::POLL_LOCK_TIMEOUT_S);
@@ -362,13 +401,13 @@ final class Poller
                     }
                     $ctx = new TaskCtx(task: $fresh, cfg: $cfg, store: $store, agents: $agents);
                     try {
-                        self::pollTask($ctx, $events);
+                        self::pollTask($ctx, $events, $trackerStatuses);
                     } catch (\Throwable $e) {
                         $events[] = "{$task->branch}: poll check failed: {$e->getMessage()}";
                     }
                     try {
                         if (null !== $store->get($cfg->name, $task->branch)) {
-                            self::refreshDisplayCache($ctx, $agents);
+                            self::refreshDisplayCache($ctx, $agents, $trackerStatuses);
                         }
                     } catch (\Throwable $e) {
                         $events[] = "{$task->branch}: display cache refresh failed: {$e->getMessage()}";
