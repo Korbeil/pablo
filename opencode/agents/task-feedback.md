@@ -15,7 +15,7 @@ description: >-
   testing-failed; also usable directly, e.g. "QA commented on XXX-123,
   what do I need to fix".
 mode: primary
-model: opencode-go/deepseek-v4-flash
+model: openrouter/deepseek/deepseek-v4-flash-0731
 temperature: 0.2
 permission:
   edit: deny

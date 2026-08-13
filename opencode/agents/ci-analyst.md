@@ -7,7 +7,7 @@ description: >-
   read-only: never modifies code and never runs QA tooling (php-cs-fixer,
   phpstan, psalm, phpunit, pest...) or re-triggers CI itself.
 mode: primary
-model: opencode-go/deepseek-v4-flash
+model: openrouter/deepseek/deepseek-v4-flash-0731
 temperature: 0.2
 permission:
   edit: deny

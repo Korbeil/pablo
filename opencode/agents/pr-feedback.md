@@ -9,7 +9,7 @@ description: >-
   PABLO when a task enters request-changes; also usable directly, e.g.
   "plan the fixes for the review on PR #123".
 mode: primary
-model: opencode-go/deepseek-v4-flash
+model: openrouter/deepseek/deepseek-v4-flash-0731
 temperature: 0.2
 permission:
   edit: deny
