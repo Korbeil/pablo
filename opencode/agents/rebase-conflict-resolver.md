@@ -6,7 +6,7 @@ description: >-
   conflict in the chain, stages, continues the rebase, and pushes with
   --force-with-lease. Auto-run by PABLO when a sync conflict is detected.
 mode: primary
-model: opencode-go/deepseek-v4-pro
+model: openrouter/deepseek/deepseek-v4-flash-0731
 temperature: 0.5
 permission:
   edit: allow
