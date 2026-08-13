@@ -56,7 +56,7 @@ final class GithubTest extends TestCase
         $this->canned = $responses;
     }
 
-    private function cfg(): ProjectConfig
+    private function cfg(?string $issueRepo = null): ProjectConfig
     {
         return new ProjectConfig(
             name: 'wallet-kit',
@@ -67,6 +67,7 @@ final class GithubTest extends TestCase
             provider: 'github',
             identity: 'octocat',
             projectKey: 'WK',
+            issueRepo: $issueRepo,
             syncStrategy: 'rebase',
             syncAutoApply: false,
             syncInterval: 30,
@@ -96,6 +97,22 @@ final class GithubTest extends TestCase
         $provider = new Github();
         $this->assertNull($provider->matchUrl('https://github.com/acme/other/issues/45', $this->cfg()));
         $this->assertNull($provider->matchUrl('https://example.com/x', $this->cfg()));
+    }
+
+    public function testTrackerSlugFallbackToOrigin(): void
+    {
+        $this->assertSame('acme/wallet-kit', (new Github())->trackerSlug($this->cfg()));
+    }
+
+    public function testTrackerSlugUsesConfiguredRepo(): void
+    {
+        $this->assertSame('acme/upstream', (new Github())->trackerSlug($this->cfg('acme/upstream')));
+    }
+
+    public function testMatchUrlUsesConfiguredTrackerRepo(): void
+    {
+        $provider = new Github();
+        $this->assertSame('2333', $provider->matchUrl('https://github.com/afup/web/issues/2333', $this->cfg('afup/web')));
     }
 
     public function testGetIssueParses(): void

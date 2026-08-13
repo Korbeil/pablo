@@ -35,6 +35,20 @@ final class Github implements Provider
         return self::slug($cfg);
     }
 
+    /**
+     * The repo where issues and PRs live: the configured upstream
+     * (issue_tracker.repo) when set, else the origin remote. For fork
+     * workflows the origin is the fork but issues/PRs live upstream.
+     */
+    public static function trackerSlug(ProjectConfig $cfg): string
+    {
+        if (null !== $cfg->issueRepo) {
+            return $cfg->issueRepo;
+        }
+
+        return self::slug($cfg);
+    }
+
     public static function slug(ProjectConfig $cfg): string
     {
         $url = GitRepo::originUrl($cfg->repoPath);
@@ -54,7 +68,7 @@ final class Github implements Provider
             return null;
         }
         try {
-            $slug = $this->repoSlug($cfg);
+            $slug = self::trackerSlug($cfg);
         } catch (\Throwable) {
             return null;
         }
@@ -68,7 +82,7 @@ final class Github implements Provider
     public function getIssue(string $ref, ProjectConfig $cfg): Issue
     {
         $out = Proc::run([
-            'gh', 'issue', 'view', $ref, '--repo', $this->repoSlug($cfg),
+            'gh', 'issue', 'view', $ref, '--repo', self::trackerSlug($cfg),
             '--json', 'number,title,state,url',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         /** @var array<string, mixed> $data */
@@ -87,7 +101,7 @@ final class Github implements Provider
     public function listAssigned(ProjectConfig $cfg): array
     {
         $out = Proc::run([
-            'gh', 'issue', 'list', '--repo', $this->repoSlug($cfg),
+            'gh', 'issue', 'list', '--repo', self::trackerSlug($cfg),
             '--assignee', $cfg->identity, '--state', 'all',
             '--json', 'number,title,state,url', '--limit', '100',
         ], timeout: self::GH_CALL_TIMEOUT_S);
@@ -111,7 +125,7 @@ final class Github implements Provider
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
         $out = Proc::run([
-            'gh', 'issue', 'view', $key, '--repo', $this->repoSlug($cfg), '--json', 'state',
+            'gh', 'issue', 'view', $key, '--repo', self::trackerSlug($cfg), '--json', 'state',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
@@ -131,7 +145,7 @@ final class Github implements Provider
         foreach ($pairs as $i => [$key, $cfg]) {
             $keyIndex[$i] = $key;
             $commands[] = [
-                'gh', 'issue', 'view', $key, '--repo', $this->repoSlug($cfg), '--json', 'state',
+                'gh', 'issue', 'view', $key, '--repo', self::trackerSlug($cfg), '--json', 'state',
             ];
         }
 
@@ -158,7 +172,7 @@ final class Github implements Provider
             return [];
         }
         $out = Proc::run([
-            'gh', 'api', "repos/{$this->repoSlug($cfg)}/issues/{$task->prNumber}/events",
+            'gh', 'api', 'repos/'.self::trackerSlug($cfg)."/issues/{$task->prNumber}/events",
             '--paginate',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         $stamps = [];

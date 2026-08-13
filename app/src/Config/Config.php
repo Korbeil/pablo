@@ -171,6 +171,7 @@ final class Config
             provider: $provider,
             identity: $identity,
             projectKey: (string) $projectKey,
+            issueRepo: isset($data['issue_tracker']['repo']) && '' !== $data['issue_tracker']['repo'] ? (string) $data['issue_tracker']['repo'] : null,
             site: $data['issue_tracker']['site'] ?? null,
             confluenceSpace: $data['confluence']['space'] ?? null,
             syncStrategy: (string) $strategy,

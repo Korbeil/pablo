@@ -27,6 +27,6 @@ final class RepoSlug
             return (self::$for)($cfg);
         }
 
-        return Github::slug($cfg);
+        return Github::trackerSlug($cfg);
     }
 }
