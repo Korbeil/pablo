@@ -78,8 +78,8 @@ simply has no task/worktree — it only appears in `pablo show:issues`) and
 entering `in-progress`).
 
 The machine is **data-driven**: every state, its display legend, and its
-on-enter action live in one table in `src/pablo/states.py`; the poller's
-transition checks live in one table in `src/pablo/poller.py`
+on-enter action live in one table in `src/StateMachine/StateMachine.php`; the poller's
+transition checks live in one table in `src/Poller/Poller.php`
 (`POLL_CHECKS`). The same `enter_state()` handler is used by the
 automatic poller, the commands, and the manual override — on-enter
 behavior is never duplicated.

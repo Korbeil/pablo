@@ -141,7 +141,6 @@ pablo/
 │   ├── composer.json / phpunit.xml / phpstan.neon / .php-cs-fixer.php
 ├── castor.php                 ← QA tasks (cs-fixer, phpstan, test) via castor-php/php-qa
 ├── castor.composer.json       ← remote castor package (castor-php/php-qa)
-├── python/                    ← archived Python engine (src/pablo + pytest, kept for reference)
 ├── bin/install.sh             ← composer install, shim, agent/command/unit links
 ├── bin/uninstall.sh           ← reverse of install.sh (keeps ~/.pablo data)
 ├── systemd/                   ← pablo-dispatch.service + .timer (user units)
