@@ -15,7 +15,7 @@ final class ConfluenceTest extends TestCase
     private const PAGE_JSON = [
         'id' => '36307094',
         'title' => 'PIM —Accueil',
-        '_links' => ['base' => 'https://sezane.atlassian.net/wiki', 'webui' => '/spaces/PIM/overview'],
+        '_links' => ['base' => 'https://acme.atlassian.net/wiki', 'webui' => '/spaces/PIM/overview'],
         'body' => ['storage' => ['representation' => 'storage', 'value' => '<p>Espace dédié aux spécifications…</p>']],
     ];
 
@@ -35,13 +35,13 @@ final class ConfluenceTest extends TestCase
     private function cfg(): ProjectConfig
     {
         return new ProjectConfig(
-            name: 'sezane-pim',
+            name: 'acme-pim',
             type: 'work',
             repoPath: $this->tmp,
             primaryBranch: 'main',
             worktreesRoot: $this->tmp.'/wt',
             provider: 'jira',
-            identity: 'baptiste@example.com',
+            identity: 'acme@example.com',
             projectKey: 'PIM',
             syncStrategy: 'rebase',
             syncAutoApply: false,
@@ -50,25 +50,25 @@ final class ConfluenceTest extends TestCase
             failureSignal: null,
             botWhitelist: [],
             ciIgnoreChecks: [],
-            site: 'sezane.atlassian.net',
+            site: 'acme.atlassian.net',
             confluenceSpace: 'PIM',
         );
     }
 
     public function testMatchUrlExtractsIdFromPagesPath(): void
     {
-        $url = 'https://sezane.atlassian.net/wiki/spaces/PIM/pages/36307094/PIM+Home';
+        $url = 'https://acme.atlassian.net/wiki/spaces/PIM/pages/36307094/PIM+Home';
         $this->assertSame('36307094', Confluence::matchUrl($url));
     }
 
     public function testMatchUrlExtractsIdFromQuery(): void
     {
-        $this->assertSame('36307094', Confluence::matchUrl('https://sezane.atlassian.net/wiki?pageId=36307094'));
+        $this->assertSame('36307094', Confluence::matchUrl('https://acme.atlassian.net/wiki?pageId=36307094'));
     }
 
     public function testMatchUrlReturnsNullForNonConfluence(): void
     {
-        $this->assertNull(Confluence::matchUrl('https://sezane.atlassian.net/browse/PIM-1'));
+        $this->assertNull(Confluence::matchUrl('https://acme.atlassian.net/browse/PIM-1'));
         $this->assertNull(Confluence::matchUrl('not a url'));
     }
 
@@ -83,7 +83,7 @@ final class ConfluenceTest extends TestCase
         $page = Confluence::fetch('36307094', $this->cfg());
         $this->assertSame('36307094', $page->id);
         $this->assertSame('PIM —Accueil', $page->title);
-        $this->assertSame('https://sezane.atlassian.net/wiki/spaces/PIM/overview', $page->url);
+        $this->assertSame('https://acme.atlassian.net/wiki/spaces/PIM/overview', $page->url);
         $this->assertStringContainsString('Espace dédié', $page->body);
         $argv = $calls[0];
         $this->assertSame('acli', $argv[0]);
@@ -102,7 +102,7 @@ final class ConfluenceTest extends TestCase
 
             return json_encode(self::PAGE_JSON, \JSON_THROW_ON_ERROR);
         });
-        $page = Confluence::fetch('https://sezane.atlassian.net/wiki/spaces/PIM/pages/36307094/PIM+Home', $this->cfg());
+        $page = Confluence::fetch('https://acme.atlassian.net/wiki/spaces/PIM/pages/36307094/PIM+Home', $this->cfg());
         $this->assertSame('36307094', $calls[0][array_search('--id', $calls[0], true) + 1]);
         $this->assertSame('36307094', $page->id);
     }
@@ -118,7 +118,7 @@ final class ConfluenceTest extends TestCase
     {
         $this->expectException(PabloError::class);
         $this->expectExceptionMessage('not a page id or Confluence URL');
-        Confluence::fetch('https://sezane.atlassian.net/browse/PIM-1', $this->cfg());
+        Confluence::fetch('https://acme.atlassian.net/browse/PIM-1', $this->cfg());
     }
 
     public function testFetchSurfacesUnexpectedResponse(): void

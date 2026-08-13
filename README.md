@@ -30,8 +30,8 @@ platform-specific steps: [docs/installation.md](docs/installation.md).
 pablo system:doctor        # verify everything's installed and authenticated
 ```
 
-Add a project by dropping a YAML file in `projects/` (copy an existing
-one, e.g. `projects/acme-pim.yaml`, or see the full schema in
+Add a project by dropping a YAML file in `projects/` (copy the template
+`docs/examples/acme-pim.yaml`, or see the full schema in
 [docs/configuration.md](docs/configuration.md)).
 
 Then, day to day:

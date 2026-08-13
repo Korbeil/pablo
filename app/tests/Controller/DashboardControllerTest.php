@@ -59,7 +59,7 @@ final class DashboardControllerTest extends WebTestCase
                 primary_branch: main
             issue_tracker:
                 provider: github
-                identity: korbeil
+                identity: octocat
                 project_key: WK
             YAML);
 

@@ -37,7 +37,7 @@ final class PollScheduleTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: '/tmp/wt/'.$name,
             provider: 'github',
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'PR',
             syncStrategy: 'rebase',
             syncAutoApply: false,

@@ -47,7 +47,7 @@ final class DashboardTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: $this->tmp.'/wt/'.$name,
             provider: 'github',
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'WK',
             syncStrategy: 'rebase',
             syncAutoApply: false,

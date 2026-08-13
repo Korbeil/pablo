@@ -42,7 +42,7 @@ final class StateMachineTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: '/dev/null/wt',
             provider: 'github',
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'WK',
             syncStrategy: 'rebase',
             syncAutoApply: false,

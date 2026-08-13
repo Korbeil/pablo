@@ -73,7 +73,7 @@ final class JiraTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: $this->tmp.'/wt',
             provider: 'jira',
-            identity: 'baptiste@example.com',
+            identity: 'acme@example.com',
             projectKey: 'XXX',
             syncStrategy: 'rebase',
             syncAutoApply: false,

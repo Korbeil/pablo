@@ -28,18 +28,18 @@ final class BackupTest extends TestCase
         $this->projectsDir = $this->tmp.'/projects';
         $this->dest = $this->tmp.'/out';
 
-        mkdir($this->pabloRoot.'/state/sezane', 0o777, true);
+        mkdir($this->pabloRoot.'/state/acme', 0o777, true);
         mkdir($this->pabloRoot.'/stamps', 0o777, true);
         mkdir($this->pabloRoot.'/logs', 0o777, true);
         mkdir($this->pabloRoot.'/cache', 0o777, true);
         mkdir($this->pabloRoot.'/agents/locks', 0o777, true);
-        mkdir($this->pabloRoot.'/worktrees/sezane/oms-1', 0o777, true);
+        mkdir($this->pabloRoot.'/worktrees/acme/oms-1', 0o777, true);
 
-        file_put_contents($this->pabloRoot.'/stamps/sezane.poll', '1');
-        file_put_contents($this->pabloRoot.'/logs/rebase-last-sezane.json', '{}');
+        file_put_contents($this->pabloRoot.'/stamps/acme.poll', '1');
+        file_put_contents($this->pabloRoot.'/logs/rebase-last-acme.json', '{}');
         file_put_contents($this->pabloRoot.'/cache/jira.json', '{}');
         file_put_contents($this->pabloRoot.'/agents/locks/session.lock', 'secret-agent');
-        file_put_contents($this->pabloRoot.'/worktrees/sezane/oms-1/file.txt', 'x');
+        file_put_contents($this->pabloRoot.'/worktrees/acme/oms-1/file.txt', 'x');
 
         mkdir($this->projectsDir, 0o777, true);
         file_put_contents($this->projectsDir.'/default.yaml', <<<'YAML'
@@ -54,9 +54,9 @@ review:
 ci:
   ignore_checks: []
 YAML);
-        file_put_contents($this->projectsDir.'/sezane.yaml', \sprintf(
+        file_put_contents($this->projectsDir.'/acme.yaml', \sprintf(
             <<<'YAML'
-name: sezane
+name: acme
 type: work
 repo:
   path: %s/repo
@@ -64,7 +64,7 @@ repo:
 worktrees_root: %s/wt
 issue_tracker:
   provider: jira
-  identity: korbeil
+  identity: acme@example.com
   project_key: SEZ
 sync:
   strategy: rebase
@@ -82,12 +82,12 @@ YAML,
         ));
 
         $this->store = new Store($this->pabloRoot.'/state');
-        $task = new Task('sezane', 'oms-1', $this->pabloRoot.'/worktrees/sezane/oms-1', State::InProgress);
+        $task = new Task('acme', 'oms-1', $this->pabloRoot.'/worktrees/acme/oms-1', State::InProgress);
         $this->store->save($task);
 
-        GitRepo::setOriginUrl(static fn () => 'git@example.com:acme/sezane.git');
+        GitRepo::setOriginUrl(static fn () => 'git@example.com:acme/acme.git');
         Proc::setRunner(static fn (array $argv) => match (true) {
-            \in_array('orca', $argv, true) && \in_array('repo', $argv, true) && \in_array('list', $argv, true) => '{"ok":true,"result":{"repos":[{"path":"/tmp/sezane"}]}}',
+            \in_array('orca', $argv, true) && \in_array('repo', $argv, true) && \in_array('list', $argv, true) => '{"ok":true,"result":{"repos":[{"path":"/tmp/acme"}]}}',
             default => throw new \RuntimeException('unexpected proc call: '.implode(' ', $argv)),
         });
     }
@@ -109,14 +109,14 @@ YAML,
         $extracted = $this->tmp.'/extract';
         $manifest = Backup::extractArchive($path, $extracted);
         $this->assertSame(1, $manifest['version']);
-        $this->assertSame('git@example.com:acme/sezane.git', $manifest['projects'][0]['origin_url']);
+        $this->assertSame('git@example.com:acme/acme.git', $manifest['projects'][0]['origin_url']);
         $this->assertSame(['oms-1'], $manifest['projects'][0]['branches']);
 
-        $this->assertDirectoryExists($extracted.'/state/sezane');
+        $this->assertDirectoryExists($extracted.'/state/acme');
         $this->assertDirectoryExists($extracted.'/stamps');
         $this->assertDirectoryExists($extracted.'/logs');
         $this->assertDirectoryExists($extracted.'/cache');
-        $this->assertFileExists($extracted.'/projects/sezane.yaml');
+        $this->assertFileExists($extracted.'/projects/acme.yaml');
 
         $this->assertFileExists($extracted.'/orca-repos.json');
         $orcaRepos = json_decode((string) file_get_contents($extracted.'/orca-repos.json'), true);
@@ -142,13 +142,13 @@ YAML,
         $this->assertSame(['cache'], $tag);
 
         $freshStore = new Store($fresh.'/state');
-        $task = $freshStore->get('sezane', 'oms-1');
+        $task = $freshStore->get('acme', 'oms-1');
         $this->assertNotNull($task);
         $this->assertSame(State::InProgress, $task->state);
 
         $projectsResult = Backup::restoreProjects($extracted, $this->tmp.'/restored-projects', false);
-        $this->assertContains('sezane.yaml', $projectsResult);
-        $this->assertFileExists($this->tmp.'/restored-projects/sezane.yaml');
+        $this->assertContains('acme.yaml', $projectsResult);
+        $this->assertFileExists($this->tmp.'/restored-projects/acme.yaml');
     }
 
     public function testRestoreSkipsExistingWhenNotOverwriting(): void

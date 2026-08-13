@@ -49,7 +49,7 @@ final class DispatchTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: $this->tmp.'/wt/'.$name,
             provider: 'github',
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'PR',
             syncStrategy: 'rebase',
             syncAutoApply: false,
@@ -229,7 +229,7 @@ final class DispatchTest extends TestCase
         $a = new ProjectConfig(
             name: 'a', type: 'work', repoPath: $sharedRepo,
             primaryBranch: 'main', worktreesRoot: $this->tmp.'/wt/a',
-            provider: 'github', identity: 'korbeil', projectKey: 'PR',
+            provider: 'github', identity: 'octocat', projectKey: 'PR',
             syncStrategy: 'rebase', syncAutoApply: false,
             syncInterval: 30, pollInterval: 10,
             failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
@@ -237,7 +237,7 @@ final class DispatchTest extends TestCase
         $b = new ProjectConfig(
             name: 'b', type: 'work', repoPath: $sharedRepo,
             primaryBranch: 'main', worktreesRoot: $this->tmp.'/wt/b',
-            provider: 'github', identity: 'korbeil', projectKey: 'PB',
+            provider: 'github', identity: 'octocat', projectKey: 'PB',
             syncStrategy: 'rebase', syncAutoApply: false,
             syncInterval: 30, pollInterval: 10,
             failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],

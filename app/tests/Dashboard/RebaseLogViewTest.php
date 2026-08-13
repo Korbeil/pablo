@@ -39,7 +39,7 @@ final class RebaseLogViewTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: '/tmp/wt',
             provider: 'github',
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'PR',
             syncStrategy: 'rebase',
             syncAutoApply: false,

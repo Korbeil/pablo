@@ -152,7 +152,7 @@ repo:
 worktrees_root: %s/wt
 issue_tracker:
   provider: %s
-  identity: korbeil
+  identity: octocat
   project_key: %s
 YAML,
             $name,
@@ -270,14 +270,14 @@ YAML,
     public function testStartPromptWithIssueKeyResolvesIssue(): void
     {
         $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
-        $this->writeProject('sezane-oms', $this->tmp.'/oms-repo', 'OMS', 'jira');
+        $this->writeProject('acme-oms', $this->tmp.'/oms-repo', 'OMS', 'jira');
         $jiraIssue = new Issue('jira', 'OMS-6393', 'https://example.atlassian.net/browse/OMS-6393', 'Release gallery ML', 'OMS');
         $this->configureProviders(['github' => new FakeStartProvider(null), 'jira' => new FakeStartProvider($jiraIssue)]);
 
-        $tester = $this->runCommand(['--project' => 'sezane-oms', 'input' => ['fix the thing per OMS-6393 please']]);
+        $tester = $this->runCommand(['--project' => 'acme-oms', 'input' => ['fix the thing per OMS-6393 please']]);
         $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
         $this->assertSame([['oms-6393', 'main']], $this->created);
-        $task = $this->store->get('sezane-oms', 'oms-6393');
+        $task = $this->store->get('acme-oms', 'oms-6393');
         $this->assertNotNull($task);
         $this->assertNotNull($task->issue);
         $this->assertSame('OMS-6393', $task->issue->key);
@@ -287,17 +287,17 @@ YAML,
     public function testStartWithJiraKeySetsOrcaDisplayName(): void
     {
         $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
-        $this->writeProject('sezane-oms', $this->tmp.'/oms-repo', 'OMS', 'jira');
+        $this->writeProject('acme-oms', $this->tmp.'/oms-repo', 'OMS', 'jira');
         $jiraIssue = new Issue('jira', 'OMS-6393', 'https://example.atlassian.net/browse/OMS-6393', 'T', 'OMS');
         $this->configureProviders(['github' => new FakeStartProvider(null), 'jira' => new FakeStartProvider($jiraIssue)]);
-        $this->runCommand(['--project' => 'sezane-oms', 'input' => ['fix the thing per OMS-6393 please']]);
+        $this->runCommand(['--project' => 'acme-oms', 'input' => ['fix the thing per OMS-6393 please']]);
         $this->assertSame(['OMS-6393'], $this->agents->displayNames);
     }
 
     public function testStartPromptWithUnconfiguredKeyFallsBackToSlug(): void
     {
         $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
-        $this->writeProject('sezane-oms', $this->tmp.'/oms-repo', 'OMS', 'jira');
+        $this->writeProject('acme-oms', $this->tmp.'/oms-repo', 'OMS', 'jira');
         $this->configureProviders(['github' => new FakeStartProvider(null), 'jira' => new FakeStartProvider(new Issue('jira', 'OMS-6393', 'u', 'T', 'OMS'))]);
         $this->runCommand(['--project' => 'wallet-kit', 'input' => ['fix the thing per XYZ-999 please']]);
         $this->assertSame([['wk-fix-the-thing-per', 'main']], $this->created);
@@ -305,30 +305,30 @@ YAML,
 
     public function testStartWithProjectDisambiguatesSharedKey(): void
     {
-        $this->writeProject('sezane-oms', $this->tmp.'/ecommerce', 'OMS', 'jira');
-        $this->writeProject('sezane-retail', $this->tmp.'/retail', 'OMS', 'jira');
+        $this->writeProject('acme-oms', $this->tmp.'/ecommerce', 'OMS', 'jira');
+        $this->writeProject('acme-retail', $this->tmp.'/retail', 'OMS', 'jira');
         $this->configureProviders(['jira' => new FakeStartProvider(new Issue('jira', 'OMS-6393', 'u', 'T', 'OMS'))]);
-        $tester = $this->runCommand(['--project' => 'sezane-retail', 'input' => ['OMS-6393']]);
+        $tester = $this->runCommand(['--project' => 'acme-retail', 'input' => ['OMS-6393']]);
         $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
-        $task = $this->store->get('sezane-retail', 'oms-6393');
+        $task = $this->store->get('acme-retail', 'oms-6393');
         $this->assertNotNull($task);
         $this->assertNotNull($task->issue);
-        $this->assertSame('sezane-retail', $task->project);
+        $this->assertSame('acme-retail', $task->project);
         $this->assertSame('OMS-6393', $task->issue->key);
-        $this->assertStringContainsString('sezane-retail', $tester->getDisplay());
+        $this->assertStringContainsString('acme-retail', $tester->getDisplay());
     }
 
     public function testStartWithoutProjectUsesFirstMatchForSharedKey(): void
     {
-        $this->writeProject('sezane-oms', $this->tmp.'/ecommerce', 'OMS', 'jira');
-        $this->writeProject('sezane-retail', $this->tmp.'/retail', 'OMS', 'jira');
+        $this->writeProject('acme-oms', $this->tmp.'/ecommerce', 'OMS', 'jira');
+        $this->writeProject('acme-retail', $this->tmp.'/retail', 'OMS', 'jira');
         $this->configureProviders(['jira' => new FakeStartProvider(new Issue('jira', 'OMS-6393', 'u', 'T', 'OMS'))]);
         $tester = $this->runCommand(['input' => ['OMS-6393']]);
         $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
-        $task = $this->store->get('sezane-oms', 'oms-6393');
+        $task = $this->store->get('acme-oms', 'oms-6393');
         $this->assertNotNull($task);
         $this->assertNotNull($task->issue);
-        $this->assertSame('sezane-oms', $task->project);
-        $this->assertStringContainsString('sezane-oms', $tester->getDisplay());
+        $this->assertSame('acme-oms', $task->project);
+        $this->assertStringContainsString('acme-oms', $tester->getDisplay());
     }
 }

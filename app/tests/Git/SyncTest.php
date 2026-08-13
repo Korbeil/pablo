@@ -46,7 +46,7 @@ final class SyncTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: $this->tmp.'/wtroot',
             provider: 'github',
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'PR',
             syncStrategy: 'rebase',
             syncAutoApply: $autoApply,

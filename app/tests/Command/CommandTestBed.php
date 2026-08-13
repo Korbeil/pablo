@@ -118,7 +118,7 @@ repo:
 worktrees_root: %s/wt
 issue_tracker:
   provider: github
-  identity: korbeil
+  identity: octocat
   project_key: WK
 sync:
   strategy: rebase

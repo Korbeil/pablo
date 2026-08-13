@@ -41,7 +41,7 @@ final class RestoreCommandTest extends TestCase
         $this->pabloRoot = $this->tmp.'/pablo';
         $this->wt = $this->tmp.'/wt';
         $this->projectsDir = $this->tmp.'/projects';
-        mkdir($this->pabloRoot.'/state/sezane', 0o777, true);
+        mkdir($this->pabloRoot.'/state/acme', 0o777, true);
         mkdir($this->projectsDir, 0o777, true);
 
         file_put_contents($this->projectsDir.'/default.yaml', <<<'YAML'
@@ -56,9 +56,9 @@ review:
 ci:
   ignore_checks: []
 YAML);
-        file_put_contents($this->projectsDir.'/sezane.yaml', \sprintf(
+        file_put_contents($this->projectsDir.'/acme.yaml', \sprintf(
             <<<'YAML'
-name: sezane
+name: acme
 type: work
 repo:
   path: %s/clone
@@ -66,7 +66,7 @@ repo:
 worktrees_root: %s
 issue_tracker:
   provider: jira
-  identity: korbeil
+  identity: acme@example.com
   project_key: SEZ
 sync:
   strategy: rebase
@@ -84,7 +84,7 @@ YAML,
         ));
 
         $this->store = new Store($this->pabloRoot.'/state');
-        $task = new Task('sezane', 'oms-1', $this->tmp.'/old/oms-1', State::InProgress);
+        $task = new Task('acme', 'oms-1', $this->tmp.'/old/oms-1', State::InProgress);
         $this->store->save($task);
 
         putenv('PABLO_ROOT='.$this->pabloRoot);
@@ -92,7 +92,7 @@ YAML,
         $this->orcaCalls = [];
         Proc::setRunner(function (array $argv): string {
             if (\in_array('orca', $argv, true) && \in_array('repo', $argv, true) && \in_array('list', $argv, true)) {
-                return '{"ok":true,"result":{"repos":[{"path":"/tmp/sezane"}]}}';
+                return '{"ok":true,"result":{"repos":[{"path":"/tmp/acme"}]}}';
             }
             if (\in_array('orca', $argv, true) && \in_array('repo', $argv, true) && \in_array('add', $argv, true)) {
                 $this->orcaCalls[] = array_values($argv);
@@ -131,7 +131,7 @@ YAML,
         $this->assertSame('oms-1', RepoHelper::git($recreated, ['branch', '--show-current']));
         $this->assertSame('work', rtrim((string) file_get_contents($recreated.'/task.txt')));
 
-        $task = $this->store->get('sezane', 'oms-1');
+        $task = $this->store->get('acme', 'oms-1');
         $this->assertNotNull($task);
         $this->assertSame($recreated, $task->worktreePath);
         $this->assertSame(State::InProgress, $task->state);
@@ -145,7 +145,7 @@ YAML,
     {
         RepoHelper::git($this->clone, ['checkout', '-b', 'local-only']);
         RepoHelper::git($this->clone, ['checkout', 'main']);
-        $this->store->save(new Task('sezane', 'local-only', $this->tmp.'/old/local-only', State::InProgress));
+        $this->store->save(new Task('acme', 'local-only', $this->tmp.'/old/local-only', State::InProgress));
 
         $projects = Config::loadProjects($this->projectsDir);
         $archive = Backup::writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');

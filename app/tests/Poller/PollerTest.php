@@ -126,7 +126,7 @@ final class PollerTest extends TestCase
         GhPr::setMarkReady(static fn () => null);
         GhPr::setMarkDraft(static fn () => null);
         GhPr::setReadyAnchor(static fn () => new \DateTimeImmutable('2026-07-20T00:00:00+00:00'));
-        GhPr::setFetchReviews(static fn () => ['korbeil', []]);
+        GhPr::setFetchReviews(static fn () => ['octocat', []]);
         GhPr::setEvaluateReviews(fn () => $this->stubs['verdict']);
         GitRepo::setRemoveWorktree(function (string $repo, string $path, string $branch): void {
             $this->stubs['removed'][] = $branch;
@@ -168,7 +168,7 @@ final class PollerTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: $tmp.'/wt',
             provider: 'github',
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'PR',
             syncStrategy: 'rebase',
             syncAutoApply: false,
@@ -578,7 +578,7 @@ final class PollerTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: $e['tmp'].'/wt',
             provider: 'github',
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'PR',
             syncStrategy: 'rebase',
             syncAutoApply: false,
@@ -610,7 +610,7 @@ final class PollerTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: $e['tmp'].'/wt',
             provider: 'github',
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'PR',
             syncStrategy: 'rebase',
             syncAutoApply: false,

@@ -1,0 +1,26 @@
+# Example project config — copy this template into your projects/ dir and
+# adapt it. Real projects are per-machine and git-ignored; this file is just
+# a neutral reference. See docs/configuration.md for the full schema.
+name: acme-pim
+type: work
+repo:
+  path: ~/Sites/acme/pim
+  primary_branch: main
+issue_tracker:
+  provider: jira
+  identity: acme@example.com
+  project_key: PIM
+  site: acme.atlassian.net   # Atlassian site host (acli auth / browse URLs)
+sync:
+  strategy: rebase
+  auto_apply: true
+testing:
+  failure_signal: "A FIX"   # Jira status watched on the linked issue
+ci:
+  # CircleCI-style approval gates (deploy-code-approval-*) show up as
+  # StatusContext entries stuck at state PENDING since nobody approves them —
+  # matched by the "approval" substring so evaluate_ci skips them and CI can
+  # still resolve to green.
+  ignore_checks: ["approval"]
+# worktrees_root omitted -> ~/.pablo/worktrees/pim/
+# sync / state_polling / review omitted -> projects/default.yaml

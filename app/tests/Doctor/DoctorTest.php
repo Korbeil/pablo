@@ -31,7 +31,7 @@ final class DoctorTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: self::TMP.'/wt/'.$name,
             provider: $provider,
-            identity: 'korbeil',
+            identity: 'octocat',
             projectKey: 'PR',
             syncStrategy: 'rebase',
             syncAutoApply: false,
@@ -116,7 +116,7 @@ final class DoctorTest extends TestCase
             return [1, 'not authenticated: run acli confluence auth login'];
         }
         if ($argv === ['acli', 'jira', 'auth', 'status']) {
-            return [0, "✓ Authenticated\n  Email: baptiste@example.com"];
+            return [0, "✓ Authenticated\n  Email: acme@example.com"];
         }
 
         return [0, 'ok'];
