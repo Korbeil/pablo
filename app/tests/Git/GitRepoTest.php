@@ -56,16 +56,16 @@ final class GitRepoTest extends TestCase
 
     public function testRemoveWorktreeDeletesSlashPrefixedBranch(): void
     {
-        $wt = GitRepo::createWorktree($this->clone, $this->root, 'User/wk-9', 'main');
+        $wt = GitRepo::createWorktree($this->clone, $this->root, 'octocat/wk-9', 'main');
         $this->assertDirectoryExists($wt);
-        $this->assertSame('User/wk-9', RepoHelper::git($wt, ['branch', '--show-current']));
+        $this->assertSame('octocat/wk-9', RepoHelper::git($wt, ['branch', '--show-current']));
 
         // Task tracks the short name ("wk-9") but the real branch is prefixed.
         GitRepo::removeWorktree($this->clone, $wt, 'wk-9');
 
         $this->assertDirectoryDoesNotExist($wt);
         $names = GitRepo::allBranchNames($this->clone);
-        $this->assertNotContains('User/wk-9', $names);
+        $this->assertNotContains('octocat/wk-9', $names);
         $this->assertNotContains('wk-9', $names);
     }
 

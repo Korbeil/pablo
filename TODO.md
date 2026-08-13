@@ -5,10 +5,10 @@ Classified task list for this repository. Grouped by intent.
 ## A. Cleanup / repo hygiene
 
 - [x] **Remove legacy Python** — delete `python/` (`src/pablo/*`, `tests/*`, `pyproject.toml`, `poetry.lock`); confirm no references remain.
-- [ ] **Remove employer / self mentions (repo-wide)**:
-  - Delete `app/projects/acme-{oms,retail,cms,pim}.yaml`; ship a neutral `acme-*.yaml` example.
-  - Strip `user` identity in tests: `PollerTest.php:129,171,581,613`, `ListingTest.php:109`, `Tracker/GithubTest.php:68`, `Tracker/LinearTest.php:68`, `BackupTest.php` (`acme` fixtures + `identity: user`).
-  - Sweep `acme`/`user`/`/home/user/` out of `README.md` + docs.
+- [x] **Remove employer / self mentions (repo-wide)**:
+  - Personal project configs stay git-ignored/untracked in `app/projects/` (untouched); ship neutral `docs/examples/acme-pim.yaml` and point `README.md` at it.
+  - Strip `user` identity in tests: `PollerTest`, `ListingTest`, `GithubTest`, `LinearTest`, `BackupTest` (fixtures + identity), plus the other test files carrying it.
+  - Sweep `acme`/`user`/`/home/user/` out of `README.md`, docs and `src` (out of scope: `docs/specification.md` + `docs/castor-migration.md` for A3, `systemd/*.service` paths for B1).
 - [ ] **Remove spec docs** — delete `docs/specification.md` and `docs/castor-migration.md`; prune cross-references.
 - [ ] **Add MIT LICENSE** — `LICENSE` at root + reference in `app/composer.json`.
 

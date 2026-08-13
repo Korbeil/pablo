@@ -56,7 +56,7 @@ repo:
   primary_branch: master
 issue_tracker:
   provider: github
-  identity: user
+  identity: octocat
   project_key: MI
 
 YAML;

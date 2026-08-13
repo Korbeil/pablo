@@ -160,7 +160,7 @@ final class GitRepo
     /**
      * Delete every local branch matching $branch. A task tracks its branch by
      * its short name (e.g. "pim-559"), but the actual git branch may carry a
-     * slash prefix (e.g. "User/pim-559"); match either the exact name or
+     * slash prefix (e.g. "octocat/pim-559"); match either the exact name or
      * any branch ending in "/$branch". Missing branches are ignored so a
      * close never fails just because the branch is already gone.
      */

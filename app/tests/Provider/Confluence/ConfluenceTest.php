@@ -41,7 +41,7 @@ final class ConfluenceTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: $this->tmp.'/wt',
             provider: 'jira',
-            identity: 'baptiste@example.com',
+            identity: 'acme@example.com',
             projectKey: 'PIM',
             syncStrategy: 'rebase',
             syncAutoApply: false,

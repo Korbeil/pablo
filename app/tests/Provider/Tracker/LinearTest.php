@@ -65,7 +65,7 @@ final class LinearTest extends TestCase
             primaryBranch: 'main',
             worktreesRoot: $this->tmp.'/wt',
             provider: 'linear',
-            identity: 'user',
+            identity: 'octocat',
             projectKey: 'STA',
             syncStrategy: 'rebase',
             syncAutoApply: false,

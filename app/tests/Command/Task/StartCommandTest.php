@@ -152,7 +152,7 @@ repo:
 worktrees_root: %s/wt
 issue_tracker:
   provider: %s
-  identity: user
+  identity: octocat
   project_key: %s
 YAML,
             $name,

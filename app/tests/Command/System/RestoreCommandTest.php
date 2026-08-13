@@ -66,7 +66,7 @@ repo:
 worktrees_root: %s
 issue_tracker:
   provider: jira
-  identity: user
+  identity: acme@example.com
   project_key: SEZ
 sync:
   strategy: rebase
