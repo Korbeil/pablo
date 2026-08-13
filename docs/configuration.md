@@ -23,6 +23,10 @@ identity: bfontaine        # account used to filter "assigned to me" (required;
   site: acme.atlassian.net   # jira only, optional: which Atlassian site host
                               # to use for browse URLs / Confluence page URLs;
                               # default = "jira"
+  repo: acme/upstream        # github only, optional: repo where issues and PRs
+                              # live (e.g. the upstream of a fork). Default = the
+                              # origin remote of repo.path. Set this when you work
+                              # on a fork but file/open PRs against the upstream.
 confluence:                    # optional; only relevant for jira projects (acli
   space: PIM                   # owns both Jira and Confluence auth). Scopes doc
                               # lookups (`pablo show:docs` / agents) to this space key.

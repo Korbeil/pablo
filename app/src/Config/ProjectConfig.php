@@ -32,6 +32,7 @@ final class ProjectConfig
         public readonly ?string $site = null,
         public readonly ?string $confluenceSpace = null,
         public readonly ?string $startupScript = null,
+        public readonly ?string $issueRepo = null,
     ) {
     }
 
@@ -47,6 +48,7 @@ final class ProjectConfig
             'provider' => $this->provider,
             'identity' => $this->identity,
             'project_key' => $this->projectKey,
+            'issue_repo' => $this->issueRepo,
             'sync_strategy' => $this->syncStrategy,
             'sync_auto_apply' => $this->syncAutoApply,
             'sync_interval' => $this->syncInterval,

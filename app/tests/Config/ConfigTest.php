@@ -161,6 +161,18 @@ YAML;
         $this->assertSame('PIM', Config::loadProjects($this->projectsDir)['mini']->confluenceSpace);
     }
 
+    public function testIssueRepoOptional(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->assertNull(Config::loadProjects($this->projectsDir)['mini']->issueRepo);
+        $this->write('mini.yaml', str_replace(
+            '  project_key: MI'."\n",
+            "  project_key: MI\n  repo: acme/upstream\n",
+            self::MINIMAL_PROJECT,
+        ));
+        $this->assertSame('acme/upstream', Config::loadProjects($this->projectsDir)['mini']->issueRepo);
+    }
+
     public function testStartupScriptOptional(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
