@@ -218,16 +218,28 @@ final class Agents implements AgentLauncherInterface
         return $this->launchHeadlessCommand($worktree, 'startup-script', $command);
     }
 
+    /**
+     * Build a detached background command that closes every inherited fd > 2
+     * before exec, so a long-lived agent process never keeps the global
+     * dispatch flock (or any other parent fd) alive after the run ends. bash
+     * closes already-closed fds gracefully, unlike POSIX sh.
+     */
+    private static function detach(string $inner): string
+    {
+        $close = implode(' ', array_map(static fn (int $n) => "exec {$n}>&-", range(3, 255)));
+
+        return 'setsid bash -c '.escapeshellarg($close.'; exec '.$inner).' </dev/null >/dev/null 2>&1 & echo $!';
+    }
+
     /** Spawn a detached process via setsid and capture its pid. */
     /**
      * @param list<string> $argv
      */
     private function spawnDetached(array $argv): int
     {
-        $cmd = 'setsid '.implode(' ', array_map(static fn ($a) => escapeshellarg((string) $a), $argv))
-            .' >/dev/null 2>&1 & echo $!';
+        $inner = implode(' ', array_map(static fn ($a) => escapeshellarg((string) $a), $argv));
 
-        return (int) trim((string) shell_exec($cmd));
+        return (int) trim((string) shell_exec(self::detach($inner)));
     }
 
     public function launch(string $worktree, \Pablo\Domain\Agent $agent, string $prompt, string $project, string $branch): string
@@ -309,7 +321,7 @@ final class Agents implements AgentLauncherInterface
     {
         $log = $this->logFor($label);
         $out = [];
-        exec('setsid bash -c '.$command.' >>'.escapeshellarg($log).' 2>&1 & echo $!', $out);
+        exec(self::detach($command.' >>'.escapeshellarg($log).' 2>&1'), $out);
         $pid = (int) trim((string) ($out[0] ?? ''));
         $this->writePidfile($pid, $worktree, $label);
 
@@ -321,9 +333,9 @@ final class Agents implements AgentLauncherInterface
         $log = $this->logFor($agent);
         $out = [];
         exec(
-            'setsid opencode run --agent '.escapeshellarg($agent)
-            .' --dir '.escapeshellarg($worktree).' '.escapeshellarg($prompt)
-            .' >>'.escapeshellarg($log).' 2>&1 & echo $!',
+            self::detach('opencode run --agent '.escapeshellarg($agent)
+                .' --dir '.escapeshellarg($worktree).' '.escapeshellarg($prompt)
+                .' >>'.escapeshellarg($log).' 2>&1'),
             $out,
         );
         $pid = (int) trim((string) ($out[0] ?? ''));
