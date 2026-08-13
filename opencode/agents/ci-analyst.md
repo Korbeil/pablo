@@ -160,9 +160,10 @@ gate. Repeat for each failing check.
 
 ## ✅ Fix plan
 1. Ordered, concrete steps. Each step names the file(s) to touch and what
-   to change, e.g. "In `tests/test_foo.py::test_bar`, the fixture no
-   longer matches the renamed field at `src/pablo/model.py:42` — update
-   the fixture." Group steps by check when one fix covers multiple checks.
+   to change, e.g. "In `app/tests/Domain/TaskTest.php::testBar`, the
+   fixture no longer matches the renamed field at `app/src/Domain/Task.php`
+   — update the fixture." Group steps by check when one fix covers
+   multiple checks.
 2. ...
 n. Final steps: which tests to add/update so this failure mode is covered,
    and a reminder to run the project's QA suite yourself before pushing

@@ -25,7 +25,7 @@ regardless of tracker:
 ## Jira — `acli` (Atlassian CLI)
 
 Atlassian's own [`acli`](https://atlassian.com/cli) CLI; OAuth owned and
-cached by acli itself. Provider in `src/pablo/providers/jira.py`;
+cached by acli itself. Provider in `src/Provider/Tracker/Jira.php`;
 
 - issue: `acli jira workitem view <KEY> --json --fields 'summary,status'`
   (default fields are `key,issuetype,summary,status,assignee,description`;
@@ -54,7 +54,7 @@ cached by acli itself. Provider in `src/pablo/providers/jira.py`;
 ## Confluence — `acli confluence`
 
 Same `acli` CLI, same OAuth grant; the **documentation** path
-(`src/pablo/confluence.py`, exposed as `pablo show:docs` and
+(`src/Provider/Confluence/Confluence.php`, exposed as `pablo show:docs` and
 used by interactive agents when an issue references a wiki page):
 
 - page: `acli confluence page view --id <id> --json --body-format storage`
@@ -81,11 +81,11 @@ transitions into `testing.failure_signal`; auth check:
 `linear auth status`. ⚠️ Not yet installed on this machine — the exact
 subcommand spellings above are the provider's assumptions; verify against
 `linear --help` on first install and adjust
-`src/pablo/providers/linear.py` if they differ.
+`src/Provider/Tracker/Linear.php` if they differ.
 
 ## CLI preflight — `pablo system:doctor`
 
-A **Python** check (`src/pablo/doctor.py`). Required set is derived from
+A preflight check (`src/Doctor.php`). Required set is derived from
 the configured projects: `gh`, `opencode`, `orca` always
 (`opencode`/`orca` are PABLO additions to the spec's set — the
 agent-runner path needs them); **`acli`** only when some project uses the

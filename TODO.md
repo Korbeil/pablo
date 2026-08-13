@@ -4,7 +4,7 @@ Classified task list for this repository. Grouped by intent.
 
 ## A. Cleanup / repo hygiene
 
-- [ ] **Remove legacy Python** — delete `python/` (`src/pablo/*`, `tests/*`, `pyproject.toml`, `poetry.lock`); confirm no references remain.
+- [x] **Remove legacy Python** — delete `python/` (`src/pablo/*`, `tests/*`, `pyproject.toml`, `poetry.lock`); confirm no references remain.
 - [ ] **Remove employer / self mentions (repo-wide)**:
   - Delete `app/projects/sezane-{oms,retail,cms,pim}.yaml`; ship a neutral `acme-*.yaml` example.
   - Strip `korbeil` identity in tests: `PollerTest.php:129,171,581,613`, `ListingTest.php:109`, `Tracker/GithubTest.php:68`, `Tracker/LinearTest.php:68`, `BackupTest.php` (`sezane` fixtures + `identity: korbeil`).

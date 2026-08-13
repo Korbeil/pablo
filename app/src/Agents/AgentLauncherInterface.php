@@ -10,7 +10,7 @@ use Pablo\StateMachine\StateMachine;
 /**
  * The agent-runner seam StateMachine/Poller depend on, so tests can inject a
  * fake instead of ever starting a real `opencode run` (an actual LLM call).
- * Ages correspond to the conftest.py autouse stub's callables.
+ * Terminal ids correspond to the fake's callables in `tests/FakeAgents.php`.
  */
 interface AgentLauncherInterface
 {

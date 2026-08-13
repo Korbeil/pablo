@@ -64,7 +64,7 @@ PABLO's version is named **`/pablo-commit-and-pr`**.
 
 ## Skills
 
-None yet. Shared logic that would have been "skills" lives in the Python
+None yet. Shared logic that would have been "skills" lives in the PABLO
 engine instead, which agents/commands reach through `pablo` subcommands;
 if reusable prompt-side knowledge emerges later it goes to
 `opencode/skills/<name>/SKILL.md` following the same install-by-symlink

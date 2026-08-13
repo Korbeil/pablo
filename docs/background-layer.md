@@ -96,7 +96,7 @@ uses the **Orca CLI**, the same runner path as the user's other
 Orca-managed agents:
 
 ```bash
-# launch (src/pablo/agents.py):
+# launch (src/Agents/Agents.php):
 orca terminal create --worktree path:<worktree> \
      --title "pablo:<agent>" \
      --command "opencode <worktree> --agent <agent> --prompt '<prompt>'" --json

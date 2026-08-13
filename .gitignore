@@ -1,9 +1,5 @@
-__pycache__/
-.pytest_cache/
 dist/
-.venv/
 *.swp
-*.pyc
 
 # Project configs are per-machine/personal; only the shared defaults are committed.
 app/projects/*.yaml
