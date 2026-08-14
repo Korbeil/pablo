@@ -8,6 +8,7 @@ use Pablo\Agents\SessionInfo;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
+use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
@@ -507,6 +508,36 @@ final class PollerTest extends TestCase
         $this->assertSame(1, $task->displayCache->agentCount);
         $this->assertSame('🏃 1', $task->displayCache->agentActivity);
         $this->assertNotNull($task->displayCache->at);
+    }
+
+    public function testPollKeepsCachedTrackerStatusWhenLookupIsUnresolved(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $task = $this->task($e['tmp']);
+        $task->displayCache = new DisplayCache(trackerStatus: 'In Progress');
+        $store->save($task);
+        $this->provider->issueStatus = '?';
+        $this->poll($cfg, $store);
+        $this->assertSame('In Progress', $this->taskOrFail($store)->displayCache->trackerStatus);
+
+        $this->provider->issueStatus = '';
+        $this->poll($cfg, $store);
+        $this->assertSame('In Progress', $this->taskOrFail($store)->displayCache->trackerStatus);
+    }
+
+    public function testPollOverwritesCachedTrackerStatusWhenLookupSucceeds(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $task = $this->task($e['tmp']);
+        $task->displayCache = new DisplayCache(trackerStatus: 'In Progress');
+        $store->save($task);
+        $this->provider->issueStatus = 'QA Approved';
+        $this->poll($cfg, $store);
+        $this->assertSame('QA Approved', $this->taskOrFail($store)->displayCache->trackerStatus);
     }
 
     public function testPollDisplayCacheSurvivesClosedTask(): void

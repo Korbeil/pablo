@@ -9,6 +9,12 @@ Type=oneshot
 # 30s probe timeout, which is why every agent silently fell back to
 # headless and never showed up in the Orca UI. Put the shim dir first.
 Environment=PATH=%h/.config/orca/linux-orca-cli-shim:%h/.opencode/bin:%h/.local/bin:%h/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+# acli (the Jira CLI) requires DBUS_SESSION_BUS_ADDRESS: without it the JVM
+# blocks waiting for a session bus and every acli call times out after 30s,
+# so the poller writes '?' tracker statuses. Use the same "disabled" value the
+# interactive shell already exports (this is a headless box — /run/user/<uid>
+# may hold a socket with no daemon behind it, which hangs acli instead).
+Environment=DBUS_SESSION_BUS_ADDRESS=disabled:
 ExecStart=%h/.local/bin/pablo system:dispatch
 # Headless-fallback agents (Agents.php's opencode subprocess, detached via
 # start_new_session) stay in this unit's cgroup even though they escape its
