@@ -14,7 +14,7 @@ final class TasksCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('show:tasks')
+        $this->setName('task:list')
             ->setAliases(['tasks'])
             ->setDescription('active task worktrees and their states')
             ->addOption('live', null, InputOption::VALUE_NONE, 'fetch fresh Tracker/PR/Agents data for display only')

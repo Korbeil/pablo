@@ -69,7 +69,7 @@ final class RestoreCommand extends Command
                 $this->registerOrcaRepos($output, $repoPaths);
             }
 
-            $output->writeln('restore complete. Run `pablo show:tasks` to verify.');
+            $output->writeln('restore complete. Run `pablo task:list` to verify.');
 
             return self::SUCCESS;
         } finally {

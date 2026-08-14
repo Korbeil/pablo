@@ -15,7 +15,7 @@ use Symfony\UX\LiveComponent\Attribute\LiveProp;
 use Symfony\UX\LiveComponent\DefaultActionTrait;
 
 /**
- * The two paste-ready Slack blocks, same output as `pablo show:prs`.
+ * The two paste-ready Slack blocks rendered by the dashboard.
  *
  * The only part of the dashboard that talks to the network: Listing::queueTasks
  * does a live `gh` PR lookup per queued task. That is why it loads on demand

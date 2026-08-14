@@ -23,7 +23,7 @@ pablo task:start --project wallet-kit "fix callback verification"   # from a pro
 - The task starts in `in-progress`, which auto-runs `task-analyst` in the
   worktree — **once per task** (`task_analyst_ran` flag in the store;
   re-entering `in-progress` later, e.g. from `waiting`, does not re-run
-  it). The `pablo show:tasks` agents column shows when the run has finished.
+  it). The `pablo task:list` agents column shows when the run has finished.
 - If the project config sets `startup_script`
   ([configuration.md](configuration.md)), it also runs — once per task,
   in its own Orca terminal, in parallel with `task-analyst` (neither waits
@@ -73,7 +73,7 @@ One state per task:
 and `testing-failed`.
 
 There is deliberately **no `todo` state** (an unstarted assigned issue
-simply has no task/worktree — it only appears in `pablo show:issues`) and
+simply has no task/worktree — it only appears in the issue listing) and
 **no `init` state** (creation and the first agent run are part of
 entering `in-progress`).
 
