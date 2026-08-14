@@ -14,11 +14,12 @@ Classified task list for this repository. Grouped by intent.
 
 ## B. Portability / de-hardcoding
 
-- [ ] **Remove hardcoded paths** — `systemd/pablo-dispatch.service:3` `Documentation=file://%h/Sites/korbeil/pablo/README.md`; audit `launchd/*.plist.template` and the `/home/orca/...` `startup_script` values (deleted with the sezane YAMLs).
+- [x] **Remove hardcoded paths** — `systemd/pablo-dispatch.service:3` `Documentation=file://%h/Sites/korbeil/pablo/README.md`; audit `launchd/*.plist.template` and the `/home/orca/...` `startup_script` values (deleted with the sezane YAMLs).
 
 ## C. Configuration / feature
 
 - [ ] **Global PABLO config** — new runtime-resolved `~/.pablo/config.yaml` (resolved in constructors like `Store`/`Agents`, never at container compile time) for cross-project settings: default agent models, default PR description locale, etc., with per-project override.
+- [ ] **Global agent-model / PR-description-locale per-project override** — `ProjectConfig` readonly fields (`defaultModel`, `prDescriptionLocale`) + `parseProject()` global-config fallback + `toArray()`. No consumer yet; add when the first feature reads them.
 - [ ] **Move project "defaults" into global config** — retire `projects/default.yaml`; its `DEFAULT_ELIGIBLE` keys move into `~/.pablo/config.yaml`. Rework `Config::merged()` (`app/src/Config/Config.php:101`) and `Config::loadProjects()` (`Config.php:44`) to fall back to global defaults instead of the skipped `default.yaml`.
 - [ ] **Move projects into `~/.pablo/projects/`** — relocate per-project configs out of the repo into `~/.pablo/projects/`:
   - Change `Config::projectsDir()` (`Config.php:21`) default from repo `app/projects` to `~/.pablo/projects`; keep the `PABLO_PROJECTS_DIR` override (tests rely on it).

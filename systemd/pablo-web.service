@@ -1,6 +1,5 @@
 [Unit]
 Description=PABLO read-only dashboard (127.0.0.1)
-Documentation=file://%h/Sites/korbeil/pablo/README.md
 
 [Service]
 Type=simple
