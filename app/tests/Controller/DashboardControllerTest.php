@@ -10,6 +10,7 @@ use Pablo\Domain\Task;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\RestoresErrorHandlers;
+use Pablo\Tests\UsesGlobalConfig;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
@@ -22,6 +23,7 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 final class DashboardControllerTest extends WebTestCase
 {
     use RestoresErrorHandlers;
+    use UsesGlobalConfig;
 
     private string $tmp;
 
@@ -38,7 +40,7 @@ final class DashboardControllerTest extends WebTestCase
         putenv('PABLO_STAMPS_DIR='.$this->tmp.'/stamps');
         putenv('PABLO_LOGS_DIR='.$this->tmp.'/logs');
 
-        file_put_contents($this->tmp.'/projects/default.yaml', <<<'YAML'
+        $this->writeGlobalConfig(<<<'YAML'
             sync:
                 strategy: rebase
                 auto_apply: false
@@ -72,6 +74,7 @@ final class DashboardControllerTest extends WebTestCase
         foreach (['PABLO_STATE_DIR', 'PABLO_PROJECTS_DIR', 'PABLO_STAMPS_DIR', 'PABLO_LOGS_DIR'] as $var) {
             putenv($var);
         }
+        $this->unsetGlobalConfig();
         exec('rm -rf '.escapeshellarg($this->tmp));
         parent::tearDown();
         $this->restoreErrorHandlers();

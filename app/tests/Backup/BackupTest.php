@@ -11,10 +11,13 @@ use Pablo\Domain\Task;
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Store\Store;
 use Pablo\Support\Proc;
+use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 
 final class BackupTest extends TestCase
 {
+    use UsesGlobalConfig;
+
     private string $tmp;
     private string $pabloRoot;
     private string $projectsDir;
@@ -42,7 +45,7 @@ final class BackupTest extends TestCase
         file_put_contents($this->pabloRoot.'/worktrees/acme/oms-1/file.txt', 'x');
 
         mkdir($this->projectsDir, 0o777, true);
-        file_put_contents($this->projectsDir.'/default.yaml', <<<'YAML'
+        $this->writeGlobalConfig(<<<'YAML'
 sync:
   strategy: rebase
   auto_apply: false
@@ -94,6 +97,7 @@ YAML,
 
     protected function tearDown(): void
     {
+        $this->unsetGlobalConfig();
         Proc::setRunner(null);
         GitRepo::setOriginUrl(null);
         Backup::cleanupDir($this->tmp);

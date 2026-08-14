@@ -12,11 +12,14 @@ use Pablo\Domain\Task;
 use Pablo\Store\Store;
 use Pablo\Support\Proc;
 use Pablo\Tests\Git\RepoHelper;
+use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
 final class RestoreCommandTest extends TestCase
 {
+    use UsesGlobalConfig;
+
     private string $tmp;
     private string $clone;
     private string $pabloRoot;
@@ -44,7 +47,7 @@ final class RestoreCommandTest extends TestCase
         mkdir($this->pabloRoot.'/state/acme', 0o777, true);
         mkdir($this->projectsDir, 0o777, true);
 
-        file_put_contents($this->projectsDir.'/default.yaml', <<<'YAML'
+        $this->writeGlobalConfig(<<<'YAML'
 sync:
   strategy: rebase
   auto_apply: false
@@ -110,6 +113,7 @@ YAML,
         chdir($this->prevCwd);
         putenv('PABLO_ROOT');
         putenv('PABLO_PROJECTS_DIR');
+        $this->unsetGlobalConfig();
         Proc::setRunner(null);
         Backup::cleanupDir($this->tmp);
     }

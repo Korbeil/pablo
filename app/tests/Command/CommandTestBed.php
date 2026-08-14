@@ -14,6 +14,7 @@ use Pablo\Provider\Tracker\ProviderRegistry;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\FakeAgents;
+use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -21,6 +22,8 @@ use Symfony\Component\Process\Process;
 
 abstract class CommandTestBed extends TestCase
 {
+    use UsesGlobalConfig;
+
     protected string $tmp;
     protected string $wt;
     protected string $projectsDir;
@@ -81,6 +84,7 @@ abstract class CommandTestBed extends TestCase
     {
         chdir($this->prevCwd);
         putenv('PABLO_PROJECTS_DIR');
+        $this->unsetGlobalConfig();
         ProviderRegistry::setResolver(null);
         RepoSlug::setFor(null);
         GitRepo::setOriginUrl(null);
@@ -96,7 +100,7 @@ abstract class CommandTestBed extends TestCase
     protected function writeProjects(?string $startupScript = null): void
     {
         $script = null !== $startupScript ? "startup_script: {$startupScript}\n" : '';
-        file_put_contents($this->projectsDir.'/default.yaml', <<<'YAML'
+        $this->writeGlobalConfig(<<<'YAML'
 sync:
   strategy: rebase
   auto_apply: false

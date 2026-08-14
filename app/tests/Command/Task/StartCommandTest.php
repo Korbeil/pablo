@@ -12,6 +12,7 @@ use Pablo\Provider\Tracker\Provider;
 use Pablo\Provider\Tracker\ProviderRegistry;
 use Pablo\Store\Store;
 use Pablo\Tests\FakeAgents;
+use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -88,6 +89,8 @@ final class FakeStartProvider implements Provider
 
 final class StartCommandTest extends TestCase
 {
+    use UsesGlobalConfig;
+
     private string $tmp;
     private string $projectsDir;
     private Store $store;
@@ -104,7 +107,7 @@ final class StartCommandTest extends TestCase
         mkdir($this->projectsDir, 0o777, true);
         $this->store = new Store($this->tmp.'/state');
         $this->agents = new FakeAgents();
-        $default = <<<'YAML'
+        $this->writeGlobalConfig(<<<'YAML'
 sync:
   strategy: rebase
   auto_apply: false
@@ -115,8 +118,7 @@ review:
   bot_whitelist: []
 ci:
   ignore_checks: []
-YAML;
-        file_put_contents($this->projectsDir.'/default.yaml', $default);
+YAML);
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
         GitRepo::setAllBranchNames(static fn () => []);
         GitRepo::setOriginUrl(static fn () => 'git@github.com:acme/wallet-kit.git');
@@ -132,6 +134,7 @@ YAML;
     protected function tearDown(): void
     {
         putenv('PABLO_PROJECTS_DIR');
+        $this->unsetGlobalConfig();
         GitRepo::setAllBranchNames(null);
         GitRepo::setOriginUrl(null);
         GitRepo::setCreateWorktree(null);
