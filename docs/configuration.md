@@ -2,9 +2,10 @@
 
 ## Project configuration
 
-One YAML per project in `~/.pablo/projects/` (any filename). PABLO-wide
-defaults live separately in `~/.pablo/config.yaml` (see "Default-eligible
-keys" below):
+One YAML per project in `~/.pablo/projects/` (any filename). Use
+`pablo project:new` to scaffold one interactively, or write it by hand (copy
+`docs/examples/acme-pim.yaml`). PABLO-wide defaults live separately in
+`~/.pablo/config.yaml` (see "Default-eligible keys" below):
 
 ```yaml
 name: wallet-kit             # unique project name (required)
@@ -29,7 +30,7 @@ identity: bfontaine        # account used to filter "assigned to me" (required;
                               # on a fork but file/open PRs against the upstream.
 confluence:                    # optional; only relevant for jira projects (acli
   space: PIM                   # owns both Jira and Confluence auth). Scopes doc
-                              # lookups (`pablo show:docs` / agents) to this space key.
+                              # lookups (agents) to this space key.
 sync:
   strategy: rebase           # rebase | merge
   auto_apply: false          # false → cron sync is dry-run/report-only
