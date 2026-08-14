@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Pablo\Tests;
 
 use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
 use Pablo\Support\PabloError;
 use PHPUnit\Framework\TestCase;
 
 final class ConfigTest extends TestCase
 {
+    use UsesGlobalConfig;
+
     private const DEFAULTS = <<<'YAML'
 sync:
   strategy: rebase
@@ -67,11 +70,12 @@ YAML;
     {
         $this->projectsDir = sys_get_temp_dir().'/pablo-config-'.uniqid();
         mkdir($this->projectsDir, 0o777, true);
-        file_put_contents($this->projectsDir.'/default.yaml', self::DEFAULTS);
+        $this->writeGlobalConfig(self::DEFAULTS);
     }
 
     protected function tearDown(): void
     {
+        $this->unsetGlobalConfig();
         $this->removeDir($this->projectsDir);
     }
 
@@ -100,7 +104,7 @@ YAML;
         file_put_contents($this->projectsDir.'/'.$name, $content);
     }
 
-    public function testSkipsDefaultYaml(): void
+    public function testLoadsOnlyProjectYamls(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         $projects = Config::loadProjects($this->projectsDir);
@@ -229,5 +233,45 @@ YAML;
         } catch (PabloError $e) {
             $this->assertStringContainsString('project_key', $e->getMessage());
         }
+    }
+
+    public function testDefaultsComeFromGlobalConfig(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $cfg = Config::loadProjects($this->projectsDir)['mini'];
+        $this->assertSame('rebase', $cfg->syncStrategy);
+        $this->assertSame(30, $cfg->syncInterval);
+        $this->assertSame(10, $cfg->pollInterval);
+        $this->assertSame([], $cfg->botWhitelist);
+        $this->assertSame([], $cfg->ciIgnoreChecks);
+    }
+
+    public function testProjectValueWinsOverGlobalDefaults(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."sync:\n  strategy: merge\n  interval_minutes: 5\n");
+        $cfg = Config::loadProjects($this->projectsDir)['mini'];
+        $this->assertSame('merge', $cfg->syncStrategy);
+        $this->assertSame(5, $cfg->syncInterval);
+        $this->assertSame(10, $cfg->pollInterval);
+    }
+
+    public function testNoGlobalConfigMeansNoDefaults(): void
+    {
+        putenv('PABLO_CONFIG='.$this->projectsDir.'/missing.yaml');
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        try {
+            Config::loadProjects($this->projectsDir);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString('sync.interval_minutes', $e->getMessage());
+        }
+    }
+
+    public function testGlobalConfigPathHonorsOverride(): void
+    {
+        $this->assertSame($this->configPath, GlobalConfig::configPath());
+        $this->assertSame('/tmp/custom-config.yaml', GlobalConfig::configPath('/tmp/custom-config.yaml'));
+        putenv('PABLO_CONFIG');
+        $this->assertSame(getenv('HOME').'/.pablo/config.yaml', GlobalConfig::configPath());
     }
 }

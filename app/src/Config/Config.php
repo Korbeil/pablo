@@ -11,14 +11,12 @@ use Symfony\Component\Yaml\Yaml;
 /**
  * Project configuration loading.
  *
- * Reads projects/*.yaml (skipping default.yaml, which holds PABLO-wide
- * defaults) and merges per key: a project value wins, a missing key falls
- * back to the default.
+ * Reads projects/*.yaml and merges per key: a project value wins, a missing
+ * key falls back to the PABLO-wide defaults in ~/.pablo/config.yaml
+ * (see GlobalConfig).
  */
 final class Config
 {
-    public const DEFAULTS_FILENAME = 'default.yaml';
-
     public const PROJECT_TYPES = ['work', 'open-source', 'personal'];
 
     public const PROVIDERS = ['github', 'jira', 'linear'];
@@ -45,14 +43,10 @@ final class Config
         if (!is_dir($directory)) {
             throw new PabloError("projects directory not found: {$directory}");
         }
-        $defaultsPath = rtrim($directory, '/').'/'.self::DEFAULTS_FILENAME;
-        $defaults = is_file($defaultsPath) ? self::loadYaml($defaultsPath) : [];
+        $defaults = GlobalConfig::defaults();
 
         $projects = [];
         foreach (glob(rtrim($directory, '/').'/*.yaml') ?: [] as $path) {
-            if (self::DEFAULTS_FILENAME === basename($path)) {
-                continue;
-            }
             $cfg = self::parseProject($path, $defaults);
             if (isset($projects[$cfg->name])) {
                 throw new PabloError(basename($path).": duplicate project name '{$cfg->name}'");
@@ -106,7 +100,7 @@ final class Config
                 return $value[$key];
             }
         }
-        throw new PabloError("no value for {$section}.{$key} — set it in the project config or projects/".self::DEFAULTS_FILENAME);
+        throw new PabloError("no value for {$section}.{$key} — set it in the project config or ~/.pablo/config.yaml");
     }
 
     private static function expandHome(string $path): string
