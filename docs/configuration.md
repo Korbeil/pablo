@@ -2,9 +2,9 @@
 
 ## Project configuration
 
-One YAML per project in `projects/` (any filename except `default.yaml`,
-which holds the PABLO-wide defaults and is **skipped** when scanning for
-projects):
+One YAML per project in `~/.pablo/projects/` (any filename). PABLO-wide
+defaults live separately in `~/.pablo/config.yaml` (see "Default-eligible
+keys" below):
 
 ```yaml
 name: wallet-kit             # unique project name (required)
@@ -57,7 +57,7 @@ startup_script: ~/scripts/pablo-setup.sh
                              # or pablo task:state command that triggers it.
 ```
 
-**Default-eligible keys** (fall back per key to `projects/default.yaml`
+**Default-eligible keys** (fall back per key to `~/.pablo/config.yaml`
 when a project omits them — a project can override just one and inherit
 the rest): `sync.strategy`, `sync.auto_apply`, `sync.interval_minutes`,
 `state_polling.interval_minutes`, `review.bot_whitelist`,

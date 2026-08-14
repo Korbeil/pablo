@@ -1,10 +1,6 @@
 dist/
 *.swp
 
-# Project configs are per-machine/personal; only the shared defaults are committed.
-app/projects/*.yaml
-!app/projects/default.yaml
-
 # php stuff. `vendor/` is anchored on purpose: an unanchored pattern also
 # matches app/assets/vendor/, where AssetMapper vendors the dashboard's JS —
 # and install.sh never runs `importmap:install`, so those files must be

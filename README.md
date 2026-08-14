@@ -30,8 +30,8 @@ platform-specific steps: [docs/installation.md](docs/installation.md).
 pablo system:doctor        # verify everything's installed and authenticated
 ```
 
-Add a project by dropping a YAML file in `projects/` (copy the template
-`docs/examples/acme-pim.yaml`, or see the full schema in
+Add a project by dropping a YAML file in `~/.pablo/projects/` (copy the
+template `docs/examples/acme-pim.yaml`, or see the full schema in
 [docs/configuration.md](docs/configuration.md)).
 
 Then, day to day:
@@ -77,7 +77,7 @@ pablo archive:restore /path/to/backup.gz
 
 A backup bundles all state under `~/.pablo/` **except agent sessions
 (`agents/`, the opencode sessions) and transient worktree checkouts**. It
-also embeds your `projects/*.yaml` configs, a manifest of every task
+also embeds your `~/.pablo/projects/*.yaml` configs, a manifest of every task
 worktree (project, origin URL, branch), and a best-effort snapshot of
 Orca-registered repos.
 
@@ -136,7 +136,6 @@ pablo/
 │   ├── assets/                ← app.js, styles, Stimulus controllers, vendored JS, icons
 │   ├── importmap.php          ← AssetMapper importmap (Bulma, Stimulus, LiveComponent)
 │   ├── tests/                 ← PHPUnit suite
-│   ├── projects/              ← one YAML per managed project + default.yaml
 │   ├── composer.json / phpunit.xml / phpstan.neon / .php-cs-fixer.php
 ├── castor.php                 ← QA tasks (cs-fixer, phpstan, test) via castor-php/php-qa
 ├── castor.composer.json       ← remote castor package (castor-php/php-qa)
@@ -145,8 +144,12 @@ pablo/
 ├── systemd/                   ← pablo-dispatch.service + .timer (user units)
 └── opencode/
     ├── agents/                ← task-analyst.md, task-feedback.md, ...
-    └── commands/               ← pablo-commit-and-pr.md
+    └── commands/              ← pablo-commit-and-pr.md
 ```
+
+Real project configs live per-user under `~/.pablo/projects/` (one YAML per
+managed project); the repo only ships the neutral example in
+`docs/examples/acme-pim.yaml`.
 
 Everything PABLO creates lives inside this repository. The originals in
 `~/.config/opencode/{agents,commands}/` are never modified — `install.sh`

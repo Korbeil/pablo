@@ -31,9 +31,10 @@ final class Config
             return $env;
         }
 
-        // src/ -> repo root / projects
-        // src/Config -> repo root / projects
-        return \dirname(__DIR__, 2).'/projects';
+        // Projects live per-user outside the repo, under ~/.pablo/projects.
+        // Resolved at runtime so the PABLO_PROJECTS_DIR override and HOME are
+        // read fresh (same reason GlobalConfig resolves its own path).
+        return (getenv('HOME') ?: '~').'/.pablo/projects';
     }
 
     /** @return array<string, ProjectConfig> */

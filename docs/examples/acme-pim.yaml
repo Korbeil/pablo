@@ -1,6 +1,7 @@
-# Example project config — copy this template into your projects/ dir and
-# adapt it. Real projects are per-machine and git-ignored; this file is just
-# a neutral reference. See docs/configuration.md for the full schema.
+# Example project config — copy this template into your ~/.pablo/projects/
+# dir and adapt it. Real projects are per-machine and live outside the repo;
+# this file is just a neutral reference. See docs/configuration.md for the
+# full schema.
 name: acme-pim
 type: work
 repo:
@@ -23,4 +24,4 @@ ci:
   # still resolve to green.
   ignore_checks: ["approval"]
 # worktrees_root omitted -> ~/.pablo/worktrees/pim/
-# sync / state_polling / review omitted -> projects/default.yaml
+# sync / state_polling / review omitted -> ~/.pablo/config.yaml
