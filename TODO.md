@@ -10,7 +10,7 @@ Classified task list for this repository. Grouped by intent.
   - Strip `korbeil` identity in tests: `PollerTest`, `ListingTest`, `GithubTest`, `LinearTest`, `BackupTest` (fixtures + identity), plus the other test files carrying it.
   - Sweep `sezane`/`korbeil`/`/home/orca/` out of `README.md`, docs and `src` (out of scope: `docs/specification.md` + `docs/castor-migration.md` for A3, `systemd/*.service` paths for B1).
 - [x] **Remove spec docs** — delete `docs/specification.md` and `docs/castor-migration.md`; prune cross-references.
-- [ ] **Add MIT LICENSE** — `LICENSE` at root + reference in `app/composer.json`.
+- [x] **Add MIT LICENSE** — `LICENSE` at root + reference in `app/composer.json`.
 
 ## B. Portability / de-hardcoding
 
