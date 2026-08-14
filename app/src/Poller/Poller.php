@@ -315,12 +315,19 @@ final class Poller
         $agentActivity = $task->displayCache->agentActivity;
 
         if (null !== $task->issue) {
+            $previous = $task->displayCache->trackerStatus;
             try {
                 $trackerStatus = null !== $trackerStatuses && isset($trackerStatuses[$task->issue->key])
                     ? $trackerStatuses[$task->issue->key]
                     : ProviderRegistry::get($cfg->provider)->issueStatus($task->issue->key, $cfg);
             } catch (PabloError) {
                 // keep the last known value rather than blanking it
+            }
+            // A lookup that came back empty or unresolved ("?") means the CLI
+            // failed — treat it like the error above and keep the last known
+            // value so a transient acli hiccup never poisons the display cache.
+            if ('' === $trackerStatus || '?' === $trackerStatus) {
+                $trackerStatus = $previous;
             }
         }
 
