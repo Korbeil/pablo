@@ -1,6 +1,5 @@
 [Unit]
 Description=PABLO background dispatcher (worktree sync + task-state polling)
-Documentation=file://%h/Sites/user/pablo/README.md
 
 [Service]
 Type=oneshot
