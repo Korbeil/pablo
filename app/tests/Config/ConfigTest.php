@@ -274,4 +274,11 @@ YAML;
         putenv('PABLO_CONFIG');
         $this->assertSame(getenv('HOME').'/.pablo/config.yaml', GlobalConfig::configPath());
     }
+
+    public function testProjectsDirDefaultsToUserConfig(): void
+    {
+        putenv('PABLO_PROJECTS_DIR');
+        $this->assertSame(getenv('HOME').'/.pablo/projects', Config::projectsDir());
+        $this->assertSame('/tmp/custom-projects', Config::projectsDir('/tmp/custom-projects'));
+    }
 }
