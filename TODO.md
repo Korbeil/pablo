@@ -35,6 +35,8 @@ Classified task list for this repository. Grouped by intent.
   - **Agents**: template `opencode/agents/*.md` from the global config so only enabled providers are mentioned (task-analyst "Retrieving the ticket", task-feedback, etc.).
   - **Poller**: only projects whose `issue_tracker.provider` is enabled get tracker-polled (skip+warn), gating `ProviderRegistry::get()` in `Poller.php:99` and `StateMachine.php:153`.
 
+- [ ] **Dashboard project-type tabs** — `pablo web` (TaskBoard) filter tabs across project types: **All** / **Work** / **Open-source** / **Personal**, driven by each project's `type` in `ProjectConfig`.
+
 > Note: points C2 (defaults) and C3 (projects relocation) both touch `Config` — implement together as one "global config & storage relocation" unit.
 
 ## D. Integrations / providers
