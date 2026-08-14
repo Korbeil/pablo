@@ -75,6 +75,8 @@ final class GithubTest extends TestCase
             failureSignal: 'qa-failed',
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
     }
 

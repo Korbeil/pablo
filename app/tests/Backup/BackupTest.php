@@ -56,6 +56,8 @@ review:
   bot_whitelist: []
 ci:
   ignore_checks: []
+default_model: openrouter/test/model
+pr_description_locale: en
 YAML);
         file_put_contents($this->projectsDir.'/acme.yaml', \sprintf(
             <<<'YAML'

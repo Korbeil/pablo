@@ -33,7 +33,7 @@ final class GlobalConfig
      * sections when the config file is absent, so projects can still rely
      * on their own explicit values.
      *
-     * @return array<string, array<string, mixed>>
+     * @return array<string, mixed>
      */
     public static function defaults(?string $path = null): array
     {
@@ -48,6 +48,8 @@ final class GlobalConfig
             'state_polling' => \is_array($data['state_polling'] ?? null) ? $data['state_polling'] : [],
             'review' => \is_array($data['review'] ?? null) ? $data['review'] : [],
             'ci' => \is_array($data['ci'] ?? null) ? $data['ci'] : [],
+            'default_model' => isset($data['default_model']) ? (string) $data['default_model'] : null,
+            'pr_description_locale' => isset($data['pr_description_locale']) ? (string) $data['pr_description_locale'] : null,
         ];
     }
 }

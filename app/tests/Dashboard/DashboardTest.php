@@ -56,6 +56,8 @@ final class DashboardTest extends TestCase
             failureSignal: null,
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
     }
 

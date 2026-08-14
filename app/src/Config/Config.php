@@ -157,6 +157,15 @@ final class Config
 
         $startup = $data['startup_script'] ?? null;
 
+        $defaultModel = $data['default_model'] ?? $defaults['default_model'] ?? null;
+        if (null === $defaultModel) {
+            throw new PabloError('no value for default_model — set it in the project config or ~/.pablo/config.yaml');
+        }
+        $prDescriptionLocale = $data['pr_description_locale'] ?? $defaults['pr_description_locale'] ?? null;
+        if (null === $prDescriptionLocale) {
+            throw new PabloError('no value for pr_description_locale — set it in the project config or ~/.pablo/config.yaml');
+        }
+
         return new ProjectConfig(
             name: $projectName,
             type: $type,
@@ -177,6 +186,8 @@ final class Config
             botWhitelist: array_values((array) self::merged($data, $defaults, 'review', 'bot_whitelist')),
             ciIgnoreChecks: array_values((array) self::merged($data, $defaults, 'ci', 'ignore_checks')),
             startupScript: $startup ? self::expandHome((string) $startup) : null,
+            defaultModel: $defaultModel,
+            prDescriptionLocale: $prDescriptionLocale,
         );
     }
 }

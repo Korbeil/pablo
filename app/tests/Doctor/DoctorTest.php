@@ -40,6 +40,8 @@ final class DoctorTest extends TestCase
             failureSignal: null,
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
             confluenceSpace: $confluenceSpace,
         );
     }

@@ -24,6 +24,8 @@ review:
   bot_whitelist: []
 ci:
   ignore_checks: []
+default_model: openrouter/deepseek/deepseek-v4-flash-0731
+pr_description_locale: en
 YAML;
 
     private const FULL_PROJECT = <<<'YAML'
@@ -121,6 +123,8 @@ YAML;
         $this->assertSame(10, $cfg->pollInterval);
         $this->assertSame([], $cfg->botWhitelist);
         $this->assertSame([], $cfg->ciIgnoreChecks);
+        $this->assertSame('openrouter/deepseek/deepseek-v4-flash-0731', $cfg->defaultModel);
+        $this->assertSame('en', $cfg->prDescriptionLocale);
     }
 
     public function testProjectValueWins(): void
@@ -244,6 +248,8 @@ YAML;
         $this->assertSame(10, $cfg->pollInterval);
         $this->assertSame([], $cfg->botWhitelist);
         $this->assertSame([], $cfg->ciIgnoreChecks);
+        $this->assertSame('openrouter/deepseek/deepseek-v4-flash-0731', $cfg->defaultModel);
+        $this->assertSame('en', $cfg->prDescriptionLocale);
     }
 
     public function testProjectValueWinsOverGlobalDefaults(): void
@@ -253,6 +259,26 @@ YAML;
         $this->assertSame('merge', $cfg->syncStrategy);
         $this->assertSame(5, $cfg->syncInterval);
         $this->assertSame(10, $cfg->pollInterval);
+    }
+
+    public function testProjectDefaultModelLocaleWinsOverGlobal(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."default_model: openrouter/custom/model\npr_description_locale: fr\n");
+        $cfg = Config::loadProjects($this->projectsDir)['mini'];
+        $this->assertSame('openrouter/custom/model', $cfg->defaultModel);
+        $this->assertSame('fr', $cfg->prDescriptionLocale);
+    }
+
+    public function testMissingDefaultModelAndLocaleThrows(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->writeGlobalConfig("sync:\n  strategy: rebase\n  interval_minutes: 30\nstate_polling:\n  interval_minutes: 10\nreview:\n  bot_whitelist: []\nci:\n  ignore_checks: []\n");
+        try {
+            Config::loadProjects($this->projectsDir);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString('default_model', $e->getMessage());
+        }
     }
 
     public function testNoGlobalConfigMeansNoDefaults(): void

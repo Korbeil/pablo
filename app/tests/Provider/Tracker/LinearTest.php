@@ -74,6 +74,8 @@ final class LinearTest extends TestCase
             failureSignal: 'Testing Failed',
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
     }
 

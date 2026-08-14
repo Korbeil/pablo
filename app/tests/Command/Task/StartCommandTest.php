@@ -118,6 +118,8 @@ review:
   bot_whitelist: []
 ci:
   ignore_checks: []
+default_model: openrouter/test/model
+pr_description_locale: en
 YAML);
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
         GitRepo::setAllBranchNames(static fn () => []);

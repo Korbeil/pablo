@@ -51,6 +51,8 @@ final class DashboardControllerTest extends WebTestCase
                 bot_whitelist: []
             ci:
                 ignore_checks: []
+            default_model: openrouter/test/model
+            pr_description_locale: en
             YAML);
 
         file_put_contents($this->tmp.'/projects/wallet-kit.yaml', <<<YAML

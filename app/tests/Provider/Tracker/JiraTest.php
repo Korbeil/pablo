@@ -82,6 +82,8 @@ final class JiraTest extends TestCase
             failureSignal: 'A FIX',
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
             site: 'acme.atlassian.net',
         );
     }

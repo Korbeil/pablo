@@ -55,6 +55,8 @@ final class SyncTest extends TestCase
             failureSignal: null,
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
     }
 
