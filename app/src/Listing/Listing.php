@@ -7,6 +7,7 @@ namespace Pablo\Listing;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Config\ProjectConfig;
+use Pablo\Dispatch\Dispatch;
 use Pablo\Domain\AgentActivity;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Issue;
@@ -112,28 +113,16 @@ final class Listing
         return intdiv($hours, 24).'d ago';
     }
 
-    public static function pollerStampsDir(): string
-    {
-        $override = getenv('PABLO_STAMPS_DIR');
-        if (false !== $override && '' !== $override) {
-            return $override;
-        }
-
-        return (getenv('HOME') ?: '~').'/.pablo/stamps';
-    }
-
     /** @param array<string, ProjectConfig> $projects */
     public static function lastPollHeader(array $projects): string
     {
-        $stampsDir = self::pollerStampsDir();
         $latest = null;
         foreach ($projects as $name => $_) {
-            $stampFile = rtrim($stampsDir, '/')."/{$name}.poll";
-            if (!is_file($stampFile)) {
+            $stamp = Dispatch::readStamp($name, 'poll');
+            if (null === $stamp) {
                 continue;
             }
-            $ts = (float) trim((string) file_get_contents($stampFile));
-            $dt = (new \DateTimeImmutable('@'.$ts))->setTimezone(new \DateTimeZone(date_default_timezone_get()));
+            $dt = (new \DateTimeImmutable('@'.(int) $stamp['ran_at']))->setTimezone(new \DateTimeZone(date_default_timezone_get()));
             if (null === $latest || $dt > $latest) {
                 $latest = $dt;
             }

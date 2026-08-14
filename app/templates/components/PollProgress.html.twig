@@ -33,6 +33,9 @@
                         {% if w.lastRunAt %}
                             {{ w.lastRunAt|date('H:i') }}
                             <span class="pablo-poll-recap-ago">{{ w.lastRunLabel }}</span>
+                            {% if w.lastRunDurationS %}
+                                <span class="pablo-poll-recap-duration">{{ w.lastRunDurationLabel }}</span>
+                            {% endif %}
                         {% else %}
                             <span class="pablo-poll-recap-ago">never polled</span>
                         {% endif %}

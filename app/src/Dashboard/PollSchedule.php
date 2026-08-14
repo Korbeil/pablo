@@ -38,6 +38,7 @@ final class PollSchedule
     {
         $now ??= new \DateTimeImmutable('now');
         $lastRunAt = $this->lastPollAt($cfg->name);
+        $lastRunDurationS = $this->lastPollDurationS($cfg->name);
 
         // No stamp means the dispatcher has never polled this project, so it is
         // already due: the next tick will pick it up.
@@ -48,6 +49,7 @@ final class PollSchedule
         return new PollWindow(
             project: $cfg->name,
             lastRunAt: $lastRunAt,
+            lastRunDurationS: $lastRunDurationS,
             intervalMinutes: $cfg->pollInterval,
             nextRunAt: $this->nextTickAtOrAfter($earliest, $now),
             now: $now,
@@ -112,17 +114,19 @@ final class PollSchedule
 
     public function lastPollAt(string $project): ?\DateTimeImmutable
     {
-        $stamp = rtrim(Dispatch::stampsDir(), '/')."/{$project}.poll";
-        if (!is_file($stamp)) {
-            return null;
-        }
-        $raw = trim((string) file_get_contents($stamp));
-        if ('' === $raw || !is_numeric($raw)) {
+        $stamp = Dispatch::readStamp($project, 'poll');
+        if (null === $stamp) {
             return null;
         }
 
-        return (new \DateTimeImmutable('@'.(int) (float) $raw))
+        return (new \DateTimeImmutable('@'.(int) $stamp['ran_at']))
             ->setTimezone(new \DateTimeZone(date_default_timezone_get()));
+    }
+
+    /** Wall-clock seconds the project's most recent poll run took, if known. */
+    public function lastPollDurationS(string $project): ?float
+    {
+        return Dispatch::readStamp($project, 'poll')['duration_s'] ?? null;
     }
 
     /**

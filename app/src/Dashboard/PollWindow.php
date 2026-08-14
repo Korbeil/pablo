@@ -15,9 +15,10 @@ final readonly class PollWindow
     public function __construct(
         public string $project,
         public ?\DateTimeImmutable $lastRunAt,
-        public int $intervalMinutes,
-        public \DateTimeImmutable $nextRunAt,
-        public \DateTimeImmutable $now,
+        public ?float $lastRunDurationS = null,
+        public int $intervalMinutes = 10,
+        public \DateTimeImmutable $nextRunAt = new \DateTimeImmutable('@0'),
+        public \DateTimeImmutable $now = new \DateTimeImmutable('@0'),
     ) {
     }
 
@@ -93,5 +94,21 @@ final readonly class PollWindow
         }
 
         return intdiv($m, 60).'h '.($m % 60).'m';
+    }
+
+    /** How long the project's most recent poll run took: "12s" / "4m 12s" / "—". */
+    public function lastRunDurationLabel(): string
+    {
+        if (null === $this->lastRunDurationS) {
+            return '—';
+        }
+        $s = (int) round($this->lastRunDurationS);
+        if ($s < 60) {
+            return "{$s}s";
+        }
+        $m = intdiv($s, 60);
+        $rest = $s % 60;
+
+        return 0 === $rest ? "{$m}m" : "{$m}m {$rest}s";
     }
 }

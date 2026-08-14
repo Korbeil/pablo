@@ -207,6 +207,12 @@ body {
     opacity: 0.7;
 }
 
+.pablo-poll-recap-duration {
+    font-size: 0.78rem;
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+}
+
 /* --------------------------------------------------------------- tables - */
 
 .pablo-table {
