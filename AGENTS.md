@@ -10,8 +10,7 @@ and a background scheduler (systemd on Linux, launchd on macOS). Not a
 standalone product.
 
 **`README.md` + `docs/*.md` are the source of truth for behavior** — read
-the relevant doc before non-trivial changes. `docs/specification.md` is
-the original prompt only, superseded where it conflicts.
+the relevant doc before non-trivial changes.
 
 **Philosophy:** PABLO agents are read-only and analysis-first. PABLO never
 writes/modifies application code, never resolves merge conflicts, never

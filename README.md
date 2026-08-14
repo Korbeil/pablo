@@ -126,7 +126,6 @@ PABLO does in the background:
 pablo/
 ├── README.md                  ← you are here (short overview)
 ├── docs/                      ← one file per subject, source of truth for details
-├── docs/specification.md      ← original build prompt, not the reference
 ├── app/                       ← the Symfony application (composer package `pablo`)
 │   ├── bin/pablo              ← the `pablo` CLI (PABLO subcommands only)
 │   ├── bin/console            ← framework maintenance CLI (cache:clear, lint:twig, …)
