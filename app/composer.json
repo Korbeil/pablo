@@ -2,7 +2,7 @@
     "name": "pablo/pablo",
     "description": "PABLO - Personal Assistant for Boring Logic & Operations. AI orchestrator for OpenCode/Orca-managed projects.",
     "type": "project",
-    "license": "proprietary",
+    "license": "MIT",
     "autoload": {
         "psr-4": {
             "Pablo\\": "src/"
