@@ -115,6 +115,8 @@ final class ListingTest extends TestCase
             failureSignal: null,
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
         $this->store = new Store($this->tmp.'/state');
         $this->agents = new FakeAgents();

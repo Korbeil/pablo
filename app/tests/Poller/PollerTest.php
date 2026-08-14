@@ -178,6 +178,8 @@ final class PollerTest extends TestCase
             failureSignal: 'qa-failed',
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
     }
 
@@ -618,6 +620,8 @@ final class PollerTest extends TestCase
             failureSignal: 'qa-failed',
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
             startupScript: '/setup.sh',
         );
         $store = new Store($e['tmp'].'/state');
@@ -650,6 +654,8 @@ final class PollerTest extends TestCase
             failureSignal: 'qa-failed',
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
             startupScript: '/setup.sh',
         );
         $store = new Store($e['tmp'].'/state');

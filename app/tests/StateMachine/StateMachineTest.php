@@ -51,6 +51,8 @@ final class StateMachineTest extends TestCase
             failureSignal: 'qa-failed',
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
         $this->task = new Task(
             project: 'wallet-kit',
@@ -151,6 +153,8 @@ final class StateMachineTest extends TestCase
             failureSignal: $this->cfg->failureSignal,
             botWhitelist: $this->cfg->botWhitelist,
             ciIgnoreChecks: $this->cfg->ciIgnoreChecks,
+            defaultModel: $this->cfg->defaultModel,
+            prDescriptionLocale: $this->cfg->prDescriptionLocale,
             startupScript: '/dev/null/setup.sh',
         );
         $this->ctx->cfg = $this->cfg;

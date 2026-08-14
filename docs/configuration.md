@@ -55,15 +55,24 @@ startup_script: ~/scripts/pablo-setup.sh
                              # on pablo task:start. Default: null (skipped). Launched via a
                              # detached subprocess, so it never blocks the pablo task:start
                              # or pablo task:state command that triggers it.
+default_model: openrouter/deepseek/deepseek-v4-flash-0731
+                             # optional; the agent model used for this project's tasks.
+                             # Falls back to the global default_model in ~/.pablo/config.yaml.
+pr_description_locale: en   # optional; locale used when drafting PR descriptions for this
+                             # project. Falls back to the global pr_description_locale in
+                             # ~/.pablo/config.yaml.
 ```
 
 **Default-eligible keys** (fall back per key to `~/.pablo/config.yaml`
 when a project omits them — a project can override just one and inherit
 the rest): `sync.strategy`, `sync.auto_apply`, `sync.interval_minutes`,
 `state_polling.interval_minutes`, `review.bot_whitelist`,
-`ci.ignore_checks`. Shipped defaults: `rebase`, `false`, `30`, `10`, `[]`,
-`[]`. New keys added later should follow the same pattern unless they
-have no sensible global default (like `issue_tracker`).
+`ci.ignore_checks`, `default_model`, `pr_description_locale`. Shipped
+defaults: `rebase`, `false`, `30`, `10`, `[]`, `[]`; `default_model` and
+`pr_description_locale` have no built-in value — each must be set either
+per project or globally, otherwise loading the project fails. New keys
+added later should follow the same pattern unless they have no sensible
+global default (like `issue_tracker`).
 
 ## Branch naming convention
 

@@ -50,6 +50,8 @@ final class ConfluenceTest extends TestCase
             failureSignal: null,
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
             site: 'acme.atlassian.net',
             confluenceSpace: 'PIM',
         );

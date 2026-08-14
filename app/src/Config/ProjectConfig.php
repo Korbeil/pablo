@@ -29,6 +29,8 @@ final class ProjectConfig
         public readonly ?string $failureSignal,
         public readonly array $botWhitelist,
         public readonly array $ciIgnoreChecks,
+        public readonly string $defaultModel,
+        public readonly string $prDescriptionLocale,
         public readonly ?string $site = null,
         public readonly ?string $confluenceSpace = null,
         public readonly ?string $startupScript = null,
@@ -59,6 +61,8 @@ final class ProjectConfig
             'site' => $this->site,
             'confluence_space' => $this->confluenceSpace,
             'startup_script' => $this->startupScript,
+            'default_model' => $this->defaultModel,
+            'pr_description_locale' => $this->prDescriptionLocale,
         ];
     }
 }

@@ -58,6 +58,8 @@ final class DispatchTest extends TestCase
             failureSignal: null,
             botWhitelist: [],
             ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
     }
 
@@ -244,6 +246,8 @@ final class DispatchTest extends TestCase
             syncStrategy: 'rebase', syncAutoApply: false,
             syncInterval: 30, pollInterval: 10,
             failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
         $b = new ProjectConfig(
             name: 'b', type: 'work', repoPath: $sharedRepo,
@@ -252,6 +256,8 @@ final class DispatchTest extends TestCase
             syncStrategy: 'rebase', syncAutoApply: false,
             syncInterval: 30, pollInterval: 10,
             failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
 
         $store = new Store($this->tmp.'/state');
