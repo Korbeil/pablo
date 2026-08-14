@@ -226,7 +226,7 @@ final class Agents implements AgentLauncherInterface
      */
     private static function detach(string $inner): string
     {
-        $close = implode(' ', array_map(static fn (int $n) => "exec {$n}>&-", range(3, 255)));
+        $close = implode('; ', array_map(static fn (int $n) => "exec {$n}>&-", range(3, 255)));
 
         return 'setsid bash -c '.escapeshellarg($close.'; exec '.$inner).' </dev/null >/dev/null 2>&1 & echo $!';
     }
