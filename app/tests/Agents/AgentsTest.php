@@ -45,6 +45,22 @@ final class AgentsTest extends TestCase
         return json_encode(['id' => 'x', 'ok' => false, 'error' => ['code' => $code, 'message' => $code]], \JSON_THROW_ON_ERROR);
     }
 
+    public function testDetachedSpawnActuallyExecutesInnerCommand(): void
+    {
+        $marker = $this->tmp.'/ran.txt';
+        $method = new \ReflectionMethod(Agents::class, 'detach');
+        $command = (string) $method->invoke(null, 'echo DETACHED_RAN > '.$marker);
+        $pid = (int) trim((string) shell_exec($command));
+        $deadline = microtime(true) + 5;
+        while (!file_exists($marker) && microtime(true) < $deadline) {
+            usleep(50_000);
+        }
+
+        $this->assertGreaterThan(0, $pid);
+        $this->assertFileExists($marker);
+        $this->assertSame('DETACHED_RAN', trim((string) file_get_contents($marker)));
+    }
+
     public function testOrcaLaunchBuildsCommand(): void
     {
         $calls = [];
