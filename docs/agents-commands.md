@@ -36,8 +36,7 @@ All PABLO operations are invoked via the `pablo` CLI directly.
 Key subcommands:
 
 - `pablo task:start` — start a task from an issue URL or a prompt
-- `pablo show:issues` — issues assigned to me, per project
-- `pablo show:tasks` — active worktrees + states listing
+- `pablo task:list` — active worktrees + states listing
 - `pablo sync:run` — worktree sync (dry-run by default)
 - `pablo task:state` — manually force the current task's state
 - `pablo task:waiting` — pause/resume toggle
@@ -48,8 +47,6 @@ Key subcommands:
 - `pablo archive:restore` — restore state/configs and recreate task worktrees
 - `pablo task:retrigger-ci` — re-run all CI workflow jobs for the current task
 - `pablo task:skip-ci` — skip failing CI checks, move past `ci-red`
-- `pablo show:docs` — fetch a Confluence documentation page
-- `pablo show:prs` — paste-ready Slack PR lists for review/QA
 
 There is one OpenCode command:
 

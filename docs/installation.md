@@ -66,7 +66,7 @@ this once on the Mac:
 3. `pablo system:doctor` → all ✅.
 4. `tail -f ~/.pablo/logs/dispatch.log` across one 5-minute tick → a
    clean dispatch run.
-5. `pablo task:start …` + `pablo show:tasks` round trip on a real project.
+5. `pablo task:start …` + `pablo task:list` round trip on a real project.
 
 ## Orca visibility (verified 2026-07-26)
 

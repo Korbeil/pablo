@@ -7,7 +7,7 @@ namespace Pablo\Domain;
 use Pablo\Poller\Poller;
 
 /**
- * Poller-written display cache so `pablo show:tasks` renders instantly without
+ * Poller-written display cache so `pablo task:list` renders instantly without
  * live CLI calls. Null means "never polled yet" (listing falls back to a
  * live fetch).
  */

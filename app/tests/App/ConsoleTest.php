@@ -45,8 +45,8 @@ final class ConsoleTest extends TestCase
         $app = $this->app();
         $names = array_keys($app->all());
         foreach ([
-            'task:start', 'sync:run', 'sync:log', 'show:issues', 'show:tasks', 'show:prs', 'show:projects',
-            'system:doctor', 'system:dispatch', 'system:poll', 'show:docs', 'task:state', 'task:relaunch', 'task:waiting',
+            'task:start', 'sync:run', 'sync:log', 'task:list', 'project:list',
+            'system:doctor', 'system:dispatch', 'system:poll', 'task:state', 'task:relaunch', 'task:waiting',
             'task:skip-ci', 'task:retrigger-ci', 'task:close', 'task:precommit-check', 'task:info',
         ] as $name) {
             $this->assertContains($name, $names, "missing command {$name}");
@@ -55,7 +55,7 @@ final class ConsoleTest extends TestCase
 
     public function testProjectsExitsZero(): void
     {
-        $tester = new CommandTester($this->app()->find('show:projects'));
+        $tester = new CommandTester($this->app()->find('project:list'));
         $tester->execute([]);
         $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
     }

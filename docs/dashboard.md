@@ -1,7 +1,7 @@
 # Dashboard
 
 A single-page, localhost-only web view of the same state
-`pablo show:tasks` / `pablo show:prs` / `pablo sync:log` print. Twig +
+`pablo task:list` / `pablo sync:log` print. Twig +
 [Symfony UX](https://ux.symfony.com/) (Twig Components, Live Components,
 Icons) on [Bulma](https://bulma.io/). No Docker, no Node, no build step.
 
@@ -88,9 +88,8 @@ Re-renders every 30s.
 
 ### Slack messages
 
-A button opens a modal with the two paste-ready blocks
-`pablo show:prs` prints — review queue and QA queue — each in a textarea
-with a copy button.
+A button opens a modal with the two paste-ready Slack blocks —
+review queue and QA queue — each in a textarea with a copy button.
 
 This is the only part that hits the network: `Listing::queueTasks()`
 does a live `gh` PR lookup per queued task. It therefore loads on the

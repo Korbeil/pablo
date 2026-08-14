@@ -54,14 +54,13 @@ cached by acli itself. Provider in `src/Provider/Tracker/Jira.php`;
 ## Confluence — `acli confluence`
 
 Same `acli` CLI, same OAuth grant; the **documentation** path
-(`src/Provider/Confluence/Confluence.php`, exposed as `pablo show:docs` and
-used by interactive agents when an issue references a wiki page):
+(`src/Provider/Confluence/Confluence.php`, used by interactive agents when an issue references a wiki page):
 
 - page: `acli confluence page view --id <id> --json --body-format storage`
   → `{id, title, _links:{base,webui}, body:{storage:{value:"<XHTML>"}}}`.
   The body is **Confluence storage-format XHTML** (with `<ac:*>` macros);
   returned verbatim — rendering to Markdown is the caller's job (agents
-  tolerate raw XHTML; `pablo show:docs` prints it as-is).
+  tolerate raw XHTML).
 - space discovery: `acli confluence space list --json`
   (advisory; the optional `confluence.space` project config scopes agents'
   doc lookups but acli's OAuth grant is the real gatekeeper).
