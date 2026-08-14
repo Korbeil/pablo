@@ -108,6 +108,39 @@ final class GitRepo
         }
     }
 
+    /** @var callable|null test seam: (?string): ?string */
+    private static $userEmail;
+
+    public static function setUserEmail(?callable $fn): void
+    {
+        self::$userEmail = $fn;
+    }
+
+    public static function userEmail(?string $cwd = null): ?string
+    {
+        if (null !== self::$userEmail) {
+            return (self::$userEmail)($cwd);
+        }
+        if (null !== $cwd && '' !== $cwd && (is_dir($cwd.'/.git') || is_dir($cwd))) {
+            try {
+                $local = self::git($cwd, ['config', 'user.email']);
+                if ('' !== $local) {
+                    return $local;
+                }
+            } catch (PabloError) {
+            }
+        }
+        try {
+            $global = self::git('', ['config', '--global', 'user.email']);
+            if ('' !== $global) {
+                return $global;
+            }
+        } catch (PabloError) {
+        }
+
+        return null;
+    }
+
     /** @var callable|null test seam: (string, string, string, string): string */
     private static $createWorktree;
 

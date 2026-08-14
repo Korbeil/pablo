@@ -30,8 +30,9 @@ platform-specific steps: [docs/installation.md](docs/installation.md).
 pablo system:doctor        # verify everything's installed and authenticated
 ```
 
-Add a project by dropping a YAML file in `~/.pablo/projects/` (copy the
-template `docs/examples/acme-pim.yaml`, or see the full schema in
+Add a project with the interactive wizard (`pablo project:new`) or by dropping a
+YAML file in `~/.pablo/projects/` (copy the template
+`docs/examples/acme-pim.yaml`, or see the full schema in
 [docs/configuration.md](docs/configuration.md)).
 
 Then, day to day:
@@ -39,9 +40,7 @@ Then, day to day:
 ```
 pablo task:start https://acme.atlassian.net/browse/XXX-123          # start a task from an issue
 pablo task:start --project wallet-kit "fix callback verification"   # ...or from a prompt
-pablo show:tasks             # see all active tasks and their state
-pablo show:issues            # see issues assigned to you, per project
-pablo show:docs <page-id>    # fetch a Confluence documentation page (via acli)
+pablo task:list             # see all active tasks and their state
 /pablo-commit-and-pr         # commit, push, open a draft PR
 pablo task:waiting           # pause/resume a task
 pablo task:close             # abandon/clean up a task (escape hatch)
@@ -101,7 +100,7 @@ PABLO does in the background:
 
 1. `pablo task:start https://acme.atlassian.net/browse/XXX-123` — the task
    starts: worktree and branch created, a **task-analyst** agent launches.
-2. `pablo show:tasks` — check that it's running.
+2. `pablo task:list` — check that it's running.
 3. The task-analyst agent finishes. Open it in Orca and read its plan.
 4. Chat with the agent in that session to fine-tune the plan.
 5. `/pablo-commit-and-pr` — commits, pushes, opens the PR as **draft**.
@@ -179,7 +178,7 @@ Namespaces mirror folders (`Pablo\ => src/`).
 | `Provider/Confluence/` | Confluence page fetch via the `acli` CLI |
 | `Provider/Tracker/` | one class per issue tracker + `ProviderInterface`/registry |
 | `Agents/` | launching OpenCode agents via Orca, activity queries |
-| `Listing/` | the `pablo show:issues` / `pablo show:tasks` terminal tables |
+| `Listing/` | the `pablo task:list` terminal tables |
 | `Domain/PrBadge`, `Domain/AgentActivity` | PR/agent state as structure, shared by the terminal and web renderers |
 | `Doctor/` | CLI preflight checks (`pablo system:doctor`) |
 | `Dispatch/` | the cron dispatcher fired by the systemd timer |
@@ -202,8 +201,8 @@ before making non-trivial changes in that area:
   access via `acli`/`gh`/`linear`, `pablo system:doctor` preflight
 - [docs/configuration.md](docs/configuration.md) — project YAML schema,
   branch naming convention
-- [docs/listings.md](docs/listings.md) — `pablo show:issues` and
-  `pablo show:tasks` output
+- [docs/listings.md](docs/listings.md) — terminal table layout for
+  `pablo task:list` and `pablo project:list` output
 - [docs/dashboard.md](docs/dashboard.md) — the `pablo web` dashboard: what
   it shows, what it guarantees, how its assets are vendored
 
