@@ -89,7 +89,7 @@ final class DispatchTest extends TestCase
     {
         $path = $this->stamps.'/'.$name.'.'.$job;
         @mkdir(\dirname($path), 0o777, true);
-        file_put_contents($path, (string) (microtime(true) - $secondsAge));
+        file_put_contents($path, Dispatch::encodeStamp(microtime(true) - $secondsAge, 0.0));
     }
 
     public function testFirstRunRunsEverything(): void
@@ -100,6 +100,17 @@ final class DispatchTest extends TestCase
         $pairs = array_map(static fn ($p) => $p[1].':'.$p[0], $this->ran);
         sort($pairs);
         $this->assertSame(['a:poll', 'a:sync', 'b:poll', 'b:sync'], $pairs);
+    }
+
+    public function testStampRecordsRunDurationPerJob(): void
+    {
+        $env = $this->env();
+        $this->runDispatch($env['projects'], $env['store'], $env['runners']);
+
+        $stamp = Dispatch::readStamp('a', 'poll');
+        $this->assertNotNull($stamp);
+        $this->assertGreaterThanOrEqual(0.0, $stamp['ran_at']);
+        $this->assertGreaterThanOrEqual(0.0, $stamp['duration_s']);
     }
 
     public function testFreshStampsSkipJobs(): void

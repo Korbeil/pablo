@@ -6,6 +6,7 @@ namespace Pablo\Tests\Dashboard;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Dashboard\PollSchedule;
+use Pablo\Dispatch\Dispatch;
 use PHPUnit\Framework\TestCase;
 
 final class PollScheduleTest extends TestCase
@@ -176,6 +177,25 @@ final class PollScheduleTest extends TestCase
     public function testBarWindowIsNullWithoutProjects(): void
     {
         $this->assertNull($this->schedule->barWindow([], $this->at('2026-08-06T10:04:00+00:00')));
+    }
+
+    public function testLastPollDurationSFromJsonStamp(): void
+    {
+        $ranAt = $this->at('2026-08-06T10:01:00+00:00')->getTimestamp();
+        file_put_contents($this->stamps.'/a.poll', Dispatch::encodeStamp((float) $ranAt, 37.4));
+
+        $this->assertSame(37.4, $this->schedule->lastPollDurationS('a'));
+        $this->assertSame(37.4, $this->schedule->windowFor($this->cfg('a'))->lastRunDurationS);
+        $this->assertSame('37s', $this->schedule->windowFor($this->cfg('a'))->lastRunDurationLabel());
+    }
+
+    public function testLastPollDurationUnknownForLegacyStamp(): void
+    {
+        // Legacy bare-float stamp predates duration tracking.
+        $this->stamp('a', $this->at('2026-08-06T10:01:00+00:00')->getTimestamp());
+
+        $this->assertNull($this->schedule->lastPollDurationS('a'));
+        $this->assertNull($this->schedule->windowFor($this->cfg('a'))->lastRunDurationS);
     }
 
     public function testLastPollAcrossProjectsTakesTheMostRecent(): void

@@ -171,15 +171,60 @@ final class Dispatch
         return (getenv('HOME') ?: '~').'/.pablo/stamps';
     }
 
+    /** Encode a per-job run stamp: when it ran and how long the run took. */
+    public static function encodeStamp(float $ranAt, float $durationS): string
+    {
+        return json_encode([
+            'ran_at' => $ranAt,
+            'duration_s' => $durationS,
+        ], \JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * Read a per-job run stamp. Accepts the current JSON format as well as the
+     * legacy bare-float format (duration unknown).
+     *
+     * @return array{ran_at: float, duration_s: ?float}|null null when missing or unparseable
+     */
+    public static function readStamp(string $project, string $job): ?array
+    {
+        $stamp = self::stampsDir()."/{$project}.{$job}";
+        if (!is_file($stamp)) {
+            return null;
+        }
+        $raw = trim((string) file_get_contents($stamp));
+        if ('' === $raw) {
+            return null;
+        }
+        if (str_starts_with($raw, '{')) {
+            /** @var array<string, mixed>|null $data */
+            $data = json_decode($raw, true);
+            if (!\is_array($data) || !isset($data['ran_at']) || !is_numeric($data['ran_at'])) {
+                return null;
+            }
+
+            return [
+                'ran_at' => (float) $data['ran_at'],
+                'duration_s' => isset($data['duration_s']) && is_numeric($data['duration_s'])
+                    ? (float) $data['duration_s']
+                    : null,
+            ];
+        }
+        if (!is_numeric($raw)) {
+            return null;
+        }
+
+        return ['ran_at' => (float) $raw, 'duration_s' => null];
+    }
+
     private static function isDue(ProjectConfig $cfg, string $job, float $now): bool
     {
-        $stamp = self::stampsDir()."/{$cfg->name}.{$job}";
-        if (!is_file($stamp)) {
+        $last = self::readStamp($cfg->name, $job);
+        if (null === $last) {
             return true;
         }
-        $last = (float) trim((string) file_get_contents($stamp));
 
-        return $now - $last >= self::jobIntervals()[$job]($cfg) * 60;
+        return $now - $last['ran_at'] >= self::jobIntervals()[$job]($cfg) * 60;
     }
 
     /**
@@ -211,6 +256,7 @@ final class Dispatch
                     if (!self::isDue($cfgValue, $job, $now)) {
                         continue;
                     }
+                    $jobStartedAt = microtime(true);
                     try {
                         $runner($cfgValue, $store);
                     } catch (\Throwable $e) {
@@ -218,12 +264,13 @@ final class Dispatch
                         fwrite(self::$stderr ?? \STDERR, "pablo dispatch: {$job} failed for project {$cfgValue->name}:\n{$e}\n");
                         continue; // stamp not written: retried next tick
                     }
+                    $durationS = microtime(true) - $jobStartedAt;
                     $stamp = self::stampsDir()."/{$cfgValue->name}.{$job}";
                     $dir = \dirname($stamp);
                     if (!is_dir($dir)) {
                         @mkdir($dir, 0o777, true);
                     }
-                    file_put_contents($stamp, (string) $now);
+                    file_put_contents($stamp, self::encodeStamp($now, $durationS));
                 }
             }
 
