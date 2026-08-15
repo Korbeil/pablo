@@ -7,6 +7,10 @@ namespace Pablo\Twig\Components;
 use Pablo\Dashboard\Dashboard;
 use Pablo\Dashboard\TaskView;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
+use Symfony\UX\LiveComponent\Attribute\LiveAction;
+use Symfony\UX\LiveComponent\Attribute\LiveArg;
+use Symfony\UX\LiveComponent\Attribute\LiveProp;
+use Symfony\UX\LiveComponent\ComponentToolsTrait;
 use Symfony\UX\LiveComponent\DefaultActionTrait;
 
 /**
@@ -19,14 +23,24 @@ use Symfony\UX\LiveComponent\DefaultActionTrait;
 #[AsLiveComponent]
 final class TaskBoard
 {
+    use ComponentToolsTrait;
     use DefaultActionTrait;
 
     /** How often the browser asks for a fresh render, in milliseconds. */
     public const POLL_MS = 30000;
 
+    /** Project types the tabs offer; '' means "All projects". */
+    public const TYPES = ['', 'work', 'open-source', 'personal'];
+
+    /** Event broadcast to the other dashboard sections when the filter moves. */
+    public const TYPE_CHANGED_EVENT = 'pablo:type-change';
+
     public function __construct(private readonly Dashboard $dashboard)
     {
     }
+
+    #[LiveProp(writable: true, url: true)]
+    public string $type = '';
 
     /** @return list<TaskView> */
     public function attention(): array
@@ -40,12 +54,23 @@ final class TaskBoard
         return $this->board()['rest'];
     }
 
+    /**
+     * A tab was clicked: remember the filter and tell the poller + last-sync
+     * sections so they re-render with the same projects.
+     */
+    #[LiveAction]
+    public function setType(#[LiveArg('type')] string $type): void
+    {
+        $this->type = $type;
+        $this->emit(self::TYPE_CHANGED_EVENT, ['type' => $type]);
+    }
+
     /** @var array{attention: list<TaskView>, rest: list<TaskView>}|null */
     private ?array $board = null;
 
     /** @return array{attention: list<TaskView>, rest: list<TaskView>} */
     private function board(): array
     {
-        return $this->board ??= $this->dashboard->board();
+        return $this->board ??= $this->dashboard->board($this->dashboard->projectsOfType($this->type));
     }
 }

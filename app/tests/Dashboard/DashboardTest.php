@@ -38,11 +38,11 @@ final class DashboardTest extends TestCase
         exec('rm -rf '.escapeshellarg($this->tmp));
     }
 
-    private function cfg(string $name = 'wallet-kit'): ProjectConfig
+    private function cfg(string $name = 'wallet-kit', string $type = 'work'): ProjectConfig
     {
         return new ProjectConfig(
             name: $name,
-            type: 'work',
+            type: $type,
             repoPath: $this->tmp.'/'.$name,
             primaryBranch: 'main',
             worktreesRoot: $this->tmp.'/wt/'.$name,
@@ -235,5 +235,19 @@ final class DashboardTest extends TestCase
 
         $this->assertSame([], $board['attention']);
         $this->assertSame([], $board['rest']);
+    }
+
+    /** board() already takes the projects array, so a caller can filter it. */
+    public function testBoardFiltersTasksByTheProjectsPassedIn(): void
+    {
+        $this->seed('work-task', State::Draft, project: 'wallet-kit');
+        $this->seed('oss-task', State::Draft, project: 'bookkeeper');
+        $this->seed('personal-task', State::Draft, project: 'blog');
+
+        $ossOnly = ['bookkeeper' => $this->cfg('bookkeeper', 'open-source')];
+
+        $board = $this->dashboard->board($ossOnly);
+
+        $this->assertSame(['oss-task'], $this->branches($board['rest']));
     }
 }

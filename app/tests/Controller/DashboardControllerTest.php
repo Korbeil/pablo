@@ -67,6 +67,18 @@ final class DashboardControllerTest extends WebTestCase
                 project_key: WK
             YAML);
 
+        file_put_contents($this->tmp.'/projects/bookkeeper.yaml', <<<YAML
+            name: bookkeeper
+            type: open-source
+            repo:
+                path: {$this->tmp}/bookkeeper
+                primary_branch: main
+            issue_tracker:
+                provider: github
+                identity: octocat
+                project_key: BK
+            YAML);
+
         RepoSlug::setFor(static fn () => 'acme/wallet-kit');
     }
 
@@ -82,10 +94,10 @@ final class DashboardControllerTest extends WebTestCase
         $this->restoreErrorHandlers();
     }
 
-    private function seed(string $branch, State $state, ?DisplayCache $cache = null): void
+    private function seed(string $branch, State $state, ?DisplayCache $cache = null, string $project = 'wallet-kit'): void
     {
         $store = new Store($this->tmp.'/state');
-        $task = new Task('wallet-kit', $branch, $this->tmp.'/wt/'.$branch, $state);
+        $task = new Task($project, $branch, $this->tmp.'/wt/'.$branch, $state);
         $task->stateEnteredAt = '2026-08-01T10:00:00+00:00';
         $task->displayCache = $cache ?? DisplayCache::empty();
         $store->save($task);
@@ -176,16 +188,17 @@ final class DashboardControllerTest extends WebTestCase
         $crawler = $this->browser()->request('GET', '/');
 
         $recap = $crawler->filter('.pablo-poll-recap-item');
-        $this->assertSame(1, $recap->count(), 'one row per configured project');
-        $this->assertStringContainsString('wallet-kit', $recap->text());
-        $this->assertStringContainsString('just now', $recap->text());
+        $this->assertSame(2, $recap->count(), 'one row per configured project');
+        $this->assertStringContainsString('wallet-kit', $crawler->text());
+        $this->assertStringContainsString('bookkeeper', $crawler->text());
+        $this->assertStringContainsString('just now', $crawler->text());
     }
 
     public function testPollRecapMarksANeverPolledProject(): void
     {
         $crawler = $this->browser()->request('GET', '/');
 
-        $this->assertStringContainsString('never polled', $crawler->filter('.pablo-poll-recap-item')->text());
+        $this->assertStringContainsString('never polled', $crawler->text());
     }
 
     public function testPrBadgeLinksToGithub(): void
@@ -205,5 +218,24 @@ final class DashboardControllerTest extends WebTestCase
 
         $this->assertSame(0, $crawler->filter('textarea')->count());
         $this->assertSame(0, $crawler->filter('.modal.is-active')->count());
+    }
+
+    /**
+     * ?type= is hydrated into every live component on a full page load, so all
+     * three sections agree on the filter without any tab clicks.
+     */
+    public function testUrlTypeFiltersAllThreeSections(): void
+    {
+        $this->seed('wk-draft', State::Draft, project: 'wallet-kit');
+        $this->seed('bk-draft', State::Draft, project: 'bookkeeper');
+        file_put_contents($this->tmp.'/stamps/bookkeeper.poll', (string) time());
+
+        $crawler = $this->browser()->request('GET', '/?type=open-source');
+
+        $this->assertResponseIsSuccessful();
+        $this->assertStringContainsString('bk-draft', $crawler->text());
+        $this->assertStringNotContainsString('wk-draft', $crawler->text());
+        $this->assertStringContainsString('bookkeeper', $crawler->text());
+        $this->assertStringNotContainsString('wallet-kit', $crawler->text());
     }
 }

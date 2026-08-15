@@ -7,6 +7,9 @@ namespace Pablo\Twig\Components;
 use Pablo\Dashboard\Dashboard;
 use Pablo\Dashboard\PollWindow;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
+use Symfony\UX\LiveComponent\Attribute\LiveArg;
+use Symfony\UX\LiveComponent\Attribute\LiveListener;
+use Symfony\UX\LiveComponent\Attribute\LiveProp;
 use Symfony\UX\LiveComponent\DefaultActionTrait;
 
 /**
@@ -21,6 +24,9 @@ use Symfony\UX\LiveComponent\DefaultActionTrait;
  * The server re-renders on a slow poll and hands the browser two epoch
  * timestamps; the `countdown` Stimulus controller drains the bar smoothly in
  * between and re-syncs on every render.
+ *
+ * Follows the TaskBoard's project-type filter: when it moves, this section
+ * re-renders with only the matching projects.
  */
 #[AsLiveComponent]
 final class PollProgress
@@ -33,26 +39,35 @@ final class PollProgress
     {
     }
 
+    #[LiveProp(url: true)]
+    public string $type = '';
+
+    #[LiveListener(TaskBoard::TYPE_CHANGED_EVENT)]
+    public function onTypeChange(#[LiveArg('type')] string $type): void
+    {
+        $this->type = $type;
+    }
+
     /** @return list<PollWindow> */
     public function windows(): array
     {
-        return $this->dashboard->pollWindows();
+        return $this->dashboard->pollWindows($this->dashboard->projectsOfType($this->type));
     }
 
     /**
      * The window driving the shared countdown bar.
      *
      * One scheduler tick polls every due project at once, so the single bar is
-     * anchored to the most recent poll across all projects and drains to the
-     * soonest upcoming poll. Anchoring the start to the last poll *across*
-     * projects (rather than the focus project's own stamp) is what makes the
-     * bar read full again right after a poll — otherwise, when the focus
-     * switches to a project whose window has already partially elapsed, the
-     * bar would snap to a partially-drained value instead of resetting.
+     * anchored to the most recent poll across the visible projects and drains
+     * to the soonest upcoming poll. Anchoring the start to the last poll
+     * *across* projects (rather than the focus project's own stamp) is what
+     * makes the bar read full again right after a poll — otherwise, when the
+     * focus switches to a project whose window has already partially elapsed,
+     * the bar would snap to a partially-drained value instead of resetting.
      */
     public function bar(): ?PollWindow
     {
-        return $this->dashboard->barWindow();
+        return $this->dashboard->barWindow($this->dashboard->projectsOfType($this->type));
     }
 
     /**

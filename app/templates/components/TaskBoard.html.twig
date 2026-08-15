@@ -1,6 +1,17 @@
 {# @var this \Pablo\Twig\Components\TaskBoard #}
 <div {{ attributes.defaults({'data-poll': 'delay(' ~ constant('Pablo\\Twig\\Components\\TaskBoard::POLL_MS') ~ ')|$render'}) }}>
 
+    <nav class="tabs is-boxed pablo-tabs" aria-label="Filter by project type">
+        <ul>
+            {% for type in constant('Pablo\\Twig\\Components\\TaskBoard::TYPES') %}
+                {% set label = type == '' ? 'All' : type|capitalize %}
+                <li class="{{ this.type == type ? 'is-active' : '' }}">
+                    <a href="#" {{ live_action('setType', {type: type}) }}>{{ label }}</a>
+                </li>
+            {% endfor %}
+        </ul>
+    </nav>
+
     <section class="pablo-section">
         <h2 class="pablo-heading">
             {{ ux_icon('lucide:message-circle', {class: 'pablo-icon'}) }}

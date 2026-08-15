@@ -49,6 +49,23 @@ final class Dashboard
     }
 
     /**
+     * Projects narrowed to one type; '' means all of them.
+     *
+     * @return array<string, ProjectConfig>
+     */
+    public function projectsOfType(string $type): array
+    {
+        if ('' === $type) {
+            return $this->projects();
+        }
+
+        return array_filter(
+            $this->projects(),
+            static fn (ProjectConfig $cfg): bool => $cfg->type === $type,
+        );
+    }
+
+    /**
      * The two tables: tasks needing attention, and everything else.
      *
      * @param array<string, ProjectConfig>|null $projects
