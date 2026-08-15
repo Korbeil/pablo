@@ -42,6 +42,13 @@ jobs:
         run: composer install --no-interaction --prefer-dist
       - name: setup
         uses: castor-php/setup-castor@v0.1.0
+      - name: cache-castor
+        uses: actions/cache@v4
+        with:
+          path: .castor
+          key: castor-${{ hashFiles('castor.composer.json', 'castor.composer.lock', 'castor.php') }}
+          restore-keys: |
+            castor-${{ runner.os }}-
       - name: 'phpstan check'
         run: 'castor qa:phpstan'
   tests:

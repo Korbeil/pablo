@@ -54,6 +54,11 @@ function qa_phpstan(bool $generateBaseline = false): void
         $params[] = 'app/phpstan-baseline.neon';
     }
 
+    // The static castor runtime ships without ext-simplexml, which
+    // phpstan/phpstan-symfony requires at install time; skip that one platform
+    // check so the tool sandbox installs on any castor build (CI included).
+    putenv('COMPOSER_IGNORE_PLATFORM_REQS=ext-simplexml');
+
     // The Symfony extension is installed into the phpstan tool sandbox, not
     // app/composer.json — that is not where this phpstan runs from.
     // containerXmlPath is deliberately NOT configured: it would require a
