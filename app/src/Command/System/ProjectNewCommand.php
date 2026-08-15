@@ -9,6 +9,7 @@ use Pablo\Config\Config;
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Helper\QuestionHelper;
+use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ChoiceQuestion;
@@ -95,6 +96,14 @@ final class ProjectNewCommand extends Command
         if (!is_dir($destDir)) {
             @mkdir($destDir, 0o777, true);
         }
+
+        // Check if this provider is new (not seen in existing projects)
+        $existingProviders = [];
+        foreach (Config::loadProjects($destDir) as $existing) {
+            $existingProviders[] = $existing->provider;
+        }
+        $isNewProvider = !\in_array($provider, $existingProviders, true);
+
         $destPath = $destDir.'/'.$name.'.yaml';
         file_put_contents($destPath, $yaml);
 
@@ -107,6 +116,17 @@ final class ProjectNewCommand extends Command
         }
 
         $output->writeln("Config written: {$destPath}");
+
+        if ($isNewProvider) {
+            $output->writeln('');
+            $output->writeln("This project uses '<comment>{$provider}</comment>' \u{2014} a new issue tracker not seen in your other projects.");
+            $output->writeln('Agent templates will be re-generated to include it.');
+
+            $command = $this->getApplication()?->find('system:generate-agents');
+            if (null !== $command) {
+                $command->run(new ArrayInput([]), $output);
+            }
+        }
 
         return self::SUCCESS;
     }

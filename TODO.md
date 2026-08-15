@@ -26,14 +26,9 @@ Classified task list for this repository. Grouped by intent.
   - Ship `acme-*.yaml` *example* templates in the repo, but real projects live per-user under `~/.pablo/projects/`.
   - Update `Backup`/`Restore` (`BackupCommand`, `RestoreCommand`, `tests/Backup/BackupTest.php`) to read from/write `~/.pablo/projects/`.
   - Bonus: since the acme configs leave the repo entirely, this fully resolves the "remove employer/self" repo-side issue in A.
-- [ ] **Integration selection** — global config block:
-  ```yaml
-  integrations:
-    issue_tracker: [github, jira]   # from ProviderRegistry::PROVIDER_NAMES
-    git_forge: github               # github | gitea | ...
-  ```
-  - **Agents**: template `opencode/agents/*.md` from the global config so only enabled providers are mentioned (task-analyst "Retrieving the ticket", task-feedback, etc.).
-  - **Poller**: only projects whose `issue_tracker.provider` is enabled get tracker-polled (skip+warn), gating `ProviderRegistry::get()` in `Poller.php:99` and `StateMachine.php:153`.
+- [x] **Integration selection** — `pablo system:generate-agents` reads all project configs from `~/.pablo/projects/`, collects their providers, and generates `opencode/agents/task-analyst.md`/`task-feedback.md` from `.md.template` files so only enabled providers' CLI sections appear (Confluence tied to Jira). No global config block — provider set is derived from projects.
+  - **Agents**: `.md.template` files shipped with `{{ISSUE_TRACKER_SECTION}}` and `{{ISSUE_TRACKER_NAMES}}` placeholders. `bin/install.sh` runs generation before symlinking. `project:new` warns and auto-regenerates when a new tracker is introduced.
+  - **Poller**: no runtime gating needed (derived approach makes it implicit — a project's own provider is always in its enabled set).
 
 - [ ] **Dashboard project-type tabs** — `pablo web` (TaskBoard) filter tabs across project types: **All** / **Work** / **Open-source** / **Personal**, driven by each project's `type` in `ProjectConfig`.
 
