@@ -32,6 +32,44 @@ final class Doctor
 
     private const ALWAYS_REQUIRED = ['gh', 'opencode', 'orca'];
 
+    /**
+     * Wizard ordering: hard requirements first, then the per-provider
+     * trackers (only included when a project uses them).
+     */
+    public const CLI_ORDER = ['gh', 'orca', 'opencode', 'acli', 'acli-confluence', 'linear'];
+
+    /** @var array<string, array<string, string>> platform => install command */
+    private const INSTALL_COMMANDS = [
+        'gh' => [
+            'Darwin' => 'brew install gh',
+            'Linux' => 'sudo apt-get install gh',
+        ],
+        'opencode' => [
+            'Darwin' => 'curl -fsSL https://opencode.ai/install | bash',
+            'Linux' => 'curl -fsSL https://opencode.ai/install | bash',
+        ],
+        'acli' => [
+            'Darwin' => 'brew tap atlassian-labs/acli && brew install acli',
+            'Linux' => 'brew tap atlassian-labs/acli && brew install acli',
+        ],
+        'acli-confluence' => [
+            'Darwin' => 'brew tap atlassian-labs/acli && brew install acli',
+            'Linux' => 'brew tap atlassian-labs/acli && brew install acli',
+        ],
+        'linear' => [
+            'Darwin' => 'brew install schpet/tap/linear',
+            'Linux' => 'deno install -A --reload -f -g -n linear jsr:@schpet/linear-cli',
+        ],
+    ];
+
+    private const DOCS_URLS = [
+        'gh' => 'https://cli.github.com',
+        'opencode' => 'https://opencode.ai',
+        'acli' => 'https://developer.atlassian.com/cloud/acli/',
+        'acli-confluence' => 'https://developer.atlassian.com/cloud/acli/',
+        'linear' => 'https://github.com/schpet/linear-cli',
+    ];
+
     private const PROBE_TIMEOUT_S = 30;
 
     /** @var callable|null test seams (mirror monkeypatching shutil.which / _probe) */
@@ -76,6 +114,27 @@ final class Doctor
         sort($list);
 
         return $list;
+    }
+
+    /** @return list<string> */
+    public static function cliOrder(): array
+    {
+        return self::CLI_ORDER;
+    }
+
+    public static function installCommand(string $cli): ?string
+    {
+        $perOs = self::INSTALL_COMMANDS[$cli] ?? null;
+        if (null === $perOs) {
+            return null;
+        }
+
+        return $perOs[\PHP_OS_FAMILY] ?? null;
+    }
+
+    public static function docsUrl(string $cli): ?string
+    {
+        return self::DOCS_URLS[$cli] ?? null;
     }
 
     /**
@@ -137,8 +196,19 @@ final class Doctor
         if (null !== self::$checkAll) {
             return (self::$checkAll)($projects);
         }
+
+        return self::checkIds(self::requiredClis($projects));
+    }
+
+    /**
+     * @param list<string> $cliIds
+     *
+     * @return list<CheckResult>
+     */
+    public static function checkIds(array $cliIds): array
+    {
         $results = [];
-        foreach (self::requiredClis($projects) as $cliName) {
+        foreach ($cliIds as $cliName) {
             [$probeArgv, $hint] = self::CLI_PROBES[$cliName];
             if (null === self::which(self::binaryFor($cliName))) {
                 $results[] = new CheckResult(

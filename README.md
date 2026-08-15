@@ -28,6 +28,7 @@ platform-specific steps: [docs/installation.md](docs/installation.md).
                      # starts the background scheduler, finishes with `pablo system:doctor`
 ./bin/install.sh --with-web  # ...also keeps the dashboard running as a background service
 pablo system:doctor        # verify everything's installed and authenticated
+pablo system:setup         # or walk through fixing CLIs one step at a time
 ```
 
 Add a project with the interactive wizard (`pablo project:new`) or by dropping a

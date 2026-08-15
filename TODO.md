@@ -45,5 +45,5 @@ Classified task list for this repository. Grouped by intent.
 ## F. Developer experience (DX)
 
 - [x] **Install script writes a default `~/.pablo/config.yaml`** — `bin/install.sh` should seed a default global config at `~/.pablo/config.yaml` when none exists (idempotent, never overwrite an existing one), so a fresh install starts with a usable `~/.pablo/` layout (config + projects dir) instead of relying on first-run resolution.
-- [ ] **Setup wizard (provider CLI detection)** — interactively detect which issue-tracker CLIs are installed (`gh`, `acli`, `linear`) and propose how to install/authenticate the missing ones.
+- [x] **Setup wizard (provider CLI detection)** — interactively detect which issue-tracker CLIs are installed (`gh`, `acli`, `linear`) and propose how to install/authenticate the missing ones. `pablo system:setup` (gh/orca/opencode always, acli/acli-confluence/linear only when a project uses them), one step at a time.
 - [x] **Project-creation wizard** — interactively scaffold a new project config in PABLO (name, type, repo path, issue tracker, identity, project key, etc.), writing it to `~/.pablo/projects/`.

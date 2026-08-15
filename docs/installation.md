@@ -10,6 +10,11 @@ Runs `composer install`, warms the DI container cache, writes the
 `opencode/agents/*.md` and `opencode/commands/*.md` into
 `~/.config/opencode/`, installs the background dispatcher for the
 detected platform, and finishes with a `pablo system:doctor` run.
+`pablo system:setup` proposes the same checks as a wizard, one step at a
+time: when a required CLI is missing or unauthenticated it shows the exact
+install/auth command to run and exits — re-run it after fixing to move on
+to the next check (tracker CLIs `acli`/`linear` are only proposed once a
+project actually uses them).
 Pass `--with-web` to also install the dashboard as a long-running
 background service (see [Dashboard](#dashboard) below).
 `./bin/uninstall.sh` reverses it all (only removing symlinks/files PABLO
