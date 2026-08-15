@@ -1,0 +1,73 @@
+name: CI
+on:
+  push:
+    branches: [ "main" ]
+  pull_request: ~
+  workflow_dispatch: ~
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: setup
+        uses: castor-php/setup-castor@v0.1.0
+      - name: 'php-cs-fixer check'
+        run: 'castor qa:cs:check'
+  phpstan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: cache-composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ github.sha }}
+          restore-keys: |
+            composer-${{ runner.os }}-
+      - name: setup
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.5
+          coverage: none
+          extensions: mbstring, dom, xml
+      - name: composer install
+        working-directory: app
+        run: composer install --no-interaction --prefer-dist
+      - name: setup
+        uses: castor-php/setup-castor@v0.1.0
+      - name: 'phpstan check'
+        run: 'castor qa:phpstan'
+  tests:
+    runs-on: ubuntu-latest
+    name: tests
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+      - name: cache-composer
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/composer
+          key: composer-${{ runner.os }}-
+          restore-keys: |
+            composer-${{ runner.os }}-
+            composer-
+      - name: setup
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.5
+          coverage: none
+          extensions: mbstring, dom, xml
+      - name: composer install
+        working-directory: app
+        run: composer install --no-interaction --prefer-dist
+      - name: setup
+        uses: castor-php/setup-castor@v0.1.0
+      - name: tests
+        run: castor qa:test

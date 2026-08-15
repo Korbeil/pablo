@@ -28,6 +28,17 @@ function qa_cs_fixer(): void
     ]);
 }
 
+#[AsTask(name: 'cs:check', namespace: 'qa', description: 'Check coding standards without modifying files (CI)')]
+function qa_cs_check(): void
+{
+    php_cs_fixer([
+        'fix', '--config', __DIR__ . '/app/.php-cs-fixer.php',
+        '--path-mode', 'intersection', '--dry-run', '--diff',
+        __DIR__ . '/app/src', __DIR__ . '/app/tests',
+        __DIR__ . '/app/config', __DIR__ . '/app/public',
+    ]);
+}
+
 #[AsTask(name: 'twig-cs-fixer', namespace: 'qa', description: 'Lint and fix Twig templates in app/templates')]
 function qa_twig_cs_fixer(): void
 {
