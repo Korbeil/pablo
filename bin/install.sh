@@ -52,6 +52,10 @@ fi
 info "warming the container cache"
 php "$REPO_DIR/app/bin/console" cache:clear --env="${PABLO_ENV:-dev}" --no-interaction >/dev/null
 
+# 1c. Agent templates --------------------------------------------------------
+info "generating opencode agent templates from project configs"
+php "$REPO_DIR/app/bin/pablo" system:generate-agents --no-interaction 2>/dev/null || true
+
 # 2. pablo on PATH -----------------------------------------------------------
 PABLO_BIN="$REPO_DIR/app/bin/pablo"
 [ -x "$PABLO_BIN" ] || die "pablo entrypoint not found at $PABLO_BIN"
