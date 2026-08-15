@@ -13,14 +13,56 @@ use Symfony\Component\Console\Tester\CommandTester;
 final class ConsoleTest extends TestCase
 {
     use RestoresErrorHandlers;
+    use UsesGlobalConfig;
+
+    private const DEFAULTS = <<<'YAML'
+sync:
+  strategy: rebase
+  auto_apply: false
+  interval_minutes: 30
+state_polling:
+  interval_minutes: 10
+review:
+  bot_whitelist: []
+ci:
+  ignore_checks: []
+default_model: openrouter/test/model
+pr_description_locale: en
+YAML;
+
+    private const PROJECT = <<<'YAML'
+name: wallet-kit
+type: open-source
+repo:
+  path: /tmp/pablo-console/wallet-kit
+  primary_branch: main
+worktrees_root: /tmp/pablo-console/wt
+issue_tracker:
+  provider: github
+  identity: octocat
+  project_key: WK
+YAML;
+
+    private string $projectsDir = '';
 
     private ?Kernel $kernel = null;
+
+    protected function setUp(): void
+    {
+        $this->projectsDir = sys_get_temp_dir().'/pablo-projects-'.uniqid();
+        mkdir($this->projectsDir, 0o777, true);
+        $this->writeGlobalConfig(self::DEFAULTS);
+        file_put_contents($this->projectsDir.'/wallet-kit.yaml', self::PROJECT);
+        putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
+    }
 
     protected function tearDown(): void
     {
         $this->kernel?->shutdown();
         $this->kernel = null;
         $this->restoreErrorHandlers();
+        putenv('PABLO_PROJECTS_DIR');
+        $this->unsetGlobalConfig();
     }
 
     private function app(): ConsoleApplication
