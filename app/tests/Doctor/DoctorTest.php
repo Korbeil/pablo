@@ -14,12 +14,55 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 final class DoctorTest extends TestCase
 {
+    use UsesGlobalConfig;
+
     private const TMP = '/tmp';
+
+    private const DEFAULTS = <<<'YAML'
+sync:
+  strategy: rebase
+  auto_apply: false
+  interval_minutes: 30
+state_polling:
+  interval_minutes: 10
+review:
+  bot_whitelist: []
+ci:
+  ignore_checks: []
+default_model: openrouter/test/model
+pr_description_locale: en
+YAML;
+
+    private const PROJECT = <<<'YAML'
+name: wallet-kit
+type: open-source
+repo:
+  path: /tmp/pablo-doctor/wallet-kit
+  primary_branch: main
+worktrees_root: /tmp/pablo-doctor/wt
+issue_tracker:
+  provider: github
+  identity: octocat
+  project_key: WK
+YAML;
+
+    private string $projectsDir = '';
+
+    protected function setUp(): void
+    {
+        $this->projectsDir = sys_get_temp_dir().'/pablo-projects-'.uniqid();
+        mkdir($this->projectsDir, 0o777, true);
+        $this->writeGlobalConfig(self::DEFAULTS);
+        file_put_contents($this->projectsDir.'/wallet-kit.yaml', self::PROJECT);
+        putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
+    }
 
     protected function tearDown(): void
     {
         Doctor::setWhichSeam(null);
         Doctor::setProbeSeam(null);
+        putenv('PABLO_PROJECTS_DIR');
+        $this->unsetGlobalConfig();
     }
 
     private function makeCfg(string $name, string $provider, ?string $confluenceSpace = null): ProjectConfig
@@ -161,6 +204,8 @@ final class DoctorTest extends TestCase
 
     public function testRender(): void
     {
+        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
+        Doctor::setProbeSeam(static fn (array $argv): array => [0, 'ok']);
         $results = [
             Doctor::checkAll(['a' => $this->makeCfg('a', 'github')]),
         ];
