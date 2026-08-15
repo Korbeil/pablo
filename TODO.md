@@ -30,7 +30,7 @@ Classified task list for this repository. Grouped by intent.
   - **Agents**: `.md.template` files shipped with `{{ISSUE_TRACKER_SECTION}}` and `{{ISSUE_TRACKER_NAMES}}` placeholders. `bin/install.sh` runs generation before symlinking. `project:new` warns and auto-regenerates when a new tracker is introduced.
   - **Poller**: no runtime gating needed (derived approach makes it implicit — a project's own provider is always in its enabled set).
 
-- [ ] **Dashboard project-type tabs** — `pablo web` (TaskBoard) filter tabs across project types: **All** / **Work** / **Open-source** / **Personal**, driven by each project's `type` in `ProjectConfig`.
+- [x] **Dashboard project-type tabs** — `pablo web` (TaskBoard) filter tabs across project types: **All** / **Work** / **Open-source** / **Personal**, driven by each project's `type` in `ProjectConfig`.
 
 > Note: points C2 (defaults) and C3 (projects relocation) both touch `Config` — implement together as one "global config & storage relocation" unit.
 
