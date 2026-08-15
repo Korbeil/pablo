@@ -1,0 +1,14 @@
+# PABLO-wide (cross-project) defaults. Projects override these per key in
+# their own config under ~/.pablo/projects/ (or PABLO_PROJECTS_DIR).
+sync:
+  strategy: rebase
+  auto_apply: false
+  interval_minutes: 720
+state_polling:
+  interval_minutes: 10
+review:
+  bot_whitelist: []
+ci:
+  ignore_checks: ["approval"]
+default_model: openrouter/deepseek/deepseek-v4-flash-0731
+pr_description_locale: en

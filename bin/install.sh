@@ -32,6 +32,26 @@ resolve_path() {
     php -r 'echo realpath($argv[1]);' "$1"
 }
 
+# 0. Runtime layout ----------------------------------------------------------
+# Seed a usable ~/.pablo/ on first install: the global config + the projects
+# dir. Never overwrite an existing config.yaml.
+PABLO_DIR="${HOME}/.pablo"
+PABLO_CONFIG_FILE="${PABLO_CONFIG:-$PABLO_DIR/config.yaml}"
+PABLO_PROJECTS_DIR_OVERRIDE="${PABLO_PROJECTS_DIR:-$PABLO_DIR/projects}"
+
+if [ ! -d "$PABLO_PROJECTS_DIR_OVERRIDE" ]; then
+    mkdir -p "$PABLO_PROJECTS_DIR_OVERRIDE"
+    info "created $PABLO_PROJECTS_DIR_OVERRIDE"
+fi
+
+if [ ! -f "$PABLO_CONFIG_FILE" ]; then
+    mkdir -p "$(dirname "$PABLO_CONFIG_FILE")"
+    cp "$REPO_DIR/docs/examples/config.yaml" "$PABLO_CONFIG_FILE"
+    info "wrote default $PABLO_CONFIG_FILE (edit it to set your default agent model, PR locale, sync strategy, ...)"
+else
+    info "keeping existing $PABLO_CONFIG_FILE"
+fi
+
 # 1. PHP dependencies --------------------------------------------------------
 info "composer install (no-dev)"
 (cd "$REPO_DIR/app" && composer install --no-dev --quiet)
@@ -148,4 +168,4 @@ info "running pablo system:doctor (a failure here is a warning at install time â
 info "projects may not be configured yet):"
 "$BIN_DIR/pablo" system:doctor || true
 
-info "done. Add project configs under $REPO_DIR/app/projects/ to get started."
+info "done. Register your projects with: pablo project:new"
