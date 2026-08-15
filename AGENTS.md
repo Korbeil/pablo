@@ -29,6 +29,7 @@ castor qa:test                              # PHPUnit suite (app/)
 castor qa:phpstan                           # static analysis, level 8 (app/src)
 castor qa:phpstan --generate-baseline       # regenerate phpstan-baseline.neon
 castor qa:cs-fixer                          # php-cs-fixer (@Symfony + @Symfony:risky)
+castor qa:cs:check                          # same as cs-fixer but --dry-run (CI)
 castor qa:twig-cs-fixer                     # twig-cs-fixer (app/templates)
 (cd app && composer test)                   # same as castor qa:test
 (cd app && composer exec phpunit tests/StateMachineTest.php)  # one file

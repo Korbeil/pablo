@@ -218,6 +218,7 @@ castor qa:test                          # PHPUnit suite (in app/)
 castor qa:phpstan                       # static analysis, level 8 (app/src)
 castor qa:phpstan --generate-baseline   # (re)generate phpstan-baseline.neon
 castor qa:cs-fixer                      # php-cs-fixer with @Symfony + @Symfony:risky
+castor qa:cs:check                      # same as cs-fixer but --dry-run (CI)
 castor qa:twig-cs-fixer                 # lint/fix app/templates
 cd app && composer test                 # same as castor qa:test
 pablo --help                          # engine subcommands
@@ -230,3 +231,6 @@ Composer/analysis caches land under `app/var/cache/` (gitignored). PHPStan is
 configured at **level 8**; raise it further by fixing the errors it reports,
 never by ignoring them. The tests mirror the `app/src` layout under
 `app/tests/` (e.g. `app/src/Config/Config.php` → `app/tests/Config/ConfigTest.php`).
+
+CI (GitHub Actions, `.github/workflows/ci.yml`) runs the same gates on every
+push to `main` and pull request: `qa:test`, `qa:phpstan`, and `qa:cs:check`.
