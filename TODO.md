@@ -40,7 +40,7 @@ Classified task list for this repository. Grouped by intent.
 
 ## E. CI / tooling
 
-- [ ] **Add CI** (inspired by `jolicode/automapper`) — GitHub Actions running the `castor qa:*` gates (test, phpstan, cs-fixer).
+- [x] **Add CI** (inspired by `jolicode/automapper`) — GitHub Actions running the `castor qa:*` gates (test, phpstan, cs-fixer).
 
 ## F. Developer experience (DX)
 
