@@ -105,6 +105,10 @@ body {
     margin-right: 0.45em;
 }
 
+.pablo-log-row .tag .pablo-icon {
+    margin-right: 0.35em;
+}
+
 .pablo-state {
     display: inline-flex;
     align-items: center;
