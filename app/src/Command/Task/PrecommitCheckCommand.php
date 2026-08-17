@@ -38,6 +38,7 @@ final class PrecommitCheckCommand extends Command
             'branch' => $ctx->task->branch,
             'state' => $ctx->task->state->value,
             'allowed' => \in_array($ctx->task->state, StateMachine::COMMIT_ALLOWED_FROM, true),
+            'pr_description_locale' => $ctx->cfg->prDescriptionLocale,
         ];
         $output->writeln(json_encode($payload, \JSON_THROW_ON_ERROR));
 

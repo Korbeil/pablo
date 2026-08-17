@@ -106,7 +106,8 @@ The single, uniform way work (re-)enters `draft`, valid from exactly
 by `pablo task:precommit-check`; it refuses outside a PABLO task worktree —
 the original `/commit-and-pr` still exists for non-PABLO work). It
 commits (house staging/message rules), pushes, creates the GitHub PR **as
-a draft** with a French description if none exists, and finishes with
+a draft** with a description in the project's configured PR locale
+(`pr_description_locale`) if none exists, and finishes with
 `pablo task:state draft`. **If there is nothing to commit it stops early and
 does nothing** — unless `--force`, which skips only the commit step and
 runs the rest (for manually committed work). **There is no git-push

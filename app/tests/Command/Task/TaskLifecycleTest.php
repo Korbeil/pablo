@@ -87,6 +87,7 @@ final class TaskLifecycleTest extends CommandTestBed
             'branch' => 'wk-45',
             'state' => 'in-progress',
             'allowed' => true,
+            'pr_description_locale' => 'en',
         ], $data);
     }
 

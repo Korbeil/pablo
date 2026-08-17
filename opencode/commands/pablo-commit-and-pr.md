@@ -1,5 +1,5 @@
 ---
-description: "PABLO : commit, push, PR draft GitHub (description en français) et passage de la tâche en état draft"
+description: "PABLO : commit, push, PR draft GitHub (description dans la locale configurée du projet) et passage de la tâche en état draft"
 permission:
   edit: deny
   write: allow
@@ -29,8 +29,8 @@ permission:
 PABLO's version of commit-and-pr (the original `/commit-and-pr` still
 exists, untouched, for non-PABLO work). Create a git commit for the
 current changes, push the branch, create the GitHub PR **as a draft** if
-one doesn't exist (with a French description), then switch the PABLO task
-state to `draft`.
+one doesn't exist (with a description in the project's configured PR
+locale), then switch the PABLO task state to `draft`.
 
 ## Context (auto-injected)
 
@@ -90,8 +90,10 @@ Existing PR for this branch:
   `git push --force-with-lease -u origin <branch>` for every push — this
   is safe (refuses if the remote has diverged) and works for first pushes
   too.
-- The PR description is **always in French**, even if the code and
-  commits are in English.
+- The PR description is **always written in the project's configured PR
+  description locale** — read `pr_description_locale` from the "PABLO task
+  check" JSON above (either `en` or `fr`). Write the whole body in that
+  locale, even if the code and commits are in another language.
 - The PR description is **always printed inside a fenced code block**
   using **four backticks** as the outer fence (templates often contain
   triple-backtick blocks that would break a triple-backtick fence).
@@ -122,32 +124,35 @@ Existing PR for this branch:
      commit. Run `git diff <base>...HEAD` for the full diff if the stat
      above isn't enough.
    - If a PR template exists (see above): follow its structure exactly —
-     keep every heading, section order, and checklists. Fill each section
-     in French based on the actual diff. Check (`[x]`) only checklist
-     items that are genuinely true; leave the rest unchecked. Remove HTML
-     comments (`<!-- ... -->`) from the final output.
-   - If no template exists, use:
+      keep every heading, section order, and checklists. Fill each section
+      in the configured PR locale (`pr_description_locale` from the "PABLO
+      task check" JSON) based on the actual diff. Check (`[x]`) only
+      checklist items that are genuinely true; leave the rest unchecked.
+      Remove HTML comments (`<!-- ... -->`) from the final output.
+   - If no template exists, use the following structure (headings in the
+     configured locale — English shown here, translate to French if
+     `pr_description_locale` is `fr`):
 
      ```markdown
      ## Description
 
-     <résumé clair de ce que fait la PR et pourquoi>
+     <clear summary of what this PR does and why>
 
-     ## Changements
+     ## Changes
 
-     - <liste des changements notables>
+     - <list of notable changes>
 
-     ## Comment tester
+     ## How to test
 
-     1. <étapes de test manuel ou commandes>
+     1. <manual test steps or commands>
 
      ## Notes
 
-     <points d'attention pour le reviewer — omettre si rien à signaler>
+     <attention points for the reviewer — omit if nothing to flag>
      ```
 
-   - Style: français, direct, sans remplissage ("Cette PR a pour objectif
-     de..." → préférer "Ajoute...", "Corrige...", "Refactore...").
+   - Style: direct, no filler ("This PR aims to..." → prefer "Adds...",
+     "Fixes...", "Refactors..."), written in the configured locale.
    - Base every claim on the actual diff — never invent tests,
      migrations, or impacts that aren't in the code.
    - Explicitly mention breaking changes, new dependencies
@@ -158,8 +163,8 @@ Existing PR for this branch:
      `--force-with-lease` — safe for first pushes and rejects only if the
      remote truly diverged; if the push is rejected, report it and stop).
    - If the "Existing PR" context above is empty: create the draft PR with
-     the French description as body — write the body to
-      `.pablo-pr-body.md` (a dotfile in the worktree root) and run
+      the description (in the configured locale) as body — write the body
+      to `.pablo-pr-body.md` (a dotfile in the worktree root) and run
      `gh pr create --draft --title "<title>" --body-file <file>`
      (title follows the same convention as the commit message, mention
      the issue key if the branch has one).
@@ -172,9 +177,9 @@ Existing PR for this branch:
    no push detection.)
 
 5. **Output**
-   - The PR title on its own line, then the full French description
-     inside the four-backtick fenced block (so the user can copy it or
-     tweak the PR afterwards).
+   - The PR title on its own line, then the full description (in the
+      configured locale) inside the four-backtick fenced block (so the
+      user can copy it or tweak the PR afterwards).
    - One short confirmation: what was committed (or that the commit was
      skipped via `--force`), the push result, the PR URL (new or
      existing), and that the task is now 📝 draft.
