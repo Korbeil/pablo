@@ -82,7 +82,9 @@ store + per-task flock) · `src/Poller/` (state polling) ·
 `src/Provider/` (all external integrations): `Gh/` (`gh` PR/CI),
 `Git/` (worktrees, lease-safe sync), `Confluence/` (`acli`),
 `Tracker/` (`ProviderInterface` + `Github`/`Jira`/`Linear`) ·
-`src/Agents/` (launches agents via Orca) · `src/Listing/` (terminal tables) ·
+`src/Agents/` (agent launchers: Orca + headless `Agents`, optional
+`OpenChamber`, `AbstractAgentLauncher` base, `AgentLauncher` factory
+selected via `agent_backend`/`PABLO_AGENT_BACKEND`) · `src/Listing/` (terminal tables) ·
 `src/Doctor/` (preflight checks) · `src/Dispatch/` (cron entry point) ·
 `src/Support/` (`PabloError`, `Proc`, `Naming`, `RepoSlug`).
 
@@ -133,7 +135,10 @@ in `src/Domain/`) so `pablo task:list` renders instantly;
 **Agent execution**: via the Orca CLI (`orca terminal create` /
 `orca terminal wait` / `orca worktree ps`), same path as the user's other
 Orca agents. Falls back to headless `opencode run --dir <worktree>` for
-repos not registered in Orca.
+repos not registered in Orca. An optional `OpenChamber` backend
+(`agent_backend=openchamber` in `~/.pablo/config.yaml` or
+`PABLO_AGENT_BACKEND`) replaces Orca with the directory-based `openchamber`
+CLI — no repo registration, adoption wait, or display-name step.
 
 ## Testing
 

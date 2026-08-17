@@ -48,6 +48,16 @@ final class FakeAgents implements AgentLauncherInterface
         return 'term_2';
     }
 
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt): string
+    {
+        return 'term_1';
+    }
+
+    public function doRunStartupScript(string $worktree, string $script): string
+    {
+        return 'term_2';
+    }
+
     /** @return array<int, SessionInfo> */
     public function activeSessions(string $worktree): array
     {

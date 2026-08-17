@@ -75,6 +75,16 @@ per project or globally, otherwise loading the project fails. New keys
 added later should follow the same pattern unless they have no sensible
 global default (like `issue_tracker`).
 
+### `agent_backend` (global only)
+
+A cross-project key in `~/.pablo/config.yaml` (not per-project, and not in
+the default-eligible set): selects which agent runner PABLO uses to launch
+agents on task worktrees. Values: `orca` (default) or `openchamber`. It is
+resolved at runtime (like `default_model`) and can also be set with the
+`PABLO_AGENT_BACKEND` env var. When it differs from `orca`, `pablo
+system:doctor`/`system:setup` also check the `openchamber` CLI. See
+[background-layer.md](background-layer.md#openchamber-backend-optional).
+
 ## Branch naming convention
 
 Branches created or matched by PABLO always follow the fixed pattern:

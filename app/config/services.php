@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
+use Pablo\Agents\AgentLauncher;
 use Pablo\Agents\AgentLauncherInterface;
-use Pablo\Agents\Agents;
 use Pablo\App\ConsoleApplication;
 use Pablo\Command\Command as PabloCommand;
 use Pablo\Store\Store;
@@ -21,11 +21,16 @@ return static function (ContainerConfigurator $container): void {
     // parameters: the compiled container is cached under app/var/cache/<env>,
     // so a compile-time value would freeze PABLO_STATE_DIR / PABLO_SHIM / HOME
     // as they were on the process that first warmed the cache. Both
-    // constructors resolve their own default at instantiation instead.
+    // constructors resolve their own default at instantiation instead. The
+    // agent backend is selected the same way, so the AgentLauncherInterface is
+    // resolved through the factory (never a compile-time backend choice).
     $services->set(Store::class);
-    $services->set(Agents::class);
 
-    $services->alias(AgentLauncherInterface::class, Agents::class);
+    $services->set(AgentLauncherInterface::class)
+        ->factory([AgentLauncher::class, 'create'])
+        ->public();
+
+    $services->set(AgentLauncher::class);
 
     // `pablo.command`, not `console.command`: every bundle now contributes to
     // the latter, and bin/pablo must keep listing PABLO subcommands only.

@@ -117,3 +117,30 @@ worktree's repo (see [installation.md](installation.md#orca-visibility-verified-
 PABLO runs `opencode run --agent <agent> --dir <worktree>` headless,
 tracked via pidfiles in `~/.pablo/agents/` (headless runs always count as
 running — they have no idle signal).
+
+### OpenChamber backend (optional)
+
+The agent runner is pluggable (`app/src/Agents/`, selected by the
+`agent_backend` global config key or the `PABLO_AGENT_BACKEND` env var;
+default `orca`). When set to `openchamber`, launches use the OpenChamber
+CLI instead of Orca:
+
+```bash
+# launch (src/Agents/OpenChamber.php):
+openchamber session create --dir <worktree> --title "pablo:<agent>"
+openchamber session send --session <id> --dir <worktree> \
+     --prompt "<prompt>" --agent <agent>        # fire-and-forget
+# completion:
+openchamber session messages --session <id> --dir <worktree> --wait
+# activity:
+openchamber session list --dir <worktree> --with-status
+```
+
+OpenChamber is **directory-based**, so none of Orca's workspace machinery
+applies: no repo registration, no worktree "adoption" wait and no
+display-name step (the "new workspace" `--worktree` create option is for
+OpenChamber creating its own checkout from scratch — PABLO already makes
+its own worktrees, so it's unused). Activity maps `busy`/`retry` → 🏃 and
+`idle` → 💭 (a finished idle session parks as waiting for feedback, exactly
+like an Orca "done" analyst). Startup scripts and the rebase-conflict
+resolver still run via the shared headless `opencode run` path.

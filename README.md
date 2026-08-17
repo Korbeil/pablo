@@ -178,7 +178,7 @@ Namespaces mirror folders (`Pablo\ => src/`).
 | `Provider/Git/` | git worktrees, lease-safe sync, per-project sync job |
 | `Provider/Confluence/` | Confluence page fetch via the `acli` CLI |
 | `Provider/Tracker/` | one class per issue tracker + `ProviderInterface`/registry |
-| `Agents/` | launching OpenCode agents via Orca, activity queries |
+| `Agents/` | launching OpenCode agents via Orca (or, optionally, OpenChamber), activity queries |
 | `Listing/` | the `pablo task:list` terminal tables |
 | `Domain/PrBadge`, `Domain/AgentActivity` | PR/agent state as structure, shared by the terminal and web renderers |
 | `Doctor/` | CLI preflight checks (`pablo system:doctor`) |

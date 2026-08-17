@@ -12,3 +12,8 @@ ci:
   ignore_checks: ["approval"]
 default_model: openrouter/deepseek/deepseek-v4-flash-0731
 pr_description_locale: en
+# agent_backend: orca | openchamber  (default: orca)
+# OpenChamber is an alternative agent runner (directory-based; no Orca repo
+# registration or worktree adoption needed). Set it here or via the
+# PABLO_AGENT_BACKEND env var. When it differs from `orca`, `pablo
+# system:doctor`/`system:setup` check the openchamber CLI too.

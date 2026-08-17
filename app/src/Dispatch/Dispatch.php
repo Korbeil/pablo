@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Dispatch;
 
+use Pablo\Agents\AgentLauncher;
 use Pablo\Agents\Agents;
 use Pablo\Config\ProjectConfig;
 use Pablo\Doctor\Doctor;
@@ -26,7 +27,7 @@ final class Dispatch
      * not abort the run — only the affected project's sync/poll degrades (the
      * per-project failure path already handles that). gh/opencode stay hard.
      */
-    private const SOFT_CLIS = ['orca', 'acli', 'acli-confluence', 'linear'];
+    private const SOFT_CLIS = ['orca', 'openchamber', 'acli', 'acli-confluence', 'linear'];
 
     /**
      * How often the scheduler fires this dispatcher. Per-project cadence is
@@ -125,14 +126,14 @@ final class Dispatch
 
     public static function runSync(ProjectConfig $cfg, Store $store): void
     {
-        $agents = new Agents();
+        $agents = AgentLauncher::create();
         $reports = Sync::syncProject($cfg, $store, null, $agents);
         echo "[{$cfg->name}] sync:\n".Sync::renderReports($reports)."\n";
     }
 
     public static function runPoll(ProjectConfig $cfg, Store $store): void
     {
-        $agents = new Agents();
+        $agents = AgentLauncher::create();
         foreach (Poller::pollProject($cfg, $store, $agents) as $event) {
             echo "[{$cfg->name}] {$event}\n";
         }

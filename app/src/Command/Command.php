@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Command;
 
+use Pablo\Agents\AgentLauncher;
 use Pablo\Agents\AgentLauncherInterface;
-use Pablo\Agents\Agents as AgentsService;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
 use Pablo\StateMachine\TaskCtx;
@@ -39,7 +39,7 @@ abstract class Command extends SymfonyCommand
 
     protected function agents(): AgentLauncherInterface
     {
-        return $this->agents ??= new AgentsService();
+        return $this->agents ??= AgentLauncher::create();
     }
 
     /** @return array<string, ProjectConfig> */

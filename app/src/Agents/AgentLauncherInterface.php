@@ -18,6 +18,16 @@ interface AgentLauncherInterface
 
     public function runStartupScript(string $worktree, string $script, string $project, string $branch): string;
 
+    /**
+     * Run the agent launch synchronously and return a backend handle (Orca
+     * terminal id, OpenChamber session id, or "pid:N"). Only ever runs inside
+     * the detached internal:launch-agent subprocess.
+     */
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt): string;
+
+    /** Run the startup script synchronously and return a backend handle. */
+    public function doRunStartupScript(string $worktree, string $script): string;
+
     /** @return array<int, SessionInfo> */
     public function activeSessions(string $worktree): array;
 

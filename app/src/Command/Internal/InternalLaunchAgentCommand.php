@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Internal;
 
+use Pablo\Agents\AgentLauncher;
 use Pablo\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -14,6 +15,7 @@ final class InternalLaunchAgentCommand extends Command
     protected function configure(): void
     {
         $this->setName('internal:launch-agent')
+            ->addOption('backend', null, InputOption::VALUE_REQUIRED, '', 'orca')
             ->addOption('worktree', null, InputOption::VALUE_REQUIRED)
             ->addOption('agent', null, InputOption::VALUE_REQUIRED)
             ->addOption('prompt', null, InputOption::VALUE_REQUIRED)
@@ -24,7 +26,7 @@ final class InternalLaunchAgentCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $agents = new \Pablo\Agents\Agents();
+        $agents = AgentLauncher::create((string) $input->getOption('backend'));
         $handle = $agents->doLaunchAgent((string) $input->getOption('worktree'), (string) $input->getOption('agent'), (string) $input->getOption('prompt'));
         $agents->spawnWatcher(
             (string) $input->getOption('project'),

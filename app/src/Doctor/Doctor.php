@@ -17,7 +17,8 @@ use Symfony\Component\Process\Process;
  * Derives the required CLI set from the configured projects. gh is always
  * required; acli (Jira) and a separate acli-confluence probe when a project
  * configures a Confluence space, only for jira projects; linear only when a
- * project uses that provider; orca/opencode always.
+ * project uses that provider; orca/opencode always; openchamber only when the
+ * global agent_backend selects it.
  */
 final class Doctor
 {
@@ -28,6 +29,7 @@ final class Doctor
         'linear' => [['linear', 'auth', 'status'], 'run: linear auth login (schpet/linear-cli)'],
         'orca' => [['orca', 'status'], 'start the Orca app, or run: orca open'],
         'opencode' => [['opencode', '--version'], 'install opencode: https://opencode.ai'],
+        'openchamber' => [['openchamber', 'status'], 'install openchamber: https://github.com/openchamber/openchamber'],
     ];
 
     private const ALWAYS_REQUIRED = ['gh', 'opencode', 'orca'];
@@ -36,7 +38,7 @@ final class Doctor
      * Wizard ordering: hard requirements first, then the per-provider
      * trackers (only included when a project uses them).
      */
-    public const CLI_ORDER = ['gh', 'orca', 'opencode', 'acli', 'acli-confluence', 'linear'];
+    public const CLI_ORDER = ['gh', 'orca', 'opencode', 'openchamber', 'acli', 'acli-confluence', 'linear'];
 
     /** @var array<string, array<string, string>> platform => install command */
     private const INSTALL_COMMANDS = [
@@ -47,6 +49,10 @@ final class Doctor
         'opencode' => [
             'Darwin' => 'curl -fsSL https://opencode.ai/install | bash',
             'Linux' => 'curl -fsSL https://opencode.ai/install | bash',
+        ],
+        'openchamber' => [
+            'Darwin' => 'curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash',
+            'Linux' => 'curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash',
         ],
         'acli' => [
             'Darwin' => 'brew tap atlassian-labs/acli && brew install acli',
@@ -65,6 +71,7 @@ final class Doctor
     private const DOCS_URLS = [
         'gh' => 'https://cli.github.com',
         'opencode' => 'https://opencode.ai',
+        'openchamber' => 'https://github.com/openchamber/openchamber',
         'acli' => 'https://developer.atlassian.com/cloud/acli/',
         'acli-confluence' => 'https://developer.atlassian.com/cloud/acli/',
         'linear' => 'https://github.com/schpet/linear-cli',
@@ -109,6 +116,9 @@ final class Doctor
         }
         if ($needsConfluence) {
             $required['acli-confluence'] = true;
+        }
+        if ('openchamber' === \Pablo\Agents\AgentLauncher::resolveBackend()) {
+            $required['openchamber'] = true;
         }
         $list = array_keys($required);
         sort($list);

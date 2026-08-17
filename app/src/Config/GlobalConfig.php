@@ -50,6 +50,7 @@ final class GlobalConfig
             'ci' => \is_array($data['ci'] ?? null) ? $data['ci'] : [],
             'default_model' => isset($data['default_model']) ? (string) $data['default_model'] : null,
             'pr_description_locale' => isset($data['pr_description_locale']) ? (string) $data['pr_description_locale'] : null,
+            'agent_backend' => isset($data['agent_backend']) ? (string) $data['agent_backend'] : null,
         ];
     }
 }

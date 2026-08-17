@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Internal;
 
+use Pablo\Agents\AgentLauncher;
 use Pablo\Command\Command;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
@@ -21,6 +22,7 @@ final class WatchAgentCommand extends Command
     protected function configure(): void
     {
         $this->setName('internal:watch-agent')
+            ->addOption('backend', null, InputOption::VALUE_REQUIRED, '', 'orca')
             ->addOption('project', null, InputOption::VALUE_REQUIRED)
             ->addOption('branch', null, InputOption::VALUE_REQUIRED)
             ->addOption('handle', null, InputOption::VALUE_REQUIRED)
@@ -32,7 +34,7 @@ final class WatchAgentCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $agents = $this->agents();
+        $agents = AgentLauncher::create((string) $input->getOption('backend'));
         $agents->waitForHandle((string) $input->getOption('handle'));
         $store = $this->store();
         $project = (string) $input->getOption('project');
