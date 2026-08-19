@@ -179,4 +179,22 @@ PHP,
         $found = $this->store->taskForCwd($wt.'/sub');
         $this->assertSame('wk-45', $found->branch);
     }
+
+    public function testTaskForWorktreePathResolvesByPath(): void
+    {
+        $wt = $this->root.'/wt';
+        mkdir($wt);
+        $task = $this->makeTask();
+        $task->worktreePath = $wt;
+        $this->store->save($task);
+        $found = $this->store->taskForWorktreePath($wt);
+        $this->assertSame('wk-45', $found->branch);
+    }
+
+    public function testTaskForWorktreePathRejectsUnknownPath(): void
+    {
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('not a PABLO task worktree');
+        $this->store->taskForWorktreePath($this->root.'/nope');
+    }
 }

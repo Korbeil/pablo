@@ -126,12 +126,26 @@ final class Store
             throw new PabloError("{$cwd} is not a git worktree, so not a PABLO task worktree");
         }
         $topPath = (string) realpath(trim($process->getOutput()));
+
+        return $this->taskForWorktreePath($topPath);
+    }
+
+    /**
+     * Resolve the task whose worktree resolves to $worktreePath. Unlike
+     * taskForCwd(), it matches the path directly (after realpath) instead of
+     * requiring the current working directory to be the worktree — this lets
+     * commands operate on a task from anywhere (e.g. an agent that isn't
+     * running inside the worktree).
+     */
+    public function taskForWorktreePath(string $worktreePath): Task
+    {
+        $resolved = (string) realpath($worktreePath);
         foreach ($this->allTasks() as $task) {
-            if ((string) realpath($task->worktreePath) === $topPath) {
+            if ((string) realpath($task->worktreePath) === $resolved) {
                 return $task;
             }
         }
-        throw new PabloError("{$topPath} is not a PABLO task worktree (no task record matches it)");
+        throw new PabloError("{$resolved} is not a PABLO task worktree (no task record matches it)");
     }
 
     /**

@@ -17,14 +17,15 @@ final class PrecommitCheckCommand extends Command
     {
         $this->setName('task:precommit-check')
             ->setDescription('check /commit-and-pr is allowed here')
-            ->addOption('json', null, InputOption::VALUE_NONE, 'emit JSON (accepted for back-compat)');
+            ->addOption('json', null, InputOption::VALUE_NONE, 'emit JSON (accepted for back-compat)')
+            ->addOption('worktree', null, InputOption::VALUE_REQUIRED, 'task worktree path to check instead of the cwd');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $store = $this->store();
         try {
-            $ctx = $this->resolveCtx($store, $this->agents());
+            $ctx = $this->resolveCtx($store, $this->agents(), $input->getOption('worktree'));
         } catch (PabloError $e) {
             $err = $output instanceof \Symfony\Component\Console\Output\ConsoleOutputInterface
                 ? $output->getErrorOutput()

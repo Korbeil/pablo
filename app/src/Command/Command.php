@@ -48,9 +48,11 @@ abstract class Command extends SymfonyCommand
         return Config::loadProjects(Config::projectsDir());
     }
 
-    protected function resolveCtx(Store $store, AgentLauncherInterface $agents): TaskCtx
+    protected function resolveCtx(Store $store, AgentLauncherInterface $agents, ?string $worktree = null): TaskCtx
     {
-        $task = $store->taskForCwd((string) getcwd());
+        $task = null !== $worktree && '' !== $worktree
+            ? $store->taskForWorktreePath($worktree)
+            : $store->taskForCwd((string) getcwd());
         $cfg = $this->projects()[$task->project] ?? null;
         if (null === $cfg) {
             throw new PabloError("task {$task->branch} belongs to project '{$task->project}', which has no config under projects/ anymore");

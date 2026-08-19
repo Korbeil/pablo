@@ -20,7 +20,8 @@ final class StateCommand extends Command
         $this->setName('task:state')
             ->setDescription('force the current task to a state')
             ->addArgument('state', InputArgument::REQUIRED, 'target state')
-            ->addOption('no-trigger', null, InputOption::VALUE_NONE, 'skip the state\'s on-enter actions (ignored for waiting)');
+            ->addOption('no-trigger', null, InputOption::VALUE_NONE, 'skip the state\'s on-enter actions (ignored for waiting)')
+            ->addOption('worktree', null, InputOption::VALUE_REQUIRED, 'task worktree path to operate on instead of the cwd');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
@@ -30,7 +31,7 @@ final class StateCommand extends Command
         if (null === $state) {
             throw new \Pablo\Support\PabloError('unknown state '.var_export($input->getArgument('state'), true));
         }
-        $ctx = $this->resolveCtx($store, $this->agents());
+        $ctx = $this->resolveCtx($store, $this->agents(), $input->getOption('worktree'));
         $lock = Store::taskLock($store, $ctx->task->project, $ctx->task->branch);
         try {
             StateMachine::enterState($ctx, $state, trigger: !$input->getOption('no-trigger'));

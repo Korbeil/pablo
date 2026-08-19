@@ -42,6 +42,17 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->assertSame(1, $tester->getStatusCode());
     }
 
+    public function testStateWithWorktreeOptionFromOutsideWorktree(): void
+    {
+        chdir($this->tmp);
+        $tester = $this->runCommand(new StateCommand($this->store, $this->agents), [
+            'state' => 'request-changes',
+            '--worktree' => $this->wt,
+        ]);
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertSame(State::RequestChanges, $this->getTask()->state);
+    }
+
     public function testWaitingToggleRoundtrip(): void
     {
         $this->runCommand(new WaitingCommand($this->store, $this->agents));
@@ -106,6 +117,23 @@ final class TaskLifecycleTest extends CommandTestBed
     {
         chdir($this->tmp);
         $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->agents));
+        $this->assertSame(2, $tester->getStatusCode());
+    }
+
+    public function testPrecommitCheckWithWorktreeOptionFromOutsideWorktree(): void
+    {
+        chdir($this->tmp);
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->agents), ['--worktree' => $this->wt]);
+        $this->assertSame(0, $tester->getStatusCode());
+        $data = json_decode($tester->getDisplay(), true);
+        $this->assertSame('wk-45', $data['branch']);
+        $this->assertTrue($data['allowed']);
+    }
+
+    public function testPrecommitCheckWorktreeOptionUnknownPath(): void
+    {
+        chdir($this->tmp);
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->agents), ['--worktree' => $this->tmp.'/nowhere']);
         $this->assertSame(2, $tester->getStatusCode());
     }
 

@@ -66,13 +66,18 @@ Existing PR for this branch:
 
 ## Hard rules
 
-- **Guard first.** If the "PABLO task check" above is an error (exit
-  code 2 / not a PABLO task worktree), STOP: tell the user this command
-  only works inside a PABLO task worktree and that the original
-  `/commit-and-pr` exists for everything else. If `"allowed": false`,
-  STOP: `/pablo-commit-and-pr` is only valid from `in-progress`,
+- **Resolve the worktree, then guard.** The PABLO task check resolves the
+  task from the current working directory. It succeeds only when run inside
+  the task worktree (e.g. `~/.pablo/worktrees/<project>/<branch>`). If the
+  agent isn't running inside the worktree (common with OpenChamber agents),
+  the check fails with "not a PABLO task worktree" — do NOT stop: first
+  resolve the task worktree (see step 1), then re-run the guard with
+  `pablo task:precommit-check --worktree <path> --json`. If `"allowed":
+  false`, STOP: `/pablo-commit-and-pr` is only valid from `in-progress`,
   `ci-red`, `request-changes`, and `testing-failed` — report the task's
-  current state.
+  current state. If the worktree genuinely cannot be resolved, tell the
+  user this command only works inside a PABLO task worktree and that the
+  original `/commit-and-pr` exists for everything else.
 - **No changes, no action.** If there is nothing to commit AND
   `$ARGUMENTS` does not contain `--force`, stop early with a clear
   message: no push, no PR creation, no state change. With `--force`, skip
@@ -102,7 +107,30 @@ Existing PR for this branch:
 
 ## Steps
 
-1. **Commit** (skipped with `--force`)
+1. **Resolve the task worktree** (if not already inside one)
+   - First run `pablo task:precommit-check --json`. If it succeeds (returns
+     JSON with the task's `project`, `branch`, `state`, `allowed`,
+     `pr_description_locale`), you are already inside the task worktree —
+     use that cwd for everything and skip to step 2.
+   - If it errors with "not a PABLO task worktree" because the cwd isn't the
+     worktree, resolve the worktree path from the current OpenChamber
+     session:
+     - Use the `openchamber` tool (`session.status` with no `sessionId`
+       returns the current session's `directory`, or `session.list`) to read
+       the directory of the session you're running in.
+     - If that directory is a PABLO task worktree, use it as the worktree.
+     - Otherwise list active tasks (`pablo task:list`) and, if the session
+       or user context clearly identifies one task, use its worktree.
+   - Once you have a worktree path `<wt>`: `cd <wt>` and re-run the guard
+     with `pablo task:precommit-check --worktree <wt> --json`. Run **all**
+     subsequent `git`/`gh`/`pablo task:state` commands from inside `<wt>`
+     (pass `--worktree <wt>` to the `pablo task:*` calls), so the branch,
+     status, diff and push all operate on the right worktree.
+   - If `"allowed": false`, stop and report the task's current state (see
+     Hard rules). If the worktree genuinely cannot be resolved, stop and
+     point the user to `/commit-and-pr`.
+
+2. **Commit** (skipped with `--force`)
    - Determine if this branch already has task-owned commits — check the
      "Unpushed commits" context above. If it shows commits that belong to
      this task (not the base branch), the branch has existing commits.
@@ -119,7 +147,7 @@ Existing PR for this branch:
      `type(scope): summary`, subject ≤ 72 chars. Then `git commit -m
      "<message>"`.
 
-2. **PR description**
+3. **PR description**
    - Cover the **whole branch** vs the base branch, not just this
      commit. Run `git diff <base>...HEAD` for the full diff if the stat
      above isn't enough.
@@ -158,7 +186,7 @@ Existing PR for this branch:
    - Explicitly mention breaking changes, new dependencies
      (`composer.json` changes), migrations, and config changes if present.
 
-3. **Push and PR**
+4. **Push and PR**
    - `git push --force-with-lease -u origin <branch>` (always use
      `--force-with-lease` — safe for first pushes and rejects only if the
      remote truly diverged; if the push is rejected, report it and stop).
@@ -170,13 +198,14 @@ Existing PR for this branch:
      the issue key if the branch has one).
    - If a PR already exists: just push; do not edit the existing PR.
 
-4. **State switch** — final step, only after the push (and PR creation if
-    any) succeeded: run `pablo task:state draft`. This is what moves the PABLO
+5. **State switch** — final step, only after the push (and PR creation if
+   any) succeeded: run `pablo task:state draft` (pass `--worktree <wt>` if
+   you resolved the worktree in step 1). This is what moves the PABLO
    task back into the automatic draft → CI → review cycle. (A raw
    `git push` without this command never changes PABLO state — there is
    no push detection.)
 
-5. **Output**
+6. **Output**
    - The PR title on its own line, then the full description (in the
       configured locale) inside the four-backtick fenced block (so the
       user can copy it or tweak the PR afterwards).
