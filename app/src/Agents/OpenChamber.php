@@ -89,18 +89,21 @@ final class OpenChamber extends AbstractAgentLauncher
         );
     }
 
-    /** @return array<string, list<array<string, mixed>>> worktree => raw sessions */
-    private function sessionsByWorktree(): array
+    /**
+     * Raw sessions for the queried worktrees, discovered directly from the
+     * OpenChamber daemon rather than from pidfiles: one `session list --dir`
+     * call per worktree. Unlike Orca's central `worktree ps`, OpenChamber is
+     * directory-scoped, so PABLO asks for each worktree it actually cares about.
+     *
+     * @param list<string> $worktrees
+     *
+     * @return array<string, list<array<string, mixed>>> worktree => raw sessions
+     */
+    private function sessionsByWorktree(array $worktrees): array
     {
         $out = [];
-        foreach (glob($this->agentsDir().'/openchamber-*.json') ?: [] as $file) {
-            $record = json_decode((string) file_get_contents($file), true);
-            if (!\is_array($record) || !isset($record['worktree'])) {
-                @unlink($file);
-                continue;
-            }
-            $wt = (string) $record['worktree'];
-            $list = $this->openchamber(['session', 'list', '--dir', $wt, '--with-status']);
+        foreach ($worktrees as $wt) {
+            $list = $this->openchamber(['session', 'list', '--dir', $wt, '--with-status', '--limit', '200']);
             foreach ($list['sessions'] ?? [] as $s) {
                 $out[$wt][] = $s;
             }
@@ -135,7 +138,7 @@ final class OpenChamber extends AbstractAgentLauncher
     /** @return array<int, SessionInfo> */
     public function activeSessions(string $worktree): array
     {
-        return $this->mapSessions($this->sessionsByWorktree()[$worktree] ?? [], false);
+        return $this->mapSessions($this->sessionsByWorktree([$worktree])[$worktree] ?? [], false);
     }
 
     /** @param array<int, string> $worktrees @return array<string, array<int, SessionInfo>> */
@@ -144,7 +147,7 @@ final class OpenChamber extends AbstractAgentLauncher
      */
     public function bulkActiveSessions(array $worktrees): array
     {
-        $byWt = $this->sessionsByWorktree();
+        $byWt = $this->sessionsByWorktree($worktrees);
         $out = [];
         foreach ($worktrees as $wt) {
             $out[$wt] = $this->mapSessions($byWt[$wt] ?? [], false);
@@ -156,7 +159,7 @@ final class OpenChamber extends AbstractAgentLauncher
     /** @return array<int, SessionInfo> */
     public function displaySessions(string $worktree): array
     {
-        return $this->mapSessions($this->sessionsByWorktree()[$worktree] ?? [], true);
+        return $this->mapSessions($this->sessionsByWorktree([$worktree])[$worktree] ?? [], true);
     }
 
     /** @param list<string> $worktrees
@@ -164,7 +167,7 @@ final class OpenChamber extends AbstractAgentLauncher
      */
     public function bulkDisplaySessions(array $worktrees): array
     {
-        $byWt = $this->sessionsByWorktree();
+        $byWt = $this->sessionsByWorktree($worktrees);
         $out = [];
         foreach ($worktrees as $wt) {
             $out[$wt] = $this->mapSessions($byWt[$wt] ?? [], true);
@@ -180,7 +183,7 @@ final class OpenChamber extends AbstractAgentLauncher
 
     public function hasAnyOrcaAgent(string $worktree): bool
     {
-        return [] !== ($this->sessionsByWorktree()[$worktree] ?? []);
+        return [] !== ($this->sessionsByWorktree([$worktree])[$worktree] ?? []);
     }
 
     protected function waitForBackendHandle(string $handle, int $timeoutS): void

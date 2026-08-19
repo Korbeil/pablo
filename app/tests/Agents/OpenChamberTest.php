@@ -106,7 +106,6 @@ final class OpenChamberTest extends TestCase
 
     public function testActiveSessionsMapsBusyToRunning(): void
     {
-        $this->writeSession('ses_a', $this->tmp);
         Proc::setRunner(fn (array $argv): string => $this->ocOk([
             'sessions' => [
                 ['id' => 'ses_a', 'status' => ['type' => 'busy']],
@@ -119,7 +118,6 @@ final class OpenChamberTest extends TestCase
 
     public function testActiveSessionsExcludesIdle(): void
     {
-        $this->writeSession('ses_a', $this->tmp);
         Proc::setRunner(fn (array $argv): string => $this->ocOk([
             'sessions' => [
                 ['id' => 'ses_a', 'status' => ['type' => 'idle']],
@@ -132,7 +130,6 @@ final class OpenChamberTest extends TestCase
 
     public function testDisplaySessionsCountsIdleAsWaiting(): void
     {
-        $this->writeSession('ses_a', $this->tmp);
         Proc::setRunner(fn (array $argv): string => $this->ocOk([
             'sessions' => [
                 ['id' => 'ses_a', 'status' => ['type' => 'idle']],
@@ -151,8 +148,6 @@ final class OpenChamberTest extends TestCase
     {
         $wtA = $this->tmp.'/a';
         $wtB = $this->tmp.'/b';
-        $this->writeSession('ses_a', $wtA);
-        $this->writeSession('ses_b', $wtB);
         Proc::setRunner(function (array $argv): string {
             $dir = $argv[array_search('--dir', $argv, true) + 1];
 
