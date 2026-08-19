@@ -8,7 +8,12 @@ Type=oneshot
 # reader) instead — it then hangs reaching for the desktop until Pablo's
 # 30s probe timeout, which is why every agent silently fell back to
 # headless and never showed up in the Orca UI. Put the shim dir first.
-Environment=PATH=%h/.config/orca/linux-orca-cli-shim:%h/.opencode/bin:%h/.local/bin:%h/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+# openchamber (pnpm global bin) is also here so the poller's agent-status
+# query (`openchamber session list`) resolves under this unit — otherwise
+# every pass silently blanks agent status from the dashboard cache. The
+# pnpm shim is a shell wrapper that then needs `node`, which lives in the
+# nvm install dir; add it too so the shim's `command -v node` resolves.
+Environment=PATH=%h/.config/orca/linux-orca-cli-shim:%h/.opencode/bin:%h/.local/bin:%h/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:%h/.local/share/pnpm/bin:%h/.nvm/versions/node/v24.19.0/bin
 # acli (the Jira CLI) requires DBUS_SESSION_BUS_ADDRESS: without it the JVM
 # blocks waiting for a session bus and every acli call times out after 30s,
 # so the poller writes '?' tracker statuses. Use the same "disabled" value the
