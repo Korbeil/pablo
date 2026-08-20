@@ -26,6 +26,29 @@ final class Proc
     }
 
     /**
+     * Environment to launch an external CLI with.
+     *
+     * acli (Atlassian CLI) reads a secret from the Secret Service keyring on
+     * startup; when the login keyring is locked it blocks on an unanswered
+     * unlock prompt and every invocation times out. Pointing
+     * DBUS_SESSION_BUS_ADDRESS at a non-existent socket makes its go-keyring
+     * fall back to the file-based provider instead. Other CLIs need the
+     * inherited session bus, so only override it for acli.
+     *
+     * @param list<string> $argv
+     *
+     * @return array<string, string>
+     */
+    public static function envFor(array $argv): array
+    {
+        if ('acli' !== ($argv[0] ?? '')) {
+            return [];
+        }
+
+        return ['DBUS_SESSION_BUS_ADDRESS' => 'unix:path='.sys_get_temp_dir().'/pablo-nokeyring'];
+    }
+
+    /**
      * @param list<string> $argv
      */
     public static function run(array $argv, bool $check = true, ?float $timeout = null): string
@@ -33,7 +56,7 @@ final class Proc
         if (null !== self::$runner) {
             return (self::$runner)($argv, $check, $timeout);
         }
-        $process = new Process($argv);
+        $process = new Process($argv, env: self::envFor($argv));
         if (null !== $timeout) {
             $process->setTimeout($timeout);
         }
@@ -77,7 +100,7 @@ final class Proc
 
         $processes = [];
         foreach ($commandGroups as $i => $argv) {
-            $p = new Process($argv);
+            $p = new Process($argv, env: self::envFor($argv));
             if (null !== $timeout) {
                 $p->setTimeout($timeout);
             }

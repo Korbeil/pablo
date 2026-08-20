@@ -7,6 +7,7 @@ namespace Pablo\Doctor;
 use Pablo\Config\ProjectConfig;
 use Pablo\Provider\Confluence\Confluence;
 use Pablo\Provider\Tracker\Jira;
+use Pablo\Support\Proc;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\ExecutableFinder;
 use Symfony\Component\Process\Process;
@@ -157,7 +158,7 @@ final class Doctor
         if (null !== self::$probeSeam) {
             return (self::$probeSeam)($argv);
         }
-        $process = new Process($argv);
+        $process = new Process($argv, env: Proc::envFor($argv));
         $process->setTimeout(self::PROBE_TIMEOUT_S);
         try {
             $process->run();
