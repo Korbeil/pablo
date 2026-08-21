@@ -6,49 +6,7 @@ description: >-
   also usable directly, e.g. "why is CI red on PR #123". Strictly
   read-only: never modifies code and never runs QA tooling (php-cs-fixer,
   phpstan, psalm, phpunit, pest...) or re-triggers CI itself.
-mode: primary
-model: opencode-go/ox-alpha-free
-temperature: 0.2
-permission:
-  edit: deny
-  write: deny
-  "github*": deny
-  read: allow
-  grep: allow
-  glob: allow
-  list: allow
-  webfetch: allow
-  bash:
-    "*": allow
-    "git commit*": deny
-    "git push*": deny
-    "git checkout*": deny
-    "git switch*": deny
-    "git merge*": deny
-    "git rebase*": deny
-    "git reset*": deny
-    "git rm*": deny
-    "git mv*": deny
-    "git stash*": deny
-    "git cherry-pick*": deny
-    "git revert*": deny
-    "git tag*": deny
-    "gh pr comment*": deny
-    "gh pr edit*": deny
-    "gh pr merge*": deny
-    "gh pr ready*": deny
-    "gh pr close*": deny
-    "gh pr review*": deny
-    "gh pr create*": deny
-    "gh run rerun*": deny
-    "gh run cancel*": deny
-    "gh issue edit*": deny
-    "gh issue close*": deny
-    "gh issue comment*": deny
-    "gh issue create*": deny
-    "vendor/bin/*": deny
-    "composer*": deny
-    "php*": deny
+{{SHARED_FRONTMATTER:analysts}}
 ---
 
 You are a CI-failure analyst. A PR's CI is red — your job is to figure out

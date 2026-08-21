@@ -13,6 +13,14 @@ final class GenerateAgentsCommandTest extends TestCase
 {
     use UsesGlobalConfig;
 
+    private const TEMPLATE_NAMES = [
+        'task-analyst',
+        'task-feedback',
+        'ci-analyst',
+        'pr-feedback',
+        'rebase-conflict-resolver',
+    ];
+
     private string $tmp;
     private string $agentsDir;
     private string $projectsDir;
@@ -25,6 +33,7 @@ final class GenerateAgentsCommandTest extends TestCase
         mkdir($this->agentsDir, 0o777, true);
         mkdir($this->projectsDir, 0o777, true);
         $this->copyProviders();
+        $this->copyShared();
 
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
 
@@ -53,8 +62,7 @@ YAML);
 
     public function testGeneratesWithAllProvidersWhenNoProjectsDir(): void
     {
-        $this->copyTemplate('task-analyst');
-        $this->copyTemplate('task-feedback');
+        $this->copyAllTemplates();
 
         $command = new GenerateAgentsCommand();
         $tester = new CommandTester($command);
@@ -74,8 +82,7 @@ YAML);
     public function testGeneratesWithJiraOnly(): void
     {
         $this->writeProject('jira-project', 'jira');
-        $this->copyTemplate('task-analyst');
-        $this->copyTemplate('task-feedback');
+        $this->copyAllTemplates();
 
         $command = new GenerateAgentsCommand();
         $tester = new CommandTester($command);
@@ -96,8 +103,7 @@ YAML);
     {
         $this->writeProject('gh-project', 'github');
         $this->writeProject('lin-project', 'linear');
-        $this->copyTemplate('task-analyst');
-        $this->copyTemplate('task-feedback');
+        $this->copyAllTemplates();
 
         $command = new GenerateAgentsCommand();
         $tester = new CommandTester($command);
@@ -117,7 +123,7 @@ YAML);
     {
         $this->writeProject('p1', 'github');
         $this->writeProject('p2', 'jira');
-        $this->copyTemplate('task-analyst');
+        $this->copyAllTemplates();
 
         $command = new GenerateAgentsCommand();
         $tester = new CommandTester($command);
@@ -128,6 +134,49 @@ YAML);
         $this->assertStringContainsString('GitHub Issues, or Jira', $content);
         $this->assertStringNotContainsString('{{ISSUE_TRACKER_NAMES}}', $content);
         $this->assertStringNotContainsString('{{ISSUE_TRACKER_SECTION}}', $content);
+    }
+
+    public function testInjectsSharedFrontmatterProfiles(): void
+    {
+        $this->writeProject('p1', 'github');
+        $this->copyAllTemplates();
+
+        $command = new GenerateAgentsCommand();
+        $tester = new CommandTester($command);
+        $tester->execute(['--agents-dir' => $this->agentsDir]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+
+        foreach (self::TEMPLATE_NAMES as $name) {
+            $content = file_get_contents($this->agentsDir.'/'.$name.'.md');
+            \assert(false !== $content);
+            $this->assertStringNotContainsString('{{SHARED_FRONTMATTER:', $content, $name);
+        }
+
+        $analyst = file_get_contents($this->agentsDir.'/ci-analyst.md');
+        \assert(false !== $analyst);
+        $this->assertStringContainsString('webfetch: allow', $analyst);
+        $this->assertStringContainsString('"github*": deny', $analyst);
+        $this->assertStringNotContainsString('"gh run rerun*"', $analyst);
+
+        $resolver = file_get_contents($this->agentsDir.'/rebase-conflict-resolver.md');
+        \assert(false !== $resolver);
+        $this->assertStringContainsString('"github*": deny', $resolver);
+        $this->assertStringNotContainsString('"github*": allow', $resolver);
+        $this->assertStringContainsString('"git rebase*": allow', $resolver);
+    }
+
+    public function testFailsOnMissingSharedFrontmatterProfile(): void
+    {
+        $this->copyAllTemplates();
+        unlink($this->agentsDir.'/shared/analysts.frontmatter.md');
+
+        $command = new GenerateAgentsCommand();
+        $tester = new CommandTester($command);
+        $tester->execute(['--agents-dir' => $this->agentsDir]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('Shared frontmatter profile not found', $tester->getDisplay());
     }
 
     public function testReturnsFailureOnMissingTemplate(): void
@@ -145,8 +194,7 @@ YAML);
         $this->writeProject('a', 'github');
         $this->writeProject('b', 'jira');
         $this->writeProject('c', 'linear');
-        $this->copyTemplate('task-analyst');
-        $this->copyTemplate('task-feedback');
+        $this->copyAllTemplates();
 
         $command = new GenerateAgentsCommand();
         $tester = new CommandTester($command);
@@ -225,6 +273,25 @@ YAML);
     {
         $repoTemplate = \dirname(__DIR__, 4).'/opencode/agents/'.$name.'.md.template';
         copy($repoTemplate, $this->agentsDir.'/'.$name.'.md.template');
+    }
+
+    private function copyShared(): void
+    {
+        $repoShared = \dirname(__DIR__, 4).'/opencode/agents/shared';
+        $dest = $this->agentsDir.'/shared';
+        if (!is_dir($dest)) {
+            mkdir($dest, 0o777, true);
+        }
+        foreach (glob($repoShared.'/*.md') ?: [] as $file) {
+            copy($file, $dest.'/'.basename($file));
+        }
+    }
+
+    private function copyAllTemplates(): void
+    {
+        foreach (self::TEMPLATE_NAMES as $name) {
+            $this->copyTemplate($name);
+        }
     }
 
     private function copyProviders(): void

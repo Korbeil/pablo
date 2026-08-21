@@ -12,7 +12,13 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 final class GenerateAgentsCommand extends Command
 {
-    private const TEMPLATE_NAMES = ['task-analyst', 'task-feedback'];
+    private const TEMPLATE_NAMES = [
+        'task-analyst',
+        'task-feedback',
+        'ci-analyst',
+        'pr-feedback',
+        'rebase-conflict-resolver',
+    ];
 
     protected function configure(): void
     {
@@ -58,6 +64,26 @@ final class GenerateAgentsCommand extends Command
                 [$section, $names],
                 $template,
             );
+
+            $sharedTokens = preg_match_all('/\{\{SHARED_FRONTMATTER:([a-z-]+)\}\}/', $content, $tokenMatches)
+                ? array_unique($tokenMatches[1])
+                : [];
+
+            foreach ($sharedTokens as $profile) {
+                $profilePath = $agentsDir.'/shared/'.$profile.'.frontmatter.md';
+                $frontmatter = @file_get_contents($profilePath);
+                if (false === $frontmatter || '' === trim($frontmatter)) {
+                    $output->writeln("<error>Shared frontmatter profile not found: {$profilePath}</error>");
+
+                    return self::FAILURE;
+                }
+
+                $content = str_replace(
+                    '{{SHARED_FRONTMATTER:'.$profile.'}}'."\n",
+                    rtrim($frontmatter, "\n")."\n",
+                    $content,
+                );
+            }
 
             $written = @file_put_contents($outputPath, $content);
             if (false === $written) {

@@ -21,6 +21,9 @@ app/config/reference.php
 # Generated from .md.template by system:generate-agents (install.sh runs it).
 /opencode/agents/task-analyst.md
 /opencode/agents/task-feedback.md
+/opencode/agents/ci-analyst.md
+/opencode/agents/pr-feedback.md
+/opencode/agents/rebase-conflict-resolver.md
 
 # A `gh` invocation that inherits no HOME writes its state next to the cwd.
 app/.local/
