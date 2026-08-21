@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace Pablo\Tests;
 
+use Pablo\Agents\AgentTemplates;
 use Pablo\Command\System\DoctorCommand;
 use Pablo\Config\ProjectConfig;
+use Pablo\Doctor\AgentFileState;
+use Pablo\Doctor\AgentFileStatus;
+use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\CheckResult;
 use Pablo\Doctor\Doctor;
 use PHPUnit\Framework\TestCase;
@@ -229,13 +233,29 @@ YAML;
     {
         Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
         Doctor::setProbeSeam(static fn (array $argv): array => [0, 'ok']);
-        $tester = new CommandTester(new DoctorCommand());
-        $tester->execute([]);
-        $this->assertSame(SymfonyCommand::SUCCESS, $tester->getStatusCode());
+        AgentStaleness::setCheck($this->allAgentsOk(...));
+        try {
+            $tester = new CommandTester(new DoctorCommand());
+            $tester->execute([]);
+            $this->assertSame(SymfonyCommand::SUCCESS, $tester->getStatusCode());
 
-        Doctor::setProbeSeam(static fn (array $argv): array => [1, 'login please']);
-        $tester = new CommandTester(new DoctorCommand());
-        $tester->execute([]);
-        $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
+            Doctor::setProbeSeam(static fn (array $argv): array => [1, 'login please']);
+            $tester = new CommandTester(new DoctorCommand());
+            $tester->execute([]);
+            $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
+        } finally {
+            AgentStaleness::setCheck(null);
+        }
+    }
+
+    /** @return list<AgentFileStatus> */
+    private function allAgentsOk(): array
+    {
+        $results = [];
+        foreach (AgentTemplates::AGENT_NAMES as $name) {
+            $results[] = new AgentFileStatus($name, AgentFileState::Ok, 'ok');
+        }
+
+        return $results;
     }
 }

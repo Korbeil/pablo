@@ -102,3 +102,7 @@ continues, degrading only the projects that use that provider (they fail
 per-project at runtime), never aborting the whole run; only `gh` and
 `opencode` are hard (a failure there aborts). Interactively,
 `pablo system:doctor` still reports every failing check as ❌.
+It also compares each generated opencode agent under
+`~/.config/opencode/agents/` against a fresh in-memory render: ✅ fresh,
+⚠️ stale (soft — re-run `pablo system:generate-agents`) and ❌ for missing
+files, broken symlinks or files PABLO does not manage.
