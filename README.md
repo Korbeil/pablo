@@ -37,7 +37,10 @@ pablo system:setup         # or walk through fixing CLIs one step at a time
 Add a project with the interactive wizard (`pablo project:new`) or by dropping a
 YAML file in `~/.pablo/projects/` (copy the template
 `docs/examples/acme-pim.yaml`, or see the full schema in
-[docs/configuration.md](docs/configuration.md)).
+[docs/configuration.md](docs/configuration.md)). Remove one with
+`pablo project:remove <name>` — it refuses while the project still has active
+tasks (close them first with `pablo task:close`) and re-generates the agent
+templates so removed trackers stop being taught.
 
 Then, day to day:
 

@@ -88,6 +88,7 @@ YAML;
         $names = array_keys($app->all());
         foreach ([
             'task:start', 'sync:run', 'sync:log', 'task:list', 'project:list',
+            'project:new', 'project:remove',
             'system:doctor', 'system:dispatch', 'system:poll', 'task:state', 'task:relaunch', 'task:waiting',
             'task:skip-ci', 'task:retrigger-ci', 'task:close', 'task:precommit-check', 'task:info',
         ] as $name) {

@@ -4,7 +4,12 @@
 
 One YAML per project in `~/.pablo/projects/` (any filename). Use
 `pablo project:new` to scaffold one interactively, or write it by hand (copy
-`docs/examples/acme-pim.yaml`). PABLO-wide defaults live separately in
+`docs/examples/acme-pim.yaml`). Remove one with `pablo project:remove <name>`
+(resolved via the YAML `name` key): it refuses while the project still has
+active tasks — close them first with `pablo task:close` — deletes only the
+YAML (worktrees and `~/.pablo` state stay), and always re-runs agent
+generation since the enabled provider set may have shrunk. PABLO-wide
+defaults live separately in
 `~/.pablo/config.yaml` (see "Default-eligible keys" below):
 
 ```yaml

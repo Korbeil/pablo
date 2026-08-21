@@ -97,12 +97,10 @@ final class ProjectNewCommand extends Command
             @mkdir($destDir, 0o777, true);
         }
 
-        // Check if this provider is new (not seen in existing projects)
-        $existingProviders = [];
-        foreach (Config::loadProjects($destDir) as $existing) {
-            $existingProviders[] = $existing->provider;
-        }
-        $isNewProvider = !\in_array($provider, $existingProviders, true);
+        // Track the enabled-provider SET across projects: agents must be
+        // regenerated whenever it differs after the write, not only when this
+        // project's provider is brand new.
+        $providersBefore = $this->providerSet($destDir);
 
         $destPath = $destDir.'/'.$name.'.yaml';
         file_put_contents($destPath, $yaml);
@@ -117,7 +115,7 @@ final class ProjectNewCommand extends Command
 
         $output->writeln("Config written: {$destPath}");
 
-        if ($isNewProvider) {
+        if ($this->providerSet($destDir) !== $providersBefore) {
             $output->writeln('');
             $output->writeln("This project uses '<comment>{$provider}</comment>' \u{2014} a new issue tracker not seen in your other projects.");
             $output->writeln('Agent templates will be re-generated to include it.');
@@ -129,6 +127,20 @@ final class ProjectNewCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /** @return list<string> unique providers across the projects dir, order-insensitive */
+    private function providerSet(string $dir): array
+    {
+        $providers = [];
+        foreach (Config::loadProjects($dir) as $cfg) {
+            $providers[] = $cfg->provider;
+        }
+
+        $unique = array_unique($providers);
+        sort($unique);
+
+        return $unique;
     }
 
     private function askRepoPath(QuestionHelper $helper, InputInterface $input, OutputInterface $output, ?string $detectedRepo): string
