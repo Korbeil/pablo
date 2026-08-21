@@ -23,6 +23,9 @@ permission:
     "gh pr create*": allow
     "cat .github/pull_request_template.md*": allow
     "cat .github/PULL_REQUEST_TEMPLATE.md*": allow
+    "git config*": deny
+    "git -c user.name*": deny
+    "git -c user.email*": deny
     "*": ask
 ---
 
@@ -66,6 +69,17 @@ Existing PR for this branch:
 
 ## Hard rules
 
+- **Never touch the Git identity.** Never run `git config` for the
+  `user.name`/`user.email` keys (any scope: local, global, system), never
+  pass `-c user.name=…`/`-c user.email=…`, never export
+  `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL`/`GIT_COMMITTER_NAME`/
+  `GIT_COMMITTER_EMAIL`. Commits are always created with whatever identity
+  git resolves from the user's own configuration. If a commit or rebase
+  fails with "Please tell me who you are" or "unable to auto-detect email
+  address": STOP and report the exact error verbatim — tell the user to
+  configure their own identity (e.g. `git config --global user.name`
+  / `user.email`) and rerun the command afterwards. Do NOT invent a name,
+  an email, or any placeholder identity to unblock yourself.
 - **Resolve the worktree, then guard.** The PABLO task check resolves the
   task from the current working directory. It succeeds only when run inside
   the task worktree (e.g. `~/.pablo/worktrees/<project>/<branch>`). If the
