@@ -59,6 +59,11 @@ There is one OpenCode command:
 - **`/pablo-commit-and-pr`** — commit, push, draft PR, state → `draft`.
   This is the only PABLO operation that still runs as an OpenCode command
   (it needs direct git/gh access that a thin `pablo` CLI wrapper can't provide).
+  It never touches the Git identity: no `git config user.name`/`user.email`
+  write (any scope), no `-c user.*=` override, no `GIT_AUTHOR_*`/`GIT_COMMITTER_*`
+  env vars — commits always use whatever identity git resolves from the
+  user's own configuration, and the command stops with the verbatim error
+  if none is configured.
 
 **Naming note:** the spec calls the last one `/commit-and-pr`, but the
 user's original `commit-and-pr` command must keep existing untouched for
