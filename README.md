@@ -10,8 +10,11 @@ setup as a set of **OpenCode agents, commands, and skills**, backed by a
 small PHP engine (Symfony Console) and an unattended background layer.
 
 PABLO's philosophy: **agents are read-only and analysis-first**. PABLO
-never writes or modifies code, never resolves conflicts, and never mutates
-issue trackers (Jira / GitHub Issues / Linear stay strictly read-only). It
+never writes or modifies code, never resolves conflicts deterministically
+— an applied sync that hits rebase conflicts aborts cleanly and hands off
+to the auto-launched `rebase-conflict-resolver` agent, the single
+deliberate exception to the read-only rule — and never mutates issue
+trackers (Jira / GitHub Issues / Linear stay strictly read-only). It
 *does* perform git and PR-metadata operations — creating branches and
 worktrees, rebasing, force-pushing (with lease only), creating draft PRs,
 toggling PRs draft/ready, deleting worktrees — but only per the explicit

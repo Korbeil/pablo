@@ -53,11 +53,14 @@ foreign, or stale worktrees are left alone.:
 
 Default is a **dry-run report**; changes are applied only with
 `sync.auto_apply: true` or an explicit `--apply` (the cron run does not
-imply apply). Dirty worktrees are skipped (✋). **Conflicts are never
-auto-resolved**: the sync aborts cleanly and reports the worktree/branch,
-the conflicting files, and a hunk summary. (Trivial-case auto-resolution,
-e.g. lockfiles, would be an explicit per-project opt-in later — not a
-default.)
+imply apply). Dirty worktrees are skipped (✋). **The engine never
+resolves conflicts deterministically**: an applied sync that hits
+conflicts aborts cleanly, reports the worktree/branch, the conflicting
+files, and a hunk summary, then hands off by auto-launching the headless
+`rebase-conflict-resolver` agent (`src/Provider/Git/Sync.php`), which
+re-runs the rebase, resolves every conflict, and pushes with
+`--force-with-lease` — the single deliberate exception to PABLO's
+read-only rule.
 
 Sync and the state poller never interleave on a task: both take the
 per-task lock (see [state-machine.md](state-machine.md#task-state-storage)); a

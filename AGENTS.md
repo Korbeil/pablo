@@ -13,8 +13,11 @@ standalone product.
 the relevant doc before non-trivial changes.
 
 **Philosophy:** PABLO agents are read-only and analysis-first. PABLO never
-writes/modifies application code, never resolves merge conflicts, never
-mutates issue trackers (Jira/GitHub Issues/Linear stay read-only). It does
+writes/modifies application code, never resolves merge conflicts
+deterministically — sync aborts cleanly and hands off to the auto-launched
+`rebase-conflict-resolver` agent, the single deliberate exception to the
+read-only rule — and never mutates issue trackers (Jira/GitHub Issues/
+Linear stay read-only). It does
 perform git/PR-metadata ops (branches, worktrees, rebase,
 force-with-lease push, draft PR toggling, worktree deletion), but only per
 README's explicit rules.
