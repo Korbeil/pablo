@@ -34,6 +34,7 @@ final class DoctorCommand extends Command
         $agentLines = AgentStaleness::render($agentResults);
         if ('' !== $agentLines) {
             $output->writeln('');
+            $output->writeln('agents:');
             $output->writeln($agentLines);
         }
 

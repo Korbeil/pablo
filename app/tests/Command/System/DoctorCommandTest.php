@@ -79,6 +79,7 @@ YAML;
 
         $this->assertSame(0, $tester->getStatusCode());
         $display = $tester->getDisplay();
+        $this->assertStringContainsString('agents:', $display);
         foreach (AgentTemplates::AGENT_NAMES as $name) {
             $this->assertStringContainsString("✅ {$name}", $display, $name);
         }
