@@ -42,7 +42,14 @@
 
     <td class="pablo-nowrap">
         {% if task.trackerStatus %}
-            <span class="tag pablo-chip">{{ task.trackerStatus }}</span>
+            {% if task.issue %}
+                <a class="tag pablo-chip pablo-state" href="{{ task.issue.url }}" target="_blank" rel="noopener">
+                    {{ task.trackerStatus }}
+                    {{ ux_icon('lucide:external-link', {class: 'pablo-icon pablo-icon-dim'}) }}
+                </a>
+            {% else %}
+                <span class="tag pablo-chip">{{ task.trackerStatus }}</span>
+            {% endif %}
         {% else %}
             <span class="has-text-grey-light">—</span>
         {% endif %}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Controller;
 
 use Pablo\Domain\DisplayCache;
+use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Store\Store;
@@ -209,6 +210,34 @@ final class DashboardControllerTest extends WebTestCase
 
         $link = $crawler->filter('a[href="https://github.com/acme/wallet-kit/pull/42"]');
         $this->assertSame(1, $link->count());
+    }
+
+    /** The tracker status chip must link to the issue; without an issue it stays an unlinked badge. */
+    public function testTrackerStatusLinksToIssueUrl(): void
+    {
+        $task = new Task('wallet-kit', 'wk-4', $this->tmp.'/wt/wk-4', State::Draft);
+        $task->issue = new Issue('github', 'WK-7', 'https://github.com/acme/wallet-kit/issues/7', 'Fix the thing');
+        $task->stateEnteredAt = '2026-08-01T10:00:00+00:00';
+        $task->displayCache = new DisplayCache('In Review', null, 0, '-', '2026-08-06T10:00:00+00:00');
+        (new Store($this->tmp.'/state'))->save($task);
+
+        $crawler = $this->browser()->request('GET', '/');
+
+        $link = $crawler->filter('td a.tag.pablo-chip[href="https://github.com/acme/wallet-kit/issues/7"]');
+        $this->assertSame(1, $link->count());
+        $this->assertStringContainsString('In Review', $link->text());
+    }
+
+    /** A cached status with no stored issue must not render a broken link. */
+    public function testTrackerStatusWithoutIssueStaysAnUnlinkedChip(): void
+    {
+        $this->seed('wk-5', State::Draft, new DisplayCache('In Review', null, 0, '-', '2026-08-06T10:00:00+00:00'));
+
+        $crawler = $this->browser()->request('GET', '/');
+
+        $link = $crawler->filter('td a.tag.pablo-chip');
+        $this->assertSame(0, $link->count());
+        $this->assertSame(1, $crawler->filter('td span.tag.pablo-chip')->count());
     }
 
     /** The Slack modal must not fetch anything until the user asks. */
