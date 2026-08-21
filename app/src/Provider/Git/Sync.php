@@ -8,9 +8,11 @@ use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Provider\Gh\GhPr;
 use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
 use Pablo\Support\Proc;
+use Pablo\Support\RepoSlug;
 
 /**
  * Per-project worktree sync.
@@ -51,11 +53,40 @@ final class Sync
         return $out;
     }
 
+    /**
+     * The branch a task's PR is stacked on, if it differs from the primary.
+     * Only github-backed projects can report a PR base; everything else (and
+     * any branch without a distinct open PR base) syncs against the primary.
+     *
+     * @param list<string> $branches
+     *
+     * @return array<string, string> branch => resolved base
+     */
+    private static function resolveStackedBases(ProjectConfig $cfg, array $branches): array
+    {
+        $baseByBranch = [];
+        if ('github' !== $cfg->provider || [] === $branches) {
+            return $baseByBranch;
+        }
+        $prs = GhPr::prsForBranches(RepoSlug::for($cfg), $branches);
+        foreach ($branches as $branch) {
+            $pr = $prs[$branch] ?? null;
+            $base = null !== $pr && null !== $pr->baseRefName ? $pr->baseRefName : null;
+            if (null !== $base && '' !== $base && $base !== $cfg->primaryBranch) {
+                $baseByBranch[$branch] = $base;
+            }
+        }
+
+        return $baseByBranch;
+    }
+
     /** @return array<int, SyncReport> */
     public static function syncProject(ProjectConfig $cfg, Store $store, ?bool $apply, ?AgentLauncherInterface $agents = null): array
     {
         $effectiveApply = $apply ?? $cfg->syncAutoApply;
         $reports = [];
+        $branches = [];
+        $byBranch = [];
         foreach (self::discover($cfg) as [$path, $branch]) {
             if ('' === $branch || null === $store->get($cfg->name, $branch)) {
                 // Not (or no longer) a PABLO task worktree: leave it alone. Only
@@ -63,6 +94,12 @@ final class Sync
                 // worktree is never rebased and never shows up in the log.
                 continue;
             }
+            $branches[] = $branch;
+            $byBranch[$branch] = $path;
+        }
+        $stacked = self::resolveStackedBases($cfg, $branches);
+        foreach ($branches as $branch) {
+            $path = $byBranch[$branch];
             try {
                 $lock = Store::taskLock($store, $cfg->name, $branch, self::SYNC_LOCK_TIMEOUT_S);
                 try {
@@ -72,6 +109,7 @@ final class Sync
                         $cfg->primaryBranch,
                         $cfg->syncStrategy,
                         $effectiveApply,
+                        base: $stacked[$branch] ?? null,
                     );
                 } finally {
                     $lock->release();
@@ -87,7 +125,7 @@ final class Sync
         }
         foreach ($reports as $report) {
             if ('conflict' === $report->action && $effectiveApply && null !== $agents) {
-                $prompt = self::buildConflictAgentPrompt($report, $cfg);
+                $prompt = self::buildConflictAgentPrompt($report, $cfg, $stacked[$report->branch] ?? null);
                 $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt);
                 sleep(1);
                 $sessionId = self::findRecentSession($report->worktree, 'rebase-conflict-resolver');
@@ -136,9 +174,13 @@ final class Sync
         file_put_contents($path, json_encode($payload, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
     }
 
-    public static function buildConflictAgentPrompt(SyncReport $report, ProjectConfig $cfg): string
+    public static function buildConflictAgentPrompt(SyncReport $report, ProjectConfig $cfg, ?string $stackedBase = null): string
     {
         $target = 'origin/'.$cfg->primaryBranch;
+        $stacked = null !== $stackedBase && '' !== $stackedBase && $stackedBase !== $cfg->primaryBranch;
+        if ($stacked) {
+            $target = 'origin/'.$stackedBase;
+        }
         $lines = [
             "PABLO sync hit rebase conflicts on branch `{$report->branch}`.",
             "Rebase onto `{$target}` using strategy `{$cfg->syncStrategy}` was aborted.",
@@ -153,6 +195,14 @@ final class Sync
             '',
             'Conflicting files from the original attempt:',
         ];
+        if ($stacked) {
+            array_splice($lines, 3, 0, [
+                '',
+                "This branch's PR is stacked on `{$target}` (not `origin/{$cfg->primaryBranch}`),",
+                "so keep the stacking intact by rebasing onto `{$target}` — do NOT rebase",
+                'onto the primary branch unless the stack base really has changed.',
+            ]);
+        }
         foreach ($report->conflictFiles as $f) {
             $lines[] = "  - {$f}";
         }

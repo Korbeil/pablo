@@ -354,6 +354,7 @@ final class GitRepo
         string $strategy,
         bool $apply,
         ?callable $push = null,
+        ?string $base = null,
     ): SyncReport {
         $push ??= [self::class, 'pushWithLease'];
         self::git($wt, ['fetch', '--prune', 'origin']);
@@ -363,6 +364,12 @@ final class GitRepo
         $remoteNew = $hasRemote ? self::counts($wt, $remoteBranch)[0] : 0;
 
         $target = self::refExists($wt, "origin/{$primary}") ? "origin/{$primary}" : $primary;
+        if (null !== $base && '' !== $base && self::refExists($wt, "origin/{$base}")) {
+            // A stacked branch tracks its PR's actual base (e.g. another open
+            // branch) rather than the primary, so integrate against that to
+            // keep the stacking intact.
+            $target = "origin/{$base}";
+        }
         [$behind, $ahead] = self::counts($wt, $target);
 
         if (0 === $behind && 0 === $remoteNew) {

@@ -71,7 +71,7 @@ GQL;
         }
         $out = Proc::run([
             'gh', 'pr', 'list', '--repo', $repoSlug, '--head', $branch,
-            '--state', 'all', '--json', 'number,title,state,isDraft,mergedAt,url',
+            '--state', 'all', '--json', 'number,title,state,isDraft,mergedAt,url,baseRefName',
             '--limit', '1',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         /** @var array<int, array<string, mixed>> $items */
@@ -88,6 +88,7 @@ GQL;
             isDraft: (bool) $item['isDraft'],
             url: (string) $item['url'],
             mergedAt: null !== $item['mergedAt'] ? (string) $item['mergedAt'] : null,
+            baseRefName: null !== ($item['baseRefName'] ?? null) ? (string) $item['baseRefName'] : null,
         );
     }
 
@@ -108,7 +109,7 @@ GQL;
         $out = Proc::run([
             'gh', 'pr', 'list', '--repo', $repoSlug,
             '--state', 'all', '--json',
-            'number,title,state,isDraft,mergedAt,url,headRefName',
+            'number,title,state,isDraft,mergedAt,url,headRefName,baseRefName',
             '--limit', (string) $limit,
         ], timeout: self::GH_CALL_TIMEOUT_S);
         $wanted = array_fill_keys($branches, true);
@@ -127,6 +128,7 @@ GQL;
                 isDraft: (bool) $item['isDraft'],
                 url: (string) $item['url'],
                 mergedAt: null !== $item['mergedAt'] ? (string) $item['mergedAt'] : null,
+                baseRefName: null !== ($item['baseRefName'] ?? null) ? (string) $item['baseRefName'] : null,
             );
         }
 
@@ -163,7 +165,7 @@ GQL;
             $commands[] = [
                 'gh', 'pr', 'list', '--repo', $slug,
                 '--state', 'all', '--json',
-                'number,title,state,isDraft,mergedAt,url,headRefName',
+                'number,title,state,isDraft,mergedAt,url,headRefName,baseRefName',
                 '--limit', (string) $limit,
             ];
         }
@@ -193,6 +195,7 @@ GQL;
                     isDraft: (bool) $item['isDraft'],
                     url: (string) $item['url'],
                     mergedAt: null !== $item['mergedAt'] ? (string) $item['mergedAt'] : null,
+                    baseRefName: null !== ($item['baseRefName'] ?? null) ? (string) $item['baseRefName'] : null,
                 );
             }
         }

@@ -13,6 +13,7 @@ final class PrInfo
         public bool $isDraft,
         public string $url,
         public ?string $mergedAt,
+        public ?string $baseRefName = null,
     ) {
     }
 }

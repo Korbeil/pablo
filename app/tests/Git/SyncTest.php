@@ -7,8 +7,11 @@ namespace Pablo\Tests\Git;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
+use Pablo\Provider\Gh\GhPr;
+use Pablo\Provider\Gh\PrInfo;
 use Pablo\Provider\Git\Sync;
 use Pablo\Store\Store;
+use Pablo\Support\RepoSlug;
 use PHPUnit\Framework\TestCase;
 
 final class SyncTest extends TestCase
@@ -35,6 +38,16 @@ final class SyncTest extends TestCase
 
         RepoHelper::commitFile($this->other, 'new.txt', "x\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
+
+        // Stop syncProject from reaching a real gh CLI for PR-base resolution.
+        RepoSlug::setFor(static fn (ProjectConfig $cfg): string => 'octocat/proj');
+        GhPr::setPrsForBranches(static fn (string $slug, array $branches): array => []);
+    }
+
+    protected function tearDown(): void
+    {
+        RepoSlug::setFor(null);
+        GhPr::setPrsForBranches(null);
     }
 
     private function makeConfig(bool $autoApply): ProjectConfig
@@ -135,5 +148,73 @@ final class SyncTest extends TestCase
         $text = Sync::renderReports($reports);
         $this->assertStringContainsString('conflict', $text);
         $this->assertStringContainsString('README.md', $text);
+    }
+
+    public function testSyncStackedBranchRebasesOntoPrBase(): void
+    {
+        RepoHelper::commitFile($this->wt, 'feature.txt', "f\n", 'feature work');
+        RepoHelper::git($this->wt, ['push', '-q', '-u', 'origin', 'pr-1']);
+
+        // Parent PR branch sits on origin; pr-1 is stacked on it.
+        RepoHelper::git($this->other, ['checkout', '-q', '-b', 'pr-parent']);
+        RepoHelper::commitFile($this->other, 'parent.txt', "p\n", 'parent work');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'pr-parent']);
+        RepoHelper::git($this->other, ['checkout', '-q', 'main']);
+
+        // Advance main independently; a main-based sync would pull this in.
+        RepoHelper::commitFile($this->other, 'main-only.txt', "m\n", 'advance main');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
+
+        GhPr::setPrsForBranches(static fn (string $slug, array $branches): array => [
+            'pr-1' => new PrInfo(1, 'Child', 'OPEN', false, 'u1', null, 'pr-parent'),
+        ]);
+
+        $reports = Sync::syncProject($this->cfg, $this->store, true);
+        $report = $this->byBranch($reports)['pr-1'];
+        $this->assertSame('synced', $report->action);
+        $this->assertFileExists($this->wt.'/feature.txt');
+        $this->assertFileExists($this->wt.'/parent.txt');
+        $this->assertFileDoesNotExist($this->wt.'/main-only.txt');
+    }
+
+    public function testSyncNormalBranchStillRebasesOntoPrimary(): void
+    {
+        RepoHelper::commitFile($this->wt, 'feature.txt', "f\n", 'feature work');
+        RepoHelper::git($this->wt, ['push', '-q', '-u', 'origin', 'pr-1']);
+
+        RepoHelper::commitFile($this->other, 'main-only.txt', "m\n", 'advance main');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
+
+        $reports = Sync::syncProject($this->cfg, $this->store, true);
+        $report = $this->byBranch($reports)['pr-1'];
+        $this->assertSame('synced', $report->action);
+        $this->assertFileExists($this->wt.'/main-only.txt');
+    }
+
+    public function testConflictPromptUsesStackedBase(): void
+    {
+        $report = new \Pablo\Provider\Git\SyncReport(
+            worktree: $this->wt,
+            branch: 'pr-1',
+            action: 'conflict',
+            conflictFiles: ['README.md'],
+        );
+        $prompt = Sync::buildConflictAgentPrompt($report, $this->cfg, 'pr-parent');
+        $this->assertStringContainsString('git rebase origin/pr-parent', $prompt);
+        $this->assertStringNotContainsString('git rebase origin/main', $prompt);
+        $this->assertStringContainsString('stacked', $prompt);
+    }
+
+    public function testConflictPromptDefaultsToPrimary(): void
+    {
+        $report = new \Pablo\Provider\Git\SyncReport(
+            worktree: $this->wt,
+            branch: 'pr-1',
+            action: 'conflict',
+            conflictFiles: ['README.md'],
+        );
+        $prompt = Sync::buildConflictAgentPrompt($report, $this->cfg);
+        $this->assertStringContainsString('git rebase origin/main', $prompt);
+        $this->assertStringNotContainsString('git rebase origin/pr-parent', $prompt);
     }
 }

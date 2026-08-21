@@ -147,6 +147,28 @@ final class GitRepoTest extends TestCase
         $this->assertFileExists($wt.'/new.txt');
     }
 
+    public function testSyncBaseOverrideRebasesOntoStackedParent(): void
+    {
+        $wt = $this->makeWorktree();
+        RepoHelper::commitFile($wt, 'feature.txt', "f\n", 'feature work');
+
+        // A sibling stack: the parent PR branch is open on origin.
+        RepoHelper::git($this->other, ['checkout', '-q', '-b', 'wk-parent']);
+        RepoHelper::commitFile($this->other, 'parent.txt', "p\n", 'parent work');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'wk-parent']);
+        RepoHelper::git($this->other, ['checkout', '-q', 'main']);
+
+        // Advance main independently; a main-based sync would pull this in.
+        RepoHelper::commitFile($this->other, 'main-only.txt', "m\n", 'advance main');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
+
+        $report = GitRepo::syncWorktree($wt, 'wk-1', 'main', 'rebase', true, base: 'wk-parent');
+        $this->assertSame('synced', $report->action);
+        $this->assertFileExists($wt.'/feature.txt');
+        $this->assertFileExists($wt.'/parent.txt');
+        $this->assertFileDoesNotExist($wt.'/main-only.txt');
+    }
+
     public function testSyncConflictAbortsAndReportsFiles(): void
     {
         $wt = $this->makeWorktree();
