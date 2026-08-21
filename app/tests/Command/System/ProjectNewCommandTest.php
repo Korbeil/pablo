@@ -9,6 +9,7 @@ use Pablo\Config\Config;
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Tester\CommandTester;
 
 final class ProjectNewCommandTest extends TestCase
@@ -258,5 +259,82 @@ YAML);
 
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertFileDoesNotExist($this->projectsDir.'/abort.yaml');
+    }
+
+    public function testRegeneratesWhenProviderSetChanges(): void
+    {
+        $this->writeSeedProject('acme', 'jira');
+        [$command, $fake] = $this->wiredCommand();
+
+        $tester = new CommandTester($command);
+        $tester->setInputs([
+            '/home/me/dev/lin-app',
+            'lin-app',
+            '0', // work
+            '2', // provider: linear — set grows from {jira} to {jira, linear}
+            '', // confluence space (empty = skip)
+            'LIN', // project key
+            'u@l.app', // identity
+            'n', // failure signal? no
+            'y', // confirm write
+        ]);
+        $tester->execute([]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertArrayHasKey('lin-app', Config::loadProjects($this->projectsDir));
+        $this->assertSame(1, $fake->runs, 'a changed provider set must re-generate agents');
+        $this->assertStringContainsString('Agent templates will be re-generated', $tester->getDisplay());
+    }
+
+    public function testDoesNotRegenerateWhenProviderSetUnchanged(): void
+    {
+        $this->writeSeedProject('other-gh', 'github');
+        [$command, $fake] = $this->wiredCommand();
+
+        $tester = new CommandTester($command);
+        $tester->setInputs([
+            '/home/me/dev/second-gh',
+            'second-gh',
+            '0', // work
+            '0', // provider: github — already enabled elsewhere
+            '', // issue repo
+            '', // project key (default: SECOND-GH)
+            'u@e.com', // identity
+            'n', // failure signal? no
+            'y', // confirm write
+        ]);
+        $tester->execute([]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertArrayHasKey('second-gh', Config::loadProjects($this->projectsDir));
+        $this->assertSame(0, $fake->runs, 'an unchanged provider set must not re-generate agents');
+        $this->assertStringNotContainsString('re-generated', $tester->getDisplay());
+    }
+
+    /** @return array{0: ProjectNewCommand, 1: FakeGenerateAgentsCommand} */
+    private function wiredCommand(): array
+    {
+        $command = new ProjectNewCommand();
+        $fake = new FakeGenerateAgentsCommand();
+        $application = new Application();
+        $application->addCommand($command);
+        $application->addCommand($fake);
+
+        return [$command, $fake];
+    }
+
+    private function writeSeedProject(string $name, string $provider): void
+    {
+        file_put_contents($this->projectsDir.'/'.$name.'.yaml', <<<YAML
+name: {$name}
+type: work
+repo:
+  path: /tmp/{$name}
+  primary_branch: main
+issue_tracker:
+  provider: {$provider}
+  identity: u@e.com
+  project_key: XX
+YAML);
     }
 }
