@@ -34,8 +34,8 @@ git remote.
 ## Step 1 — Fetch ALL open feedback
 
 Unresolved status of review threads is ONLY available through the GraphQL
-API (the REST API does not expose `isResolved`). Fetch everything in one
-query:
+API (the REST API does not expose `isResolved`). Fetch all reviews and
+review threads in one query:
 
 ```bash
 gh api graphql -f query='
@@ -76,7 +76,15 @@ query($owner: String!, $repo: String!, $pr: Int!) {
 }' -F owner=OWNER -F repo=REPO -F pr=NUMBER
 ```
 
-Rules for processing the result:
+Then run a SECOND retrieval pass for the PR's top-level conversation
+comments — issue-style timeline comments attached to neither a review nor
+a review thread, which the query above does not return:
+
+```bash
+gh pr view NUMBER --repo OWNER/REPO --comments
+```
+
+Rules for processing the two results:
 
 1. **Review threads**: keep only threads where `isResolved == false`.
    - Read the FULL thread, not just the first comment: later replies often
@@ -88,11 +96,21 @@ Rules for processing the result:
    review `body` as a source of actionable items, especially reviews with state
    `CHANGES_REQUESTED` or `COMMENTED`. Extract each distinct request as its own
    item, even if it is not attached to a line of code.
-3. If there might be more than 100 threads or 50 reviews, paginate with
-   `pageInfo { hasNextPage endCursor }` and `after:` — never silently truncate.
-4. Ignore pure approvals with no content, bot noise without actionable content
+3. **Conversation comments**: fold the second pass in AFTER reviews and
+   threads are processed exactly as above. Skip a conversation comment only
+   when it is clearly already represented — identical text (or a trivial
+   rewording) of a thread comment or a review body. Be conservative: when
+   unsure whether a comment is already covered, INCLUDE it — a rare
+   duplicate is cheaper than a lost request. Each kept comment becomes its
+   own item with its author login and permalink, like every other item.
+4. If there might be more than 100 threads or 50 reviews, paginate the
+   GraphQL query with `pageInfo { hasNextPage endCursor }` and `after:` —
+   never silently truncate. (`gh pr view --comments` already returns the
+   full comment list; nothing to paginate in the second pass.)
+5. Ignore pure approvals with no content, bot noise without actionable content
    (but DO keep actionable bot comments, e.g. CI/static analysis findings a
-   human echoed), and resolved threads.
+   human echoed), and resolved threads. This filtering applies equally to
+   conversation comments.
 
 ## Step 2 — Understand the code
 
@@ -108,7 +126,8 @@ Write the plan in the same language as the review comments. Structure:
 
 ### 1. Summary
 - PR title, number, link.
-- Total open items: N unresolved threads + M items extracted from review bodies.
+- Total open items: N unresolved threads + M items extracted from review
+  bodies + C standalone conversation comments.
 - One-line overall assessment (e.g. "mostly naming/style + one architectural concern").
 
 ### 2. Fix plan
@@ -123,7 +142,8 @@ For EACH item (or grouped item), provide:
 
 - **What the reviewer asked** — one faithful sentence, with reviewer name and a
   link to the comment/thread.
-- **Where** — `path:line` (current line if the thread is outdated).
+- **Where** — `path:line` (current line if the thread is outdated); for a
+  standalone conversation comment, the file(s)/topic it concerns.
 - **Proposed fix** — concrete and specific: which function/class to change and
   how. Include a short code sketch when it clarifies (a few lines max), but do
   not write full implementations.
@@ -152,5 +172,5 @@ so the human can double-check nothing was lost.
   are made on this same branch.
 - Never invent comments or reviewers. Every item must trace back to a real
   comment URL.
-- If the GraphQL call fails or returns nothing, show the raw error and stop —
-  do not fabricate a plan.
+- If the GraphQL call or the conversation-comment fetch fails, show the raw
+  error and stop — do not fabricate a plan.
