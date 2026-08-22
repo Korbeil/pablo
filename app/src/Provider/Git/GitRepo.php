@@ -248,14 +248,14 @@ final class GitRepo implements GitRepoInterface
         );
     }
 
-    /** @return array{0: int, 1: int} (behind, ahead) of $upstream vs HEAD */
-    private function counts(string $wt, string $upstream): array
+    /** Commit counts of HEAD relative to $upstream. */
+    private function counts(string $wt, string $upstream): AheadBehind
     {
         $out = $this->git($wt, ['rev-list', '--left-right', '--count', "{$upstream}...HEAD"]);
         $parts = preg_split('/\s+/', trim($out));
         [$left, $right] = false === $parts ? ['0', '0'] : $parts;
 
-        return [(int) $left, (int) $right];
+        return new AheadBehind((int) $left, (int) $right);
     }
 
     public function syncWorktree(
@@ -283,7 +283,7 @@ final class GitRepo implements GitRepoInterface
 
         $remoteBranch = "origin/{$branch}";
         $hasRemote = $this->refExists($wt, $remoteBranch);
-        $remoteNew = $hasRemote ? $this->counts($wt, $remoteBranch)[0] : 0;
+        $remoteNew = $hasRemote ? $this->counts($wt, $remoteBranch)->behind : 0;
 
         $target = $this->refExists($wt, "origin/{$primary}") ? "origin/{$primary}" : $primary;
         if (null !== $base && '' !== $base && $this->refExists($wt, "origin/{$base}")) {
@@ -292,7 +292,9 @@ final class GitRepo implements GitRepoInterface
             // keep the stacking intact.
             $target = "origin/{$base}";
         }
-        [$behind, $ahead] = $this->counts($wt, $target);
+        $counts = $this->counts($wt, $target);
+        $behind = $counts->behind;
+        $ahead = $counts->ahead;
 
         if (0 === $behind && 0 === $remoteNew) {
             return new SyncReport($wt, $branch, 'up-to-date', behind: $behind, ahead: $ahead);

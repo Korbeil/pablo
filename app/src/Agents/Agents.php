@@ -35,23 +35,21 @@ final class Agents extends AbstractAgentLauncher
     /** @return array{0: ?array, 1: ?string} (result, reason) */
     /**
      * @param list<string> $argv
-     *
-     * @return array{0: ?array<string, mixed>, 1: ?string} (result, reason)
      */
-    private function orca(array $argv, float $perCallTimeout = self::ORCA_CALL_TIMEOUT_S): array
+    private function orca(array $argv, float $perCallTimeout = self::ORCA_CALL_TIMEOUT_S): OrcaCall
     {
         $out = '';
         try {
             $out = $this->runner->run(['orca', ...$argv, '--json'], check: false, timeout: $perCallTimeout);
             $data = json_decode($out, true);
         } catch (\Throwable $e) {
-            return [null, $e::class.': '.$e->getMessage().'; raw_stdout='.var_export($out, true)];
+            return new OrcaCall(null, $e::class.': '.$e->getMessage().'; raw_stdout='.var_export($out, true));
         }
         if (!\is_array($data) || ($data['ok'] ?? false) !== true) {
-            return [null, 'ok:false response: '.var_export($data, true)];
+            return new OrcaCall(null, 'ok:false response: '.var_export($data, true));
         }
 
-        return [$data['result'] ?? [], null];
+        return new OrcaCall(\is_array($data['result'] ?? null) ? $data['result'] : [], null);
     }
 
     private function logOrcaFallback(string $worktree, string $label, ?string $reason): void
@@ -101,8 +99,8 @@ final class Agents extends AbstractAgentLauncher
     {
         $deadline = microtime(true) + $maxWaitS;
         while (microtime(true) < $deadline) {
-            [$result] = $this->orca(['worktree', 'show', '--worktree', 'path:'.$worktree]);
-            if (null !== $result) {
+            $call = $this->orca(['worktree', 'show', '--worktree', 'path:'.$worktree]);
+            if (null !== $call->payload) {
                 return true;
             }
             usleep(1_000_000);
@@ -115,9 +113,9 @@ final class Agents extends AbstractAgentLauncher
     {
         $command = 'opencode '.escapeshellarg($worktree)
             ." --agent {$agent} --prompt ".escapeshellarg($prompt);
-        [$result, $reason] = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
+        $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
             if (!$this->waitForOrcaAdoption($worktree)) {
-                return [null, 'orca adoption timeout for '.$worktree];
+                return new OrcaCall(null, 'orca adoption timeout for '.$worktree);
             }
 
             return $this->orca([
@@ -127,6 +125,8 @@ final class Agents extends AbstractAgentLauncher
                 '--command', $command,
             ]);
         });
+        $result = $call->payload;
+        $reason = $call->reason;
         if (null !== $result) {
             $handle = $result['handle'] ?? $result['agentTerminalHandle'] ?? ($result['startupTerminal']['handle'] ?? null) ?? ($result['terminal']['handle'] ?? null);
             if (null !== $handle) {
@@ -141,9 +141,9 @@ final class Agents extends AbstractAgentLauncher
     public function doRunStartupScript(string $worktree, string $script): string
     {
         $command = 'bash '.escapeshellarg($script).'; exec bash';
-        [$result, $reason] = $this->withLaunchLock($worktree, function () use ($worktree, $command) {
+        $call = $this->withLaunchLock($worktree, function () use ($worktree, $command) {
             if (!$this->waitForOrcaAdoption($worktree)) {
-                return [null, 'orca adoption timeout for '.$worktree];
+                return new OrcaCall(null, 'orca adoption timeout for '.$worktree);
             }
 
             return $this->orca([
@@ -153,6 +153,8 @@ final class Agents extends AbstractAgentLauncher
                 '--command', $command,
             ]);
         });
+        $result = $call->payload;
+        $reason = $call->reason;
         if (null !== $result) {
             $handle = $result['handle'] ?? $result['agentTerminalHandle'] ?? ($result['startupTerminal']['handle'] ?? null) ?? ($result['terminal']['handle'] ?? null);
             if (null !== $handle) {
@@ -250,7 +252,7 @@ final class Agents extends AbstractAgentLauncher
     /** @return array<int, SessionInfo> */
     private function sessionsForWorktree(string $worktree, bool $includeFinishedAsWaiting): array
     {
-        [$result] = $this->orca(['worktree', 'ps', '--limit', '200']);
+        $result = $this->orca(['worktree', 'ps', '--limit', '200'])->payload;
         $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? [], $includeFinishedAsWaiting) : [];
         $sessions = $orcaGrouped[$worktree] ?? [];
         $sessions = array_merge($sessions, $this->headlessSessionsByWorktree()[$worktree] ?? []);
@@ -264,7 +266,7 @@ final class Agents extends AbstractAgentLauncher
     private function bulkSessionsForWorktrees(array $worktrees, bool $includeFinishedAsWaiting): array
     {
         $wanted = array_fill_keys($worktrees, true);
-        [$result] = $this->orca(['worktree', 'ps', '--limit', '200']);
+        $result = $this->orca(['worktree', 'ps', '--limit', '200'])->payload;
         $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? [], $includeFinishedAsWaiting) : [];
         $headlessGrouped = $this->headlessSessionsByWorktree();
         $out = [];
@@ -277,7 +279,7 @@ final class Agents extends AbstractAgentLauncher
 
     public function hasAnyOrcaAgent(string $worktree): bool
     {
-        [$result] = $this->orca(['worktree', 'ps', '--limit', '200']);
+        $result = $this->orca(['worktree', 'ps', '--limit', '200'])->payload;
         if (null === $result) {
             return false;
         }

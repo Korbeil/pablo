@@ -7,12 +7,13 @@ namespace Pablo\Command\System;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Support\PabloError;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[\Symfony\Component\Console\Attribute\AsCommand(name: 'project:remove', description: 'remove a project config from ~/.pablo/projects/')]
+#[AsCommand(name: 'project:remove', description: 'remove a project config from ~/.pablo/projects/')]
 final class ProjectRemoveCommand extends Command
 {
     protected function configure(): void

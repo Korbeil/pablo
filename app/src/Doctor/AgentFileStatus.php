@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Doctor;
 
-final class AgentFileStatus
+final readonly class AgentFileStatus
 {
     public function __construct(
         public string $agent,
