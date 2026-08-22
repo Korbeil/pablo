@@ -4,18 +4,25 @@ declare(strict_types=1);
 
 namespace Pablo\Config;
 
+use Pablo\Support\PabloError;
+use Symfony\Component\Yaml\Exception\ParseException;
+use Symfony\Component\Yaml\Yaml;
+
 /**
  * PABLO-wide (cross-project) configuration.
  *
  * Lives at ~/.pablo/config.yaml and is resolved at runtime — never at
  * container compile time — so the PABLO_CONFIG override and HOME are read
- * fresh on every call (same reason Store and Agents resolve their own
- * defaults in their constructors). Holds the global defaults the project
- * loader falls back to per key.
+ * fresh on every call (same reason Store resolves its root in its
+ * constructor). Holds the global defaults the project loader falls back to
+ * per key.
+ *
+ * Standalone on purpose: Config depends on this, so this must not depend
+ * back on Config.
  */
 final class GlobalConfig
 {
-    public static function configPath(?string $override = null): string
+    public function configPath(?string $override = null): string
     {
         if (null !== $override && '' !== $override) {
             return $override;
@@ -35,13 +42,20 @@ final class GlobalConfig
      *
      * @return array<string, mixed>
      */
-    public static function defaults(?string $path = null): array
+    public function defaults(?string $path = null): array
     {
-        $path ??= self::configPath();
+        $path ??= $this->configPath();
         if (!is_file($path)) {
             return ['sync' => [], 'state_polling' => [], 'review' => [], 'ci' => []];
         }
-        $data = Config::loadYaml($path);
+        try {
+            $data = Yaml::parseFile($path);
+        } catch (ParseException $e) {
+            throw new PabloError(basename($path).': invalid YAML: '.$e->getMessage());
+        }
+        if (!\is_array($data)) {
+            throw new PabloError(basename($path).': expected a mapping at top level');
+        }
 
         return [
             'sync' => \is_array($data['sync'] ?? null) ? $data['sync'] : [],

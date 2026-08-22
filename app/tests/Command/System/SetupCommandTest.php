@@ -4,8 +4,14 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\System;
 
+use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Command\System\SetupCommand;
+use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\Doctor;
+use Pablo\Store\Store;
+use Pablo\Tests\FakeAgents;
+use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -32,9 +38,25 @@ YAML;
 
     private string $tmp;
     private string $projectsDir;
+    private FakeProcessRunner $runner;
+
+    /**
+     * Doctor whose PATH lookups are decided by the test.
+     */
+    private function doctor(): Doctor
+    {
+        /** @var callable|null */
+        $onWhich = $this->onWhich;
+
+        return new Doctor($this->runner, new AgentLauncherFactory(new GlobalConfig()), $onWhich);
+    }
+
+    /** @var callable|null */
+    public $onWhich;
 
     protected function setUp(): void
     {
+        $this->runner = new FakeProcessRunner();
         $this->tmp = sys_get_temp_dir().'/pablo-setup-'.uniqid();
         $this->projectsDir = $this->tmp.'/projects';
         mkdir($this->projectsDir, 0o777, true);
@@ -45,8 +67,6 @@ YAML;
 
     protected function tearDown(): void
     {
-        Doctor::setWhichSeam(null);
-        Doctor::setProbeSeam(null);
         putenv('PABLO_PROJECTS_DIR');
         $this->unsetGlobalConfig();
         $this->removeDir($this->tmp);
@@ -86,7 +106,14 @@ YAML;
 
     private function setupTester(): CommandTester
     {
-        $tester = new CommandTester(new SetupCommand());
+        $command = new SetupCommand(
+            $this->doctor(),
+            new Store(),
+            new Config(new GlobalConfig()),
+            new AgentLauncherFactory(new GlobalConfig()),
+            new FakeAgents(),
+        );
+        $tester = new CommandTester($command);
         $tester->execute([]);
 
         return $tester;
@@ -94,8 +121,7 @@ YAML;
 
     private function allOkProbes(): void
     {
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => [0, 'ok']);
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
     }
 
     public function testAllGreenNoProjects(): void
@@ -110,8 +136,8 @@ YAML;
 
     public function testFirstMissingCheckIsShownAlone(): void
     {
-        Doctor::setWhichSeam(static fn (string $name): ?string => null);
-        Doctor::setProbeSeam(static fn (array $argv): array => [0, 'ok']);
+        $this->onWhich = static fn (string $name): ?string => null;
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
 
         $tester = $this->setupTester();
         $display = $tester->getDisplay();
@@ -128,8 +154,8 @@ YAML;
 
     public function testSkipsGreenChecksToFirstFailure(): void
     {
-        Doctor::setWhichSeam(static fn (string $bin): ?string => 'gh' === $bin ? '/usr/bin/gh' : null);
-        Doctor::setProbeSeam(static fn (array $argv): array => [0, 'ok']);
+        $this->onWhich = static fn (string $bin): ?string => 'gh' === $bin ? '/usr/bin/gh' : null;
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
 
         $tester = $this->setupTester();
         $display = $tester->getDisplay();
@@ -141,8 +167,8 @@ YAML;
     public function testAuthFailureShowsHint(): void
     {
         $this->writeProject('acme', 'github');
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => 'gh' === $argv[0] ? [1, 'You are not logged into any GitHub hosts'] : [0, 'ok']);
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => 'gh' === $argv[0] ? new \Pablo\Support\ProbeResult(1, 'You are not logged into any GitHub hosts') : new \Pablo\Support\ProbeResult(0, 'ok');
 
         $tester = $this->setupTester();
         $display = $tester->getDisplay();
@@ -168,8 +194,8 @@ YAML;
     public function testAcliShownForJiraProject(): void
     {
         $this->writeProject('acme', 'jira');
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => ['acli', 'jira', 'auth', 'status'] === $argv ? [1, 'not authenticated'] : [0, 'ok']);
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => (['acli', 'jira', 'auth', 'status'] === $argv) ? new \Pablo\Support\ProbeResult(1, 'not authenticated') : new \Pablo\Support\ProbeResult(0, 'ok');
 
         $tester = $this->setupTester();
         $display = $tester->getDisplay();
@@ -182,12 +208,12 @@ YAML;
     public function testAcliConfluenceShownWhenSpaceConfigured(): void
     {
         $this->writeProject('acme', 'jira', 'PIM');
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => match (true) {
-            ['acli', 'jira', 'auth', 'status'] === $argv => [0, 'ok'],
-            ['acli', 'confluence', 'auth', 'status'] === $argv => [1, 'not authenticated'],
-            default => [0, 'ok'],
-        });
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => match (true) {
+            ['acli', 'jira', 'auth', 'status'] === $argv => new \Pablo\Support\ProbeResult(0, 'ok'),
+            ['acli', 'confluence', 'auth', 'status'] === $argv => new \Pablo\Support\ProbeResult(1, 'not authenticated'),
+            default => new \Pablo\Support\ProbeResult(0, 'ok'),
+        };
 
         $tester = $this->setupTester();
         $display = $tester->getDisplay();
@@ -199,8 +225,8 @@ YAML;
     public function testLinearShownForLinearProject(): void
     {
         $this->writeProject('acme', 'linear');
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => ['linear', 'auth', 'status'] === $argv ? [1, 'not authenticated'] : [0, 'ok']);
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => (['linear', 'auth', 'status'] === $argv) ? new \Pablo\Support\ProbeResult(1, 'not authenticated') : new \Pablo\Support\ProbeResult(0, 'ok');
 
         $tester = $this->setupTester();
         $display = $tester->getDisplay();

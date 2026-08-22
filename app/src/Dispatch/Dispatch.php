@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Dispatch;
 
-use Pablo\Agents\AgentLauncher;
-use Pablo\Agents\Agents;
+use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Config\ProjectConfig;
 use Pablo\Doctor\Doctor;
 use Pablo\Poller\Poller;
@@ -40,17 +39,16 @@ final class Dispatch
      */
     public const TICK_MINUTES = 5;
 
-    /**
-     * @param array<string, ProjectConfig> $projects
-     *
-     * @return list<string>
-     */
-    /** @var callable|null test seam: (array): list<string> */
-    private static $preflightErrors;
+    /** @var resource|null test seam: redirect stderr for tests */
+    public $stderr;
 
-    public static function setPreflightErrors(?callable $fn): void
-    {
-        self::$preflightErrors = $fn;
+    public function __construct(
+        private readonly Doctor $doctor,
+        private readonly Sync $sync,
+        private readonly Poller $poller,
+        private readonly AgentLauncherFactory $agentLaunchers,
+        private readonly Stamps $stamps,
+    ) {
     }
 
     /**
@@ -58,13 +56,10 @@ final class Dispatch
      *
      * @return list<string>
      */
-    public static function preflightErrors(array $projects): array
+    public function preflightErrors(array $projects): array
     {
-        if (null !== self::$preflightErrors) {
-            return (self::$preflightErrors)($projects);
-        }
         $errors = [];
-        foreach (Doctor::checkAll($projects) as $result) {
+        foreach ($this->doctor->checkAll($projects) as $result) {
             if ($result->ok()) {
                 continue;
             }
@@ -87,9 +82,9 @@ final class Dispatch
      * manager, so this returns whether it was acquired rather than a bool-
      * yielding generator).
      */
-    private static function tryDispatchLock(): bool
+    private function tryDispatchLock(): bool
     {
-        $path = self::stampsDir().'/dispatch.lock';
+        $path = Stamps::stampsDir().'/dispatch.lock';
         $dir = \dirname($path);
         if (!is_dir($dir)) {
             @mkdir($dir, 0o777, true);
@@ -105,51 +100,43 @@ final class Dispatch
         }
 
         // Keep the fd open for the duration of the run; released on close.
-        self::$lockFd = $fd;
+        $this->lockFd = $fd;
 
         return true;
     }
 
     /** @var resource|null */
-    private static $lockFd;
+    private $lockFd;
 
-    /** @var resource|null test seam: redirect stderr for tests */
-    public static $stderr;
-
-    public static function releaseDispatchLock(): void
+    public function releaseDispatchLock(): void
     {
-        if (\is_resource(self::$lockFd)) {
-            fclose(self::$lockFd);
+        if (\is_resource($this->lockFd)) {
+            fclose($this->lockFd);
         }
-        self::$lockFd = null;
+        $this->lockFd = null;
     }
 
-    public static function runSync(ProjectConfig $cfg, Store $store): void
+    public function runSync(ProjectConfig $cfg, Store $store): void
     {
-        $agents = AgentLauncher::create();
-        $reports = Sync::syncProject($cfg, $store, null, $agents);
+        $agents = $this->agentLaunchers->create();
+        $reports = $this->sync->syncProject($cfg, $store, null, $agents);
         echo "[{$cfg->name}] sync:\n".Sync::renderReports($reports)."\n";
     }
 
-    public static function runPoll(ProjectConfig $cfg, Store $store): void
+    public function runPoll(ProjectConfig $cfg, Store $store): void
     {
-        $agents = AgentLauncher::create();
-        foreach (Poller::pollProject($cfg, $store, $agents) as $event) {
+        $agents = $this->agentLaunchers->create();
+        foreach ($this->poller->pollProject($cfg, $store, $agents) as $event) {
             echo "[{$cfg->name}] {$event}\n";
         }
     }
 
-    public static function shimPath(): string
-    {
-        return Agents::defaultShimPath();
-    }
-
     /** @return array<string, callable(ProjectConfig, Store): void> */
-    public static function defaultRunners(): array
+    public function defaultRunners(): array
     {
         return [
-            'sync' => [self::class, 'runSync'],
-            'poll' => [self::class, 'runPoll'],
+            'sync' => $this->runSync(...),
+            'poll' => $this->runPoll(...),
         ];
     }
 
@@ -172,80 +159,34 @@ final class Dispatch
         return (getenv('HOME') ?: '~').'/.pablo/stamps';
     }
 
-    /** Encode a per-job run stamp: when it ran and how long the run took. */
-    public static function encodeStamp(float $ranAt, float $durationS): string
+    private function isDue(ProjectConfig $cfg, string $job, float $now): bool
     {
-        return json_encode([
-            'ran_at' => $ranAt,
-            'duration_s' => $durationS,
-        ], \JSON_THROW_ON_ERROR);
-    }
-
-    /**
-     * Read a per-job run stamp. Accepts the current JSON format as well as the
-     * legacy bare-float format (duration unknown).
-     *
-     * @return array{ran_at: float, duration_s: ?float}|null null when missing or unparseable
-     */
-    public static function readStamp(string $project, string $job): ?array
-    {
-        $stamp = self::stampsDir()."/{$project}.{$job}";
-        if (!is_file($stamp)) {
-            return null;
-        }
-        $raw = trim((string) file_get_contents($stamp));
-        if ('' === $raw) {
-            return null;
-        }
-        if (str_starts_with($raw, '{')) {
-            /** @var array<string, mixed>|null $data */
-            $data = json_decode($raw, true);
-            if (!\is_array($data) || !isset($data['ran_at']) || !is_numeric($data['ran_at'])) {
-                return null;
-            }
-
-            return [
-                'ran_at' => (float) $data['ran_at'],
-                'duration_s' => isset($data['duration_s']) && is_numeric($data['duration_s'])
-                    ? (float) $data['duration_s']
-                    : null,
-            ];
-        }
-        if (!is_numeric($raw)) {
-            return null;
-        }
-
-        return ['ran_at' => (float) $raw, 'duration_s' => null];
-    }
-
-    private static function isDue(ProjectConfig $cfg, string $job, float $now): bool
-    {
-        $last = self::readStamp($cfg->name, $job);
+        $last = $this->stamps->readStamp($cfg->name, $job);
         if (null === $last) {
             return true;
         }
 
-        return $now - $last['ran_at'] >= self::jobIntervals()[$job]($cfg) * 60;
+        return $now - $last->ranAt >= self::jobIntervals()[$job]($cfg) * 60;
     }
 
     /**
      * @param array<string, ProjectConfig>                             $projects
      * @param array<string, callable(ProjectConfig, Store): void>|null $runners
      */
-    public static function run(array $projects, Store $store, ?array $runners = null, ?float $now = null): int
+    public function run(array $projects, Store $store, ?array $runners = null, ?float $now = null): int
     {
-        $runners ??= self::defaultRunners();
+        $runners ??= $this->defaultRunners();
         $now ??= microtime(true);
 
-        if (!self::tryDispatchLock()) {
+        if (!$this->tryDispatchLock()) {
             echo "pablo dispatch: already running, nothing to do\n";
 
             return 0;
         }
         try {
-            $errors = self::preflightErrors($projects);
+            $errors = $this->preflightErrors($projects);
             if ([] !== $errors) {
-                fwrite(self::$stderr ?? \STDERR, "pablo dispatch: CLI preflight failed, aborting:\n"
+                fwrite($this->stderr ?? \STDERR, "pablo dispatch: CLI preflight failed, aborting:\n"
                     .implode("\n", array_map(static fn ($e) => "  ❌ {$e}", $errors))."\n");
 
                 return 1;
@@ -254,7 +195,7 @@ final class Dispatch
             $failed = false;
             foreach ($projects as $cfgValue) {
                 foreach ($runners as $job => $runner) {
-                    if (!self::isDue($cfgValue, $job, $now)) {
+                    if (!$this->isDue($cfgValue, $job, $now)) {
                         continue;
                     }
                     $jobStartedAt = microtime(true);
@@ -262,22 +203,22 @@ final class Dispatch
                         $runner($cfgValue, $store);
                     } catch (\Throwable $e) {
                         $failed = true;
-                        fwrite(self::$stderr ?? \STDERR, "pablo dispatch: {$job} failed for project {$cfgValue->name}:\n{$e}\n");
+                        fwrite($this->stderr ?? \STDERR, "pablo dispatch: {$job} failed for project {$cfgValue->name}:\n{$e}\n");
                         continue; // stamp not written: retried next tick
                     }
                     $durationS = microtime(true) - $jobStartedAt;
-                    $stamp = self::stampsDir()."/{$cfgValue->name}.{$job}";
+                    $stamp = Stamps::stampsDir()."/{$cfgValue->name}.{$job}";
                     $dir = \dirname($stamp);
                     if (!is_dir($dir)) {
                         @mkdir($dir, 0o777, true);
                     }
-                    file_put_contents($stamp, self::encodeStamp($now, $durationS));
+                    file_put_contents($stamp, $this->stamps->encodeStamp($now, $durationS));
                 }
             }
 
             return $failed ? 1 : 0;
         } finally {
-            self::releaseDispatchLock();
+            $this->releaseDispatchLock();
         }
     }
 }

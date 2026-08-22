@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Pablo\Agents;
 
 use Pablo\Domain\Time;
-use Pablo\Support\Proc;
+use Pablo\Store\Store;
+use Pablo\Support\ProcessRunner;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Launching OpenCode agents on worktrees and querying their activity.
@@ -21,6 +23,15 @@ final class Agents extends AbstractAgentLauncher
     public const RUNNING_STATES = ['working', 'running'];
     public const FINISHED_STATES = ['done', 'completed'];
 
+    public function __construct(
+        ?ProcessRunnerInterface $runner = null,
+        ?Time $time = null,
+        ?Store $store = null,
+        ?string $shimPath = null,
+    ) {
+        parent::__construct($runner ?? new ProcessRunner(), $time ?? new Time(), $store, $shimPath, 'orca');
+    }
+
     /** @return array{0: ?array, 1: ?string} (result, reason) */
     /**
      * @param list<string> $argv
@@ -31,7 +42,7 @@ final class Agents extends AbstractAgentLauncher
     {
         $out = '';
         try {
-            $out = Proc::run(['orca', ...$argv, '--json'], check: false, timeout: $perCallTimeout);
+            $out = $this->runner->run(['orca', ...$argv, '--json'], check: false, timeout: $perCallTimeout);
             $data = json_decode($out, true);
         } catch (\Throwable $e) {
             return [null, $e::class.': '.$e->getMessage().'; raw_stdout='.var_export($out, true)];
@@ -51,7 +62,7 @@ final class Agents extends AbstractAgentLauncher
         }
         file_put_contents(
             $logs.'/orca-fallback.log',
-            Time::utcnow()." worktree={$worktree} label={$label} reason={$reason}\n",
+            $this->time->utcnow()." worktree={$worktree} label={$label} reason={$reason}\n",
             \FILE_APPEND,
         );
     }
@@ -282,7 +293,7 @@ final class Agents extends AbstractAgentLauncher
     protected function waitForBackendHandle(string $handle, int $timeoutS): void
     {
         try {
-            Proc::run([
+            $this->runner->run([
                 'orca', 'terminal', 'wait', '--terminal', $handle,
                 '--for', 'exit', '--timeout-ms', (string) ($timeoutS * 1000), '--json',
             ], check: false, timeout: $timeoutS + 120);

@@ -44,6 +44,7 @@ final class SlackModal
     public function __construct(
         private readonly Store $store,
         private readonly Dashboard $dashboard,
+        private readonly Listing $listing,
     ) {
     }
 
@@ -91,8 +92,8 @@ final class SlackModal
     /** @param array<string, \Pablo\Config\ProjectConfig> $projects */
     private function block(array $projects, State $state): string
     {
-        return Listing::renderSlack(
-            Listing::queueTasks($projects, $this->store, $state->value),
+        return $this->listing->renderSlack(
+            $this->listing->queueTasks($projects, $this->store, $state->value),
             $state->value,
         );
     }

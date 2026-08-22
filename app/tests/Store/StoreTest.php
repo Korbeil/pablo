@@ -115,12 +115,12 @@ final class StoreTest extends TestCase
 
     public function testLockReleasedOnRelease(): void
     {
-        $l = Store::taskLock($this->store, 'p', 'b');
+        $l = $this->store->taskLock('p', 'b');
         $l->release();
         // A still-held lock makes this throw TaskLockedException once the
         // (deliberately short) timeout elapses; getting a fresh, distinct lock
         // back is the proof that release() actually released.
-        $l2 = Store::taskLock($this->store, 'p', 'b', timeoutS: 1.0);
+        $l2 = $this->store->taskLock('p', 'b', timeoutS: 1.0);
         $this->assertNotSame($l, $l2);
         $l2->release();
     }
@@ -133,7 +133,7 @@ final class StoreTest extends TestCase
             <<<'PHP'
 require %s;
 $store = new \Pablo\Store\Store(%s);
-$lock = \Pablo\Store\Store::taskLock($store, "p", "b");
+$lock = $store->taskLock("p", "b");
 echo "held\n";
 flush();
 sleep(5);
@@ -148,7 +148,7 @@ PHP,
         $this->assertSame('held', trim((string) fgets($pipes[1])));
         $start = microtime(true);
         try {
-            $lock = Store::taskLock($this->store, 'p', 'b', 1.0);
+            $lock = $this->store->taskLock('p', 'b', 1.0);
             $lock->release();
             $this->fail('expected TaskLockedException');
         } catch (TaskLockedException $e) {

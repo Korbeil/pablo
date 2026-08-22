@@ -17,19 +17,20 @@ use Pablo\Agents\AgentTemplates;
  */
 final class AgentStaleness
 {
-    /** @var callable|null test seam: (): list<AgentFileStatus> */
-    private static $check;
-
-    public static function setCheck(?callable $fn): void
-    {
-        self::$check = $fn;
+    /**
+     * @param callable|null $check optional full-result override fn(): list<AgentFileStatus>
+     */
+    public function __construct(
+        private readonly AgentTemplates $agentTemplates,
+        private $check = null,
+    ) {
     }
 
     /**
      * Same convention as bin/install.sh ($HOME/.config/opencode); resolved at
      * call time like every HOME-derived default, never at container compile time.
      */
-    public static function installedDir(): string
+    public function installedDir(): string
     {
         return (getenv('HOME') ?: '~').'/.config/opencode/agents';
     }
@@ -40,15 +41,15 @@ final class AgentStaleness
      *
      * @return list<AgentFileStatus>
      */
-    public static function check(?string $installedDir = null, ?string $agentsDir = null): array
+    public function check(?string $installedDir = null, ?string $agentsDir = null): array
     {
-        if (null !== self::$check) {
-            return (self::$check)();
+        if (null !== $this->check) {
+            return ($this->check)();
         }
 
-        $installedDir ??= self::installedDir();
-        $agentsDir ??= AgentTemplates::repoAgentsDir();
-        $providers = AgentTemplates::enabledProviders();
+        $installedDir ??= $this->installedDir();
+        $agentsDir ??= $this->agentTemplates->repoAgentsDir();
+        $providers = $this->agentTemplates->enabledProviders();
 
         $results = [];
         foreach (AgentTemplates::AGENT_NAMES as $name) {
@@ -59,7 +60,7 @@ final class AgentStaleness
     }
 
     /** @param list<AgentFileStatus> $results */
-    public static function hasHardFailure(array $results): bool
+    public function hasHardFailure(array $results): bool
     {
         foreach ($results as $result) {
             if ($result->state->hard()) {
@@ -76,7 +77,7 @@ final class AgentStaleness
      *
      * @param list<AgentFileStatus> $results
      */
-    public static function render(array $results): string
+    public function render(array $results): string
     {
         $lines = [];
         foreach ($results as $result) {
@@ -92,10 +93,10 @@ final class AgentStaleness
     /**
      * @param list<string> $providers
      */
-    private static function checkOne(string $name, string $dest, string $agentsDir, array $providers): AgentFileStatus
+    private function checkOne(string $name, string $dest, string $agentsDir, array $providers): AgentFileStatus
     {
         try {
-            $fresh = AgentTemplates::render($agentsDir, $name, $providers);
+            $fresh = $this->agentTemplates->render($agentsDir, $name, $providers);
         } catch (AgentTemplateError $e) {
             return new AgentFileStatus($name, AgentFileState::Unverifiable,
                 'cannot verify freshness: '.$e->getMessage());
@@ -125,7 +126,7 @@ final class AgentStaleness
             'exists and is not a PABLO symlink', 'move it aside, then re-run ./bin/install.sh');
     }
 
-    private static function compare(string $name, string $realPath, string $fresh): AgentFileStatus
+    private function compare(string $name, string $realPath, string $fresh): AgentFileStatus
     {
         $installed = @file_get_contents($realPath);
         if (false === $installed) {

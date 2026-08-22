@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
-use Pablo\Provider\Git\GitRepo;
+use Pablo\Store\Store;
 use Pablo\Support\PabloError;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
@@ -17,12 +20,17 @@ use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Question\Question;
 use Symfony\Component\Yaml\Yaml;
 
+#[AsCommand(name: 'project:new', description: 'interactively scaffold a new project config in ~/.pablo/projects/')]
 final class ProjectNewCommand extends Command
 {
-    protected function configure(): void
-    {
-        $this->setName('project:new')
-            ->setDescription('interactively scaffold a new project config in ~/.pablo/projects/');
+    public function __construct(
+        private readonly \Pablo\Provider\Git\GitRepoInterface $git,
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
@@ -58,7 +66,7 @@ final class ProjectNewCommand extends Command
         } elseif ('linear' === $provider) {
             $confluenceSpace = $this->askOptional($helper, $input, $output, 'Confluence space (optional)', null);
         } elseif ('github' === $provider) {
-            $remoteUrl = GitRepo::originUrl($repoPath);
+            $remoteUrl = $this->git->originUrl($repoPath);
             $defaultIssueRepo = null !== $remoteUrl ? $this->originToSlug($remoteUrl) : null;
             $issueRepo = $this->askOptional($helper, $input, $output, 'Issue repo (e.g. acme/upstream, optional)', $defaultIssueRepo);
         }
@@ -67,7 +75,7 @@ final class ProjectNewCommand extends Command
         $projectKey = $this->askProjectKey($helper, $input, $output, strtoupper($projectName), $provider);
 
         // 7. Provider identity
-        $defaultEmail = GitRepo::userEmail($repoPath) ?? '';
+        $defaultEmail = $this->git->userEmail($repoPath) ?? '';
         $identity = $this->askIdentity($helper, $input, $output, $defaultEmail);
 
         // 8. Failure signal
@@ -92,7 +100,7 @@ final class ProjectNewCommand extends Command
             return self::SUCCESS;
         }
 
-        $destDir = Config::projectsDir();
+        $destDir = $this->projectsLoader->projectsDir();
         if (!is_dir($destDir)) {
             @mkdir($destDir, 0o777, true);
         }
@@ -107,7 +115,7 @@ final class ProjectNewCommand extends Command
 
         // Validate it loads
         try {
-            Config::loadProjects($destDir);
+            $this->projectsLoader->loadProjects($destDir);
         } catch (PabloError $e) {
             @unlink($destPath);
             throw new PabloError('Generated config failed validation: '.$e->getMessage());
@@ -133,7 +141,7 @@ final class ProjectNewCommand extends Command
     private function providerSet(string $dir): array
     {
         $providers = [];
-        foreach (Config::loadProjects($dir) as $cfg) {
+        foreach ($this->projectsLoader->loadProjects($dir) as $cfg) {
             $providers[] = $cfg->provider;
         }
 
@@ -174,7 +182,7 @@ final class ProjectNewCommand extends Command
 
     private function askProjectName(QuestionHelper $helper, InputInterface $input, OutputInterface $output, string $default): string
     {
-        $existing = array_keys(Config::loadProjects());
+        $existing = array_keys($this->projectsLoader->loadProjects());
         $question = new Question('Project name ['.$default.'] ', $default);
         $question->setValidator(static function (?string $v) use ($existing): string {
             $v = trim((string) $v);
@@ -327,7 +335,7 @@ final class ProjectNewCommand extends Command
     private function detectedRepoRoot(string $cwd): ?string
     {
         try {
-            return GitRepo::git($cwd, ['rev-parse', '--show-toplevel']);
+            return $this->git->git($cwd, ['rev-parse', '--show-toplevel']);
         } catch (PabloError) {
             return null;
         }
@@ -336,7 +344,7 @@ final class ProjectNewCommand extends Command
     private function detectedPrimaryBranch(string $repo): ?string
     {
         try {
-            return GitRepo::git($repo, ['rev-parse', '--abbrev-ref', 'HEAD']);
+            return $this->git->git($repo, ['rev-parse', '--abbrev-ref', 'HEAD']);
         } catch (PabloError) {
             return null;
         }

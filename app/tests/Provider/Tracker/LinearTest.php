@@ -8,11 +8,22 @@ use Pablo\Config\ProjectConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Provider\Tracker\Linear;
-use Pablo\Support\Proc;
+use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
 final class LinearTest extends TestCase
 {
+    private FakeProcessRunner $runner;
+
+    /** Registers a canned runner and returns it. */
+    private function startRunner(callable $fn): FakeProcessRunner
+    {
+        $r = new FakeProcessRunner();
+        $r->onRun = $fn;
+        $this->runner = $r;
+
+        return $r;
+    }
     private const ISSUE_JSON = [
         'identifier' => 'STA-335',
         'title' => 'Test issue',
@@ -33,11 +44,6 @@ final class LinearTest extends TestCase
         mkdir($this->tmp, 0o777, true);
     }
 
-    protected function tearDown(): void
-    {
-        Proc::setRunner(null);
-    }
-
     /** @var array<string, string> */
     private array $canned = [];
 
@@ -45,7 +51,7 @@ final class LinearTest extends TestCase
     private function configure(array $responses): void
     {
         $this->canned = $responses;
-        Proc::setRunner(function (array $argv, bool $check = true, ?float $timeout = null): string {
+        $this->startRunner(function (array $argv, bool $check = true, ?float $timeout = null): string {
             $joined = implode(' ', $argv);
             foreach ($this->canned as $key => $out) {
                 if (str_contains($joined, $key)) {
@@ -81,7 +87,7 @@ final class LinearTest extends TestCase
 
     public function testMatchUrl(): void
     {
-        $provider = new Linear();
+        $provider = $this->svc();
         $c = $this->cfg();
         $this->assertSame('STA-335', $provider->matchUrl('https://linear.app/stably/issue/STA-335/test-issue', $c));
         $this->assertNull($provider->matchUrl('https://linear.app/stably/issue/OTH-1/x', $c));
@@ -91,7 +97,7 @@ final class LinearTest extends TestCase
     public function testGetIssueParses(): void
     {
         $this->configure(['issue view STA-335' => json_encode(self::ISSUE_JSON, \JSON_THROW_ON_ERROR)]);
-        $issue = (new Linear())->getIssue('STA-335', $this->cfg());
+        $issue = $this->svc()->getIssue('STA-335', $this->cfg());
         $this->assertSame('STA-335', $issue->key);
         $this->assertSame('Test issue', $issue->title);
         $this->assertSame('STA', $issue->projectKey);
@@ -100,7 +106,7 @@ final class LinearTest extends TestCase
     public function testIssueStatus(): void
     {
         $this->configure(['issue view STA-335' => json_encode(self::ISSUE_JSON, \JSON_THROW_ON_ERROR)]);
-        $this->assertSame('In Progress', (new Linear())->issueStatus('STA-335', $this->cfg()));
+        $this->assertSame('In Progress', $this->svc()->issueStatus('STA-335', $this->cfg()));
     }
 
     public function testListAssignedParses(): void
@@ -109,7 +115,7 @@ final class LinearTest extends TestCase
             ['identifier' => 'STA-1', 'title' => 'A', 'url' => 'u1', 'state' => ['name' => 'Todo']],
             ['identifier' => 'STA-2', 'title' => 'B', 'url' => 'u2', 'state' => ['name' => 'Done']],
         ], \JSON_THROW_ON_ERROR)]);
-        $issues = (new Linear())->listAssigned($this->cfg());
+        $issues = $this->svc()->listAssigned($this->cfg());
         $this->assertSame(['STA-1', 'STA-2'], array_map(static fn ($i) => $i->key, $issues));
     }
 
@@ -117,9 +123,14 @@ final class LinearTest extends TestCase
     {
         $this->configure(['issue view STA-335' => json_encode(self::ISSUE_JSON, \JSON_THROW_ON_ERROR)]);
         $task = new Task('stably', 'sta-335', $this->tmp, State::NeedsTesting);
-        $task->issue = (new Linear())->getIssue('STA-335', $this->cfg());
-        $stamps = (new Linear())->failureSignalEvents($task, $this->cfg());
+        $task->issue = $this->svc()->getIssue('STA-335', $this->cfg());
+        $stamps = $this->svc()->failureSignalEvents($task, $this->cfg());
         $this->assertCount(2, $stamps);
         $this->assertEquals(new \DateTimeImmutable('2026-07-20T10:00:00.000Z'), $stamps[\count($stamps) - 1]);
+    }
+
+    private function svc(): Linear
+    {
+        return new Linear($this->runner ?? new FakeProcessRunner(), new \Pablo\Domain\Time());
     }
 }

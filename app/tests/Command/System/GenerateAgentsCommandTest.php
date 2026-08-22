@@ -64,7 +64,7 @@ YAML);
     {
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         putenv('PABLO_PROJECTS_DIR='.$this->tmp.'/nonexistent');
@@ -84,7 +84,7 @@ YAML);
         $this->writeProject('jira-project', 'jira');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -105,7 +105,7 @@ YAML);
         $this->writeProject('lin-project', 'linear');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -125,7 +125,7 @@ YAML);
         $this->writeProject('p2', 'jira');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -141,7 +141,7 @@ YAML);
         $this->writeProject('p1', 'github');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -171,7 +171,7 @@ YAML);
         $this->copyAllTemplates();
         unlink($this->agentsDir.'/shared/analysts.frontmatter.md');
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -181,7 +181,7 @@ YAML);
 
     public function testReturnsFailureOnMissingTemplate(): void
     {
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -196,7 +196,7 @@ YAML);
         $this->writeProject('c', 'linear');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 

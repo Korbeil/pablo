@@ -44,12 +44,15 @@ final class Task
         public State $state,
         public ?string $summary = null,
         public ?string $prompt = null,
+        ?string $now = null,
     ) {
-        $now = Time::utcnow();
-        $this->stateEnteredAt ??= $now;
-        $this->createdAt ??= $now;
-        $this->updatedAt ??= $now;
-        $this->displayCache ??= DisplayCache::empty();
+        // Records are not services, so the wall clock is the documented
+        // default here; callers holding an injected Time pass $now instead.
+        $now ??= (new Time())->utcnow();
+        $this->stateEnteredAt = $now;
+        $this->createdAt = $now;
+        $this->updatedAt = $now;
+        $this->displayCache = DisplayCache::empty();
     }
 
     /**
@@ -110,8 +113,9 @@ final class Task
     /**
      * @param array<string, mixed> $data
      */
-    public static function fromJson(array $data): self
+    public static function fromJson(array $data, ?string $now = null): self
     {
+        $now ??= (new Time())->utcnow();
         $issue = $data['issue'] ?? null;
         $task = new self(
             (string) $data['project'],
@@ -131,15 +135,15 @@ final class Task
             $launches[$launch->agent->value] = $launch;
         }
         $task->agentLaunches = $launches;
-        $task->stateEnteredAt = (string) ($data['state_entered_at'] ?? Time::utcnow());
+        $task->stateEnteredAt = (string) ($data['state_entered_at'] ?? $now);
         $task->needsTestingEnteredAt = $data['needs_testing_entered_at'] ?? null;
         $task->lastHandledSignalAt = $data['last_handled_signal_at'] ?? null;
         $task->lastSeenIssueStatus = $data['last_seen_issue_status'] ?? null;
         $task->ciIgnored = (bool) ($data['ci_ignored'] ?? false);
         $task->prNumber = $data['pr_number'] ?? null;
         $task->merged = (bool) ($data['merged'] ?? false);
-        $task->createdAt = (string) ($data['created_at'] ?? Time::utcnow());
-        $task->updatedAt = (string) ($data['updated_at'] ?? Time::utcnow());
+        $task->createdAt = (string) ($data['created_at'] ?? $now);
+        $task->updatedAt = (string) ($data['updated_at'] ?? $now);
         $task->displayCache = DisplayCache::fromJson($data);
 
         return $task;

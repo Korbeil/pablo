@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents;
 
 use Pablo\Agents\OpenChamber;
-use Pablo\Support\Proc;
+use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -15,6 +15,15 @@ use PHPUnit\Framework\TestCase;
  */
 final class OpenChamberTest extends TestCase
 {
+    protected FakeProcessRunner $runner;
+
+    /** Registers a canned runner and returns it. */
+    private function startRunner(callable $fn): FakeProcessRunner
+    {
+        $this->runner->onRun = $fn;
+
+        return $this->runner;
+    }
     private string $tmp;
     private string $agentsDir;
     private OpenChamber $agents;
@@ -25,13 +34,13 @@ final class OpenChamberTest extends TestCase
         mkdir($this->tmp, 0o777, true);
         $this->agentsDir = $this->tmp.'/agents';
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
-        $this->agents = new OpenChamber('/x/pablo');
+        $this->runner = new FakeProcessRunner();
+        $this->agents = new OpenChamber($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo');
     }
 
     protected function tearDown(): void
     {
         putenv('PABLO_AGENTS_DIR');
-        Proc::setRunner(null);
     }
 
     /** @param array<string, mixed> $payload */
@@ -49,7 +58,7 @@ final class OpenChamberTest extends TestCase
     public function testLaunchCreatesThenSendsPrompt(): void
     {
         $calls = [];
-        Proc::setRunner(function (array $argv) use (&$calls): string {
+        $this->startRunner(function (array $argv) use (&$calls): string {
             $calls[] = $argv;
             if (\in_array('create', $argv, true)) {
                 return $this->ocOk(['sessionId' => 'ses_abc', 'directory' => $this->tmp, 'title' => 'pablo:task-analyst']);
@@ -80,7 +89,7 @@ final class OpenChamberTest extends TestCase
     public function testLaunchFallsBackToHeadlessWhenCreateFails(): void
     {
         $calls = [];
-        Proc::setRunner(function (array $argv) use (&$calls): string {
+        $this->startRunner(function (array $argv) use (&$calls): string {
             $calls[] = $argv;
 
             return $this->ocErr(['error' => ['message' => 'no daemon']]);
@@ -106,7 +115,7 @@ final class OpenChamberTest extends TestCase
 
     public function testActiveSessionsMapsBusyToRunning(): void
     {
-        Proc::setRunner(fn (array $argv): string => $this->ocOk([
+        $this->startRunner(fn (array $argv): string => $this->ocOk([
             'sessions' => [
                 ['id' => 'ses_a', 'status' => ['type' => 'busy']],
             ],
@@ -118,7 +127,7 @@ final class OpenChamberTest extends TestCase
 
     public function testActiveSessionsExcludesIdle(): void
     {
-        Proc::setRunner(fn (array $argv): string => $this->ocOk([
+        $this->startRunner(fn (array $argv): string => $this->ocOk([
             'sessions' => [
                 ['id' => 'ses_a', 'status' => ['type' => 'idle']],
             ],
@@ -130,7 +139,7 @@ final class OpenChamberTest extends TestCase
 
     public function testDisplaySessionsCountsIdleAsWaiting(): void
     {
-        Proc::setRunner(fn (array $argv): string => $this->ocOk([
+        $this->startRunner(fn (array $argv): string => $this->ocOk([
             'sessions' => [
                 ['id' => 'ses_a', 'status' => ['type' => 'idle']],
                 ['id' => 'ses_b', 'status' => ['type' => 'busy']],
@@ -148,8 +157,10 @@ final class OpenChamberTest extends TestCase
     {
         $wtA = $this->tmp.'/a';
         $wtB = $this->tmp.'/b';
-        Proc::setRunner(function (array $argv): string {
-            $dir = $argv[array_search('--dir', $argv, true) + 1];
+        $this->startRunner(function (array $argv): string {
+            $key = array_search('--dir', $argv, true);
+            $this->assertIsInt($key);
+            $dir = $argv[$key + 1];
 
             return $this->ocOk([
                 'sessions' => [[
@@ -167,7 +178,7 @@ final class OpenChamberTest extends TestCase
     public function testSetWorktreeDisplayNameIsNoOp(): void
     {
         // Must not call any CLI and must not throw.
-        Proc::setRunner(fn (array $argv): string => $this->fail('should not call openchamber'));
+        $this->startRunner(fn (array $argv): string => $this->fail('should not call openchamber'));
         $this->agents->setWorktreeDisplayName($this->tmp, 'WK-45', '45');
         $this->addToAssertionCount(1);
     }
@@ -176,7 +187,7 @@ final class OpenChamberTest extends TestCase
     {
         $this->writeSession('ses_abc', $this->tmp);
         $calls = [];
-        Proc::setRunner(function (array $argv) use (&$calls): string {
+        $this->startRunner(function (array $argv) use (&$calls): string {
             $calls[] = $argv;
 
             return $this->ocOk(['sessionId' => 'ses_abc', 'sessionStatus' => ['type' => 'idle'], 'messages' => []]);
@@ -192,7 +203,7 @@ final class OpenChamberTest extends TestCase
 
     public function testWaitForHandleUnknownSessionReturnsImmediately(): void
     {
-        Proc::setRunner(fn (array $argv): string => $this->fail('should not call openchamber'));
+        $this->startRunner(fn (array $argv): string => $this->fail('should not call openchamber'));
         $this->agents->waitForHandle('ses_unknown', 1);
         $this->addToAssertionCount(1);
     }

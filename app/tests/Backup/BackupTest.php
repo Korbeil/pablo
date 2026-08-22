@@ -8,15 +8,25 @@ use Pablo\Backup\Backup;
 use Pablo\Config\Config;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
-use Pablo\Provider\Git\GitRepo;
 use Pablo\Store\Store;
-use Pablo\Support\Proc;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 
 final class BackupTest extends TestCase
 {
     use UsesGlobalConfig;
+
+    private \Pablo\Tests\FakeProcessRunner $runner;
+
+    private ?Backup $backupSvc = null;
+
+    private function backup(): Backup
+    {
+        $git = new \Pablo\Tests\FakeGit();
+        $git->originUrl = 'git@example.com:acme/acme.git';
+
+        return $this->backupSvc ??= new Backup($git, $this->runner, new \Pablo\Domain\Time());
+    }
 
     private string $tmp;
     private string $pabloRoot;
@@ -90,33 +100,32 @@ YAML,
         $task = new Task('acme', 'oms-1', $this->pabloRoot.'/worktrees/acme/oms-1', State::InProgress);
         $this->store->save($task);
 
-        GitRepo::setOriginUrl(static fn () => 'git@example.com:acme/acme.git');
-        Proc::setRunner(static fn (array $argv) => match (true) {
+        $this->runner = new \Pablo\Tests\FakeProcessRunner();
+        $this->runner->onRun = static fn (array $argv) => match (true) {
             \in_array('orca', $argv, true) && \in_array('repo', $argv, true) && \in_array('list', $argv, true) => '{"ok":true,"result":{"repos":[{"path":"/tmp/acme"}]}}',
             default => throw new \RuntimeException('unexpected proc call: '.implode(' ', $argv)),
-        });
+        };
     }
 
     protected function tearDown(): void
     {
         $this->unsetGlobalConfig();
-        Proc::setRunner(null);
-        GitRepo::setOriginUrl(null);
-        Backup::cleanupDir($this->tmp);
+        $this->backup()->cleanupDir($this->tmp);
     }
 
     public function testWriteAndExtractArchiveIncludesStateExcludesAgents(): void
     {
-        $projects = Config::loadProjects($this->projectsDir);
-        $path = Backup::writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->dest);
+        $loader = new Config(new \Pablo\Config\GlobalConfig());
+        $projects = $loader->loadProjects($this->projectsDir);
+        $path = $this->backup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->dest);
 
         $this->assertFileExists($path);
 
         $extracted = $this->tmp.'/extract';
-        $manifest = Backup::extractArchive($path, $extracted);
-        $this->assertSame(1, $manifest['version']);
-        $this->assertSame('git@example.com:acme/acme.git', $manifest['projects'][0]['origin_url']);
-        $this->assertSame(['oms-1'], $manifest['projects'][0]['branches']);
+        $manifest = $this->backup()->extractArchive($path, $extracted);
+        $this->assertSame(1, $manifest->version);
+        $this->assertSame('git@example.com:acme/acme.git', $manifest->projects[0]->originUrl);
+        $this->assertSame(['oms-1'], $manifest->projects[0]->branches);
 
         $this->assertDirectoryExists($extracted.'/state/acme');
         $this->assertDirectoryExists($extracted.'/stamps');
@@ -135,13 +144,14 @@ YAML,
 
     public function testRestoreTreeAndProjectsIntoFreshRoot(): void
     {
-        $projects = Config::loadProjects($this->projectsDir);
-        $path = Backup::writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->dest);
+        $loader = new Config(new \Pablo\Config\GlobalConfig());
+        $projects = $loader->loadProjects($this->projectsDir);
+        $path = $this->backup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->dest);
         $extracted = $this->tmp.'/extract';
-        Backup::extractArchive($path, $extracted);
+        $this->backup()->extractArchive($path, $extracted);
 
         $fresh = $this->tmp.'/fresh';
-        $restored = Backup::restoreStoreTree($extracted, $fresh, true);
+        $restored = $this->backup()->restoreStoreTree($extracted, $fresh, true);
         $this->assertContains('state', $restored);
         $this->assertContains('stamps', $restored);
         $tag = array_values(array_filter($restored, static fn (string $s) => 'cache' === $s));
@@ -152,22 +162,23 @@ YAML,
         $this->assertNotNull($task);
         $this->assertSame(State::InProgress, $task->state);
 
-        $projectsResult = Backup::restoreProjects($extracted, $this->tmp.'/restored-projects', false);
+        $projectsResult = $this->backup()->restoreProjects($extracted, $this->tmp.'/restored-projects', false);
         $this->assertContains('acme.yaml', $projectsResult);
         $this->assertFileExists($this->tmp.'/restored-projects/acme.yaml');
     }
 
     public function testRestoreSkipsExistingWhenNotOverwriting(): void
     {
-        $projects = Config::loadProjects($this->projectsDir);
-        $path = Backup::writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->dest);
+        $loader = new Config(new \Pablo\Config\GlobalConfig());
+        $projects = $loader->loadProjects($this->projectsDir);
+        $path = $this->backup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->dest);
         $extracted = $this->tmp.'/extract';
-        Backup::extractArchive($path, $extracted);
+        $this->backup()->extractArchive($path, $extracted);
 
         $target = $this->tmp.'/target';
         mkdir($target.'/state', 0o777, true);
         file_put_contents($target.'/state/marker.json', '{}');
-        $restored = Backup::restoreStoreTree($extracted, $target, false);
+        $restored = $this->backup()->restoreStoreTree($extracted, $target, false);
         $this->assertContains('state:skipped', $restored);
         $this->assertFileExists($target.'/state/marker.json');
     }

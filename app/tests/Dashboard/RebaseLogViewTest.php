@@ -12,6 +12,19 @@ use PHPUnit\Framework\TestCase;
 
 final class RebaseLogViewTest extends TestCase
 {
+    private function sync(): Sync
+    {
+        $slugGit = new \Pablo\Tests\FakeGit();
+        $slugGit->originUrl = 'git@github.com:octocat/proj.git';
+
+        return new Sync(
+            new \Pablo\Provider\Git\GitRepo(),
+            new \Pablo\Tests\FakeGhPr(),
+            new \Pablo\Support\RepoSlug($slugGit),
+            new \Pablo\Support\ProcessRunner(),
+            new \Pablo\Domain\Time(),
+        );
+    }
     private string $logs;
     private RebaseLogView $view;
 
@@ -20,7 +33,7 @@ final class RebaseLogViewTest extends TestCase
         $this->logs = sys_get_temp_dir().'/pablo-logs-'.uniqid();
         mkdir($this->logs, 0o777, true);
         putenv('PABLO_LOGS_DIR='.$this->logs);
-        $this->view = new RebaseLogView();
+        $this->view = new RebaseLogView($this->sync());
     }
 
     protected function tearDown(): void
@@ -60,7 +73,7 @@ final class RebaseLogViewTest extends TestCase
 
     public function testDecodesASavedSession(): void
     {
-        Sync::saveLastLog('web', 'rebase', [
+        $this->sync()->saveLastLog('web', 'rebase', [
             new SyncReport(worktree: '/wt/a', branch: 'a', action: 'synced', behind: 3, ahead: 1),
             new SyncReport(
                 worktree: '/wt/b',
@@ -71,23 +84,26 @@ final class RebaseLogViewTest extends TestCase
             ),
         ]);
 
-        $log = $this->view->forProject('web');
+        $section = $this->view->forProject('web');
 
-        $this->assertNotNull($log);
-        $this->assertSame('web', $log['project']);
-        $this->assertSame('rebase', $log['strategy']);
-        $this->assertNotNull($log['timestamp']);
+        $this->assertNotNull($section);
+        $log = $section->log;
+        $this->assertSame('web', $log->project);
+        $this->assertSame('rebase', $log->strategy);
+        $this->assertNotNull($log->timestamp);
 
-        $this->assertSame('synced', $log['reports'][0]['action']);
-        $this->assertSame('is-success', $log['reports'][0]['color']);
-        $this->assertSame('lucide:refresh-cw', $log['reports'][0]['icon']);
-        $this->assertSame('💚', $log['reports'][0]['emoji']);
-        $this->assertSame(3, $log['reports'][0]['behind']);
-        $this->assertSame(1, $log['reports'][0]['ahead']);
+        $r0 = $section->rows[0];
+        $this->assertSame('synced', $r0->report->action);
+        $this->assertSame('is-success', $r0->color);
+        $this->assertSame('lucide:refresh-cw', $r0->icon);
+        $this->assertSame('💚', $r0->emoji);
+        $this->assertSame(3, $r0->report->behind);
+        $this->assertSame(1, $r0->report->ahead);
 
-        $this->assertSame('is-danger', $log['reports'][1]['color']);
-        $this->assertSame(['src/A.php', 'src/B.php'], $log['reports'][1]['conflict_files']);
-        $this->assertSame('ses_123', $log['reports'][1]['agent_handle']);
+        $r1 = $section->rows[1];
+        $this->assertSame('is-danger', $r1->color);
+        $this->assertSame(['src/A.php', 'src/B.php'], $r1->report->conflictFiles);
+        $this->assertSame('ses_123', $r1->report->agentHandle);
     }
 
     /**
@@ -109,39 +125,39 @@ final class RebaseLogViewTest extends TestCase
         foreach (array_keys(Sync::ACTION_ICONS) as $action) {
             $reports[] = new SyncReport(worktree: '/wt', branch: $action, action: $action);
         }
-        Sync::saveLastLog('web', 'merge', $reports);
+        $this->sync()->saveLastLog('web', 'merge', $reports);
 
-        $log = $this->view->forProject('web');
+        $section = $this->view->forProject('web');
 
-        $this->assertNotNull($log);
-        foreach ($log['reports'] as $report) {
-            $this->assertSame(Sync::ACTION_ICONS[$report['action']], $report['emoji']);
+        $this->assertNotNull($section);
+        foreach ($section->rows as $row) {
+            $this->assertSame(Sync::ACTION_ICONS[$row->report->action], $row->emoji);
         }
     }
 
     public function testUnknownActionDegradesGracefully(): void
     {
-        Sync::saveLastLog('web', 'rebase', [
+        $this->sync()->saveLastLog('web', 'rebase', [
             new SyncReport(worktree: '/wt', branch: 'x', action: 'from-the-future'),
         ]);
 
-        $log = $this->view->forProject('web');
+        $section = $this->view->forProject('web');
 
-        $this->assertNotNull($log);
-        $this->assertSame('pablo-chip-muted', $log['reports'][0]['color']);
-        $this->assertSame('•', $log['reports'][0]['emoji']);
+        $this->assertNotNull($section);
+        $this->assertSame('pablo-chip-muted', $section->rows[0]->color);
+        $this->assertSame('•', $section->rows[0]->emoji);
     }
 
     public function testForProjectsSkipsMissingAndSortsNewestFirst(): void
     {
-        Sync::saveLastLog('older', 'rebase', []);
+        $this->sync()->saveLastLog('older', 'rebase', []);
         // saveLastLog stamps utcnow(); force a distinct, older timestamp
         $path = $this->logs.'/rebase-last-older.json';
         $data = json_decode((string) file_get_contents($path), true);
         $data['timestamp'] = '2020-01-01T00:00:00+00:00';
         file_put_contents($path, json_encode($data));
 
-        Sync::saveLastLog('newer', 'rebase', []);
+        $this->sync()->saveLastLog('newer', 'rebase', []);
 
         $logs = $this->view->forProjects([
             'older' => $this->cfg('older'),
@@ -149,6 +165,6 @@ final class RebaseLogViewTest extends TestCase
             'newer' => $this->cfg('newer'),
         ]);
 
-        $this->assertSame(['newer', 'older'], array_column($logs, 'project'));
+        $this->assertSame(['newer', 'older'], array_map(static fn ($s): string => $s->project(), $logs));
     }
 }

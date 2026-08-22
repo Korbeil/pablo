@@ -28,13 +28,26 @@ final class DashboardTest extends TestCase
         $this->tmp = sys_get_temp_dir().'/pablo-dash-'.uniqid();
         mkdir($this->tmp, 0o777, true);
         $this->store = new Store($this->tmp.'/state');
-        $this->dashboard = new Dashboard($this->store, new PollSchedule());
-        RepoSlug::setFor(static fn (ProjectConfig $cfg) => 'acme/'.$cfg->name);
+        $git = new \Pablo\Tests\FakeGit();
+        $git->originUrl = static fn (string $repo): string => 'git@github.com:acme/'.basename($repo).'.git';
+        $repoSlug = new RepoSlug($git);
+        $time = new \Pablo\Domain\Time();
+        $stamps = new \Pablo\Dispatch\Stamps();
+        $gh = new \Pablo\Tests\FakeGhPr();
+        $providers = new \Pablo\Tests\StubProviders();
+        $stateMachine = new \Pablo\StateMachine\StateMachine($gh, $providers, $repoSlug, $time);
+        $this->dashboard = new Dashboard(
+            $this->store,
+            new PollSchedule($stamps),
+            new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()),
+            new \Pablo\Listing\Listing($stamps, $gh, $git, $providers, $repoSlug, $stateMachine, $time),
+            $repoSlug,
+            $stateMachine,
+        );
     }
 
     protected function tearDown(): void
     {
-        RepoSlug::setFor(null);
         exec('rm -rf '.escapeshellarg($this->tmp));
     }
 
@@ -133,11 +146,11 @@ final class DashboardTest extends TestCase
 
         $this->assertSame(
             ['a-testing-failed', 'b-request-changes', 'c-ci-red', 'g-in-progress'],
-            $this->branches($board['attention']),
+            $this->branches($board->attention),
         );
         $this->assertSame(
             ['d-needs-testing', 'f-waiting-review', 'c2-ci-red-no-agent', 'e-draft', 'h-waiting'],
-            $this->branches($board['rest']),
+            $this->branches($board->rest),
         );
     }
 
@@ -149,8 +162,8 @@ final class DashboardTest extends TestCase
 
         $board = $this->dashboard->board($this->projects());
 
-        $this->assertSame(['blocked-ci-red'], $this->branches($board['attention']));
-        $this->assertSame(['quiet-ci-red'], $this->branches($board['rest']));
+        $this->assertSame(['blocked-ci-red'], $this->branches($board->attention));
+        $this->assertSame(['quiet-ci-red'], $this->branches($board->rest));
     }
 
     public function testSortIsByStateRankThenStateEnteredAt(): void
@@ -160,7 +173,7 @@ final class DashboardTest extends TestCase
 
         $board = $this->dashboard->board($this->projects());
 
-        $this->assertSame(['older', 'newer'], $this->branches($board['attention']));
+        $this->assertSame(['older', 'newer'], $this->branches($board->attention));
     }
 
     public function testTasksOfUnconfiguredProjectsAreSkipped(): void
@@ -170,14 +183,14 @@ final class DashboardTest extends TestCase
 
         $board = $this->dashboard->board($this->projects('wallet-kit'));
 
-        $this->assertSame(['kept'], $this->branches($board['rest']));
+        $this->assertSame(['kept'], $this->branches($board->rest));
     }
 
     public function testPrBadgeAndUrlComeFromTheDisplayCache(): void
     {
         $this->seed('has-pr', State::Draft, cache: new DisplayCache(null, '📖 open #42', 0, '-', '2026-08-06T10:00:00+00:00'));
 
-        $view = $this->dashboard->board($this->projects())['rest'][0];
+        $view = $this->dashboard->board($this->projects())->rest[0];
 
         $this->assertSame(PrBadgeKind::Open, $view->pr->kind);
         $this->assertSame(42, $view->pr->number);
@@ -189,7 +202,7 @@ final class DashboardTest extends TestCase
     {
         $this->seed('never-polled', State::Draft, prNumber: 7);
 
-        $view = $this->dashboard->board($this->projects())['rest'][0];
+        $view = $this->dashboard->board($this->projects())->rest[0];
 
         $this->assertSame(PrBadgeKind::Unknown, $view->pr->kind);
         $this->assertSame(7, $view->pr->number);
@@ -200,7 +213,7 @@ final class DashboardTest extends TestCase
     {
         $this->seed('x', State::NeedsTesting);
 
-        $view = $this->dashboard->board($this->projects())['rest'][0];
+        $view = $this->dashboard->board($this->projects())->rest[0];
 
         $this->assertSame('🧪', $view->stateEmoji);
         $this->assertSame('needs-testing', $view->stateLabel);
@@ -220,7 +233,7 @@ final class DashboardTest extends TestCase
         $this->seed('bare', State::Draft);
 
         $labels = [];
-        foreach ($this->dashboard->board($this->projects())['rest'] as $v) {
+        foreach ($this->dashboard->board($this->projects())->rest as $v) {
             $labels[$v->branch] = $v->label();
         }
 
@@ -233,8 +246,8 @@ final class DashboardTest extends TestCase
     {
         $board = $this->dashboard->board($this->projects());
 
-        $this->assertSame([], $board['attention']);
-        $this->assertSame([], $board['rest']);
+        $this->assertSame([], $board->attention);
+        $this->assertSame([], $board->rest);
     }
 
     /** board() already takes the projects array, so a caller can filter it. */
@@ -248,6 +261,6 @@ final class DashboardTest extends TestCase
 
         $board = $this->dashboard->board($ossOnly);
 
-        $this->assertSame(['oss-task'], $this->branches($board['rest']));
+        $this->assertSame(['oss-task'], $this->branches($board->rest));
     }
 }

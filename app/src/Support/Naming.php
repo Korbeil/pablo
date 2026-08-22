@@ -14,7 +14,7 @@ final class Naming
 {
     public const SLUG_MAX_WORDS = 4;
 
-    public static function branchName(string $projectKey, string $issueId): string
+    public function branchName(string $projectKey, string $issueId): string
     {
         return strtolower($projectKey).'-'.strtolower($issueId);
     }
@@ -26,7 +26,7 @@ final class Naming
      * from the Python NFKD-drop reference is 'ß' -> "ss" (iconv) instead of
      * the mangled NFKD drop; iconv's output is the correct one.
      */
-    public static function slugBranch(string $projectKey, string $prompt): string
+    public function slugBranch(string $projectKey, string $prompt): string
     {
         $normalized = iconv('UTF-8', 'ASCII//TRANSLIT', $prompt);
         if (false === $normalized) {
@@ -42,7 +42,7 @@ final class Naming
     /**
      * @param array<int, string> $taken
      */
-    public static function dedupe(string $base, array $taken): string
+    public function dedupe(string $base, array $taken): string
     {
         $taken = array_fill_keys(array_map('strval', $taken), true);
         if (!isset($taken[$base])) {

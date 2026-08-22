@@ -6,7 +6,7 @@ namespace Pablo\Provider\Confluence;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Support\PabloError;
-use Pablo\Support\Proc;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Confluence documentation access, backed by the acli CLI.
@@ -18,7 +18,11 @@ final class Confluence
 {
     public const CONFLUENCE_CALL_TIMEOUT_S = 30;
 
-    public static function matchUrl(string $url): ?string
+    public function __construct(private readonly ProcessRunnerInterface $runner)
+    {
+    }
+
+    public function matchUrl(string $url): ?string
     {
         // Either a cloud wiki URL (with or without a trailing title slug)…
         if (1 === preg_match('#https?://[^/]+/wiki(?:/spaces/[^/]+)?/pages/(?P<id>\d+)#', $url, $m)) {
@@ -32,21 +36,21 @@ final class Confluence
         return null;
     }
 
-    public static function fetch(string $pageIdOrUrl, ?ProjectConfig $cfg = null): ConfluencePage
+    public function fetch(string $pageIdOrUrl, ?ProjectConfig $cfg = null): ConfluencePage
     {
         if ('' === trim($pageIdOrUrl)) {
             throw new PabloError('confluence: no page id or url given');
         }
         $pageId = $pageIdOrUrl;
         if (!ctype_digit($pageId)) {
-            $parsed = self::matchUrl($pageIdOrUrl);
+            $parsed = $this->matchUrl($pageIdOrUrl);
             if (null === $parsed) {
                 throw new PabloError('confluence: not a page id or Confluence URL: '.var_export($pageIdOrUrl, true));
             }
             $pageId = $parsed;
         }
 
-        $out = Proc::run([
+        $out = $this->runner->run([
             'acli', 'confluence', 'page', 'view', '--id', $pageId,
             '--json', '--body-format', 'storage',
         ], timeout: self::CONFLUENCE_CALL_TIMEOUT_S);
@@ -68,13 +72,13 @@ final class Confluence
         );
     }
 
-    public static function cliName(): string
+    public function cliName(): string
     {
         return 'acli';
     }
 
     /** @return list<string> */
-    public static function authCheckCmd(): array
+    public function authCheckCmd(): array
     {
         return ['acli', 'confluence', 'auth', 'status'];
     }

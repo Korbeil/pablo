@@ -13,15 +13,11 @@ use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Poller\Poller;
-use Pablo\Provider\Gh\GhPr;
 use Pablo\Provider\Gh\PrInfo;
-use Pablo\Provider\Git\GitRepo;
 use Pablo\Provider\Tracker\Provider;
-use Pablo\Provider\Tracker\ProviderRegistry;
 use Pablo\StateMachine\StateMachine;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
-use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\FakeAgents;
 use PHPUnit\Framework\TestCase;
@@ -48,13 +44,13 @@ final class FakePollProvider implements Provider
         return $this->issueStatus;
     }
 
-    public function batchIssueStatus(array $pairs): array
+    public function batchIssueStatus(array $issues): array
     {
         $result = [];
-        foreach ($pairs as [$key]) {
+        foreach ($issues as $key => $_) {
             $result[$key] = $this->issueStatus;
         }
-        $this->statusCalls += \count($pairs);
+        $this->statusCalls += \count($issues);
 
         return $result;
     }
@@ -99,7 +95,24 @@ final class FakePollProvider implements Provider
 final class PollerTest extends TestCase
 {
     private FakePollProvider $provider;
+
+    private function providerRegistry(): \Pablo\Provider\Tracker\ProviderRegistryInterface
+    {
+        return new class($this->provider) implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
+            public function __construct(private readonly Provider $provider)
+            {
+            }
+
+            public function get(string $name): Provider
+            {
+                return $this->provider;
+            }
+        };
+    }
     private FakeAgents $agents;
+    private \Pablo\Tests\FakeGhPr $gh;
+    private \Pablo\Tests\FakeGit $git;
+    private Poller $poller;
 
     /** @var array<string, mixed> */
     private array $stubs;
@@ -119,36 +132,31 @@ final class PollerTest extends TestCase
             'startups' => [],
             'display_names' => [],
         ];
-        ProviderRegistry::setResolver(fn (string $name): Provider => $this->provider);
-        RepoSlug::setFor(static fn () => 'acme/proj');
-        GhPr::setCiStatus(fn () => $this->stubs['ci']);
-        GhPr::setIsMerged(fn () => $this->stubs['merged']);
-        GhPr::setPrForBranch(static fn () => null);
-        GhPr::setMarkReady(static fn () => null);
-        GhPr::setMarkDraft(static fn () => null);
-        GhPr::setReadyAnchor(static fn () => new \DateTimeImmutable('2026-07-20T00:00:00+00:00'));
-        GhPr::setFetchReviews(static fn () => ['octocat', []]);
-        GhPr::setEvaluateReviews(fn () => $this->stubs['verdict']);
-        GitRepo::setRemoveWorktree(function (string $repo, string $path, string $branch): void {
-            $this->stubs['removed'][] = $branch;
-        });
-        $this->agents->launch = &$this->stubs['launched'];
-        $this->agents->displayNames = &$this->stubs['display_names'];
+        $this->gh = new \Pablo\Tests\FakeGhPr();
+        $this->gh->onCiStatus = fn () => $this->stubs['ci'];
+        $this->gh->isMergedOverride = fn () => $this->stubs['merged'];
+        $this->gh->evaluateReviewsOverride = fn () => $this->stubs['verdict'];
+        $this->git = new \Pablo\Tests\FakeGit();
+        $providers = new class($this->provider) implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
+            public function __construct(private readonly Provider $provider)
+            {
+            }
+
+            public function get(string $name): Provider
+            {
+                return $this->provider;
+            }
+        };
+        $git = new \Pablo\Tests\FakeGit();
+        $git->originUrl = 'git@github.com:acme/proj.git';
+        $repoSlug = new RepoSlug($git);
+        $time = new \Pablo\Domain\Time();
+        $sm = new StateMachine($this->gh, $providers, $repoSlug, $time);
+        $this->poller = new Poller($this->gh, $this->git, $providers, $repoSlug, $sm, $time);
     }
 
     protected function tearDown(): void
     {
-        ProviderRegistry::setResolver(null);
-        RepoSlug::setFor(null);
-        GhPr::setCiStatus(null);
-        GhPr::setIsMerged(null);
-        GhPr::setPrForBranch(null);
-        GhPr::setMarkReady(null);
-        GhPr::setMarkDraft(null);
-        GhPr::setReadyAnchor(null);
-        GhPr::setFetchReviews(null);
-        GhPr::setEvaluateReviews(null);
-        GitRepo::setRemoveWorktree(null);
     }
 
     /** @return array{tmp: string} */
@@ -195,7 +203,7 @@ final class PollerTest extends TestCase
     /** @return array<int, string> */
     private function poll(ProjectConfig $cfg, Store $store): array
     {
-        return Poller::pollProject($cfg, $store, $this->agents);
+        return $this->poller->pollProject($cfg, $store, $this->agents);
     }
 
     private function getTask(Store $store): ?Task
@@ -250,7 +258,7 @@ final class PollerTest extends TestCase
         $this->stubs['ci'] = 'red';
         $this->poll($cfg, $store);
         $this->assertSame(State::CiRed, $this->taskOrFail($store)->state);
-        $this->assertSame(['ci-analyst'], $this->stubs['launched']);
+        $this->assertSame(['ci-analyst'], $this->agents->launch);
     }
 
     public function testDraftPendingStays(): void
@@ -284,7 +292,7 @@ final class PollerTest extends TestCase
         $this->stubs['verdict'] = 'approved';
         $this->poll($cfg, $store);
         $this->assertSame(State::CiRed, $this->taskOrFail($store)->state);
-        $this->assertSame(['ci-analyst'], $this->stubs['launched']);
+        $this->assertSame(['ci-analyst'], $this->agents->launch);
     }
 
     public function testWaitingReviewApprovedToNeedsTesting(): void
@@ -310,7 +318,7 @@ final class PollerTest extends TestCase
         $this->stubs['verdict'] = 'changes';
         $this->poll($cfg, $store);
         $this->assertSame(State::RequestChanges, $this->taskOrFail($store)->state);
-        $this->assertSame(['pr-feedback'], $this->stubs['launched']);
+        $this->assertSame(['pr-feedback'], $this->agents->launch);
     }
 
     public function testNeedsTestingSignalBaselineAndHandledDedupe(): void
@@ -330,7 +338,7 @@ final class PollerTest extends TestCase
         $this->poll($cfg, $store);
         $this->assertSame(State::TestingFailed, $this->taskOrFail($store)->state);
         $this->assertSame($new->format('c'), $this->taskOrFail($store)->lastHandledSignalAt);
-        $this->assertSame(['task-feedback'], $this->stubs['launched']);
+        $this->assertSame(['task-feedback'], $this->agents->launch);
 
         $this->setState($store, State::NeedsTesting, ['needsTestingEnteredAt' => '2026-07-22T00:00:00+00:00']);
         $this->poll($cfg, $store);
@@ -351,7 +359,7 @@ final class PollerTest extends TestCase
         $this->poll($cfg, $store);
         $this->assertSame(State::TestingFailed, $this->taskOrFail($store)->state);
         $this->assertNotNull($this->taskOrFail($store)->lastHandledSignalAt);
-        $this->assertSame(['task-feedback'], $this->stubs['launched']);
+        $this->assertSame(['task-feedback'], $this->agents->launch);
     }
 
     public function testStatusAlreadyFailedAtEntryDoesNotTrigger(): void
@@ -431,7 +439,7 @@ final class PollerTest extends TestCase
         $this->stubs['merged'] = true;
         $this->poll($cfg, $store);
         $this->assertNull($this->getTask($store));
-        $this->assertSame(['pr-1'], $this->stubs['removed']);
+        $this->assertSame(['pr-1'], array_column($this->git->removed, 1));
     }
 
     public function testCloseSurvivesMissingWorktree(): void
@@ -441,9 +449,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp']));
         $this->stubs['merged'] = true;
-        GitRepo::setRemoveWorktree(static function (string $repo, string $path, string $branch): void {
-            throw new PabloError("git worktree remove {$path} failed: fatal: '{$path}' is not a working tree");
-        });
+        $this->git->removeThrows = 'git worktree remove failed: fatal: not a working tree';
         $events = $this->poll($cfg, $store);
         $this->assertNull($this->getTask($store));
         $this->assertStringContainsString('worktree already gone', implode("\n", $events));
@@ -467,7 +473,7 @@ final class PollerTest extends TestCase
         $this->agents->active = [];
         $this->poll($cfg, $store);
         $this->assertNull($this->getTask($store));
-        $this->assertSame(['pr-1'], $this->stubs['removed']);
+        $this->assertSame(['pr-1'], array_column($this->git->removed, 1));
     }
 
     public function testPrNumberDiscoveredForDraft(): void
@@ -477,7 +483,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::Draft));
         $this->setState($store, State::Draft, ['prNumber' => null]);
-        GhPr::setPrForBranch(static fn () => new PrInfo(9, 't', 'OPEN', true, 'u', null));
+        $this->gh->onPrForBranch = static fn (): PrInfo => new PrInfo(9, 't', 'OPEN', true, 'u', null);
         $this->stubs['ci'] = 'pending';
         $this->poll($cfg, $store);
         $this->assertSame(9, $this->taskOrFail($store)->prNumber);
@@ -500,7 +506,7 @@ final class PollerTest extends TestCase
         $cfg = $this->cfg($e['tmp']);
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp']));
-        GhPr::setPrForBranch(static fn () => new PrInfo(7, 't', 'OPEN', true, 'u', null));
+        $this->gh->onPrForBranch = static fn (): PrInfo => new PrInfo(7, 't', 'OPEN', true, 'u', null);
         $this->provider->issueStatus = 'In Progress';
         $this->agents->active = [new SessionInfo('a', 'running')];
         $this->poll($cfg, $store);
@@ -563,7 +569,7 @@ final class PollerTest extends TestCase
         $this->agents->active = [new SessionInfo('a', 'running')];
         $this->setLaunch($store, 'task-analyst', 1, 301);
         $this->poll($cfg, $store);
-        $this->assertSame([], $this->stubs['launched']);
+        $this->assertSame([], $this->agents->launch);
     }
 
     public function testCapsAtMaxAttempts(): void
@@ -575,7 +581,7 @@ final class PollerTest extends TestCase
         $this->setState($store, State::InProgress, ['prNumber' => null]);
         $this->setLaunch($store, 'task-analyst', Poller::LAUNCH_MAX_ATTEMPTS, 301);
         $this->poll($cfg, $store);
-        $this->assertSame([], $this->stubs['launched']);
+        $this->assertSame([], $this->agents->launch);
     }
 
     public function testRelaunchesMissingAgentPastWindow(): void
@@ -586,7 +592,7 @@ final class PollerTest extends TestCase
             [State::RequestChanges, 'pr-feedback', 7],
             [State::TestingFailed, 'task-feedback', 7],
         ] as [$state, $label, $pr]) {
-            $this->stubs['launched'] = [];
+            $this->agents->launch = [];
             $e = $this->newEnv();
             $cfg = $this->cfg($e['tmp']);
             $store = new Store($e['tmp'].'/state');
@@ -594,7 +600,7 @@ final class PollerTest extends TestCase
             $this->setState($store, $state, ['prNumber' => $pr]);
             $this->setLaunch($store, $label, 1, 301);
             $this->poll($cfg, $store);
-            $this->assertSame([$label], $this->stubs['launched']);
+            $this->assertSame([$label], $this->agents->launch);
             $task = $this->taskOrFail($store);
             $agent = Agent::tryByName($label) ?? Agent::TaskAnalyst;
             $this->assertSame(2, $task->agentLaunches[$agent->value]->attempts);
@@ -631,7 +637,7 @@ final class PollerTest extends TestCase
         $this->setLaunch($store, 'startup-script', 1, 301);
         $this->agents->startupScript = &$this->stubs['startups'];
         $this->poll($cfg, $store);
-        $this->assertSame(['task-analyst'], $this->stubs['launched']);
+        $this->assertSame(['task-analyst'], $this->agents->launch);
         $this->assertSame(['/setup.sh'], $this->stubs['startups']);
     }
 
@@ -666,7 +672,7 @@ final class PollerTest extends TestCase
         $this->agents->startupScript = &$this->stubs['startups'];
         $this->agents->hasAnyOrcaAgent = true;
         $this->poll($cfg, $store);
-        $this->assertSame([], $this->stubs['launched']);
+        $this->assertSame([], $this->agents->launch);
         $this->assertSame([], $this->stubs['startups']);
     }
 
@@ -679,7 +685,7 @@ final class PollerTest extends TestCase
         $this->setState($store, State::CiRed, ['prNumber' => 7]);
         $this->setLaunch($store, 'ci-analyst', 1, 10);
         $this->poll($cfg, $store);
-        $this->assertSame([], $this->stubs['launched']);
+        $this->assertSame([], $this->agents->launch);
     }
 
     public function testDisplayNameReSetDuringSelfHeal(): void
@@ -691,7 +697,7 @@ final class PollerTest extends TestCase
         $this->setState($store, State::InProgress, ['prNumber' => null]);
         $this->setLaunch($store, 'task-analyst', 1, 301);
         $this->poll($cfg, $store);
-        $this->assertSame(['1'], $this->stubs['display_names']);
+        $this->assertSame(['1'], $this->agents->displayNames);
     }
 
     public function testDisplayNameNotReSetWhenSessionsExist(): void
@@ -704,7 +710,7 @@ final class PollerTest extends TestCase
         $this->agents->active = [new SessionInfo('a', 'running')];
         $this->setLaunch($store, 'task-analyst', 1, 301);
         $this->poll($cfg, $store);
-        $this->assertSame([], $this->stubs['display_names']);
+        $this->assertSame([], $this->agents->displayNames);
     }
 
     public function testSkipCiIgnoresRedCi(): void
@@ -718,7 +724,7 @@ final class PollerTest extends TestCase
         $this->stubs['verdict'] = null;
         $this->poll($cfg, $store);
         $this->assertSame(State::WaitingReview, $this->taskOrFail($store)->state);
-        $this->assertSame([], $this->stubs['launched']);
+        $this->assertSame([], $this->agents->launch);
     }
 
     public function testCiIgnoredResetOnDraft(): void
@@ -731,7 +737,8 @@ final class PollerTest extends TestCase
         $task->ciIgnored = true;
         $store->save($task);
         $ctx = new TaskCtx($task, $cfg, $store, $this->agents);
-        StateMachine::enterState($ctx, State::Draft);
+        $sm = new StateMachine($this->gh, $this->providerRegistry(), new RepoSlug($this->git), new \Pablo\Domain\Time());
+        $sm->enterState($ctx, State::Draft);
         $this->assertFalse($task->ciIgnored);
     }
 }

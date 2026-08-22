@@ -4,21 +4,25 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command;
 
-use Pablo\Config\ProjectConfig;
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
-use Pablo\Provider\Gh\GhPr;
-use Pablo\Provider\Git\GitRepo;
-use Pablo\Provider\Tracker\ProviderRegistry;
+use Pablo\Domain\Time;
+use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\FakeAgents;
+use Pablo\Tests\FakeGhPr;
+use Pablo\Tests\FakeGit;
+use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\StubProviders;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
-use Symfony\Component\Process\Process;
 
 abstract class CommandTestBed extends TestCase
 {
@@ -29,19 +33,17 @@ abstract class CommandTestBed extends TestCase
     protected string $projectsDir;
     protected Store $store;
     protected FakeAgents $agents;
+    protected FakeGit $git;
+    protected FakeGhPr $gh;
+    protected FakeProcessRunner $runner;
+    protected Config $projectsLoader;
+    protected GlobalConfig $globalConfig;
+    protected AgentLauncherFactory $agentLaunchers;
+    protected StubProviders $providers;
+    protected RepoSlug $repoSlug;
+    protected StateMachine $stateMachine;
+    protected Time $time;
     protected string $prevCwd;
-
-    /** @var list<int> recorded pr numbers sent to mark_draft */
-    protected array $drafts = [];
-
-    /** @var list<int> recorded pr numbers sent to mark_ready */
-    protected array $readies = [];
-
-    /** @var array<int, string> recorded rerun ids */
-    protected array $rerunIds = [];
-
-    /** @var list<array{0: string, 1: string}> recorded (path, branch) removals */
-    protected array $removed = [];
 
     protected function setUp(): void
     {
@@ -49,7 +51,7 @@ abstract class CommandTestBed extends TestCase
         mkdir($this->tmp.'/repo', 0o777, true);
         mkdir($this->tmp.'/wt', 0o777, true);
         $this->wt = $this->tmp.'/wt/wk-45';
-        (new Process(['git', 'init', '-q', $this->wt]))->run();
+        (new \Symfony\Component\Process\Process(['git', 'init', '-q', $this->wt]))->run();
 
         $this->projectsDir = $this->tmp.'/projects';
         mkdir($this->projectsDir, 0o777, true);
@@ -57,23 +59,25 @@ abstract class CommandTestBed extends TestCase
 
         $this->store = new Store($this->tmp.'/state');
         $this->agents = new FakeAgents();
+        $this->runner = new FakeProcessRunner();
+        $this->time = new Time();
+
+        $this->git = new FakeGit();
+        $this->git->originUrl = 'git@github.com:acme/wallet-kit.git';
+
+        $this->gh = new FakeGhPr();
+        $this->providers = new StubProviders();
+
+        $this->globalConfig = new GlobalConfig();
+        $this->projectsLoader = new Config($this->globalConfig);
+        $this->agentLaunchers = new AgentLauncherFactory($this->globalConfig);
+        $this->repoSlug = new RepoSlug($this->git);
+        $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time);
 
         $task = new Task('wallet-kit', 'wk-45', $this->wt, State::InProgress);
         $task->prNumber = 7;
         $task->issue = new Issue('github', '45', 'u', 'T', 'WK');
         $this->store->save($task);
-
-        ProviderRegistry::setResolver(static fn (string $name) => new DevNullProvider());
-        RepoSlug::setFor(static fn () => 'acme/wallet-kit');
-        GitRepo::setOriginUrl(static fn () => 'git@github.com:acme/wallet-kit.git');
-        GhPr::setMarkDraft(function (string $slug, int $pr): void { $this->drafts[] = $pr; });
-        GhPr::setMarkReady(function (string $slug, int $pr): void { $this->readies[] = $pr; });
-        GhPr::setRerunCi(function (string $slug, string $branch) {
-            $this->rerunIds = ['42', '43'];
-
-            return $this->rerunIds;
-        });
-        GitRepo::setRemoveWorktree(function (string $repo, string $path, string $branch): void { $this->removed[] = [$path, $branch]; });
 
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
         $this->prevCwd = (string) getcwd();
@@ -85,16 +89,6 @@ abstract class CommandTestBed extends TestCase
         chdir($this->prevCwd);
         putenv('PABLO_PROJECTS_DIR');
         $this->unsetGlobalConfig();
-        ProviderRegistry::setResolver(null);
-        RepoSlug::setFor(null);
-        GitRepo::setOriginUrl(null);
-        GitRepo::setAllBranchNames(null);
-        GitRepo::setRemoveWorktree(null);
-        GhPr::setMarkDraft(null);
-        GhPr::setMarkReady(null);
-        GhPr::setRerunCi(null);
-        GhPr::setPrForBranch(null);
-        GhPr::setPrsForBranches(null);
     }
 
     protected function writeProjects(?string $startupScript = null): void
@@ -162,63 +156,5 @@ YAML,
         $tester->execute($input, $options);
 
         return $tester;
-    }
-}
-
-final class DevNullProvider implements \Pablo\Provider\Tracker\Provider
-{
-    public function name(): string
-    {
-        return 'github';
-    }
-
-    public function supportsSignalViaStatus(): bool
-    {
-        return false;
-    }
-
-    public function matchUrl(string $url, ProjectConfig $cfg): ?string
-    {
-        return null;
-    }
-
-    public function getIssue(string $ref, ProjectConfig $cfg): Issue
-    {
-        throw new \LogicException();
-    }
-
-    public function listAssigned(ProjectConfig $cfg): array
-    {
-        return [];
-    }
-
-    public function issueStatus(string $key, ProjectConfig $cfg): string
-    {
-        return 'todo';
-    }
-
-    public function batchIssueStatus(array $pairs): array
-    {
-        $result = [];
-        foreach ($pairs as [$key]) {
-            $result[$key] = 'todo';
-        }
-
-        return $result;
-    }
-
-    public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
-    {
-        return [];
-    }
-
-    public function cliName(): string
-    {
-        return 'gh';
-    }
-
-    public function authCheckCmd(): array
-    {
-        return [];
     }
 }

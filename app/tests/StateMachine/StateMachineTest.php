@@ -8,12 +8,11 @@ use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
-use Pablo\Provider\Tracker\ProviderRegistry;
+use Pablo\Domain\Time;
 use Pablo\StateMachine\StateMachine;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
-use Pablo\Support\Proc;
 use Pablo\Support\RepoSlug;
 use PHPUnit\Framework\TestCase;
 
@@ -25,12 +24,8 @@ final class StateMachineTest extends TestCase
     private Store $store;
     private FakeAgents $agents;
     private TaskCtx $ctx;
-
-    /** @var array<int, int> */
-    private array $drafts;
-
-    /** @var array<int, int> */
-    private array $readies;
+    private StateMachine $sm;
+    private FakeGhPr $gh;
 
     protected function setUp(): void
     {
@@ -65,27 +60,21 @@ final class StateMachineTest extends TestCase
         $this->store = new Store($this->root.'/state');
         $this->agents = new FakeAgents();
         $this->ctx = new TaskCtx(task: $this->task, cfg: $this->cfg, store: $this->store, agents: $this->agents);
-        $this->drafts = [];
-        $this->readies = [];
-        RepoSlug::setFor(static fn () => 'acme/wallet-kit');
-        Proc::setRunner(function (array $argv): string {
-            // gh pr ready / ready --undo
-            if ('gh' === $argv[0] && 'pr' === $argv[1] && 'ready' === $argv[2]) {
-                if (\in_array('--undo', $argv, true)) {
-                    $this->drafts[] = (int) $argv[3];
-                } else {
-                    $this->readies[] = (int) $argv[3];
-                }
+        $this->gh = new FakeGhPr();
+        $providers = new class implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
+            public function get(string $name): \Pablo\Provider\Tracker\Provider
+            {
+                throw new \LogicException('not used');
             }
-
-            return '';
-        });
+        };
+        $git = new FakeGit();
+        $git->originUrl = 'git@github.com:acme/wallet-kit.git';
+        $repoSlug = new RepoSlug($git);
+        $this->sm = new StateMachine($this->gh, $providers, $repoSlug, new Time());
     }
 
     protected function tearDown(): void
     {
-        RepoSlug::setFor(null);
-        Proc::setRunner(null);
         $this->removeDir($this->root);
     }
 
@@ -110,27 +99,27 @@ final class StateMachineTest extends TestCase
 
     public function testEnterInProgressRunsAnalystOnce(): void
     {
-        StateMachine::enterState($this->ctx, State::InProgress);
+        $this->sm->enterState($this->ctx, State::InProgress);
         $this->assertCount(1, $this->agents->launch);
         $this->assertSame('task-analyst', $this->agents->launch[0]);
         $this->assertTrue($this->task->taskAnalystRan);
-        StateMachine::enterState($this->ctx, State::InProgress); // run-once
+        $this->sm->enterState($this->ctx, State::InProgress); // run-once
         $this->assertCount(1, $this->agents->launch);
     }
 
     public function testEnterInProgressStampsAnalystLaunch(): void
     {
-        StateMachine::enterState($this->ctx, State::InProgress);
+        $this->sm->enterState($this->ctx, State::InProgress);
         $rec = $this->task->agentLaunches['task-analyst'];
         $this->assertNotNull($rec->launchedAt);
         $this->assertSame(1, $rec->attempts);
-        StateMachine::enterState($this->ctx, State::InProgress);
+        $this->sm->enterState($this->ctx, State::InProgress);
         $this->assertSame(1, $this->task->agentLaunches['task-analyst']->attempts);
     }
 
     public function testEnterInProgressSkipsStartupScriptWhenUnset(): void
     {
-        StateMachine::enterState($this->ctx, State::InProgress);
+        $this->sm->enterState($this->ctx, State::InProgress);
         $this->assertSame([], $this->agents->startupScript);
         $this->assertFalse($this->task->startupScriptRan);
     }
@@ -158,21 +147,21 @@ final class StateMachineTest extends TestCase
             startupScript: '/dev/null/setup.sh',
         );
         $this->ctx->cfg = $this->cfg;
-        StateMachine::enterState($this->ctx, State::InProgress);
+        $this->sm->enterState($this->ctx, State::InProgress);
         $this->assertSame(['/dev/null/setup.sh'], $this->agents->startupScript);
         $this->assertTrue($this->task->startupScriptRan);
         $this->assertSame(1, $this->task->agentLaunches['startup-script']->attempts);
-        StateMachine::enterState($this->ctx, State::InProgress);
+        $this->sm->enterState($this->ctx, State::InProgress);
         $this->assertCount(1, $this->agents->startupScript);
     }
 
     public function testWaitingSavesAndRestoresPreviousState(): void
     {
         $this->task->state = State::WaitingReview;
-        StateMachine::toggleWaiting($this->ctx);
+        $this->sm->toggleWaiting($this->ctx);
         $this->assertSame(State::Waiting, $this->task->state);
         $this->assertSame(State::WaitingReview, $this->task->stateBeforeWaiting);
-        StateMachine::toggleWaiting($this->ctx);
+        $this->sm->toggleWaiting($this->ctx);
         $this->assertSame(State::WaitingReview, $this->task->state);
         $this->assertNull($this->task->stateBeforeWaiting);
     }
@@ -182,11 +171,11 @@ final class StateMachineTest extends TestCase
         foreach ([State::RequestChanges, State::TestingFailed] as $forbidden) {
             $this->task->state = $forbidden;
             $this->expectToFailImpossible(
-                fn () => StateMachine::toggleWaiting($this->ctx),
+                fn () => $this->sm->toggleWaiting($this->ctx),
             );
             $this->task->state = $forbidden;
             $this->expectToFailImpossible(
-                fn () => StateMachine::enterState($this->ctx, State::Waiting),
+                fn () => $this->sm->enterState($this->ctx, State::Waiting),
             );
         }
     }
@@ -203,35 +192,35 @@ final class StateMachineTest extends TestCase
 
     public function testNoTriggerSkipsActionsExceptWaiting(): void
     {
-        StateMachine::enterState($this->ctx, State::RequestChanges, trigger: false);
+        $this->sm->enterState($this->ctx, State::RequestChanges, trigger: false);
         $this->assertSame([], $this->agents->launch);
-        $this->assertSame([], $this->drafts);
+        $this->assertSame([], $this->gh->drafts);
         $this->task->state = State::Draft;
-        StateMachine::enterState($this->ctx, State::Waiting, trigger: false);
+        $this->sm->enterState($this->ctx, State::Waiting, trigger: false);
         $this->assertSame(State::Draft, $this->task->stateBeforeWaiting);
     }
 
     public function testReadyToReviewChainsToWaitingReviewAndMarksReady(): void
     {
         $this->task->state = State::Draft;
-        StateMachine::enterState($this->ctx, State::ReadyToReview);
-        $this->assertSame([7], $this->readies);
+        $this->sm->enterState($this->ctx, State::ReadyToReview);
+        $this->assertSame([7], $this->gh->readies);
         $this->assertSame(State::WaitingReview, $this->task->state);
     }
 
     public function testRequestChangesLaunchesPlannerThenDraftsPr(): void
     {
         $this->task->state = State::WaitingReview;
-        StateMachine::enterState($this->ctx, State::RequestChanges);
+        $this->sm->enterState($this->ctx, State::RequestChanges);
         $this->assertSame('pr-feedback', $this->agents->launch[0]);
-        $this->assertSame([7], $this->drafts);
+        $this->assertSame([7], $this->gh->drafts);
         $this->assertSame(1, $this->task->agentLaunches['pr-feedback']->attempts);
     }
 
     public function testCiRedStampsLaunch(): void
     {
         $this->task->state = State::Draft;
-        StateMachine::enterState($this->ctx, State::CiRed);
+        $this->sm->enterState($this->ctx, State::CiRed);
         $this->assertNotNull($this->task->agentLaunches['ci-analyst']->launchedAt);
         $this->assertSame(1, $this->task->agentLaunches['ci-analyst']->attempts);
     }
@@ -239,11 +228,11 @@ final class StateMachineTest extends TestCase
     public function testCiRedRunsAnalyst(): void
     {
         $this->task->state = State::Draft;
-        StateMachine::enterState($this->ctx, State::CiRed);
+        $this->sm->enterState($this->ctx, State::CiRed);
         $this->assertSame('ci-analyst', $this->agents->launch[0]);
-        $this->assertSame([], $this->drafts);
-        StateMachine::enterState($this->ctx, State::ReadyToReview);
-        StateMachine::enterState($this->ctx, State::CiRed);
+        $this->assertSame([], $this->gh->drafts);
+        $this->sm->enterState($this->ctx, State::ReadyToReview);
+        $this->sm->enterState($this->ctx, State::CiRed);
         $this->assertCount(2, $this->agents->launch);
         $this->assertSame('ci-analyst', $this->agents->launch[1]);
     }
@@ -251,33 +240,33 @@ final class StateMachineTest extends TestCase
     public function testTestingFailedLaunchesFeedbackThenDraftsPr(): void
     {
         $this->task->state = State::NeedsTesting;
-        StateMachine::enterState($this->ctx, State::TestingFailed);
+        $this->sm->enterState($this->ctx, State::TestingFailed);
         $this->assertSame('task-feedback', $this->agents->launch[0]);
-        $this->assertSame([7], $this->drafts);
+        $this->assertSame([7], $this->gh->drafts);
         $this->assertSame(1, $this->task->agentLaunches['task-feedback']->attempts);
     }
 
     public function testNeedsTestingStampsBaseline(): void
     {
         $this->task->state = State::WaitingReview;
-        StateMachine::enterState($this->ctx, State::NeedsTesting);
+        $this->sm->enterState($this->ctx, State::NeedsTesting);
         $this->assertNotNull($this->task->needsTestingEnteredAt);
     }
 
     public function testNeedsTestingRestoreFromWaitingKeepsBaseline(): void
     {
         $this->task->state = State::WaitingReview;
-        StateMachine::enterState($this->ctx, State::NeedsTesting);
+        $this->sm->enterState($this->ctx, State::NeedsTesting);
         $baseline = $this->task->needsTestingEnteredAt;
-        StateMachine::toggleWaiting($this->ctx);
-        StateMachine::toggleWaiting($this->ctx);
+        $this->sm->toggleWaiting($this->ctx);
+        $this->sm->toggleWaiting($this->ctx);
         $this->assertSame(State::NeedsTesting, $this->task->state);
         $this->assertSame($baseline, $this->task->needsTestingEnteredAt);
     }
 
     public function testEnterStatePersists(): void
     {
-        StateMachine::enterState($this->ctx, State::Draft);
+        $this->sm->enterState($this->ctx, State::Draft);
         $saved = $this->store->get('wallet-kit', 'wk-45');
         $this->assertNotNull($saved);
         $this->assertSame(State::Draft, $saved->state);
@@ -303,7 +292,7 @@ final class StateMachineTest extends TestCase
         $this->task->issue = null;
         $this->task->prompt = 'fix callback verification in the webhook handler';
         $this->task->taskAnalystRan = false;
-        StateMachine::enterState($this->ctx, State::InProgress);
+        $this->sm->enterState($this->ctx, State::InProgress);
         $prompt = $this->agents->launchPrompts[0];
         $this->assertStringContainsString('fix callback verification in the webhook handler', $prompt);
     }
@@ -312,20 +301,24 @@ final class StateMachineTest extends TestCase
     {
         $this->task->ciIgnored = true;
         $this->task->state = State::WaitingReview;
-        StateMachine::enterState($this->ctx, State::Draft);
+        $this->sm->enterState($this->ctx, State::Draft);
         $this->assertFalse($this->task->ciIgnored);
     }
 
     public function testNeedsTestingSeedsLastSeenStatus(): void
     {
-        ProviderRegistry::setResolver(static fn (string $name): \Pablo\Provider\Tracker\Provider => new FakeStatusProvider('A FIX'));
-        try {
-            $this->task->state = State::WaitingReview;
-            StateMachine::enterState($this->ctx, State::NeedsTesting);
-            $this->assertSame('A FIX', $this->task->lastSeenIssueStatus);
-        } finally {
-            ProviderRegistry::setResolver(null);
-        }
+        $providers = new class implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
+            public function get(string $name): \Pablo\Provider\Tracker\Provider
+            {
+                return new FakeStatusProvider('A FIX');
+            }
+        };
+        $git = new FakeGit();
+        $git->originUrl = 'git@github.com:acme/wallet-kit.git';
+        $this->sm = new StateMachine(new FakeGhPr(), $providers, new RepoSlug($git), new Time());
+        $this->task->state = State::WaitingReview;
+        $this->sm->enterState($this->ctx, State::NeedsTesting);
+        $this->assertSame('A FIX', $this->task->lastSeenIssueStatus);
     }
 }
 
@@ -365,10 +358,10 @@ final class FakeStatusProvider implements \Pablo\Provider\Tracker\Provider
         return $this->status;
     }
 
-    public function batchIssueStatus(array $pairs): array
+    public function batchIssueStatus(array $issues): array
     {
         $result = [];
-        foreach ($pairs as [$key]) {
+        foreach ($issues as $key => $_) {
             $result[$key] = $this->status;
         }
 

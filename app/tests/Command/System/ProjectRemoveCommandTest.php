@@ -94,7 +94,8 @@ YAML);
 
         // The surviving project must still load, and the final output says
         // cleanup stays task:close's job.
-        $projects = Config::loadProjects($this->projectsDir);
+        $loader = new Config(new \Pablo\Config\GlobalConfig());
+        $projects = $loader->loadProjects($this->projectsDir);
         $this->assertArrayNotHasKey('acme', $projects);
         $this->assertArrayHasKey('wallet-kit', $projects);
         $this->assertStringContainsString('pablo task:close', $tester->getDisplay());
@@ -119,7 +120,7 @@ YAML);
     private function runRemove(array $input): CommandTester
     {
         $application = new Application();
-        $application->addCommand(new ProjectRemoveCommand($this->store));
+        $application->addCommand(new ProjectRemoveCommand($this->store, new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents()));
         $application->addCommand($this->fakeGenerateAgents);
 
         $tester = new CommandTester($application->find('project:remove'));

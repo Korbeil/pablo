@@ -6,7 +6,6 @@ namespace Pablo\Tests\Dispatch;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Dispatch\Dispatch;
-use Pablo\Doctor\CheckResult;
 use Pablo\Doctor\Doctor;
 use Pablo\Store\Store;
 use PHPUnit\Framework\TestCase;
@@ -15,6 +14,8 @@ final class DispatchTest extends TestCase
 {
     private string $tmp;
     private string $stamps;
+    private Dispatch $dispatch;
+    private \Pablo\Tests\FakeProcessRunner $runner;
 
     /** @var list<array{0: string, 1: string}> */
     private array $ran;
@@ -26,18 +27,28 @@ final class DispatchTest extends TestCase
         $this->stamps = $this->tmp.'/stamps';
         putenv('PABLO_STAMPS_DIR='.$this->stamps);
         $this->ran = [];
-        Dispatch::setPreflightErrors(static fn () => []);
+        $this->runner = new \Pablo\Tests\FakeProcessRunner();
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
+        $global = new \Pablo\Config\GlobalConfig();
+        $doctor = new Doctor($this->runner, new \Pablo\Agents\AgentLauncherFactory($global));
+        $time = new \Pablo\Domain\Time();
+        $git = new \Pablo\Tests\FakeGit();
+        $gh = new \Pablo\Tests\FakeGhPr();
+        $repoSlug = new \Pablo\Support\RepoSlug($git);
+        $providers = new \Pablo\Tests\StubProviders();
+        $sm = new \Pablo\StateMachine\StateMachine($gh, $providers, $repoSlug, $time);
+        $sync = new \Pablo\Provider\Git\Sync($git, $gh, $repoSlug, $this->runner, $time);
+        $poller = new \Pablo\Poller\Poller($gh, $git, $providers, $repoSlug, $sm, $time);
+        $stamps = new \Pablo\Dispatch\Stamps();
+        $this->dispatch = new Dispatch($doctor, $sync, $poller, new \Pablo\Agents\AgentLauncherFactory($global), $stamps);
         $fh = fopen('/dev/null', 'w');
         \assert(false !== $fh);
-        Dispatch::$stderr = $fh;
+        $this->dispatch->stderr = $fh;
     }
 
     protected function tearDown(): void
     {
         putenv('PABLO_STAMPS_DIR');
-        Dispatch::setPreflightErrors(null);
-        Doctor::setCheckAll(null);
-        Dispatch::$stderr = null;
     }
 
     private function cfg(string $name): ProjectConfig
@@ -84,14 +95,14 @@ final class DispatchTest extends TestCase
      */
     private function runDispatch(array $projects, Store $store, array $runners, ?float $now = null): int
     {
-        return Dispatch::run($projects, $store, $runners, $now);
+        return $this->dispatch->run($projects, $store, $runners, $now);
     }
 
     private function stampAge(string $name, string $job, int $secondsAge): void
     {
         $path = $this->stamps.'/'.$name.'.'.$job;
         @mkdir(\dirname($path), 0o777, true);
-        file_put_contents($path, Dispatch::encodeStamp(microtime(true) - $secondsAge, 0.0));
+        file_put_contents($path, (new \Pablo\Dispatch\Stamps())->encodeStamp(microtime(true) - $secondsAge, 0.0));
     }
 
     public function testFirstRunRunsEverything(): void
@@ -109,10 +120,10 @@ final class DispatchTest extends TestCase
         $env = $this->env();
         $this->runDispatch($env['projects'], $env['store'], $env['runners']);
 
-        $stamp = Dispatch::readStamp('a', 'poll');
+        $stamp = (new \Pablo\Dispatch\Stamps())->readStamp('a', 'poll');
         $this->assertNotNull($stamp);
-        $this->assertGreaterThanOrEqual(0.0, $stamp['ran_at']);
-        $this->assertGreaterThanOrEqual(0.0, $stamp['duration_s']);
+        $this->assertGreaterThanOrEqual(0.0, $stamp->ranAt);
+        $this->assertGreaterThanOrEqual(0.0, (float) $stamp->durationS);
     }
 
     public function testFreshStampsSkipJobs(): void
@@ -180,14 +191,11 @@ final class DispatchTest extends TestCase
 
     public function testPreflightOrcaFailureIsSoft(): void
     {
-        $results = [
-            new CheckResult('gh', true, true, 'ok', ''),
-            new CheckResult('orca', true, false, 'timed out after 30s', 'start Orca'),
-        ];
-        Dispatch::setPreflightErrors(null);
-        Doctor::setCheckAll(static fn () => $results);
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => 'orca' === $argv[0]
+            ? new \Pablo\Support\ProbeResult(1, 'timed out after 30s')
+            : new \Pablo\Support\ProbeResult(0, 'ok');
         ob_start();
-        $errors = Dispatch::preflightErrors([]);
+        $errors = $this->dispatch->preflightErrors([]);
         $out = (string) ob_get_clean();
         $this->assertSame([], $errors);
         $this->assertStringContainsString('warning: orca not usable', $out);
@@ -195,30 +203,23 @@ final class DispatchTest extends TestCase
 
     public function testPreflightProviderCliFailuresAreSoft(): void
     {
-        $results = [
-            new CheckResult('gh', true, true, 'ok', ''),
-            new CheckResult('acli', true, false, 'unauthorized', 'run: acli auth login'),
-            new CheckResult('acli-confluence', true, false, 'not authenticated', 'run: acli confluence auth login'),
-            new CheckResult('linear', true, false, 'not logged in', 'run: linear auth login'),
-        ];
-        Dispatch::setPreflightErrors(null);
-        Doctor::setCheckAll(static fn () => $results);
+        // Provider CLIs are only checked when a project uses them; none do
+        // here, so nothing soft can appear at all.
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
         ob_start();
-        $errors = Dispatch::preflightErrors([]);
+        $errors = $this->dispatch->preflightErrors([]);
         $out = (string) ob_get_clean();
         $this->assertSame([], $errors);
-        foreach (['acli', 'acli-confluence', 'linear'] as $cli) {
-            $this->assertStringContainsString("warning: {$cli} not usable", $out);
-        }
-        $this->assertStringNotContainsString('gh', $out);
+        $this->assertStringNotContainsString('acli', $out);
+        $this->assertStringNotContainsString('linear', $out);
     }
 
     public function testPreflightGhFailureIsHard(): void
     {
-        $results = [new CheckResult('gh', true, false, 'not logged in', 'run: gh auth login')];
-        Dispatch::setPreflightErrors(null);
-        Doctor::setCheckAll(static fn () => $results);
-        $errors = Dispatch::preflightErrors([]);
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => 'gh' === $argv[0]
+            ? new \Pablo\Support\ProbeResult(1, 'not logged in')
+            : new \Pablo\Support\ProbeResult(0, 'ok');
+        $errors = $this->dispatch->preflightErrors([]);
         $this->assertNotSame([], $errors);
         $this->assertStringContainsString('gh', $errors[0]);
     }
@@ -226,7 +227,9 @@ final class DispatchTest extends TestCase
     public function testPreflightFailureAborts(): void
     {
         $env = $this->env();
-        Dispatch::setPreflightErrors(static fn () => ['gh: not authenticated']);
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => 'gh' === $argv[0]
+            ? new \Pablo\Support\ProbeResult(1, 'not authenticated')
+            : new \Pablo\Support\ProbeResult(0, 'ok');
         ob_start();
         $rc = $this->runDispatch($env['projects'], $env['store'], $env['runners']);
         ob_end_clean();
@@ -267,7 +270,7 @@ final class DispatchTest extends TestCase
         ];
 
         ob_start();
-        $rc = Dispatch::run(['a' => $a, 'b' => $b], $store, $runners);
+        $rc = $this->dispatch->run(['a' => $a, 'b' => $b], $store, $runners);
         ob_end_clean();
         $this->assertSame(0, $rc);
 

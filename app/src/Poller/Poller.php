@@ -6,15 +6,15 @@ namespace Pablo\Poller;
 
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Config\ProjectConfig;
+use Pablo\Domain\AgentActivity;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\DisplayCache;
+use Pablo\Domain\PrBadge;
 use Pablo\Domain\State;
 use Pablo\Domain\Time;
-use Pablo\Listing\Listing;
-use Pablo\Provider\Gh\GhPr;
-use Pablo\Provider\Git\GitRepo;
-use Pablo\Provider\Tracker\Jira;
-use Pablo\Provider\Tracker\ProviderRegistry;
+use Pablo\Provider\Gh\GhPrInterface;
+use Pablo\Provider\Git\GitRepoInterface;
+use Pablo\Provider\Tracker\ProviderRegistryInterface;
 use Pablo\StateMachine\StateMachine;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
@@ -39,16 +39,26 @@ final class Poller
         State::NeedsTesting->value => ['checkFailureSignal'],
     ];
 
+    public function __construct(
+        private readonly GhPrInterface $gh,
+        private readonly GitRepoInterface $git,
+        private readonly ProviderRegistryInterface $providers,
+        private readonly RepoSlug $repoSlug,
+        private readonly StateMachine $stateMachine,
+        private readonly Time $time,
+    ) {
+    }
+
     // ------------------------------------------------------------- checks ---
 
     /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
-    public static function checkCiRed(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    public function checkCiRed(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if ($ctx->task->ciIgnored || null === $prNumber) {
             return null;
         }
-        if ('red' === GhPr::ciStatus($slug, $prNumber, $ctx->cfg->ciIgnoreChecks)) {
+        if ('red' === $this->gh->ciStatus($slug, $prNumber, $ctx->cfg->ciIgnoreChecks)) {
             return State::CiRed;
         }
 
@@ -56,13 +66,13 @@ final class Poller
     }
 
     /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
-    public static function checkCiGreen(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    public function checkCiGreen(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if (null === $prNumber) {
             return null;
         }
-        if ('green' === GhPr::ciStatus($slug, $prNumber, $ctx->cfg->ciIgnoreChecks)) {
+        if ('green' === $this->gh->ciStatus($slug, $prNumber, $ctx->cfg->ciIgnoreChecks)) {
             return State::ReadyToReview;
         }
 
@@ -70,15 +80,15 @@ final class Poller
     }
 
     /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
-    public static function checkReviews(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    public function checkReviews(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if (null === $prNumber) {
             return null;
         }
-        $anchor = GhPr::readyAnchor($slug, $prNumber);
-        [$author, $reviews] = GhPr::fetchReviews($slug, $prNumber);
-        $verdict = GhPr::evaluateReviews($reviews, $anchor, $author, $ctx->cfg->botWhitelist);
+        $anchor = $this->gh->readyAnchor($slug, $prNumber);
+        $prReviews = $this->gh->fetchReviews($slug, $prNumber);
+        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $anchor, $prReviews->author, $ctx->cfg->botWhitelist);
         if ('approved' === $verdict) {
             return State::NeedsTesting;
         }
@@ -90,7 +100,7 @@ final class Poller
     }
 
     /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
-    public static function checkFailureSignal(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    public function checkFailureSignal(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
     {
         $task = $ctx->task;
         if (null === $ctx->cfg->failureSignal || null === $task->needsTestingEnteredAt) {
@@ -100,7 +110,7 @@ final class Poller
         $lastHandled = null !== $task->lastHandledSignalAt
             ? new \DateTimeImmutable($task->lastHandledSignalAt)
             : new \DateTimeImmutable('@0');
-        $provider = ProviderRegistry::get($ctx->cfg->provider);
+        $provider = $this->providers->get($ctx->cfg->provider);
         $events = array_values(array_filter(
             $provider->failureSignalEvents($task, $ctx->cfg),
             static fn (\DateTimeImmutable $stamp) => $stamp > $baseline && $stamp > $lastHandled,
@@ -122,7 +132,7 @@ final class Poller
             $task->lastSeenIssueStatus = $current;
             $ctx->store->save($task);
             if ($current === $ctx->cfg->failureSignal && $previous !== $ctx->cfg->failureSignal) {
-                $task->lastHandledSignalAt = Time::utcnow();
+                $task->lastHandledSignalAt = $this->time->utcnow();
 
                 return State::TestingFailed;
             }
@@ -134,10 +144,10 @@ final class Poller
     // ----------------------------------------------------------- polling ----
 
     /** @param list<string> $events */
-    private static function close(TaskCtx $ctx, array &$events): void
+    private function close(TaskCtx $ctx, array &$events): void
     {
         try {
-            GitRepo::removeWorktree($ctx->cfg->repoPath, $ctx->task->worktreePath, $ctx->task->branch);
+            $this->git->removeWorktree($ctx->cfg->repoPath, $ctx->task->worktreePath, $ctx->task->branch);
             $events[] = "{$ctx->task->branch}: PR merged → task closed, worktree removed";
         } catch (PabloError $e) {
             $events[] = "{$ctx->task->branch}: PR merged → task closed (worktree already gone: {$e->getMessage()})";
@@ -146,7 +156,7 @@ final class Poller
     }
 
     /** @param list<string> $events */
-    private static function stampFinishedAgents(TaskCtx $ctx, array &$events): void
+    private function stampFinishedAgents(TaskCtx $ctx, array &$events): void
     {
         $task = $ctx->task;
         $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->getTimestamp();
@@ -164,13 +174,13 @@ final class Poller
             }
             // PABLO gave up retrying a PABLO-triggered agent, it launched a
             // while back and the task hasn't moved: its run has concluded and
-            // the ball is with the user (review the plan, commit-and-PR).
+            // the ball is with the user (review the plan, commit-and-pr).
             // PABLO-owned, so it never depends on Orca reporting the agent.
             $task->agentLaunches[$label] = new AgentLaunch(
                 $record->agent,
                 $record->launchedAt,
                 $record->attempts,
-                Time::utcnow(),
+                $this->time->utcnow(),
             );
             $events[] = "{$task->branch}: {$record->agent->value} finished → waiting for feedback";
             $changed = true;
@@ -181,7 +191,7 @@ final class Poller
     }
 
     /** @param list<string> $events */
-    private static function relaunchStuckAgents(TaskCtx $ctx, array &$events): void
+    private function relaunchStuckAgents(TaskCtx $ctx, array &$events): void
     {
         $task = $ctx->task;
         try {
@@ -200,7 +210,7 @@ final class Poller
             $ctx->agents->setWorktreeDisplayName($task->worktreePath, $task->issue->key, $ghIssue);
         }
         $healed = false;
-        foreach (StateMachine::specsFor($ctx, $task->state) as $spec) {
+        foreach ($this->stateMachine->specsFor($ctx, $task->state) as $spec) {
             $record = $task->agentLaunches[$spec['label']->value] ?? null;
             if (null === $record || null === $record->launchedAt) {
                 continue;
@@ -220,7 +230,7 @@ final class Poller
             $fn(...$args);
             $task->agentLaunches[$spec['label']->value] = new AgentLaunch(
                 $spec['label'],
-                Time::utcnow(),
+                $this->time->utcnow(),
                 $record->attempts + 1,
             );
             $events[] = "{$task->branch}: {$spec['label']->value} re-launch #".($record->attempts + 1)
@@ -236,20 +246,20 @@ final class Poller
      * @param list<string>               $events
      * @param array<string, string>|null $trackerStatuses
      */
-    private static function pollTask(TaskCtx $ctx, array &$events, ?array $trackerStatuses = null): void
+    private function pollTask(TaskCtx $ctx, array &$events, ?array $trackerStatuses = null): void
     {
         $task = $ctx->task;
-        $slug = RepoSlug::for($ctx->cfg);
+        $slug = $this->repoSlug->for($ctx->cfg);
 
         try {
-            $actualBranch = GitRepo::git($task->worktreePath, ['rev-parse', '--abbrev-ref', 'HEAD']);
+            $actualBranch = $this->git->git($task->worktreePath, ['rev-parse', '--abbrev-ref', 'HEAD']);
         } catch (PabloError) {
             $actualBranch = $task->branch;
         }
 
         // A task that entered draft via /commit-and-pr may not know its PR yet.
         if (null === $task->prNumber && !\in_array($task->state, [State::InProgress, State::Waiting], true)) {
-            $pr = GhPr::prForBranch($slug, $actualBranch);
+            $pr = $this->gh->prForBranch($slug, $actualBranch);
             if (null !== $pr) {
                 $task->prNumber = $pr->number;
                 $ctx->store->save($task);
@@ -258,19 +268,19 @@ final class Poller
 
         if ($task->merged) {
             if ([] === $ctx->agents->activeSessions($task->worktreePath)) {
-                self::close($ctx, $events);
+                $this->close($ctx, $events);
             }
 
             return;
         }
 
-        if (null !== $task->prNumber && GhPr::isMerged($slug, $task->prNumber)) {
+        if (null !== $task->prNumber && $this->gh->isMerged($slug, $task->prNumber)) {
             if ([] !== $ctx->agents->activeSessions($task->worktreePath)) {
                 $task->merged = true;
                 $ctx->store->save($task);
                 $events[] = "{$task->branch}: PR merged, close deferred (agents still running)";
             } else {
-                self::close($ctx, $events);
+                $this->close($ctx, $events);
             }
 
             return;
@@ -281,8 +291,8 @@ final class Poller
         }
 
         if (\in_array($task->state, StateMachine::AGENT_LAUNCH_STATES, true)) {
-            self::stampFinishedAgents($ctx, $events);
-            self::relaunchStuckAgents($ctx, $events);
+            $this->stampFinishedAgents($ctx, $events);
+            $this->relaunchStuckAgents($ctx, $events);
         }
         if (State::InProgress === $task->state) {
             return;
@@ -292,9 +302,9 @@ final class Poller
         }
 
         foreach (self::POLL_CHECKS[$task->state->value] ?? [] as $checkName) {
-            $target = self::{$checkName}($ctx, $slug, $trackerStatuses);
+            $target = $this->{$checkName}($ctx, $slug, $trackerStatuses);
             if (null !== $target) {
-                StateMachine::enterState($ctx, $target);
+                $this->stateMachine->enterState($ctx, $target);
                 $events[] = "{$task->branch}: → {$ctx->task->state->value}";
 
                 return;
@@ -303,11 +313,11 @@ final class Poller
     }
 
     /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
-    public static function refreshDisplayCache(TaskCtx $ctx, AgentLauncherInterface $agents, ?array $trackerStatuses = null): void
+    public function refreshDisplayCache(TaskCtx $ctx, AgentLauncherInterface $agents, ?array $trackerStatuses = null): void
     {
         $task = $ctx->task;
         $cfg = $ctx->cfg;
-        $slug = RepoSlug::for($cfg);
+        $slug = $this->repoSlug->for($cfg);
 
         $trackerStatus = $task->displayCache->trackerStatus;
         $prState = $task->displayCache->prState;
@@ -319,7 +329,7 @@ final class Poller
             try {
                 $trackerStatus = null !== $trackerStatuses && isset($trackerStatuses[$task->issue->key])
                     ? $trackerStatuses[$task->issue->key]
-                    : ProviderRegistry::get($cfg->provider)->issueStatus($task->issue->key, $cfg);
+                    : $this->providers->get($cfg->provider)->issueStatus($task->issue->key, $cfg);
             } catch (PabloError) {
                 // keep the last known value rather than blanking it
             }
@@ -333,15 +343,15 @@ final class Poller
 
         try {
             try {
-                $actualBranch = GitRepo::git($task->worktreePath, ['rev-parse', '--abbrev-ref', 'HEAD']);
+                $actualBranch = $this->git->git($task->worktreePath, ['rev-parse', '--abbrev-ref', 'HEAD']);
             } catch (PabloError) {
                 $actualBranch = $task->branch;
             }
-            $pr = GhPr::prForBranch($slug, $actualBranch);
+            $pr = $this->gh->prForBranch($slug, $actualBranch);
             if (null !== $pr && null === $task->prNumber) {
                 $task->prNumber = $pr->number;
             }
-            $prState = Listing::prStateCell($task, $pr);
+            $prState = PrBadge::fromTask($task, $pr)->render();
         } catch (PabloError) {
             if (null === $task->prNumber) {
                 $prState = '-';
@@ -350,7 +360,8 @@ final class Poller
 
         try {
             $sessions = $agents->displaySessions($task->worktreePath);
-            [$count, $activity] = Listing::agentActivitySummary($sessions);
+            $activityVo = AgentActivity::fromSessions($sessions);
+            [$count, $activity] = [$activityVo->total, $activityVo->render()];
             $agentCount = $count;
             $agentActivity = $activity;
         } catch (\Throwable) {
@@ -362,7 +373,7 @@ final class Poller
             prState: $prState,
             agentCount: $agentCount,
             agentActivity: $agentActivity,
-            at: Time::utcnow(),
+            at: $this->time->utcnow(),
         );
         $ctx->store->save($task);
     }
@@ -375,32 +386,32 @@ final class Poller
      *
      * @return array<string, string> key => status
      */
-    private static function fetchTrackerStatuses(ProjectConfig $cfg, Store $store): array
+    private function fetchTrackerStatuses(ProjectConfig $cfg, Store $store): array
     {
-        $pairs = [];
+        $issues = [];
         foreach ($store->allTasks($cfg->name) as $task) {
             if (null !== $task->issue) {
-                $pairs[] = [$task->issue->key, $cfg];
+                $issues[$task->issue->key] = $cfg;
             }
         }
-        if ([] === $pairs) {
+        if ([] === $issues) {
             return [];
         }
         try {
-            return ProviderRegistry::get($cfg->provider)->batchIssueStatus($pairs);
+            return $this->providers->get($cfg->provider)->batchIssueStatus($issues);
         } catch (\Throwable) {
             return [];
         }
     }
 
     /** @return array<int, string> */
-    public static function pollProject(ProjectConfig $cfg, Store $store, AgentLauncherInterface $agents): array
+    public function pollProject(ProjectConfig $cfg, Store $store, AgentLauncherInterface $agents): array
     {
         $events = [];
-        $trackerStatuses = self::fetchTrackerStatuses($cfg, $store);
+        $trackerStatuses = $this->fetchTrackerStatuses($cfg, $store);
         foreach ($store->allTasks($cfg->name) as $task) {
             try {
-                $lock = Store::taskLock($store, $cfg->name, $task->branch, self::POLL_LOCK_TIMEOUT_S);
+                $lock = $store->taskLock($cfg->name, $task->branch, self::POLL_LOCK_TIMEOUT_S);
                 try {
                     $fresh = $store->get($cfg->name, $task->branch);
                     if (null === $fresh) {
@@ -408,13 +419,13 @@ final class Poller
                     }
                     $ctx = new TaskCtx(task: $fresh, cfg: $cfg, store: $store, agents: $agents);
                     try {
-                        self::pollTask($ctx, $events, $trackerStatuses);
+                        $this->pollTask($ctx, $events, $trackerStatuses);
                     } catch (\Throwable $e) {
                         $events[] = "{$task->branch}: poll check failed: {$e->getMessage()}";
                     }
                     try {
                         if (null !== $store->get($cfg->name, $task->branch)) {
-                            self::refreshDisplayCache($ctx, $agents, $trackerStatuses);
+                            $this->refreshDisplayCache($ctx, $agents, $trackerStatuses);
                         }
                     } catch (\Throwable $e) {
                         $events[] = "{$task->branch}: display cache refresh failed: {$e->getMessage()}";

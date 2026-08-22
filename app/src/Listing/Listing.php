@@ -7,18 +7,17 @@ namespace Pablo\Listing;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Config\ProjectConfig;
-use Pablo\Dispatch\Dispatch;
+use Pablo\Dispatch\Stamps;
 use Pablo\Domain\AgentActivity;
 use Pablo\Domain\DisplayCache;
-use Pablo\Domain\Issue;
 use Pablo\Domain\PrBadge;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
-use Pablo\Provider\Gh\GhPr;
+use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Provider\Gh\PrInfo;
-use Pablo\Provider\Git\GitRepo;
-use Pablo\Provider\Tracker\ProviderRegistry;
+use Pablo\Provider\Git\GitRepoInterface;
+use Pablo\Provider\Tracker\ProviderRegistryInterface;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
@@ -33,18 +32,6 @@ use Symfony\Component\Console\Output\BufferedOutput;
  */
 final class Listing
 {
-    private const TASKS_SORT_ORDER = [
-        State::TestingFailed,
-        State::NeedsTesting,
-        State::RequestChanges,
-        State::WaitingReview,
-        State::ReadyToReview,
-        State::CiRed,
-        State::Draft,
-        State::Waiting,
-        State::InProgress,
-    ];
-
     // Only these states qualify for the "💭 Waiting for feedback" section.
     private const WAITING_FEEDBACK_STATES = [
         State::InProgress,
@@ -52,6 +39,24 @@ final class Listing
         State::RequestChanges,
         State::TestingFailed,
     ];
+
+    private const SLACK_EMPTY = [
+        State::WaitingReview->value => 'No PRs waiting for review right now 🎉',
+        State::NeedsTesting->value => 'Nothing needs testing right now 🎉',
+    ];
+
+    private const TASKS_HEADERS = ['Project', 'Task', 'State', 'Agents', 'Activity', 'Issue', 'Tracker', 'PR', 'Since'];
+
+    public function __construct(
+        private readonly Stamps $stamps,
+        private readonly GhPrInterface $gh,
+        private readonly GitRepoInterface $git,
+        private readonly ProviderRegistryInterface $providers,
+        private readonly RepoSlug $repoSlug,
+        private readonly StateMachine $stateMachine,
+        private readonly Time $time,
+    ) {
+    }
 
     /**
      * Is this task blocked on the user right now?
@@ -68,29 +73,20 @@ final class Listing
      * Note it deliberately excludes needs-testing and waiting-review: those
      * mean the ball is with QA/reviewers, not with you.
      */
-    public static function isWaitingForFeedback(Task $task, ?AgentActivity $agents = null): bool
+    public function isWaitingForFeedback(Task $task, ?AgentActivity $agents = null): bool
     {
         return \in_array($task->state, self::WAITING_FEEDBACK_STATES, true)
             && ($task->hasFinishedAgent() || (null !== $agents && $agents->isWaiting()));
     }
 
-    private const SLACK_EMPTY = [
-        State::WaitingReview->value => 'No PRs waiting for review right now 🎉',
-        State::NeedsTesting->value => 'Nothing needs testing right now 🎉',
-    ];
-
-    private const TASKS_HEADERS = ['Project', 'Task', 'State', 'Agents', 'Activity', 'Issue', 'Tracker', 'PR', 'Since'];
-
     // ------------------------------------------------------- ordering ----
 
-    public static function stateRank(State $state): int
+    public function stateRank(State $state): int
     {
-        $i = array_search($state, self::TASKS_SORT_ORDER, true);
-
-        return false === $i ? \count(self::TASKS_SORT_ORDER) : $i;
+        return $state->displayRank();
     }
 
-    public static function timeSince(string $isoTimestamp): string
+    public function timeSince(string $isoTimestamp): string
     {
         try {
             $dt = new \DateTimeImmutable($isoTimestamp);
@@ -114,15 +110,15 @@ final class Listing
     }
 
     /** @param array<string, ProjectConfig> $projects */
-    public static function lastPollHeader(array $projects): string
+    public function lastPollHeader(array $projects): string
     {
         $latest = null;
         foreach ($projects as $name => $_) {
-            $stamp = Dispatch::readStamp($name, 'poll');
+            $stamp = $this->stamps->readStamp($name, 'poll');
             if (null === $stamp) {
                 continue;
             }
-            $dt = (new \DateTimeImmutable('@'.(int) $stamp['ran_at']))->setTimezone(new \DateTimeZone(date_default_timezone_get()));
+            $dt = (new \DateTimeImmutable('@'.(int) $stamp->ranAt))->setTimezone(new \DateTimeZone(date_default_timezone_get()));
             if (null === $latest || $dt > $latest) {
                 $latest = $dt;
             }
@@ -149,7 +145,7 @@ final class Listing
      * @param array<int, string>             $headers
      * @param array<int, array<int, string>> $rows
      */
-    private static function table(array $headers, array $rows): string
+    private function table(array $headers, array $rows): string
     {
         $output = new BufferedOutput();
         $table = new Table($output);
@@ -161,7 +157,7 @@ final class Listing
     }
 
     /** Terminal display-column width of $s (emoji = 2, ASCII = 1). */
-    public static function displayWidth(string $s): int
+    public function displayWidth(string $s): int
     {
         $w = 0;
         $len = mb_strlen($s, 'UTF-8');
@@ -172,9 +168,9 @@ final class Listing
         return $w;
     }
 
-    public static function padRight(string $s, int $width): string
+    public function padRight(string $s, int $width): string
     {
-        return $s.str_repeat(' ', max(0, $width - self::displayWidth($s)));
+        return $s.str_repeat(' ', max(0, $width - $this->displayWidth($s)));
     }
 
     /**
@@ -182,25 +178,25 @@ final class Listing
      * @param array<int, array<int, string>> $rows
      * @param array<int, int>|null           $widths
      */
-    public static function render(array $headers, array $rows, ?array $widths = null): string
+    public function render(array $headers, array $rows, ?array $widths = null): string
     {
         if (null === $widths) {
             $widths = [];
             foreach ($headers as $i => $h) {
-                $w = self::displayWidth($h);
+                $w = $this->displayWidth($h);
                 foreach ($rows as $row) {
-                    $w = max($w, self::displayWidth($row[$i] ?? ''));
+                    $w = max($w, $this->displayWidth($row[$i] ?? ''));
                 }
                 $widths[] = $w;
             }
         }
         $lines = [];
-        $lines[] = implode('  ', array_map(static fn ($i) => self::padRight($headers[$i], $widths[$i]), array_keys($headers)));
+        $lines[] = implode('  ', array_map(fn ($i) => $this->padRight($headers[$i], $widths[$i]), array_keys($headers)));
         $lines[] = implode('  ', array_map(static fn ($w) => str_repeat('-', $w), $widths));
         foreach ($rows as $row) {
             $buf = [];
             foreach (array_keys($headers) as $i) {
-                $buf[] = self::padRight($row[$i] ?? '', $widths[$i]);
+                $buf[] = $this->padRight($row[$i] ?? '', $widths[$i]);
             }
             $lines[] = implode('  ', $buf);
         }
@@ -215,7 +211,7 @@ final class Listing
      *
      * @return list<string>
      */
-    private static function branchCandidates(string $base, array $names): array
+    private function branchCandidates(string $base, array $names): array
     {
         $found = [];
         foreach ($names as $name) {
@@ -232,23 +228,23 @@ final class Listing
         return $found;
     }
 
-    public static function issuesTable(ProjectConfig $cfg, Store $store): string
+    public function issuesTable(ProjectConfig $cfg, Store $store): string
     {
-        $provider = ProviderRegistry::get($cfg->provider);
+        $provider = $this->providers->get($cfg->provider);
         $issues = $provider->listAssigned($cfg);
-        $names = GitRepo::allBranchNames($cfg->repoPath);
-        $slug = RepoSlug::for($cfg);
+        $names = $this->git->allBranchNames($cfg->repoPath);
+        $slug = $this->repoSlug->for($cfg);
 
         $rows = [];
         foreach ($issues as $issue) {
             $base = 'github' === $cfg->provider
                 ? strtolower($cfg->projectKey).'-'.strtolower($issue->key)
                 : strtolower($issue->key);
-            $branches = self::branchCandidates($base, $names);
+            $branches = $this->branchCandidates($base, $names);
 
             $prCell = '-';
             foreach ($branches as $branch) {
-                $pr = GhPr::prForBranch($slug, $branch);
+                $pr = $this->gh->prForBranch($slug, $branch);
                 if (null !== $pr) {
                     $state = 'MERGED' === $pr->state ? 'merged' : ($pr->isDraft ? 'draft' : strtolower($pr->state));
                     $prCell = "#{$pr->number} {$pr->title} ({$state})";
@@ -265,14 +261,14 @@ final class Listing
             ];
         }
 
-        return self::table(['Issue', 'Title', 'Status', 'PR', 'Branch'], $rows);
+        return $this->table(['Issue', 'Title', 'Status', 'PR', 'Branch'], $rows);
     }
 
     // ---------------------------------------------------- tasks table ----
 
-    private static function stateCell(Task $task): string
+    private function stateCell(Task $task): string
     {
-        $def = StateMachine::states()[$task->state->value] ?? null;
+        $def = $this->stateMachine->states()[$task->state->value] ?? null;
         if (null === $def) {
             return $task->state->value;
         }
@@ -280,7 +276,7 @@ final class Listing
         return "{$def['emoji']} {$def['label']}";
     }
 
-    private static function issueCell(Task $task): string
+    private function issueCell(Task $task): string
     {
         if (null !== $task->issue) {
             return "{$task->issue->key} {$task->issue->title}";
@@ -289,27 +285,23 @@ final class Listing
         return $task->summary ?? '-';
     }
 
-    public static function prStateCell(Task $task, ?PrInfo $pr): string
+    public function prStateCell(Task $task, ?PrInfo $pr): string
     {
         return PrBadge::fromTask($task, $pr)->render();
     }
 
     /**
      * @param array<int, SessionInfo> $sessions
-     *
-     * @return array{0: int, 1: string}
      */
-    public static function agentActivitySummary(array $sessions): array
+    public function agentActivitySummary(array $sessions): AgentActivity
     {
-        $activity = AgentActivity::fromSessions($sessions);
-
-        return [$activity->total, $activity->render()];
+        return AgentActivity::fromSessions($sessions);
     }
 
     /**
      * @param array<string, string>|null $prefetched key => status map from batch lookup
      */
-    private static function remoteStatusCell(Task $task, ProjectConfig $cfg, bool $live, ?array $prefetched = null): string
+    private function remoteStatusCell(Task $task, ProjectConfig $cfg, bool $live, ?array $prefetched = null): string
     {
         if (null === $task->issue) {
             return 'N/A';
@@ -321,14 +313,14 @@ final class Listing
             return $prefetched[$task->issue->key];
         }
         try {
-            return ProviderRegistry::get($cfg->provider)->issueStatus($task->issue->key, $cfg);
+            return $this->providers->get($cfg->provider)->issueStatus($task->issue->key, $cfg);
         } catch (PabloError) {
             return '?';
         }
     }
 
     /** @param array<string, PrInfo>|null $prefetched */
-    private static function prCell(Task $task, ProjectConfig $cfg, bool $live, ?array $prefetched): string
+    private function prCell(Task $task, ProjectConfig $cfg, bool $live, ?array $prefetched): string
     {
         if (!$live && null !== $task->displayCache->prState) {
             return $task->displayCache->prState;
@@ -340,33 +332,31 @@ final class Listing
             return '-';
         }
         if (null !== $prefetched) {
-            return self::prStateCell($task, $prefetched[$task->branch] ?? null);
+            return $this->prStateCell($task, $prefetched[$task->branch] ?? null);
         }
         try {
-            $pr = GhPr::prForBranch(RepoSlug::for($cfg), $task->branch);
+            $pr = $this->gh->prForBranch($this->repoSlug->for($cfg), $task->branch);
         } catch (PabloError) {
             return "#{$task->prNumber}";
         }
 
-        return self::prStateCell($task, $pr);
+        return $this->prStateCell($task, $pr);
     }
 
     /**
      * @param array<int, SessionInfo>|null $sessions
-     *
-     * @return array{0: string, 1: string}
      */
-    private static function agentCells(Task $task, bool $live, AgentLauncherInterface $agents, ?array $sessions): array
+    private function agentCells(Task $task, bool $live, AgentLauncherInterface $agents, ?array $sessions): AgentCell
     {
         if (!$live && null !== $task->displayCache->agentCount) {
-            return [(string) $task->displayCache->agentCount, $task->displayCache->agentActivity ?? '-'];
+            return new AgentCell((string) $task->displayCache->agentCount, $task->displayCache->agentActivity ?? '-');
         }
         if (null === $sessions) {
             $sessions = $agents->activeSessions($task->worktreePath);
         }
-        [$count, $activity] = self::agentActivitySummary($sessions);
+        $activity = $this->agentActivitySummary($sessions);
 
-        return [(string) $count, $activity];
+        return new AgentCell((string) $activity->total, $activity->render());
     }
 
     /**
@@ -376,7 +366,7 @@ final class Listing
      *
      * @param array<string, ProjectConfig> $projects
      */
-    public static function tasksTable(array $projects, Store $store, AgentLauncherInterface $agents, bool $live = false, bool $refresh = false): string
+    public function tasksTable(array $projects, Store $store, AgentLauncherInterface $agents, bool $live = false, bool $refresh = false): string
     {
         $fetchLive = $live || $refresh;
         $tasks = array_values(array_filter($store->allTasks(), static fn (Task $t) => isset($projects[$t->project])));
@@ -402,11 +392,11 @@ final class Listing
                 if (null === $issue) {
                     continue;
                 }
-                $byProvider[$cfg->provider][] = [$issue->key, $cfg];
+                $byProvider[$cfg->provider][$issue->key] = $cfg;
             }
             foreach ($byProvider as $providerName => $pairs) {
                 try {
-                    $trackerStatuses[$providerName] = ProviderRegistry::get($providerName)->batchIssueStatus($pairs);
+                    $trackerStatuses[$providerName] = $this->providers->get($providerName)->batchIssueStatus($pairs);
                 } catch (PabloError) {
                     $trackerStatuses[$providerName] = [];
                 }
@@ -420,7 +410,7 @@ final class Listing
         $repoBranches = [];
         $seen = [];
         foreach ($needsPrCheck as $task) {
-            $slug = RepoSlug::for($projects[$task->project]);
+            $slug = $this->repoSlug->for($projects[$task->project]);
             if (!isset($seen[$slug])) {
                 $seen[$slug] = [];
             }
@@ -430,41 +420,43 @@ final class Listing
             $repoBranches[] = [$slug, $branches];
         }
         $prsByRepo = [] !== $repoBranches
-            ? GhPr::prsForBranchesBulk($repoBranches)
+            ? $this->gh->prsForBranchesBulk($repoBranches)
             : [];
 
         $entries = [];
         foreach ($tasks as $task) {
             $cfg = $projects[$task->project];
-            $tracker = self::remoteStatusCell($task, $cfg, $fetchLive, $trackerStatuses[$cfg->provider] ?? null);
-            $slug = RepoSlug::for($cfg);
-            $pr = self::prCell($task, $cfg, $fetchLive, $prsByRepo[$slug] ?? null);
-            [$count, $activity] = self::agentCells(
+            $tracker = $this->remoteStatusCell($task, $cfg, $fetchLive, $trackerStatuses[$cfg->provider] ?? null);
+            $slug = $this->repoSlug->for($cfg);
+            $pr = $this->prCell($task, $cfg, $fetchLive, $prsByRepo[$slug] ?? null);
+            $cell = $this->agentCells(
                 $task,
                 $fetchLive,
                 $agents,
                 $sessionsByWorktree[$task->worktreePath] ?? null,
             );
+            $count = $cell->count;
+            $activity = $cell->activity;
             if ($refresh) {
                 $task->displayCache = new DisplayCache(
                     trackerStatus: (null !== $task->issue && '?' !== $tracker) ? $tracker : $task->displayCache->trackerStatus,
                     prState: $pr,
                     agentCount: (int) $count,
                     agentActivity: $activity,
-                    at: Time::utcnow(),
+                    at: $this->time->utcnow(),
                 );
                 $store->save($task);
             }
             $entries[] = [$task, [
                 $task->project,
                 $task->branch,
-                self::stateCell($task),
+                $this->stateCell($task),
                 $count,
                 $activity,
-                self::issueCell($task),
+                $this->issueCell($task),
                 $tracker,
                 $pr,
-                self::timeSince($task->stateEnteredAt),
+                $this->timeSince($task->stateEnteredAt),
             ]];
         }
 
@@ -472,42 +464,45 @@ final class Listing
             return 'no active tasks';
         }
 
-        $split = static function (array $e) {
-            return self::isWaitingForFeedback(
-                $e[0],
-                AgentActivity::fromDisplay((int) $e[1][3], $e[1][4]),
-            );
-        };
+        $split = fn (array $e) => $this->isWaitingForFeedback(
+            $e[0],
+            AgentActivity::fromDisplay((int) $e[1][3], $e[1][4]),
+        );
         $waitingEntries = array_values(array_filter($entries, $split));
         $restEntries = array_values(array_filter($entries, static fn ($e) => !$split($e)));
 
-        $rank = static function (array $a, array $b): int {
-            $cmp = self::stateRank($a[0]->state) <=> self::stateRank($b[0]->state);
-            if (0 !== $cmp) {
-                return $cmp;
-            }
-
-            return strcmp($a[0]->stateEnteredAt, $b[0]->stateEnteredAt);
-        };
-        usort($waitingEntries, $rank);
-        usort($restEntries, $rank);
+        usort($waitingEntries, fn (array $a, array $b): int => $this->rankEntries($a[0], $b[0]));
+        usort($restEntries, fn (array $a, array $b): int => $this->rankEntries($a[0], $b[0]));
 
         $sections = [];
         if ([] !== $waitingEntries) {
             $rows = array_map(static fn ($e) => $e[1], $waitingEntries);
-            $sections[] = "💭 Waiting for feedback\n\n".self::table(self::TASKS_HEADERS, $rows);
+            $sections[] = "💭 Waiting for feedback\n\n".$this->table(self::TASKS_HEADERS, $rows);
         }
         if ([] !== $restEntries) {
             $rows = array_map(static fn ($e) => $e[1], $restEntries);
             $header = [] !== $waitingEntries ? "Other tasks\n\n" : '';
-            $sections[] = $header.self::table(self::TASKS_HEADERS, $rows);
+            $sections[] = $header.$this->table(self::TASKS_HEADERS, $rows);
         }
-        $pollHeader = self::lastPollHeader($projects);
+        $pollHeader = $this->lastPollHeader($projects);
         if ('' !== $pollHeader) {
             array_unshift($sections, $pollHeader);
         }
 
         return implode("\n\n", $sections);
+    }
+
+    /**
+     * Sort key: state rank first, then entry timestamp (stable).
+     */
+    private function rankEntries(Task $a, Task $b): int
+    {
+        $cmp = $this->stateRank($a->state) <=> $this->stateRank($b->state);
+        if (0 !== $cmp) {
+            return $cmp;
+        }
+
+        return strcmp($a->stateEnteredAt, $b->stateEnteredAt);
     }
 
     // ---------------------------------------------------- slack export ----
@@ -518,9 +513,9 @@ final class Listing
      *
      * @param array<string, ProjectConfig> $projects
      *
-     * @return array<int, array<string, mixed>>
+     * @return list<SlackItem>
      */
-    public static function queueTasks(array $projects, Store $store, string $state): array
+    public function queueTasks(array $projects, Store $store, string $state): array
     {
         $stateEnum = State::tryFrom($state);
         if (null === $stateEnum) {
@@ -537,57 +532,45 @@ final class Listing
             }
             $info = null;
             try {
-                $info = GhPr::prForBranch(RepoSlug::for($cfg), $task->branch);
+                $info = $this->gh->prForBranch($this->repoSlug->for($cfg), $task->branch);
             } catch (PabloError) {
                 // ignore
             }
             if (null !== $info) {
-                $pr = [
-                    'number' => $info->number,
-                    'title' => $info->title,
-                    'url' => $info->url,
-                    'is_draft' => $info->isDraft,
-                ];
+                $pr = new SlackPr($info->number, $info->title, $info->url, $info->isDraft);
             } elseif (null !== $task->prNumber) {
-                $slug = RepoSlug::for($cfg);
-                $pr = [
-                    'number' => $task->prNumber,
-                    'title' => null !== $task->issue ? $task->issue->key : ($task->summary ?? ''),
-                    'url' => "https://github.com/{$slug}/pull/{$task->prNumber}",
-                    'is_draft' => false,
-                ];
+                $slug = $this->repoSlug->for($cfg);
+                $pr = new SlackPr(
+                    $task->prNumber,
+                    null !== $task->issue ? $task->issue->key : ($task->summary ?? ''),
+                    "https://github.com/{$slug}/pull/{$task->prNumber}",
+                    false,
+                );
             } else {
                 $pr = null;
             }
-            $rows[] = [
-                'project' => $task->project,
-                'branch' => $task->branch,
-                'issue' => null !== $task->issue ? $task->issue->toJson() : null,
-                'summary' => $task->summary,
-                'pr' => $pr,
-            ];
+            $rows[] = new SlackItem($task->project, $task->branch, $task->issue, $task->summary, $pr);
         }
 
         return $rows;
     }
 
-    /** @param array<int, array<string, mixed>> $rows */
-    public static function renderSlack(array $rows, string $state): string
+    /** @param list<SlackItem> $rows */
+    public function renderSlack(array $rows, string $state): string
     {
         $emptyMsg = self::SLACK_EMPTY[$state] ?? 'Nothing to list right now 🎉';
         $groups = [];
         foreach ($rows as $row) {
-            $pr = $row['pr'] ?? null;
+            $pr = $row->pr;
             if (null === $pr) {
                 continue;
             }
-            $issue = $row['issue'] ?? null;
-            if (null !== $issue) {
-                $text = "{$pr['url']} {$issue['key']} {$issue['title']}";
+            if (null !== $row->issue) {
+                $text = "{$pr->url} {$row->issue->key} {$row->issue->title}";
             } else {
-                $text = "{$pr['url']} #{$pr['number']} {$pr['title']}";
+                $text = "{$pr->url} #{$pr->number} {$pr->title}";
             }
-            $groups[$row['project']][] = "• {$text}";
+            $groups[$row->project][] = "• {$text}";
         }
 
         if ([] === $groups) {

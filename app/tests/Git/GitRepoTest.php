@@ -9,6 +9,12 @@ use PHPUnit\Framework\TestCase;
 
 final class GitRepoTest extends TestCase
 {
+    private \Pablo\Provider\Git\GitRepoInterface $gitRepo;
+
+    private function git(): \Pablo\Provider\Git\GitRepoInterface
+    {
+        return $this->gitRepo ??= new GitRepo();
+    }
     private string $tmp;
     private string $clone;
     private string $other;
@@ -22,12 +28,11 @@ final class GitRepoTest extends TestCase
         $this->clone = $repos['clone'];
         $this->other = $repos['other'];
         $this->root = $this->tmp.'/worktrees';
-        GitRepo::setCreateWorktree(null);
     }
 
     private function makeWorktree(string $branch = 'wk-1'): string
     {
-        return GitRepo::createWorktree($this->clone, $this->root, $branch, 'main');
+        return $this->git()->createWorktree($this->clone, $this->root, $branch, 'main');
     }
 
     public function testCreateWorktreeBranchesOffPrimary(): void
@@ -44,10 +49,10 @@ final class GitRepoTest extends TestCase
     public function testListWorktrees(): void
     {
         $wt = $this->makeWorktree();
-        $entries = GitRepo::listWorktrees($this->clone);
+        $entries = $this->git()->listWorktrees($this->clone);
         $found = false;
-        foreach ($entries as [$path, $branch]) {
-            if (realpath($path) === realpath($wt) && 'wk-1' === $branch) {
+        foreach ($entries as $ref) {
+            if (realpath($ref->path) === realpath($wt) && 'wk-1' === $ref->branch) {
                 $found = true;
             }
         }
@@ -56,28 +61,28 @@ final class GitRepoTest extends TestCase
 
     public function testRemoveWorktreeDeletesSlashPrefixedBranch(): void
     {
-        $wt = GitRepo::createWorktree($this->clone, $this->root, 'octocat/wk-9', 'main');
+        $wt = $this->git()->createWorktree($this->clone, $this->root, 'octocat/wk-9', 'main');
         $this->assertDirectoryExists($wt);
         $this->assertSame('octocat/wk-9', RepoHelper::git($wt, ['branch', '--show-current']));
 
         // Task tracks the short name ("wk-9") but the real branch is prefixed.
-        GitRepo::removeWorktree($this->clone, $wt, 'wk-9');
+        $this->git()->removeWorktree($this->clone, $wt, 'wk-9');
 
         $this->assertDirectoryDoesNotExist($wt);
-        $names = GitRepo::allBranchNames($this->clone);
+        $names = $this->git()->allBranchNames($this->clone);
         $this->assertNotContains('octocat/wk-9', $names);
         $this->assertNotContains('wk-9', $names);
     }
 
     public function testRemoveWorktreeKeepsUnrelatedBranches(): void
     {
-        $wt = GitRepo::createWorktree($this->clone, $this->root, 'wk-9', 'main');
+        $wt = $this->git()->createWorktree($this->clone, $this->root, 'wk-9', 'main');
         RepoHelper::git($this->clone, ['branch', 'other-topic']);
 
-        GitRepo::removeWorktree($this->clone, $wt, 'wk-9');
+        $this->git()->removeWorktree($this->clone, $wt, 'wk-9');
 
         $this->assertDirectoryDoesNotExist($wt);
-        $names = GitRepo::allBranchNames($this->clone);
+        $names = $this->git()->allBranchNames($this->clone);
         $this->assertNotContains('wk-9', $names);
         $this->assertContains('other-topic', $names);
     }
@@ -86,7 +91,7 @@ final class GitRepoTest extends TestCase
     {
         $wt = $this->makeWorktree();
         RepoHelper::git($wt, ['push', '-q', '-u', 'origin', 'wk-1']);
-        $names = GitRepo::allBranchNames($this->clone);
+        $names = $this->git()->allBranchNames($this->clone);
         $this->assertContains('wk-1', $names);
         $this->assertContains('main', $names);
     }
@@ -97,7 +102,7 @@ final class GitRepoTest extends TestCase
         RepoHelper::commitFile($this->other, 'new.txt', "x\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
         $headBefore = RepoHelper::git($wt, ['rev-parse', 'HEAD']);
-        $report = GitRepo::syncWorktree($wt, 'wk-1', 'main', 'rebase', false);
+        $report = $this->git()->syncWorktree($wt, 'wk-1', 'main', 'rebase', false);
         $this->assertSame('would-sync', $report->action);
         $this->assertSame(1, $report->behind);
         $this->assertSame($headBefore, RepoHelper::git($wt, ['rev-parse', 'HEAD']));
@@ -106,7 +111,7 @@ final class GitRepoTest extends TestCase
     public function testSyncUpToDate(): void
     {
         $wt = $this->makeWorktree();
-        $report = GitRepo::syncWorktree($wt, 'wk-1', 'main', 'rebase', false);
+        $report = $this->git()->syncWorktree($wt, 'wk-1', 'main', 'rebase', false);
         $this->assertSame('up-to-date', $report->action);
     }
 
@@ -118,7 +123,7 @@ final class GitRepoTest extends TestCase
         RepoHelper::commitFile($this->other, 'new.txt', "x\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
 
-        $report = GitRepo::syncWorktree($wt, 'wk-1', 'main', 'rebase', true);
+        $report = $this->git()->syncWorktree($wt, 'wk-1', 'main', 'rebase', true);
         $this->assertSame('synced', $report->action);
         $this->assertFileExists($wt.'/new.txt');
         RepoHelper::git($this->other, ['fetch', '-q', 'origin']);
@@ -141,7 +146,7 @@ final class GitRepoTest extends TestCase
         RepoHelper::commitFile($this->other, 'new.txt', "x\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
 
-        $report = GitRepo::syncWorktree($wt, 'wk-1', 'main', 'rebase', true);
+        $report = $this->git()->syncWorktree($wt, 'wk-1', 'main', 'rebase', true);
         $this->assertSame('synced', $report->action);
         $this->assertFileExists($wt.'/collab.txt');
         $this->assertFileExists($wt.'/new.txt');
@@ -162,7 +167,7 @@ final class GitRepoTest extends TestCase
         RepoHelper::commitFile($this->other, 'main-only.txt', "m\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
 
-        $report = GitRepo::syncWorktree($wt, 'wk-1', 'main', 'rebase', true, base: 'wk-parent');
+        $report = $this->git()->syncWorktree($wt, 'wk-1', 'main', 'rebase', true, base: 'wk-parent');
         $this->assertSame('synced', $report->action);
         $this->assertFileExists($wt.'/feature.txt');
         $this->assertFileExists($wt.'/parent.txt');
@@ -177,7 +182,7 @@ final class GitRepoTest extends TestCase
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
         $headBefore = RepoHelper::git($wt, ['rev-parse', 'HEAD']);
 
-        $report = GitRepo::syncWorktree($wt, 'wk-1', 'main', 'rebase', true);
+        $report = $this->git()->syncWorktree($wt, 'wk-1', 'main', 'rebase', true);
         $this->assertSame('conflict', $report->action);
         $this->assertContains('README.md', $report->conflictFiles);
         $this->assertNotSame('', $report->detail);
@@ -191,7 +196,7 @@ final class GitRepoTest extends TestCase
         file_put_contents($wt.'/README.md', "uncommitted\n");
         RepoHelper::commitFile($this->other, 'new.txt', "x\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
-        $report = GitRepo::syncWorktree($wt, 'wk-1', 'main', 'rebase', true);
+        $report = $this->git()->syncWorktree($wt, 'wk-1', 'main', 'rebase', true);
         $this->assertSame('dirty', $report->action);
     }
 
@@ -204,7 +209,7 @@ final class GitRepoTest extends TestCase
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
         $origHead = RepoHelper::git($wt, ['rev-parse', 'HEAD']);
 
-        $realPush = [GitRepo::class, 'pushWithLease'];
+        $realPush = new GitRepo()->pushWithLease(...);
         $push = function (string $worktree, string $branch) use ($realPush): void {
             RepoHelper::git($this->other, ['fetch', '-q', 'origin']);
             RepoHelper::git($this->other, ['checkout', '-q', '-b', 'wk-1', 'origin/wk-1']);
@@ -213,7 +218,7 @@ final class GitRepoTest extends TestCase
             $realPush($worktree, $branch);
         };
 
-        $report = GitRepo::syncWorktree($wt, 'wk-1', 'main', 'rebase', true, $push);
+        $report = $this->git()->syncWorktree($wt, 'wk-1', 'main', 'rebase', true, $push);
         $this->assertSame('lease-failed', $report->action);
         $this->assertSame($origHead, RepoHelper::git($wt, ['rev-parse', 'HEAD']));
     }

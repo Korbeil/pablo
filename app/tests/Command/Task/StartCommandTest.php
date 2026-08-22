@@ -4,14 +4,22 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\Task;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
-use Pablo\Provider\Git\GitRepo;
+use Pablo\Domain\Time;
 use Pablo\Provider\Tracker\Provider;
-use Pablo\Provider\Tracker\ProviderRegistry;
+use Pablo\Provider\Tracker\ProviderRegistryInterface;
+use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
+use Pablo\Support\Naming;
+use Pablo\Support\RepoSlug;
 use Pablo\Tests\FakeAgents;
+use Pablo\Tests\FakeGhPr;
+use Pablo\Tests\FakeGit;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
@@ -61,10 +69,10 @@ final class FakeStartProvider implements Provider
         return 'todo';
     }
 
-    public function batchIssueStatus(array $pairs): array
+    public function batchIssueStatus(array $issues): array
     {
         $result = [];
-        foreach ($pairs as [$key]) {
+        foreach ($issues as $key => $_) {
             $result[$key] = 'todo';
         }
 
@@ -95,9 +103,12 @@ final class StartCommandTest extends TestCase
     private string $projectsDir;
     private Store $store;
     private FakeAgents $agents;
+    private FakeGit $git;
 
     /** @var list<array{0: string, 1: string}> */
     private array $created = [];
+
+    private ProviderRegistryInterface $currentProviders;
 
     protected function setUp(): void
     {
@@ -122,25 +133,23 @@ default_model: openrouter/test/model
 pr_description_locale: en
 YAML);
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
-        GitRepo::setAllBranchNames(static fn () => []);
-        GitRepo::setOriginUrl(static fn () => 'git@github.com:acme/wallet-kit.git');
-        GitRepo::setCreateWorktree(function (string $repo, string $root, string $branch, string $base): string {
+        $this->git = new FakeGit();
+        $this->git->originUrl = 'git@github.com:acme/wallet-kit.git';
+        $this->git->allBranchNames = [];
+        $this->currentProviders = $this->makeRegistry([]);
+        $this->git->createWorktree = function (string $repo, string $root, string $branch, string $base): string {
             $this->created[] = [$branch, $base];
             $path = rtrim($root, '/').'/'.$branch;
             @mkdir(\dirname($path), 0o777, true);
 
             return $path;
-        });
+        };
     }
 
     protected function tearDown(): void
     {
         putenv('PABLO_PROJECTS_DIR');
         $this->unsetGlobalConfig();
-        GitRepo::setAllBranchNames(null);
-        GitRepo::setOriginUrl(null);
-        GitRepo::setCreateWorktree(null);
-        ProviderRegistry::setResolver(null);
     }
 
     private function writeProject(string $name, ?string $repo = null, ?string $projKey = null, string $provider = 'github'): void
@@ -168,16 +177,53 @@ YAML,
         ));
     }
 
+    /**
+     * @param array<string, Provider> $byName
+     */
+    private function makeRegistry(array $byName): ProviderRegistryInterface
+    {
+        return new class($byName) implements ProviderRegistryInterface {
+            /**
+             * @param array<string, Provider> $byName
+             */
+            public function __construct(private readonly array $byName)
+            {
+            }
+
+            public function get(string $name): Provider
+            {
+                return $this->byName[$name] ?? throw new \LogicException('no provider '.$name);
+            }
+        };
+    }
+
     /** @param array<string, Provider> $byName */
     private function configureProviders(array $byName): void
     {
-        ProviderRegistry::setResolver(static fn (string $name) => $byName[$name] ?? throw new \LogicException('no provider '.$name));
+        $this->currentProviders = $this->makeRegistry($byName);
     }
 
     /** @param array<string, mixed> $input */
     private function runCommand(array $input): CommandTester
     {
-        $cmd = new \Pablo\Command\Task\StartCommand($this->store, $this->agents);
+        $global = new GlobalConfig();
+        $loader = new Config($global);
+        $time = new Time();
+        $repoSlug = new RepoSlug($this->git);
+        $registry = $this->currentProviders;
+        $gh = new FakeGhPr();
+        $sm = new StateMachine($gh, $registry, $repoSlug, $time);
+        $factory = new AgentLauncherFactory($global);
+        $cmd = new \Pablo\Command\Task\StartCommand(
+            $this->currentProviders,
+            new Naming(),
+            $this->git,
+            $sm,
+            $this->store,
+            $loader,
+            $factory,
+            $this->agents,
+        );
         $tester = new CommandTester($cmd);
         $tester->execute($input);
 
@@ -234,7 +280,7 @@ YAML,
 
     public function testStartConflictingBranchGetsSuffix(): void
     {
-        GitRepo::setAllBranchNames(static fn () => ['wk-45']);
+        $this->git->allBranchNames = ['wk-45'];
         $issue = new Issue('github', '45', 'https://github.com/acme/wallet-kit/issues/45', 'T', 'WK');
         $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
         $this->configureProviders(['github' => new FakeStartProvider($issue)]);

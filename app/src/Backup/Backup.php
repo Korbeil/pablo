@@ -8,10 +8,10 @@ use Pablo\App\ConsoleApplication;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
-use Pablo\Provider\Git\GitRepo;
+use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
-use Pablo\Support\Proc;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * PABLO backup/restore.
@@ -35,7 +35,14 @@ final class Backup
     /** Sub-directories of ~/.pablo included in a backup. */
     private const STORE_SUBDIRS = ['state', 'stamps', 'logs', 'cache'];
 
-    public static function pabloRoot(): string
+    public function __construct(
+        private readonly GitRepoInterface $git,
+        private readonly ProcessRunnerInterface $runner,
+        private readonly Time $time,
+    ) {
+    }
+
+    public function pabloRoot(): string
     {
         $env = getenv('PABLO_ROOT');
         if (false !== $env && '' !== $env) {
@@ -45,7 +52,7 @@ final class Backup
         return (getenv('HOME') ?: '~').'/.pablo';
     }
 
-    public static function defaultBackupDir(): string
+    public function defaultBackupDir(): string
     {
         $env = getenv('PABLO_BACKUPS_DIR');
         if (false !== $env && '' !== $env) {
@@ -55,7 +62,7 @@ final class Backup
         return (getenv('HOME') ?: '~').'/'.self::DEFAULT_BACKUP_SUBDIR;
     }
 
-    public static function defaultArchiveName(?\DateTimeImmutable $now = null): string
+    public function defaultArchiveName(?\DateTimeImmutable $now = null): string
     {
         $now ??= new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
 
@@ -64,10 +71,8 @@ final class Backup
 
     /**
      * @param array<string, ProjectConfig> $projects
-     *
-     * @return array<string, mixed>
      */
-    public static function buildManifest(array $projects, Store $store, string $pabloRoot): array
+    public function buildManifest(array $projects, Store $store, string $pabloRoot): Manifest
     {
         $projectList = [];
         foreach ($projects as $cfg) {
@@ -76,23 +81,23 @@ final class Backup
                 $store->allTasks($cfg->name),
             ));
             sort($branches, \SORT_STRING);
-            $projectList[] = [
-                'name' => $cfg->name,
-                'source_repo_path' => $cfg->repoPath,
-                'origin_url' => GitRepo::originUrl($cfg->repoPath),
-                'worktrees_root' => $cfg->worktreesRoot,
-                'primary_branch' => $cfg->primaryBranch,
-                'branches' => $branches,
-            ];
+            $projectList[] = new ManifestProject(
+                name: $cfg->name,
+                sourceRepoPath: $cfg->repoPath,
+                originUrl: $this->git->originUrl($cfg->repoPath),
+                worktreesRoot: $cfg->worktreesRoot,
+                primaryBranch: $cfg->primaryBranch,
+                branches: $branches,
+            );
         }
 
-        return [
-            'version' => self::MANIFEST_VERSION,
-            'pablo_version' => ConsoleApplication::VERSION,
-            'created_at' => Time::utcnow(),
-            'pablo_root' => $pabloRoot,
-            'projects' => $projectList,
-        ];
+        return new Manifest(
+            version: self::MANIFEST_VERSION,
+            pabloVersion: ConsoleApplication::VERSION,
+            createdAt: $this->time->utcnow(),
+            pabloRoot: $pabloRoot,
+            projects: $projectList,
+        );
     }
 
     /**
@@ -100,7 +105,7 @@ final class Backup
      *
      * @param array<string, ProjectConfig> $projects
      */
-    public static function writeArchive(
+    public function writeArchive(
         string $pabloRoot,
         string $projectsDir,
         array $projects,
@@ -113,7 +118,7 @@ final class Backup
         }
         $rawTar = \strlen($gz) > 3 ? substr($gz, 0, -3) : $gz.'.tar';
 
-        $staging = self::stage($pabloRoot, $projectsDir, $projects, $store);
+        $staging = $this->stage($pabloRoot, $projectsDir, $projects, $store);
         try {
             $dir = \dirname($gz);
             if (!is_dir($dir)) {
@@ -125,7 +130,7 @@ final class Backup
             (new \PharData($rawTar))->compress(\Phar::GZ);
             @unlink($rawTar);
         } finally {
-            self::cleanupDir($staging);
+            $this->cleanupDir($staging);
         }
 
         return $gz;
@@ -133,10 +138,8 @@ final class Backup
 
     /**
      * Extract an archive into $dest and return the parsed manifest.
-     *
-     * @return array<string, mixed>
      */
-    public static function extractArchive(string $archive, string $dest): array
+    public function extractArchive(string $archive, string $dest): Manifest
     {
         if (!is_file($archive)) {
             throw new PabloError("backup archive not found: {$archive}");
@@ -151,12 +154,13 @@ final class Backup
         if (!is_file($manifestPath)) {
             throw new PabloError("{$archive} is not a PABLO backup (missing manifest.json)");
         }
+        /** @var array<string, mixed>|null $data */
         $data = json_decode((string) file_get_contents($manifestPath), true);
         if (!\is_array($data)) {
             throw new PabloError("invalid manifest in {$archive}");
         }
 
-        return $data;
+        return Manifest::fromArray($data);
     }
 
     /**
@@ -165,7 +169,7 @@ final class Backup
      *
      * @return list<string>
      */
-    public static function restoreStoreTree(string $extractedRoot, string $pabloRoot, bool $overwrite): array
+    public function restoreStoreTree(string $extractedRoot, string $pabloRoot, bool $overwrite): array
     {
         $restored = [];
         foreach (self::STORE_SUBDIRS as $sub) {
@@ -178,8 +182,8 @@ final class Backup
                 $restored[] = $sub.':skipped';
                 continue;
             }
-            self::cleanupDir($dest);
-            self::copyDir($src, $dest);
+            $this->cleanupDir($dest);
+            $this->copyDir($src, $dest);
             $restored[] = $sub;
         }
 
@@ -191,7 +195,7 @@ final class Backup
      *
      * @return list<string>
      */
-    public static function restoreProjects(string $extractedRoot, string $projectsDir, bool $overwrite): array
+    public function restoreProjects(string $extractedRoot, string $projectsDir, bool $overwrite): array
     {
         $src = $extractedRoot.'/projects';
         if (!is_dir($src)) {
@@ -214,7 +218,7 @@ final class Backup
         return $written;
     }
 
-    public static function cleanupDir(string $dir): void
+    public function cleanupDir(string $dir): void
     {
         if (!is_dir($dir)) {
             return;
@@ -225,7 +229,7 @@ final class Backup
             }
             $path = $dir.'/'.$item;
             if (is_dir($path)) {
-                self::cleanupDir($path);
+                $this->cleanupDir($path);
             } else {
                 @unlink($path);
             }
@@ -236,7 +240,7 @@ final class Backup
     /**
      * @param array<string, ProjectConfig> $projects
      */
-    private static function stage(string $pabloRoot, string $projectsDir, array $projects, Store $store): string
+    private function stage(string $pabloRoot, string $projectsDir, array $projects, Store $store): string
     {
         $staging = sys_get_temp_dir().'/pablo-backup-'.uniqid();
         mkdir($staging, 0o777, true);
@@ -255,19 +259,18 @@ final class Backup
         foreach (self::STORE_SUBDIRS as $sub) {
             $src = $pabloRoot.'/'.$sub;
             if (is_dir($src)) {
-                self::copyDir($src, $staging.'/'.$sub);
+                $this->copyDir($src, $staging.'/'.$sub);
             }
         }
 
+        $manifest = $this->buildManifest($projects, $store, $pabloRoot);
+
         file_put_contents(
             $staging.'/manifest.json',
-            json_encode(
-                self::buildManifest($projects, $store, $pabloRoot),
-                \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE,
-            )."\n",
+            json_encode($manifest->toArray(), \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n",
         );
 
-        $orcaRepos = self::captureOrcaRepos();
+        $orcaRepos = $this->captureOrcaRepos();
         if (null !== $orcaRepos) {
             file_put_contents($staging.'/orca-repos.json', $orcaRepos);
         }
@@ -275,16 +278,16 @@ final class Backup
         return $staging;
     }
 
-    private static function captureOrcaRepos(): ?string
+    private function captureOrcaRepos(): ?string
     {
         try {
-            return Proc::run(['orca', 'repo', 'list', '--json'], false, 30);
+            return $this->runner->run(['orca', 'repo', 'list', '--json'], false, 30);
         } catch (\Throwable) {
             return null;
         }
     }
 
-    private static function copyDir(string $src, string $dest): void
+    private function copyDir(string $src, string $dest): void
     {
         if (!is_dir($dest)) {
             @mkdir($dest, 0o777, true);
@@ -296,7 +299,7 @@ final class Backup
             $from = $src.'/'.$item;
             $to = $dest.'/'.$item;
             if (is_dir($from)) {
-                self::copyDir($from, $to);
+                $this->copyDir($from, $to);
             } else {
                 copy($from, $to);
             }

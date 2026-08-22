@@ -7,9 +7,9 @@ namespace Pablo\Provider\Tracker;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\Task;
-use Pablo\Provider\Git\GitRepo;
-use Pablo\Support\PabloError;
-use Pablo\Support\Proc;
+use Pablo\Domain\Time;
+use Pablo\Support\ProcessRunnerInterface;
+use Pablo\Support\RepoSlug;
 
 /**
  * GitHub issues provider, backed by the gh CLI.
@@ -19,6 +19,13 @@ final class Github implements Provider
     public const GH_CALL_TIMEOUT_S = 20;
 
     private const STATUS = ['OPEN' => 'To Do', 'CLOSED' => 'Done'];
+
+    public function __construct(
+        private readonly ProcessRunnerInterface $runner,
+        private readonly RepoSlug $repoSlug,
+        private readonly Time $time,
+    ) {
+    }
 
     public function name(): string
     {
@@ -32,34 +39,7 @@ final class Github implements Provider
 
     public function repoSlug(ProjectConfig $cfg): string
     {
-        return self::slug($cfg);
-    }
-
-    /**
-     * The repo where issues and PRs live: the configured upstream
-     * (issue_tracker.repo) when set, else the origin remote. For fork
-     * workflows the origin is the fork but issues/PRs live upstream.
-     */
-    public static function trackerSlug(ProjectConfig $cfg): string
-    {
-        if (null !== $cfg->issueRepo) {
-            return $cfg->issueRepo;
-        }
-
-        return self::slug($cfg);
-    }
-
-    public static function slug(ProjectConfig $cfg): string
-    {
-        $url = GitRepo::originUrl($cfg->repoPath);
-        if (null === $url) {
-            throw new PabloError("{$cfg->name}: repo at {$cfg->repoPath} has no origin remote");
-        }
-        if (1 !== preg_match('#github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?(?:/|$)#', $url, $m)) {
-            throw new PabloError("{$cfg->name}: origin remote is not a GitHub URL: {$url}");
-        }
-
-        return "{$m[1]}/{$m[2]}";
+        return $this->repoSlug->for($cfg);
     }
 
     public function matchUrl(string $url, ProjectConfig $cfg): ?string
@@ -68,7 +48,7 @@ final class Github implements Provider
             return null;
         }
         try {
-            $slug = self::trackerSlug($cfg);
+            $slug = $this->repoSlug->for($cfg);
         } catch (\Throwable) {
             return null;
         }
@@ -81,8 +61,8 @@ final class Github implements Provider
 
     public function getIssue(string $ref, ProjectConfig $cfg): Issue
     {
-        $out = Proc::run([
-            'gh', 'issue', 'view', $ref, '--repo', self::trackerSlug($cfg),
+        $out = $this->runner->run([
+            'gh', 'issue', 'view', $ref, '--repo', $this->repoSlug->for($cfg),
             '--json', 'number,title,state,url',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         /** @var array<string, mixed> $data */
@@ -100,8 +80,8 @@ final class Github implements Provider
 
     public function listAssigned(ProjectConfig $cfg): array
     {
-        $out = Proc::run([
-            'gh', 'issue', 'list', '--repo', self::trackerSlug($cfg),
+        $out = $this->runner->run([
+            'gh', 'issue', 'list', '--repo', $this->repoSlug->for($cfg),
             '--assignee', $cfg->identity, '--state', 'all',
             '--json', 'number,title,state,url', '--limit', '100',
         ], timeout: self::GH_CALL_TIMEOUT_S);
@@ -124,8 +104,8 @@ final class Github implements Provider
 
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
-        $out = Proc::run([
-            'gh', 'issue', 'view', $key, '--repo', self::trackerSlug($cfg), '--json', 'state',
+        $out = $this->runner->run([
+            'gh', 'issue', 'view', $key, '--repo', $this->repoSlug->for($cfg), '--json', 'state',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
@@ -134,22 +114,22 @@ final class Github implements Provider
         return self::STATUS[$state] ?? $state;
     }
 
-    public function batchIssueStatus(array $pairs): array
+    public function batchIssueStatus(array $issues): array
     {
-        if ([] === $pairs) {
+        if ([] === $issues) {
             return [];
         }
 
         $commands = [];
         $keyIndex = [];
-        foreach ($pairs as $i => [$key, $cfg]) {
-            $keyIndex[$i] = $key;
+        foreach ($issues as $key => $cfg) {
+            $keyIndex[] = $key;
             $commands[] = [
-                'gh', 'issue', 'view', $key, '--repo', self::trackerSlug($cfg), '--json', 'state',
+                'gh', 'issue', 'view', $key, '--repo', $this->repoSlug->for($cfg), '--json', 'state',
             ];
         }
 
-        $results = Proc::runParallel($commands, check: false, timeout: self::GH_CALL_TIMEOUT_S);
+        $results = $this->runner->runParallel($commands, check: false, timeout: self::GH_CALL_TIMEOUT_S);
         $statuses = [];
         foreach ($results as $i => $out) {
             $key = $keyIndex[$i];
@@ -171,8 +151,8 @@ final class Github implements Provider
         if (null === $task->prNumber || null === $cfg->failureSignal) {
             return [];
         }
-        $out = Proc::run([
-            'gh', 'api', 'repos/'.self::trackerSlug($cfg)."/issues/{$task->prNumber}/events",
+        $out = $this->runner->run([
+            'gh', 'api', 'repos/'.$this->repoSlug->for($cfg)."/issues/{$task->prNumber}/events",
             '--paginate',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         $stamps = [];
@@ -181,7 +161,7 @@ final class Github implements Provider
         foreach ($events as $event) {
             if (($event['event'] ?? null) === 'labeled'
                 && ($event['label']['name'] ?? null) === $cfg->failureSignal) {
-                $stamps[] = Proc::parseTs((string) $event['created_at']);
+                $stamps[] = $this->time->parseTs((string) $event['created_at']);
             }
         }
         sort($stamps);

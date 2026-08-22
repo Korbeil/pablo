@@ -12,19 +12,19 @@ use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[\Symfony\Component\Console\Attribute\AsCommand(name: 'project:remove', description: 'remove a project config from ~/.pablo/projects/')]
 final class ProjectRemoveCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('project:remove')
-            ->setDescription('remove a project config from ~/.pablo/projects/')
+        $this
             ->addArgument('name', InputArgument::REQUIRED, 'project name (the YAML "name" key)');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $name = (string) $input->getArgument('name');
-        $projectsDir = Config::projectsDir();
+        $projectsDir = $this->projectsLoader->projectsDir();
 
         // The file name may differ from the project name (any filename is
         // allowed), so resolve via the YAML "name" key like the loader does.
@@ -61,7 +61,7 @@ final class ProjectRemoveCommand extends Command
     private function configPathFor(string $projectsDir, string $name): ?string
     {
         foreach (glob(rtrim($projectsDir, '/').'/*.yaml') ?: [] as $candidate) {
-            $data = Config::loadYaml($candidate);
+            $data = $this->projectsLoader->loadYaml($candidate);
             if (($data['name'] ?? null) === $name) {
                 return $candidate;
             }

@@ -58,13 +58,10 @@ final class TaskBoardTest extends WebTestCase
         $this->writeProject('wallet-kit', 'work');
         $this->writeProject('bookkeeper', 'open-source');
         $this->writeProject('blog', 'personal');
-
-        RepoSlug::setFor(static fn () => 'acme/wallet-kit');
     }
 
     protected function tearDown(): void
     {
-        RepoSlug::setFor(null);
         foreach (['PABLO_STATE_DIR', 'PABLO_PROJECTS_DIR', 'PABLO_STAMPS_DIR', 'PABLO_LOGS_DIR'] as $var) {
             putenv($var);
         }

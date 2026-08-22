@@ -7,23 +7,36 @@ namespace Pablo\Tests\Provider\Tracker;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
-use Pablo\Provider\Git\GitRepo;
 use Pablo\Provider\Tracker\Github;
 use Pablo\Provider\Tracker\ProviderRegistry;
 use Pablo\Support\PabloError;
-use Pablo\Support\Proc;
+use Pablo\Tests\FakeGit;
+use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
 final class GithubTest extends TestCase
 {
+    private FakeProcessRunner $runner;
+
+    /** Registers a canned runner and returns it. */
+    private function startRunner(callable $fn): FakeProcessRunner
+    {
+        $r = new FakeProcessRunner();
+        $r->onRun = $fn;
+        $this->runner = $r;
+
+        return $r;
+    }
     private string $tmp;
+    private FakeGit $fakeGit;
 
     protected function setUp(): void
     {
         $this->tmp = sys_get_temp_dir().'/pablo-gh-'.uniqid();
         mkdir($this->tmp, 0o777, true);
-        GitRepo::setOriginUrl(static fn (string $repo): string => 'git@github.com:acme/wallet-kit.git');
-        Proc::setRunner(function (array $argv, bool $check = true, ?float $timeout = null): string {
+        $this->fakeGit = new FakeGit();
+        $this->fakeGit->originUrl = 'git@github.com:acme/wallet-kit.git';
+        $this->startRunner(function (array $argv, bool $check = true, ?float $timeout = null): string {
             $joined = implode(' ', $argv);
             $responses = $this->responses();
             foreach ($responses as $key => $out) {
@@ -37,8 +50,6 @@ final class GithubTest extends TestCase
 
     protected function tearDown(): void
     {
-        GitRepo::setOriginUrl(null);
-        Proc::setRunner(null);
     }
 
     /** @var array<string, string> */
@@ -84,36 +95,40 @@ final class GithubTest extends TestCase
     {
         $this->expectException(PabloError::class);
         $this->expectExceptionMessage('unknown provider');
-        ProviderRegistry::get('gitlab');
+        (new ProviderRegistry(
+            new Github(new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()),
+            new \Pablo\Provider\Tracker\Jira(new FakeProcessRunner()),
+            new \Pablo\Provider\Tracker\Linear(new FakeProcessRunner(), new \Pablo\Domain\Time()),
+        ))->get('gitlab');
     }
 
     public function testMatchUrlSameRepo(): void
     {
-        $provider = new Github();
+        $provider = new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time());
         $this->assertSame('45', $provider->matchUrl('https://github.com/acme/wallet-kit/issues/45', $this->cfg()));
     }
 
     public function testMatchUrlOtherRepoReturnsNull(): void
     {
-        GitRepo::setOriginUrl(static fn () => 'https://github.com/acme/wallet-kit.git');
-        $provider = new Github();
+        $this->fakeGit->originUrl = static fn (): string => 'https://github.com/acme/wallet-kit.git';
+        $provider = new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time());
         $this->assertNull($provider->matchUrl('https://github.com/acme/other/issues/45', $this->cfg()));
         $this->assertNull($provider->matchUrl('https://example.com/x', $this->cfg()));
     }
 
     public function testTrackerSlugFallbackToOrigin(): void
     {
-        $this->assertSame('acme/wallet-kit', (new Github())->trackerSlug($this->cfg()));
+        $this->assertSame('acme/wallet-kit', (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->repoSlug($this->cfg()));
     }
 
     public function testTrackerSlugUsesConfiguredRepo(): void
     {
-        $this->assertSame('acme/upstream', (new Github())->trackerSlug($this->cfg('acme/upstream')));
+        $this->assertSame('acme/upstream', (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->repoSlug($this->cfg('acme/upstream')));
     }
 
     public function testMatchUrlUsesConfiguredTrackerRepo(): void
     {
-        $provider = new Github();
+        $provider = new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time());
         $this->assertSame('2333', $provider->matchUrl('https://github.com/afup/web/issues/2333', $this->cfg('afup/web')));
     }
 
@@ -125,7 +140,7 @@ final class GithubTest extends TestCase
             'state' => 'OPEN',
             'url' => 'https://github.com/acme/wallet-kit/issues/45',
         ], \JSON_THROW_ON_ERROR)]);
-        $issue = (new Github())->getIssue('45', $this->cfg());
+        $issue = (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->getIssue('45', $this->cfg());
         $this->assertSame('45', $issue->key);
         $this->assertSame('Fix callback verification', $issue->title);
         $this->assertSame('WK', $issue->projectKey);
@@ -137,7 +152,7 @@ final class GithubTest extends TestCase
             ['number' => 1, 'title' => 'A', 'state' => 'OPEN', 'url' => 'u1'],
             ['number' => 2, 'title' => 'B', 'state' => 'CLOSED', 'url' => 'u2'],
         ], \JSON_THROW_ON_ERROR)]);
-        $issues = (new Github())->listAssigned($this->cfg());
+        $issues = (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->listAssigned($this->cfg());
         $this->assertSame(['1', '2'], array_map(static fn ($i) => $i->key, $issues));
     }
 
@@ -151,16 +166,16 @@ final class GithubTest extends TestCase
         ], \JSON_THROW_ON_ERROR)]);
         $task = new Task('wallet-kit', 'wk-45', $this->tmp, State::NeedsTesting);
         $task->prNumber = 7;
-        $stamps = (new Github())->failureSignalEvents($task, $this->cfg());
+        $stamps = (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->failureSignalEvents($task, $this->cfg());
         $this->assertCount(2, $stamps);
         $this->assertEquals(new \DateTimeImmutable('2026-07-20T10:00:00Z'), $stamps[\count($stamps) - 1]);
     }
 
     public function testRunCliErrorSurfacesStderr(): void
     {
-        Proc::setRunner(null);
+        $runner = new \Pablo\Support\ProcessRunner();
         $this->expectException(PabloError::class);
         $this->expectExceptionMessage('gh auth login');
-        Proc::run(['sh', '-c', "echo 'gh: To get started with GitHub CLI, run gh auth login' >&2; exit 4"], check: true);
+        $runner->run(['sh', '-c', "echo 'gh: To get started with GitHub CLI, run gh auth login' >&2; exit 4"], check: true);
     }
 }

@@ -18,4 +18,23 @@ final class SyncReport
         public string $agentHandle = '', // opencode session ID when conflict agent launched
     ) {
     }
+
+    /**
+     * @param array<string, mixed> $data one persisted report entry
+     */
+    public static function fromArray(array $data): self
+    {
+        return new self(
+            worktree: '',
+            branch: (string) ($data['branch'] ?? '?'),
+            action: (string) ($data['action'] ?? 'unknown'),
+            behind: (int) ($data['behind'] ?? 0),
+            ahead: (int) ($data['ahead'] ?? 0),
+            conflictFiles: \is_array($data['conflict_files'] ?? null)
+                ? array_values(array_map(strval(...), $data['conflict_files']))
+                : [],
+            detail: (string) ($data['detail'] ?? ''),
+            agentHandle: (string) ($data['agent_handle'] ?? ''),
+        );
+    }
 }

@@ -4,20 +4,17 @@ declare(strict_types=1);
 
 namespace Pablo\Provider\Gh;
 
+use Pablo\Domain\Time;
 use Pablo\Support\PabloError;
-use Pablo\Support\Proc;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * GitHub PR plumbing via the gh CLI: CI status, review evaluation, draft/ready
  * toggling, merge detection.
  */
-final class GhPr
+final class GhPr implements GhPrInterface
 {
     public const GH_CALL_TIMEOUT_S = 20;
-
-    public const CI_FAILURE_CONCLUSIONS = [
-        'FAILURE', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'ERROR',
-    ];
 
     private const TIMELINE_QUERY = <<<'GQL'
 query($owner: String!, $repo: String!, $pr: Int!) {
@@ -49,38 +46,17 @@ query($owner: String!, $repo: String!, $pr: Int!) {
 }
 GQL;
 
-    /** @var callable|null test seams */
-    private static $prForBranch;
-    /** @var callable|null */
-    private static $prsForBranches;
-
-    public static function setPrForBranch(?callable $fn): void
-    {
-        self::$prForBranch = $fn;
+    public function __construct(
+        private readonly ProcessRunnerInterface $runner,
+        private readonly Time $time,
+    ) {
     }
 
-    public static function setPrsForBranches(?callable $fn): void
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function prFromItem(array $item): PrInfo
     {
-        self::$prsForBranches = $fn;
-    }
-
-    public static function prForBranch(string $repoSlug, string $branch): ?PrInfo
-    {
-        if (null !== self::$prForBranch) {
-            return (self::$prForBranch)($repoSlug, $branch);
-        }
-        $out = Proc::run([
-            'gh', 'pr', 'list', '--repo', $repoSlug, '--head', $branch,
-            '--state', 'all', '--json', 'number,title,state,isDraft,mergedAt,url,baseRefName',
-            '--limit', '1',
-        ], timeout: self::GH_CALL_TIMEOUT_S);
-        /** @var array<int, array<string, mixed>> $items */
-        $items = json_decode($out, true);
-        if ([] === $items) {
-            return null;
-        }
-        $item = $items[0];
-
         return new PrInfo(
             number: (int) $item['number'],
             title: (string) $item['title'],
@@ -92,21 +68,34 @@ GQL;
         );
     }
 
+    public function prForBranch(string $repoSlug, string $branch): ?PrInfo
+    {
+        $out = $this->runner->run([
+            'gh', 'pr', 'list', '--repo', $repoSlug, '--head', $branch,
+            '--state', 'all', '--json', 'number,title,state,isDraft,mergedAt,url,baseRefName',
+            '--limit', '1',
+        ], timeout: self::GH_CALL_TIMEOUT_S);
+        /** @var array<int, array<string, mixed>> $items */
+        $items = json_decode($out, true);
+        if ([] === $items) {
+            return null;
+        }
+
+        return $this->prFromItem($items[0]);
+    }
+
     /**
      * @param list<string> $branches
      *
      * @return array<string, PrInfo>
      */
-    public static function prsForBranches(string $repoSlug, array $branches): array
+    public function prsForBranches(string $repoSlug, array $branches): array
     {
-        if (null !== self::$prsForBranches) {
-            return (self::$prsForBranches)($repoSlug, $branches);
-        }
         if ([] === $branches) {
             return [];
         }
         $limit = min(max(\count($branches) * 5, 50), 500);
-        $out = Proc::run([
+        $out = $this->runner->run([
             'gh', 'pr', 'list', '--repo', $repoSlug,
             '--state', 'all', '--json',
             'number,title,state,isDraft,mergedAt,url,headRefName,baseRefName',
@@ -121,15 +110,7 @@ GQL;
             if (null === $head || !isset($wanted[$head]) || isset($result[$head])) {
                 continue;
             }
-            $result[$head] = new PrInfo(
-                number: (int) $item['number'],
-                title: (string) $item['title'],
-                state: (string) $item['state'],
-                isDraft: (bool) $item['isDraft'],
-                url: (string) $item['url'],
-                mergedAt: null !== $item['mergedAt'] ? (string) $item['mergedAt'] : null,
-                baseRefName: null !== ($item['baseRefName'] ?? null) ? (string) $item['baseRefName'] : null,
-            );
+            $result[$head] = $this->prFromItem($item);
         }
 
         return $result;
@@ -140,19 +121,10 @@ GQL;
      *
      * @return array<string, array<string, PrInfo>> slug => branch => PrInfo
      */
-    public static function prsForBranchesBulk(array $repoBranches): array
+    public function prsForBranchesBulk(array $repoBranches): array
     {
         if ([] === $repoBranches) {
             return [];
-        }
-
-        if (null !== self::$prsForBranches) {
-            $result = [];
-            foreach ($repoBranches as [$slug, $branches]) {
-                $result[$slug] = (self::$prsForBranches)($slug, $branches);
-            }
-
-            return $result;
         }
 
         $commands = [];
@@ -170,7 +142,7 @@ GQL;
             ];
         }
 
-        $results = Proc::runParallel($commands, check: false, timeout: self::GH_CALL_TIMEOUT_S);
+        $results = $this->runner->runParallel($commands, check: false, timeout: self::GH_CALL_TIMEOUT_S);
         $all = [];
         foreach ($results as $i => $out) {
             $slug = $slugIndex[$i];
@@ -188,15 +160,7 @@ GQL;
                 if (null === $head || !isset($wanted[$head]) || isset($all[$slug][$head])) {
                     continue;
                 }
-                $all[$slug][$head] = new PrInfo(
-                    number: (int) $item['number'],
-                    title: (string) $item['title'],
-                    state: (string) $item['state'],
-                    isDraft: (bool) $item['isDraft'],
-                    url: (string) $item['url'],
-                    mergedAt: null !== $item['mergedAt'] ? (string) $item['mergedAt'] : null,
-                    baseRefName: null !== ($item['baseRefName'] ?? null) ? (string) $item['baseRefName'] : null,
-                );
+                $all[$slug][$head] = $this->prFromItem($item);
             }
         }
 
@@ -204,17 +168,12 @@ GQL;
     }
 
     /**
-     * @param array<string, mixed> $check
-     * @param list<string>         $ignoreChecks
+     * @param list<string> $ignoreChecks
      */
-    private static function isIgnored(array $check, array $ignoreChecks): bool
+    private function isIgnored(CiCheck $check, array $ignoreChecks): bool
     {
-        if ([] === $ignoreChecks) {
-            return false;
-        }
-        $name = strtolower((string) ($check['name'] ?? $check['workflowName'] ?? $check['context'] ?? ''));
         foreach ($ignoreChecks as $marker) {
-            if (str_contains($name, strtolower((string) $marker))) {
+            if (str_contains($check->name, strtolower((string) $marker))) {
                 return true;
             }
         }
@@ -223,125 +182,44 @@ GQL;
     }
 
     /**
-     * @param list<array<string, mixed>> $rollup
-     * @param list<string>               $ignoreChecks
+     * @param list<CiCheck> $rollup
+     * @param list<string>  $ignoreChecks
      */
-    public static function evaluateCi(array $rollup, array $ignoreChecks = []): string
+    public function evaluateCi(array $rollup, array $ignoreChecks = []): string
     {
         $pending = false;
         foreach ($rollup as $check) {
-            if (self::isIgnored($check, $ignoreChecks)) {
+            if ($this->isIgnored($check, $ignoreChecks)) {
                 continue;
             }
-            if (\array_key_exists('state', $check)) { // StatusContext
-                $state = $check['state'];
-                if (\in_array($state, ['FAILURE', 'ERROR'], true)) {
-                    return 'red';
-                }
-                if (\in_array($state, ['PENDING', 'EXPECTED'], true)) {
-                    $pending = true;
-                }
-                continue;
-            }
-            if (($check['status'] ?? null) !== 'COMPLETED') {
-                if (\in_array(strtoupper((string) ($check['conclusion'] ?? '')), self::CI_FAILURE_CONCLUSIONS, true)) {
-                    return 'red';
-                }
-                $pending = true;
-                continue;
-            }
-            if (\in_array(strtoupper((string) ($check['conclusion'] ?? '')), self::CI_FAILURE_CONCLUSIONS, true)) {
+            if ($check->failed) {
                 return 'red';
+            }
+            if ($check->pending) {
+                $pending = true;
             }
         }
 
         return $pending ? 'pending' : 'green';
     }
 
-    /**
-     * @param list<string> $ignoreChecks
-     */
-    /** @var callable|null test seams */
-    /** @var callable|null */
-    private static $ciStatus;
-    /** @var callable|null */
-    private static $isMerged;
-    /** @var callable|null */
-    private static $markReady;
-    /** @var callable|null */
-    private static $markDraft;
-    /** @var callable|null */
-    private static $readyAnchor;
-    /** @var callable|null */
-    private static $fetchReviews;
-    /** @var callable|null */
-    private static $evaluateReviews;
-    /** @var callable|null */
-    private static $rerunCi;
-
-    public static function setCiStatus(?callable $fn): void
+    public function ciStatus(string $repoSlug, int $prNumber, array $ignoreChecks = []): string
     {
-        self::$ciStatus = $fn;
-    }
-
-    public static function setIsMerged(?callable $fn): void
-    {
-        self::$isMerged = $fn;
-    }
-
-    public static function setMarkReady(?callable $fn): void
-    {
-        self::$markReady = $fn;
-    }
-
-    public static function setMarkDraft(?callable $fn): void
-    {
-        self::$markDraft = $fn;
-    }
-
-    public static function setReadyAnchor(?callable $fn): void
-    {
-        self::$readyAnchor = $fn;
-    }
-
-    public static function setFetchReviews(?callable $fn): void
-    {
-        self::$fetchReviews = $fn;
-    }
-
-    public static function setEvaluateReviews(?callable $fn): void
-    {
-        self::$evaluateReviews = $fn;
-    }
-
-    public static function setRerunCi(?callable $fn): void
-    {
-        self::$rerunCi = $fn;
-    }
-
-    /** @param list<string> $ignoreChecks */
-    public static function ciStatus(string $repoSlug, int $prNumber, array $ignoreChecks = []): string
-    {
-        if (null !== self::$ciStatus) {
-            return (self::$ciStatus)($repoSlug, $prNumber, $ignoreChecks);
-        }
-        $out = Proc::run([
+        $out = $this->runner->run([
             'gh', 'pr', 'view', (string) $prNumber, '--repo', $repoSlug,
             '--json', 'statusCheckRollup',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
+        $rollup = array_values(array_map(CiCheck::fromRollup(...), $data['statusCheckRollup'] ?? []));
 
-        return self::evaluateCi($data['statusCheckRollup'] ?? [], $ignoreChecks);
+        return $this->evaluateCi($rollup, $ignoreChecks);
     }
 
-    public static function readyAnchor(string $repoSlug, int $prNumber): \DateTimeImmutable
+    public function readyAnchor(string $repoSlug, int $prNumber): \DateTimeImmutable
     {
-        if (null !== self::$readyAnchor) {
-            return (self::$readyAnchor)($repoSlug, $prNumber);
-        }
         $ownerRepo = explode('/', $repoSlug, 2);
-        $out = Proc::run([
+        $out = $this->runner->run([
             'gh', 'api', 'graphql',
             '-f', 'query='.self::TIMELINE_QUERY,
             '-F', 'owner='.$ownerRepo[0], '-F', 'repo='.$ownerRepo[1], '-F', 'pr='.$prNumber,
@@ -351,20 +229,16 @@ GQL;
         $pr = $data['data']['repository']['pullRequest'];
         $nodes = array_values(array_filter($pr['timelineItems']['nodes'] ?? [], static fn ($n) => null !== $n));
         if ([] !== $nodes) {
-            return Proc::parseTs((string) $nodes[\count($nodes) - 1]['createdAt']);
+            return $this->time->parseTs((string) $nodes[\count($nodes) - 1]['createdAt']);
         }
 
-        return Proc::parseTs((string) $pr['createdAt']);
+        return $this->time->parseTs((string) $pr['createdAt']);
     }
 
-    /** @return array{0: string, 1: list<array<string, mixed>>} (pr_author_login, raw review nodes) */
-    public static function fetchReviews(string $repoSlug, int $prNumber): array
+    public function fetchReviews(string $repoSlug, int $prNumber): PrReviews
     {
-        if (null !== self::$fetchReviews) {
-            return (self::$fetchReviews)($repoSlug, $prNumber);
-        }
         $ownerRepo = explode('/', $repoSlug, 2);
-        $out = Proc::run([
+        $out = $this->runner->run([
             'gh', 'api', 'graphql',
             '-f', 'query='.self::REVIEWS_QUERY,
             '-F', 'owner='.$ownerRepo[0], '-F', 'repo='.$ownerRepo[1], '-F', 'pr='.$prNumber,
@@ -372,47 +246,44 @@ GQL;
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
         $pr = $data['data']['repository']['pullRequest'];
+        $nodes = array_values(array_filter($pr['reviews']['nodes'] ?? [], static fn ($n) => null !== $n));
 
-        return [
+        return new PrReviews(
             (string) $pr['author']['login'],
-            array_values(array_filter($pr['reviews']['nodes'] ?? [], static fn ($n) => null !== $n)),
-        ];
+            array_map(ReviewNode::fromNode(...), $nodes),
+        );
     }
 
     /**
-     * @param list<array<string, mixed>> $reviews
-     * @param list<string>               $botWhitelist
+     * @param list<ReviewNode> $reviews
+     * @param list<string>     $botWhitelist
      */
-    public static function evaluateReviews(array $reviews, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
+    public function evaluateReviews(array $reviews, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
     {
-        if (null !== self::$evaluateReviews) {
-            return (self::$evaluateReviews)($reviews, $anchor, $author, $botWhitelist);
-        }
         $latest = [];
         foreach ($reviews as $node) {
-            $reviewAuthor = $node['author']['login'] ?? null;
-            if (null === $reviewAuthor || $reviewAuthor === $author) {
+            $reviewAuthor = $node->login;
+            if ('' === $reviewAuthor || $reviewAuthor === $author) {
                 continue;
             }
-            $isBot = ($node['author']['__typename'] ?? null) === 'Bot' || str_ends_with($reviewAuthor, '[bot]');
-            if ($isBot && !\in_array($reviewAuthor, $botWhitelist, true)) {
+            if ($node->isBot() && !\in_array($reviewAuthor, $botWhitelist, true)) {
                 continue;
             }
-            if (!\in_array($node['state'] ?? null, ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED'], true)) {
+            if (!\in_array($node->state, ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED'], true)) {
                 continue;
             }
-            $submitted = $node['submittedAt'] ?? null;
-            if (null === $submitted || Proc::parseTs((string) $submitted) <= $anchor) {
+            $submitted = $node->submittedAt;
+            if (null === $submitted || $this->time->parseTs($submitted) <= $anchor) {
                 continue;
             }
             $current = $latest[$reviewAuthor] ?? null;
-            if (null === $current || Proc::parseTs((string) $submitted) > Proc::parseTs((string) $current['submittedAt'])) {
+            if (null === $current || $this->time->parseTs($submitted) > $this->time->parseTs((string) $current->submittedAt)) {
                 $latest[$reviewAuthor] = $node;
             }
         }
         $verdicts = [];
         foreach ($latest as $node) {
-            $verdicts[$node['state']] = true;
+            $verdicts[$node->state] = true;
         }
         if (isset($verdicts['CHANGES_REQUESTED']) || isset($verdicts['COMMENTED'])) {
             return 'changes';
@@ -424,32 +295,19 @@ GQL;
         return null;
     }
 
-    public static function markReady(string $repoSlug, int $prNumber): void
+    public function markReady(string $repoSlug, int $prNumber): void
     {
-        if (null !== self::$markReady) {
-            (self::$markReady)($repoSlug, $prNumber);
-
-            return;
-        }
-        Proc::run(['gh', 'pr', 'ready', (string) $prNumber, '--repo', $repoSlug], timeout: self::GH_CALL_TIMEOUT_S);
+        $this->runner->run(['gh', 'pr', 'ready', (string) $prNumber, '--repo', $repoSlug], timeout: self::GH_CALL_TIMEOUT_S);
     }
 
-    public static function markDraft(string $repoSlug, int $prNumber): void
+    public function markDraft(string $repoSlug, int $prNumber): void
     {
-        if (null !== self::$markDraft) {
-            (self::$markDraft)($repoSlug, $prNumber);
-
-            return;
-        }
-        Proc::run(['gh', 'pr', 'ready', (string) $prNumber, '--repo', $repoSlug, '--undo'], timeout: self::GH_CALL_TIMEOUT_S);
+        $this->runner->run(['gh', 'pr', 'ready', (string) $prNumber, '--repo', $repoSlug, '--undo'], timeout: self::GH_CALL_TIMEOUT_S);
     }
 
-    public static function isMerged(string $repoSlug, int $prNumber): bool
+    public function isMerged(string $repoSlug, int $prNumber): bool
     {
-        if (null !== self::$isMerged) {
-            return (self::$isMerged)($repoSlug, $prNumber);
-        }
-        $out = Proc::run([
+        $out = $this->runner->run([
             'gh', 'pr', 'view', (string) $prNumber, '--repo', $repoSlug,
             '--json', 'state,mergedAt',
         ], timeout: self::GH_CALL_TIMEOUT_S);
@@ -460,12 +318,9 @@ GQL;
     }
 
     /** @return array<int, string> */
-    public static function rerunCi(string $repoSlug, string $branch): array
+    public function rerunCi(string $repoSlug, string $branch): array
     {
-        if (null !== self::$rerunCi) {
-            return (self::$rerunCi)($repoSlug, $branch);
-        }
-        $out = Proc::run([
+        $out = $this->runner->run([
             'gh', 'run', 'list', '--repo', $repoSlug,
             '--branch', $branch, '--status', 'completed',
             '--limit', '20', '--json', 'databaseId,workflowName',
@@ -487,7 +342,7 @@ GQL;
         $rerunIds = [];
         foreach ($latest as $run) {
             $runId = (string) $run['databaseId'];
-            Proc::run(['gh', 'run', 'rerun', $runId, '--repo', $repoSlug], timeout: self::GH_CALL_TIMEOUT_S);
+            $this->runner->run(['gh', 'run', 'rerun', $runId, '--repo', $repoSlug], timeout: self::GH_CALL_TIMEOUT_S);
             $rerunIds[] = $runId;
         }
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command;
 
-use Pablo\Agents\AgentLauncher;
+use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
@@ -17,48 +17,49 @@ use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * Base for every pablo subcommand. Services may be injected (from the DI
- * container) or built lazily; PabloError routes to stderr + non-zero exit.
+ * Base for every pablo subcommand. The three shared services are injected
+ * through the constructor (the DI container autowires them); a subcommand
+ * adds its own collaborators to its own constructor. PabloError routes to
+ * stderr + non-zero exit.
  */
 abstract class Command extends SymfonyCommand
 {
-    private ?Store $store;
-    private ?AgentLauncherInterface $agents;
-
-    public function __construct(?Store $store = null, ?AgentLauncherInterface $agents = null)
-    {
-        $this->store = $store;
-        $this->agents = $agents;
+    public function __construct(
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+        protected readonly AgentLauncherFactory $agentLaunchers,
+        protected readonly AgentLauncherInterface $agents,
+    ) {
         parent::__construct();
     }
 
     protected function store(): Store
     {
-        return $this->store ??= new Store();
-    }
-
-    protected function agents(): AgentLauncherInterface
-    {
-        return $this->agents ??= AgentLauncher::create();
+        return $this->store;
     }
 
     /** @return array<string, ProjectConfig> */
     protected function projects(): array
     {
-        return Config::loadProjects(Config::projectsDir());
+        return $this->projectsLoader->loadProjects();
     }
 
-    protected function resolveCtx(Store $store, AgentLauncherInterface $agents, ?string $worktree = null): TaskCtx
+    protected function agents(): AgentLauncherInterface
+    {
+        return $this->agents;
+    }
+
+    protected function resolveCtx(?string $worktree = null): TaskCtx
     {
         $task = null !== $worktree && '' !== $worktree
-            ? $store->taskForWorktreePath($worktree)
-            : $store->taskForCwd((string) getcwd());
+            ? $this->store->taskForWorktreePath($worktree)
+            : $this->store->taskForCwd((string) getcwd());
         $cfg = $this->projects()[$task->project] ?? null;
         if (null === $cfg) {
             throw new PabloError("task {$task->branch} belongs to project '{$task->project}', which has no config under projects/ anymore");
         }
 
-        return new TaskCtx(task: $task, cfg: $cfg, store: $store, agents: $agents);
+        return new TaskCtx(task: $task, cfg: $cfg, store: $this->store, agents: $this->agents());
     }
 
     final protected function execute(InputInterface $input, OutputInterface $output): int

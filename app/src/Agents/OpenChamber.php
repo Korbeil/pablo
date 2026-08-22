@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Agents;
 
-use Pablo\Support\Proc;
+use Pablo\Domain\Time;
+use Pablo\Store\Store;
+use Pablo\Support\ProcessRunner;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * OpenChamber agent backend.
@@ -26,9 +29,13 @@ final class OpenChamber extends AbstractAgentLauncher
 {
     public const SESSION_TIMEOUT_S = 60;
 
-    public function __construct(?string $shimPath = null)
-    {
-        parent::__construct($shimPath, 'openchamber');
+    public function __construct(
+        ProcessRunnerInterface $runner = new ProcessRunner(),
+        Time $time = new Time(),
+        ?Store $store = null,
+        ?string $shimPath = null,
+    ) {
+        parent::__construct($runner, $time, $store, $shimPath, 'openchamber');
     }
 
     /** @param list<string> $argv
@@ -38,7 +45,7 @@ final class OpenChamber extends AbstractAgentLauncher
     private function openchamber(array $argv, bool $check = false): ?array
     {
         try {
-            $out = Proc::run(['openchamber', ...$argv, '--json'], check: $check, timeout: self::SESSION_TIMEOUT_S);
+            $out = $this->runner->run(['openchamber', ...$argv, '--json'], check: $check, timeout: self::SESSION_TIMEOUT_S);
             $data = json_decode($out, true);
         } catch (\Throwable) {
             return null;
@@ -84,7 +91,7 @@ final class OpenChamber extends AbstractAgentLauncher
                 'session' => $sessionId,
                 'worktree' => $worktree,
                 'agent' => $agent,
-                'started_at' => \Pablo\Domain\Time::utcnow(),
+                'started_at' => $this->time->utcnow(),
             ]),
         );
     }
@@ -193,7 +200,7 @@ final class OpenChamber extends AbstractAgentLauncher
             return;
         }
         try {
-            Proc::run([
+            $this->runner->run([
                 'openchamber', 'session', 'messages',
                 '--session', $handle, '--dir', $worktree,
                 '--wait', '--timeout', (string) max(1, $timeoutS),

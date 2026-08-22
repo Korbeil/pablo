@@ -6,6 +6,7 @@ namespace Pablo\Dashboard;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Dispatch\Dispatch;
+use Pablo\Dispatch\Stamps;
 
 /**
  * Reads the dispatcher's per-project last-run stamps and works out when each
@@ -18,6 +19,10 @@ use Pablo\Dispatch\Dispatch;
  */
 final class PollSchedule
 {
+    public function __construct(private readonly Stamps $stamps)
+    {
+    }
+
     /**
      * @param array<string, ProjectConfig> $projects
      *
@@ -114,19 +119,19 @@ final class PollSchedule
 
     public function lastPollAt(string $project): ?\DateTimeImmutable
     {
-        $stamp = Dispatch::readStamp($project, 'poll');
+        $stamp = $this->stamps->readStamp($project, 'poll');
         if (null === $stamp) {
             return null;
         }
 
-        return (new \DateTimeImmutable('@'.(int) $stamp['ran_at']))
+        return (new \DateTimeImmutable('@'.(int) $stamp->ranAt))
             ->setTimezone(new \DateTimeZone(date_default_timezone_get()));
     }
 
     /** Wall-clock seconds the project's most recent poll run took, if known. */
     public function lastPollDurationS(string $project): ?float
     {
-        return Dispatch::readStamp($project, 'poll')['duration_s'] ?? null;
+        return $this->stamps->readStamp($project, 'poll')?->durationS;
     }
 
     /**

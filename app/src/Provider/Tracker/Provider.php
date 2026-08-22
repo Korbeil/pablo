@@ -38,11 +38,11 @@ interface Provider
     /**
      * Issue status for multiple keys, run in parallel.
      *
-     * @param list<array{0: string, 1: ProjectConfig}> $pairs [key, cfg] tuples
+     * @param array<string, ProjectConfig> $issues issue key => project config
      *
      * @return array<string, string> key => status; failed keys mapped to '?'
      */
-    public function batchIssueStatus(array $pairs): array;
+    public function batchIssueStatus(array $issues): array;
 
     /** @return array<int, \DateTimeImmutable> */
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array;

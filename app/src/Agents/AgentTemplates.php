@@ -24,8 +24,15 @@ final class AgentTemplates
         'rebase-conflict-resolver',
     ];
 
-    /** Repo directory holding the *.md.template sources (install.sh symlinks the generated siblings into ~/.config/opencode). */
-    public static function repoAgentsDir(): string
+    public function __construct(private readonly Config $config)
+    {
+    }
+
+    /**
+     * Repo directory holding the *.md.template sources (install.sh symlinks
+     * the generated siblings into ~/.config/opencode).
+     */
+    public function repoAgentsDir(): string
     {
         return \dirname(__DIR__, 3).'/opencode/agents';
     }
@@ -37,16 +44,16 @@ final class AgentTemplates
      *
      * @return list<string>
      */
-    public static function enabledProviders(?string $projectsDir = null): array
+    public function enabledProviders(?string $projectsDir = null): array
     {
-        $projectsDir ??= Config::projectsDir();
+        $projectsDir ??= $this->config->projectsDir();
         if (!is_dir($projectsDir)) {
             return Config::PROVIDERS;
         }
 
         $providers = [];
         foreach (glob(rtrim($projectsDir, '/').'/*.yaml') ?: [] as $path) {
-            $data = Config::loadYaml($path);
+            $data = $this->config->loadYaml($path);
             if (isset($data['issue_tracker']['provider'])) {
                 $providers[] = $data['issue_tracker']['provider'];
             }
@@ -64,7 +71,7 @@ final class AgentTemplates
      * @throws AgentTemplateError when the template, a provider section or a
      *                            shared frontmatter profile is missing/unreadable
      */
-    public static function render(string $agentsDir, string $name, array $enabledProviders): string
+    public function render(string $agentsDir, string $name, array $enabledProviders): string
     {
         $templatePath = $agentsDir.'/'.$name.'.md.template';
         if (!is_file($templatePath)) {
@@ -76,8 +83,8 @@ final class AgentTemplates
             throw new AgentTemplateError("Cannot read template: {$templatePath}");
         }
 
-        $section = self::buildSection($enabledProviders, $name, $agentsDir.'/providers');
-        $names = self::formatProviderNames($enabledProviders);
+        $section = $this->buildSection($enabledProviders, $name, $agentsDir.'/providers');
+        $names = $this->formatProviderNames($enabledProviders);
 
         $content = str_replace(
             ['{{ISSUE_TRACKER_SECTION}}', '{{ISSUE_TRACKER_NAMES}}'],
@@ -109,7 +116,7 @@ final class AgentTemplates
     /**
      * @param list<string> $providers
      */
-    private static function formatProviderNames(array $providers): string
+    private function formatProviderNames(array $providers): string
     {
         $displayNames = array_map(
             static fn (string $p): string => match ($p) {
@@ -137,13 +144,13 @@ final class AgentTemplates
     /**
      * @param list<string> $providers
      */
-    private static function buildSection(array $providers, string $agentName, string $providersDir): string
+    private function buildSection(array $providers, string $agentName, string $providersDir): string
     {
         $items = [];
         $num = 1;
 
         foreach ($providers as $provider) {
-            $item = self::providerItem($providersDir.'/'.$provider.'-'.$agentName.'.md');
+            $item = $this->providerItem($providersDir.'/'.$provider.'-'.$agentName.'.md');
             if (null !== $item) {
                 $items[] = $num.'. '.$item;
                 ++$num;
@@ -151,14 +158,14 @@ final class AgentTemplates
         }
 
         if (\in_array('jira', $providers, true)) {
-            $item = self::providerItem($providersDir.'/confluence-'.$agentName.'.md');
+            $item = $this->providerItem($providersDir.'/confluence-'.$agentName.'.md');
             if (null !== $item) {
                 $items[] = $num.'. '.$item;
                 ++$num;
             }
         }
 
-        $fallback = self::providerItem($providersDir.'/fallback-'.$agentName.'.md');
+        $fallback = $this->providerItem($providersDir.'/fallback-'.$agentName.'.md');
         if (null !== $fallback) {
             $items[] = $num.'. '.$fallback;
         }
@@ -166,7 +173,7 @@ final class AgentTemplates
         return implode("\n\n", $items);
     }
 
-    private static function providerItem(string $file): ?string
+    private function providerItem(string $file): ?string
     {
         if (!is_file($file)) {
             return null;

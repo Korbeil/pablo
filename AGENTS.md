@@ -150,10 +150,15 @@ is covered by `app/tests/Store/StoreTest.php`) so a test is found next to its
 subject. `tests/FakeAgents.php` is injected through `AgentLauncherInterface`
 wherever a test could otherwise reach a real `Agents` — this stops a forgotten
 real `Agents` from starting a real `opencode run` (a real LLM call) during
-PHPUnit. Never remove it or widen the exemption. (There is no shared base
-`TestCase`: classes extend PHPUnit's directly, and `tests/Command/CommandTestBed.php`
-is the abstract bed for command tests, with static seams — `RepoSlug::setFor`,
-`GhPr::set*`, `GitRepo::set*` — reset in `tearDown`.)
+PHPUnit. Never remove it or widen the exemption. The engine is DI-based: every
+former static class (`GhPr`, `GitRepo`, `Proc`, `Config`, `StateMachine`, …) is
+a constructor-injected service behind an interface where tests need fakes
+(`GhPrInterface`, `GitRepoInterface`, `ProcessRunnerInterface`,
+`ProviderRegistryInterface`). Test doubles live beside `tests/FakeAgents.php`
+(`FakeGit`, `FakeGhPr`, `FakeProcessRunner`, `StubProviders`) and
+`tests/Command/CommandTestBed.php` is the abstract bed for command tests,
+wiring that fake graph in `setUp`. `tests/EngineGraph.php` builds the same
+graph for engine-layer tests (poller, listing, dispatch).
 `tests/PortabilityTest.php` is a tripwire scanning `src/**/*.php` for
 `systemctl`/`journalctl`/`/etc/`/`/proc/`/`/opt/` to keep the engine
 Linux+macOS portable.

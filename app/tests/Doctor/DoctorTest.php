@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Pablo\Tests;
 
+use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Command\System\DoctorCommand;
+use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
 use Pablo\Config\ProjectConfig;
 use Pablo\Doctor\AgentFileState;
 use Pablo\Doctor\AgentFileStatus;
 use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\CheckResult;
 use Pablo\Doctor\Doctor;
+use Pablo\Store\Store;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -51,6 +55,23 @@ issue_tracker:
 YAML;
 
     private string $projectsDir = '';
+    private FakeProcessRunner $runner;
+
+    /** @var callable|null */
+    public $onWhich;
+
+    private function runner(): FakeProcessRunner
+    {
+        return $this->runner ??= new FakeProcessRunner();
+    }
+
+    private function doctor(): Doctor
+    {
+        /** @var callable|null */
+        $which = $this->onWhich;
+
+        return new Doctor($this->runner(), new AgentLauncherFactory(new GlobalConfig()), $which);
+    }
 
     protected function setUp(): void
     {
@@ -63,8 +84,6 @@ YAML;
 
     protected function tearDown(): void
     {
-        Doctor::setWhichSeam(null);
-        Doctor::setProbeSeam(null);
         putenv('PABLO_PROJECTS_DIR');
         $this->unsetGlobalConfig();
     }
@@ -96,13 +115,13 @@ YAML;
     public function testRequiredSetWithoutJiraLinear(): void
     {
         $projects = ['a' => $this->makeCfg('a', 'github')];
-        $this->assertSame(['gh', 'opencode', 'orca'], Doctor::requiredClis($projects));
+        $this->assertSame(['gh', 'opencode', 'orca'], $this->doctor()->requiredClis($projects));
     }
 
     public function testRequiredIncludesAcliForJiraProjects(): void
     {
         $projects = ['a' => $this->makeCfg('a', 'jira'), 'b' => $this->makeCfg('b', 'linear')];
-        $this->assertSame(['acli', 'gh', 'linear', 'opencode', 'orca'], Doctor::requiredClis($projects));
+        $this->assertSame(['acli', 'gh', 'linear', 'opencode', 'orca'], $this->doctor()->requiredClis($projects));
     }
 
     public function testRequiredAddsAcliConfluenceOnlyWhenSpaceConfigured(): void
@@ -111,18 +130,18 @@ YAML;
             'a' => $this->makeCfg('a', 'jira', 'PIM'),
             'b' => $this->makeCfg('b', 'jira'),
         ];
-        $clis = Doctor::requiredClis($projects);
+        $clis = $this->doctor()->requiredClis($projects);
         $this->assertContains('acli', $clis);
         $this->assertContains('acli-confluence', $clis);
 
         $projects = ['a' => $this->makeCfg('a', 'jira')];
-        $this->assertNotContains('acli-confluence', Doctor::requiredClis($projects));
+        $this->assertNotContains('acli-confluence', $this->doctor()->requiredClis($projects));
     }
 
     public function testMissingCliReportedNotInstalled(): void
     {
-        Doctor::setWhichSeam(static fn (string $name): ?string => null);
-        $results = Doctor::checkAll(['a' => $this->makeCfg('a', 'github')]);
+        $this->onWhich = static fn (string $name): ?string => null;
+        $results = $this->doctor()->checkAll(['a' => $this->makeCfg('a', 'github')]);
         foreach ($results as $r) {
             $this->assertFalse($r->installed);
             $this->assertFalse($r->ok());
@@ -133,9 +152,9 @@ YAML;
 
     public function testAuthFailureSurfacesCliMessageAndHint(): void
     {
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => [1, 'You are not logged into any GitHub hosts']);
-        $results = Doctor::checkAll(['a' => $this->makeCfg('a', 'github')]);
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(1, 'You are not logged into any GitHub hosts');
+        $results = $this->doctor()->checkAll(['a' => $this->makeCfg('a', 'github')]);
         $gh = $this->findCli($results, 'gh');
         $this->assertTrue($gh->installed);
         $this->assertFalse($gh->authenticated);
@@ -146,9 +165,9 @@ YAML;
 
     public function testAllGreen(): void
     {
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => [0, 'ok']);
-        $results = Doctor::checkAll(['a' => $this->makeCfg('a', 'github')]);
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
+        $results = $this->doctor()->checkAll(['a' => $this->makeCfg('a', 'github')]);
         foreach ($results as $r) {
             $this->assertTrue($r->ok());
         }
@@ -156,26 +175,24 @@ YAML;
 
     /**
      * @param list<string> $argv
-     *
-     * @return array{0: int, 1: string}
      */
-    private static function probeDispatch(array $argv): array
+    private static function probeDispatch(array $argv): \Pablo\Support\ProbeResult
     {
         if ($argv === ['acli', 'confluence', 'auth', 'status']) {
-            return [1, 'not authenticated: run acli confluence auth login'];
+            return new \Pablo\Support\ProbeResult(1, 'not authenticated: run acli confluence auth login');
         }
         if ($argv === ['acli', 'jira', 'auth', 'status']) {
-            return [0, "✓ Authenticated\n  Email: acme@example.com"];
+            return new \Pablo\Support\ProbeResult(0, "✓ Authenticated\n  Email: acme@example.com");
         }
 
-        return [0, 'ok'];
+        return new \Pablo\Support\ProbeResult(0, 'ok');
     }
 
     public function testJiraProbeFailureSurfacesAcliHint(): void
     {
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => [1, 'Error: not authenticated']);
-        $results = Doctor::checkAll(['a' => $this->makeCfg('a', 'jira')]);
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(1, 'Error: not authenticated');
+        $results = $this->doctor()->checkAll(['a' => $this->makeCfg('a', 'jira')]);
         $check = $this->findCli($results, 'acli');
         $this->assertTrue($check->installed);
         $this->assertFalse($check->authenticated);
@@ -186,9 +203,9 @@ YAML;
 
     public function testJiraProbeOk(): void
     {
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(self::probeDispatch(...));
-        $results = Doctor::checkAll(['a' => $this->makeCfg('a', 'jira')]);
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner()->onProbe = self::probeDispatch(...);
+        $results = $this->doctor()->checkAll(['a' => $this->makeCfg('a', 'jira')]);
         $check = $this->findCli($results, 'acli');
         $this->assertTrue($check->ok());
         $this->assertStringContainsString('Authenticated', $check->detail);
@@ -196,9 +213,9 @@ YAML;
 
     public function testConfluenceProbeReportedSeparately(): void
     {
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(self::probeDispatch(...));
-        $results = Doctor::checkAll(['a' => $this->makeCfg('a', 'jira', 'PIM')]);
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner()->onProbe = self::probeDispatch(...);
+        $results = $this->doctor()->checkAll(['a' => $this->makeCfg('a', 'jira', 'PIM')]);
         $acliJira = $this->findCli($results, 'acli');
         $acliConf = $this->findCli($results, 'acli-confluence');
         $this->assertTrue($acliJira->ok());
@@ -208,13 +225,13 @@ YAML;
 
     public function testRender(): void
     {
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => [0, 'ok']);
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
         $results = [
-            Doctor::checkAll(['a' => $this->makeCfg('a', 'github')]),
+            $this->doctor()->checkAll(['a' => $this->makeCfg('a', 'github')]),
         ];
         $all = array_merge(...$results);
-        $out = Doctor::render($all);
+        $out = $this->doctor()->render($all);
         $this->assertStringContainsString('✅', $out);
     }
 
@@ -229,25 +246,6 @@ YAML;
         $this->fail("no result for {$cli}");
     }
 
-    public function testDoctorExitCodes(): void
-    {
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => [0, 'ok']);
-        AgentStaleness::setCheck($this->allAgentsOk(...));
-        try {
-            $tester = new CommandTester(new DoctorCommand());
-            $tester->execute([]);
-            $this->assertSame(SymfonyCommand::SUCCESS, $tester->getStatusCode());
-
-            Doctor::setProbeSeam(static fn (array $argv): array => [1, 'login please']);
-            $tester = new CommandTester(new DoctorCommand());
-            $tester->execute([]);
-            $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
-        } finally {
-            AgentStaleness::setCheck(null);
-        }
-    }
-
     /** @return list<AgentFileStatus> */
     private function allAgentsOk(): array
     {
@@ -257,5 +255,25 @@ YAML;
         }
 
         return $results;
+    }
+
+    private function staleness(): AgentStaleness
+    {
+        return new AgentStaleness(new AgentTemplates(new Config(new GlobalConfig())), $this->allAgentsOk(...));
+    }
+
+    public function testDoctorExitCodes(): void
+    {
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+        $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
+        $staleness = $this->staleness();
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), new FakeAgents()));
+        $tester->execute([]);
+        $this->assertSame(SymfonyCommand::SUCCESS, $tester->getStatusCode());
+
+        $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(1, 'login please');
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), new FakeAgents()));
+        $tester->execute([]);
+        $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
     }
 }

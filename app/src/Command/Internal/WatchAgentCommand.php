@@ -4,24 +4,40 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Internal;
 
-use Pablo\Agents\AgentLauncher;
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Config\Config;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\State;
 use Pablo\Domain\Time;
-use Pablo\Provider\Gh\GhPr;
+use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(name: 'internal:watch-agent', hidden: true)]
 final class WatchAgentCommand extends Command
 {
+    public function __construct(
+        private readonly GhPrInterface $gh,
+        private readonly RepoSlug $repoSlug,
+        private readonly Time $time,
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+    }
+
     protected function configure(): void
     {
-        $this->setName('internal:watch-agent')
+        $this
             ->addOption('backend', null, InputOption::VALUE_REQUIRED, '', 'orca')
             ->addOption('project', null, InputOption::VALUE_REQUIRED)
             ->addOption('branch', null, InputOption::VALUE_REQUIRED)
@@ -34,13 +50,13 @@ final class WatchAgentCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $agents = AgentLauncher::create((string) $input->getOption('backend'));
+        $agents = $this->agentLaunchers->create((string) $input->getOption('backend'));
         $agents->waitForHandle((string) $input->getOption('handle'));
         $store = $this->store();
         $project = (string) $input->getOption('project');
         $branch = (string) $input->getOption('branch');
         $agentName = $input->getOption('agent');
-        $lock = Store::taskLock($store, $project, $branch);
+        $lock = $store->taskLock($project, $branch);
         try {
             $task = $store->get($project, $branch);
             if (null === $task) {
@@ -56,7 +72,7 @@ final class WatchAgentCommand extends Command
                         $launch->agent,
                         $launch->launchedAt,
                         $launch->attempts,
-                        Time::utcnow(),
+                        $this->time->utcnow(),
                     );
                 }
             }
@@ -69,7 +85,7 @@ final class WatchAgentCommand extends Command
             if ('pr-draft' === $input->getOption('then') && null !== $task->prNumber) {
                 $cfg = $this->projects()[$project] ?? null;
                 if (null !== $cfg) {
-                    GhPr::markDraft(RepoSlug::for($cfg), $task->prNumber);
+                    $this->gh->markDraft($this->repoSlug->for($cfg), $task->prNumber);
                 }
             }
             $store->save($task);

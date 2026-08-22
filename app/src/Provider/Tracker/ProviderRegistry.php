@@ -6,28 +6,23 @@ namespace Pablo\Provider\Tracker;
 
 use Pablo\Support\PabloError;
 
-final class ProviderRegistry
+final class ProviderRegistry implements ProviderRegistryInterface
 {
     public const PROVIDER_NAMES = ['github', 'jira', 'linear'];
 
-    /** @var callable|null test seam: (string): Provider */
-    private static $resolver;
-
-    public static function setResolver(?callable $fn): void
-    {
-        self::$resolver = $fn;
+    public function __construct(
+        private readonly Github $github,
+        private readonly Jira $jira,
+        private readonly Linear $linear,
+    ) {
     }
 
-    public static function get(string $name): Provider
+    public function get(string $name): Provider
     {
-        if (null !== self::$resolver) {
-            return (self::$resolver)($name);
-        }
-
         return match ($name) {
-            'github' => new Github(),
-            'jira' => new Jira(),
-            'linear' => new Linear(),
+            'github' => $this->github,
+            'jira' => $this->jira,
+            'linear' => $this->linear,
             default => throw new PabloError(\sprintf('unknown provider %s (expected one of %s)', var_export($name, true), '["github", "jira", "linear"]')),
         };
     }

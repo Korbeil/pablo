@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\System;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\System\WebCommand;
+use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
+use Pablo\Store\Store;
+use Pablo\Tests\FakeAgents;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
@@ -50,6 +56,11 @@ final class WebCommandTest extends TestCase
         yield 'empty' => [''];
     }
 
+    private function agents(): AgentLauncherInterface
+    {
+        return new FakeAgents();
+    }
+
     #[\PHPUnit\Framework\Attributes\DataProvider('badPorts')]
     public function testRejectsInvalidPorts(string $port): void
     {
@@ -62,7 +73,8 @@ final class WebCommandTest extends TestCase
 
     private function command(): WebCommand
     {
-        $command = new WebCommand();
+        $command = new WebCommand(new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), $this->agents());
+        $application = new Application();
         $application = new Application();
         $application->addCommand($command);
 

@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\System;
 
+use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Command\System\DoctorCommand;
+use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
+use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
+use Pablo\Store\Store;
+use Pablo\Tests\FakeAgents;
+use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -38,6 +45,26 @@ YAML;
     private string $tmp;
     private string $agentsDir;
     private string $oldHome = '';
+    private FakeProcessRunner $runner;
+
+    /** @var callable|null */
+    public $onWhich;
+
+    private function doctor(): Doctor
+    {
+        /** @var callable|null */
+        $which = $this->onWhich;
+
+        return new Doctor($this->runner, new AgentLauncherFactory(new GlobalConfig()), $which ?: static fn (string $name): string => '/usr/bin/'.$name);
+    }
+
+    private function command(): DoctorCommand
+    {
+        $global = new GlobalConfig();
+        $staleness = new AgentStaleness(new AgentTemplates(new Config($global)));
+
+        return new DoctorCommand($this->doctor(), $staleness, new Store(), new Config($global), new AgentLauncherFactory($global), new FakeAgents());
+    }
 
     protected function setUp(): void
     {
@@ -52,14 +79,12 @@ YAML;
         putenv('PABLO_PROJECTS_DIR='.$this->tmp.'/projects');
 
         $this->writeGlobalConfig(self::DEFAULTS);
-        Doctor::setWhichSeam(static fn (string $name): string => '/usr/bin/'.$name);
-        Doctor::setProbeSeam(static fn (array $argv): array => [0, 'ok']);
+        $this->runner = new FakeProcessRunner();
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
     }
 
     protected function tearDown(): void
     {
-        Doctor::setWhichSeam(null);
-        Doctor::setProbeSeam(null);
         if ('' !== $this->oldHome) {
             putenv('HOME='.$this->oldHome);
         } else {
@@ -74,7 +99,7 @@ YAML;
     {
         $this->installFreshAgents();
 
-        $tester = new CommandTester(new DoctorCommand());
+        $tester = new CommandTester($this->command());
         $tester->execute([]);
 
         $this->assertSame(0, $tester->getStatusCode());
@@ -91,7 +116,7 @@ YAML;
         file_put_contents($this->installedPath('task-feedback'),
             file_get_contents($this->installedPath('task-feedback'))."\nstale tail\n");
 
-        $tester = new CommandTester(new DoctorCommand());
+        $tester = new CommandTester($this->command());
         $tester->execute([]);
 
         $display = $tester->getDisplay();
@@ -107,7 +132,7 @@ YAML;
         $this->installFreshAgents();
         unlink($this->installedPath('ci-analyst'));
 
-        $tester = new CommandTester(new DoctorCommand());
+        $tester = new CommandTester($this->command());
         $tester->execute([]);
 
         $display = $tester->getDisplay();
@@ -122,7 +147,7 @@ YAML;
         unlink($this->installedPath('pr-feedback'));
         symlink($this->tmp.'/nowhere/pr-feedback.md', $this->installedPath('pr-feedback'));
 
-        $tester = new CommandTester(new DoctorCommand());
+        $tester = new CommandTester($this->command());
         $tester->execute([]);
 
         $display = $tester->getDisplay();
@@ -137,7 +162,7 @@ YAML;
         unlink($this->installedPath('rebase-conflict-resolver'));
         file_put_contents($this->installedPath('rebase-conflict-resolver'), 'the user\'s own agent');
 
-        $tester = new CommandTester(new DoctorCommand());
+        $tester = new CommandTester($this->command());
         $tester->execute([]);
 
         $display = $tester->getDisplay();
@@ -152,7 +177,7 @@ YAML;
         $this->installFreshAgents();
         file_put_contents($this->installedPath('task-analyst'), 'hand-edited');
 
-        $tester = new CommandTester(new DoctorCommand());
+        $tester = new CommandTester($this->command());
         $tester->execute([]);
 
         $display = $tester->getDisplay();
@@ -169,11 +194,12 @@ YAML;
     {
         $rendered = $this->tmp.'/repo-agents';
         mkdir($rendered, 0o777, true);
-        $providers = AgentTemplates::enabledProviders($this->tmp.'/projects');
+        $templates = new AgentTemplates(new Config(new GlobalConfig()));
+        $providers = $templates->enabledProviders($this->tmp.'/projects');
         foreach (AgentTemplates::AGENT_NAMES as $name) {
             file_put_contents(
                 $rendered.'/'.$name.'.md',
-                AgentTemplates::render(AgentTemplates::repoAgentsDir(), $name, $providers),
+                $templates->render($templates->repoAgentsDir(), $name, $providers),
             );
             symlink($rendered.'/'.$name.'.md', $this->installedPath($name));
         }

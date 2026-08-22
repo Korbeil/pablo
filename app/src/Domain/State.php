@@ -24,4 +24,30 @@ enum State: string
     {
         return self::cases();
     }
+
+    /**
+     * Display priority for listings and the dashboard: lower ranks first.
+     * The single source of truth shared by the terminal listing and TaskView,
+     * so the two surfaces cannot drift.
+     *
+     * @var list<State>
+     */
+    public const DISPLAY_ORDER = [
+        self::TestingFailed,
+        self::NeedsTesting,
+        self::RequestChanges,
+        self::WaitingReview,
+        self::ReadyToReview,
+        self::CiRed,
+        self::Draft,
+        self::Waiting,
+        self::InProgress,
+    ];
+
+    public function displayRank(): int
+    {
+        $i = array_search($this, self::DISPLAY_ORDER, true);
+
+        return false === $i ? \count(self::DISPLAY_ORDER) : (int) $i;
+    }
 }
