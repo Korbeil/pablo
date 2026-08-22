@@ -7,7 +7,6 @@ namespace Pablo\Tests\Git;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
-use Pablo\Provider\Gh\GhPr;
 use Pablo\Provider\Gh\PrInfo;
 use Pablo\Provider\Git\Sync;
 use Pablo\Store\Store;
@@ -16,6 +15,30 @@ use PHPUnit\Framework\TestCase;
 
 final class SyncTest extends TestCase
 {
+    private \Pablo\Tests\FakeGhPr $gh;
+
+    private function sync(): Sync
+    {
+        if (!isset($this->gh)) {
+            $this->gh = new \Pablo\Tests\FakeGhPr();
+        }
+
+        $slugGit = new \Pablo\Tests\FakeGit();
+        $slugGit->originUrl = 'git@github.com:octocat/proj.git';
+
+        return new Sync(
+            new \Pablo\Provider\Git\GitRepo(),
+            $this->gh,
+            new RepoSlug($slugGit),
+            new \Pablo\Support\ProcessRunner(),
+            new \Pablo\Domain\Time(),
+        );
+    }
+
+    private function realGit(): \Pablo\Provider\Git\GitRepoInterface
+    {
+        return new \Pablo\Provider\Git\GitRepo();
+    }
     private string $tmp;
     private string $clone;
     private string $other;
@@ -33,21 +56,17 @@ final class SyncTest extends TestCase
 
         $this->cfg = $this->makeConfig(false);
         $this->store = new Store($this->tmp.'/state');
-        $this->wt = \Pablo\Provider\Git\GitRepo::createWorktree($this->clone, $this->cfg->worktreesRoot, 'pr-1', 'main');
+        $this->wt = $this->realGit()->createWorktree($this->clone, $this->cfg->worktreesRoot, 'pr-1', 'main');
         $this->store->save(new Task('proj', 'pr-1', $this->wt, State::Draft));
 
         RepoHelper::commitFile($this->other, 'new.txt', "x\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
 
         // Stop syncProject from reaching a real gh CLI for PR-base resolution.
-        RepoSlug::setFor(static fn (ProjectConfig $cfg): string => 'octocat/proj');
-        GhPr::setPrsForBranches(static fn (string $slug, array $branches): array => []);
     }
 
     protected function tearDown(): void
     {
-        RepoSlug::setFor(null);
-        GhPr::setPrsForBranches(null);
     }
 
     private function makeConfig(bool $autoApply): ProjectConfig
@@ -88,14 +107,14 @@ final class SyncTest extends TestCase
 
     public function testSyncRespectsAutoApplyFalseDefault(): void
     {
-        $reports = Sync::syncProject($this->cfg, $this->store, null);
+        $reports = $this->sync()->syncProject($this->cfg, $this->store, null);
         $this->assertSame('would-sync', $this->byBranch($reports)['pr-1']->action);
         $this->assertFileDoesNotExist($this->wt.'/new.txt');
     }
 
     public function testApplyFlagOverrides(): void
     {
-        $reports = Sync::syncProject($this->cfg, $this->store, true);
+        $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
         $this->assertSame('synced', $this->byBranch($reports)['pr-1']->action);
         $this->assertFileExists($this->wt.'/new.txt');
     }
@@ -103,22 +122,22 @@ final class SyncTest extends TestCase
     public function testAutoApplyConfigApplies(): void
     {
         $cfg = $this->makeConfig(true);
-        $reports = Sync::syncProject($cfg, $this->store, null);
+        $reports = $this->sync()->syncProject($cfg, $this->store, null);
         $this->assertSame('synced', $this->byBranch($reports)['pr-1']->action);
     }
 
     public function testPrimaryCheckoutNotSynced(): void
     {
-        $reports = Sync::syncProject($this->cfg, $this->store, true);
+        $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
         $branches = array_map(static fn ($r) => $r->branch, $reports);
         $this->assertNotContains('main', $branches);
     }
 
     public function testLockedTaskSkippedCleanly(): void
     {
-        $lock = Store::taskLock($this->store, 'proj', 'pr-1');
+        $lock = $this->store->taskLock('proj', 'pr-1');
         try {
-            $reports = Sync::syncProject($this->cfg, $this->store, true);
+            $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
         } finally {
             $lock->release();
         }
@@ -128,10 +147,10 @@ final class SyncTest extends TestCase
 
     public function testUntrackedWorktreeIsSkipped(): void
     {
-        $wt2 = \Pablo\Provider\Git\GitRepo::createWorktree($this->clone, $this->cfg->worktreesRoot, 'pr-x', 'main');
+        $wt2 = $this->realGit()->createWorktree($this->clone, $this->cfg->worktreesRoot, 'pr-x', 'main');
         RepoHelper::commitFile($this->other, 'new2.txt', "y\n", 'advance main again');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
-        $reports = Sync::syncProject($this->cfg, $this->store, true);
+        $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
 
         // A worktree not backed by an active task is never synced or reported.
         $branches = array_map(static fn ($r) => $r->branch, $reports);
@@ -144,7 +163,7 @@ final class SyncTest extends TestCase
         RepoHelper::commitFile($this->wt, 'README.md', "local\n", 'local edit');
         RepoHelper::commitFile($this->other, 'README.md', "remote\n", 'remote edit');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
-        $reports = Sync::syncProject($this->cfg, $this->store, true);
+        $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
         $text = Sync::renderReports($reports);
         $this->assertStringContainsString('conflict', $text);
         $this->assertStringContainsString('README.md', $text);
@@ -165,11 +184,13 @@ final class SyncTest extends TestCase
         RepoHelper::commitFile($this->other, 'main-only.txt', "m\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
 
-        GhPr::setPrsForBranches(static fn (string $slug, array $branches): array => [
+        $gh = $this->gh ?? new \Pablo\Tests\FakeGhPr();
+        $gh->prByBranch = [
             'pr-1' => new PrInfo(1, 'Child', 'OPEN', false, 'u1', null, 'pr-parent'),
-        ]);
+        ];
+        $this->gh = $gh;
 
-        $reports = Sync::syncProject($this->cfg, $this->store, true);
+        $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
         $report = $this->byBranch($reports)['pr-1'];
         $this->assertSame('synced', $report->action);
         $this->assertFileExists($this->wt.'/feature.txt');
@@ -185,7 +206,7 @@ final class SyncTest extends TestCase
         RepoHelper::commitFile($this->other, 'main-only.txt', "m\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
 
-        $reports = Sync::syncProject($this->cfg, $this->store, true);
+        $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
         $report = $this->byBranch($reports)['pr-1'];
         $this->assertSame('synced', $report->action);
         $this->assertFileExists($this->wt.'/main-only.txt');
@@ -199,7 +220,7 @@ final class SyncTest extends TestCase
             action: 'conflict',
             conflictFiles: ['README.md'],
         );
-        $prompt = Sync::buildConflictAgentPrompt($report, $this->cfg, 'pr-parent');
+        $prompt = $this->sync()->buildConflictAgentPrompt($report, $this->cfg, 'pr-parent');
         $this->assertStringContainsString('git rebase origin/pr-parent', $prompt);
         $this->assertStringNotContainsString('git rebase origin/main', $prompt);
         $this->assertStringContainsString('stacked', $prompt);
@@ -213,7 +234,7 @@ final class SyncTest extends TestCase
             action: 'conflict',
             conflictFiles: ['README.md'],
         );
-        $prompt = Sync::buildConflictAgentPrompt($report, $this->cfg);
+        $prompt = $this->sync()->buildConflictAgentPrompt($report, $this->cfg);
         $this->assertStringContainsString('git rebase origin/main', $prompt);
         $this->assertStringNotContainsString('git rebase origin/pr-parent', $prompt);
     }

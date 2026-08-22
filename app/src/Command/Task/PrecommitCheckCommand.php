@@ -7,16 +7,17 @@ namespace Pablo\Command\Task;
 use Pablo\Command\Command;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Support\PabloError;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(name: 'task:precommit-check', description: 'check /commit-and-pr is allowed here')]
 final class PrecommitCheckCommand extends Command
 {
     protected function configure(): void
     {
-        $this->setName('task:precommit-check')
-            ->setDescription('check /commit-and-pr is allowed here')
+        $this
             ->addOption('json', null, InputOption::VALUE_NONE, 'emit JSON (accepted for back-compat)')
             ->addOption('worktree', null, InputOption::VALUE_REQUIRED, 'task worktree path to check instead of the cwd');
     }
@@ -25,7 +26,7 @@ final class PrecommitCheckCommand extends Command
     {
         $store = $this->store();
         try {
-            $ctx = $this->resolveCtx($store, $this->agents(), $input->getOption('worktree'));
+            $ctx = $this->resolveCtx((string) $input->getOption('worktree'));
         } catch (PabloError $e) {
             $err = $output instanceof \Symfony\Component\Console\Output\ConsoleOutputInterface
                 ? $output->getErrorOutput()

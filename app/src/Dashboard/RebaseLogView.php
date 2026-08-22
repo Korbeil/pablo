@@ -15,6 +15,10 @@ use Pablo\Provider\Git\Sync;
  */
 final class RebaseLogView
 {
+    public function __construct(private readonly Sync $sync)
+    {
+    }
+
     /**
      * Presentation per SyncReport action: Bulma colour + Lucide icon, alongside
      * the emoji the terminal already uses (Sync::ACTION_ICONS).
@@ -33,62 +37,41 @@ final class RebaseLogView
     /**
      * @param array<string, ProjectConfig> $projects
      *
-     * @return list<array{project: string, timestamp: ?string, strategy: string, reports: list<array<string, mixed>>}>
+     * @return list<RebaseLogSection>
      */
     public function forProjects(array $projects): array
     {
         $logs = [];
         foreach ($projects as $cfg) {
-            $log = $this->forProject($cfg->name);
-            if (null !== $log) {
-                $logs[] = $log;
+            $section = $this->forProject($cfg->name);
+            if (null !== $section) {
+                $logs[] = $section;
             }
         }
-        usort($logs, static fn (array $a, array $b) => ($b['timestamp'] ?? '') <=> ($a['timestamp'] ?? ''));
+        usort($logs, static fn (RebaseLogSection $a, RebaseLogSection $b) => ($b->log->timestamp ?? '') <=> ($a->log->timestamp ?? ''));
 
         return $logs;
     }
 
-    /**
-     * @return array{project: string, timestamp: ?string, strategy: string, reports: list<array<string, mixed>>}|null
-     */
-    public function forProject(string $project): ?array
+    public function forProject(string $project): ?RebaseLogSection
     {
-        $raw = Sync::loadLastLog($project);
-        if (null === $raw) {
+        $log = $this->sync->loadLastLog($project);
+        if (null === $log) {
             return null;
         }
 
-        $reports = [];
-        /** @var array<int, array<string, mixed>> $rawReports */
-        $rawReports = \is_array($raw['reports'] ?? null) ? $raw['reports'] : [];
-        foreach ($rawReports as $report) {
-            $action = \is_string($report['action'] ?? null) ? $report['action'] : 'unknown';
-            [$color, $icon, $label] = self::ACTION_STYLE[$action] ?? ['pablo-chip-muted', 'lucide:circle-alert', $action];
-
-            /** @var list<string> $conflictFiles */
-            $conflictFiles = \is_array($report['conflict_files'] ?? null) ? array_values($report['conflict_files']) : [];
-
-            $reports[] = [
-                'branch' => (string) ($report['branch'] ?? '?'),
-                'action' => $action,
-                'label' => $label,
-                'emoji' => Sync::ACTION_ICONS[$action] ?? '•',
-                'color' => $color,
-                'icon' => $icon,
-                'behind' => (int) ($report['behind'] ?? 0),
-                'ahead' => (int) ($report['ahead'] ?? 0),
-                'conflict_files' => $conflictFiles,
-                'detail' => (string) ($report['detail'] ?? ''),
-                'agent_handle' => (string) ($report['agent_handle'] ?? ''),
-            ];
+        $rows = [];
+        foreach ($log->reports as $report) {
+            [$color, $icon, $label] = self::ACTION_STYLE[$report->action] ?? ['pablo-chip-muted', 'lucide:circle-alert', $report->action];
+            $rows[] = new RebaseLogRow(
+                report: $report,
+                color: $color,
+                icon: $icon,
+                label: $label,
+                emoji: Sync::ACTION_ICONS[$report->action] ?? '•',
+            );
         }
 
-        return [
-            'project' => (string) ($raw['project'] ?? $project),
-            'timestamp' => \is_string($raw['timestamp'] ?? null) ? $raw['timestamp'] : null,
-            'strategy' => (string) ($raw['strategy'] ?? '?'),
-            'reports' => $reports,
-        ];
+        return new RebaseLogSection($log, $rows);
     }
 }

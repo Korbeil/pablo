@@ -7,8 +7,8 @@ namespace Pablo\App;
 use Symfony\Component\Console\Application as SymfonyApplication;
 
 /**
- * Standalone pablo console application (no web kernel). Commands are
- * injected from the DI container (tagged `console.command`).
+ * Standalone pablo console application. Commands are injected from the DI
+ * container, tagged `pablo.command` (see config/services.php).
  */
 final class ConsoleApplication extends SymfonyApplication
 {

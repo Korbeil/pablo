@@ -6,12 +6,11 @@ namespace Pablo\Provider\Git;
 
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Config\ProjectConfig;
-use Pablo\Domain\Task;
 use Pablo\Domain\Time;
-use Pablo\Provider\Gh\GhPr;
+use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
-use Pablo\Support\Proc;
+use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
 
 /**
@@ -35,18 +34,27 @@ final class Sync
         'locked' => '🔐',
     ];
 
+    public function __construct(
+        private readonly GitRepoInterface $git,
+        private readonly GhPrInterface $gh,
+        private readonly RepoSlug $repoSlug,
+        private readonly ProcessRunnerInterface $runner,
+        private readonly Time $time,
+    ) {
+    }
+
     /**
      * Task worktrees: git worktree list minus the primary checkout.
      *
-     * @return array<int, array{0: string, 1: string}>
+     * @return list<WorktreeRef>
      */
-    private static function discover(ProjectConfig $cfg): array
+    private function discover(ProjectConfig $cfg): array
     {
         $out = [];
-        foreach (GitRepo::listWorktrees($cfg->repoPath) as [$path, $branch]) {
-            if ((string) realpath($path) !== (string) realpath($cfg->repoPath)
-                && $branch !== $cfg->primaryBranch) {
-                $out[] = [$path, $branch];
+        foreach ($this->git->listWorktrees($cfg->repoPath) as $ref) {
+            if ((string) realpath($ref->path) !== (string) realpath($cfg->repoPath)
+                && $ref->branch !== $cfg->primaryBranch) {
+                $out[] = $ref;
             }
         }
 
@@ -62,13 +70,13 @@ final class Sync
      *
      * @return array<string, string> branch => resolved base
      */
-    private static function resolveStackedBases(ProjectConfig $cfg, array $branches): array
+    private function resolveStackedBases(ProjectConfig $cfg, array $branches): array
     {
         $baseByBranch = [];
         if ('github' !== $cfg->provider || [] === $branches) {
             return $baseByBranch;
         }
-        $prs = GhPr::prsForBranches(RepoSlug::for($cfg), $branches);
+        $prs = $this->gh->prsForBranches($this->repoSlug->for($cfg), $branches);
         foreach ($branches as $branch) {
             $pr = $prs[$branch] ?? null;
             $base = null !== $pr && null !== $pr->baseRefName ? $pr->baseRefName : null;
@@ -81,13 +89,15 @@ final class Sync
     }
 
     /** @return array<int, SyncReport> */
-    public static function syncProject(ProjectConfig $cfg, Store $store, ?bool $apply, ?AgentLauncherInterface $agents = null): array
+    public function syncProject(ProjectConfig $cfg, Store $store, ?bool $apply, ?AgentLauncherInterface $agents = null): array
     {
         $effectiveApply = $apply ?? $cfg->syncAutoApply;
         $reports = [];
         $branches = [];
         $byBranch = [];
-        foreach (self::discover($cfg) as [$path, $branch]) {
+        foreach ($this->discover($cfg) as $ref) {
+            $path = $ref->path;
+            $branch = $ref->branch;
             if ('' === $branch || null === $store->get($cfg->name, $branch)) {
                 // Not (or no longer) a PABLO task worktree: leave it alone. Only
                 // active tasks are kept in sync, so an orphaned or foreign
@@ -97,13 +107,13 @@ final class Sync
             $branches[] = $branch;
             $byBranch[$branch] = $path;
         }
-        $stacked = self::resolveStackedBases($cfg, $branches);
+        $stacked = $this->resolveStackedBases($cfg, $branches);
         foreach ($branches as $branch) {
             $path = $byBranch[$branch];
             try {
-                $lock = Store::taskLock($store, $cfg->name, $branch, self::SYNC_LOCK_TIMEOUT_S);
+                $lock = $store->taskLock($cfg->name, $branch, self::SYNC_LOCK_TIMEOUT_S);
                 try {
-                    $reports[] = GitRepo::syncWorktree(
+                    $reports[] = $this->git->syncWorktree(
                         $path,
                         $branch,
                         $cfg->primaryBranch,
@@ -128,11 +138,11 @@ final class Sync
                 $prompt = self::buildConflictAgentPrompt($report, $cfg, $stacked[$report->branch] ?? null);
                 $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt);
                 sleep(1);
-                $sessionId = self::findRecentSession($report->worktree, 'rebase-conflict-resolver');
+                $sessionId = $this->findRecentSession($report->worktree, 'rebase-conflict-resolver');
                 $report->agentHandle = $sessionId ?? 'launched';
             }
         }
-        self::saveLastLog($cfg->name, $cfg->syncStrategy, $reports);
+        $this->saveLastLog($cfg->name, $cfg->syncStrategy, $reports);
 
         return $reports;
     }
@@ -147,34 +157,19 @@ final class Sync
         return (getenv('HOME') ?: '~').'/.pablo/logs';
     }
 
-    /** @param array<int, SyncReport> $reports */
-    public static function saveLastLog(string $projectName, string $strategy, array $reports): void
+    /** @param list<SyncReport> $reports */
+    public function saveLastLog(string $projectName, string $strategy, array $reports): void
     {
         $path = self::logsDir()."/rebase-last-{$projectName}.json";
         $dir = \dirname($path);
         if (!is_dir($dir)) {
             @mkdir($dir, 0o777, true);
         }
-        $payload = [
-            'timestamp' => Time::utcnow(),
-            'project' => $projectName,
-            'strategy' => $strategy,
-            'reports' => array_map(static function (SyncReport $r) {
-                return [
-                    'branch' => $r->branch,
-                    'action' => $r->action,
-                    'behind' => $r->behind,
-                    'ahead' => $r->ahead,
-                    'conflict_files' => $r->conflictFiles,
-                    'detail' => $r->detail,
-                    'agent_handle' => $r->agentHandle,
-                ];
-            }, $reports),
-        ];
-        file_put_contents($path, json_encode($payload, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
+        $log = new RebaseLog($projectName, $this->time->utcnow(), $strategy, $reports);
+        file_put_contents($path, json_encode($log->toArray(), \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
     }
 
-    public static function buildConflictAgentPrompt(SyncReport $report, ProjectConfig $cfg, ?string $stackedBase = null): string
+    public function buildConflictAgentPrompt(SyncReport $report, ProjectConfig $cfg, ?string $stackedBase = null): string
     {
         $target = 'origin/'.$cfg->primaryBranch;
         $stacked = null !== $stackedBase && '' !== $stackedBase && $stackedBase !== $cfg->primaryBranch;
@@ -216,11 +211,11 @@ final class Sync
      * or null. The worktree path is single-quote-escaped before interpolation
      * into the SQL string (the port fixes Python's unescaped bug).
      */
-    private static function findRecentSession(string $worktree, string $agent): ?string
+    private function findRecentSession(string $worktree, string $agent): ?string
     {
         try {
             $escaped = str_replace("'", "''", $worktree);
-            $result = Proc::run([
+            $result = $this->runner->run([
                 'opencode', 'db',
                 "SELECT id FROM session WHERE directory = '{$escaped}'"
                 ." AND agent = '{$agent}'"
@@ -238,8 +233,7 @@ final class Sync
         return null;
     }
 
-    /** @return array<string, mixed>|null */
-    public static function loadLastLog(string $projectName): ?array
+    public function loadLastLog(string $projectName): ?RebaseLog
     {
         $path = self::logsDir()."/rebase-last-{$projectName}.json";
         if (!is_file($path)) {
@@ -249,7 +243,7 @@ final class Sync
         /** @var array<string, mixed> $data */
         $data = json_decode((string) file_get_contents($path), true);
 
-        return $data;
+        return RebaseLog::fromArray($data);
     }
 
     /** @param array<int, SyncReport> $reports */

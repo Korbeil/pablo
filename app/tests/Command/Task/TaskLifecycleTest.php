@@ -22,15 +22,15 @@ final class TaskLifecycleTest extends CommandTestBed
 {
     public function testStateForcesWithSharedHandler(): void
     {
-        $this->runCommand(new StateCommand($this->store, $this->agents), ['state' => 'request-changes']);
+        $this->runCommand(new StateCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['state' => 'request-changes']);
         $this->assertSame(['pr-feedback'], $this->agents->launch);
-        $this->assertSame([7], $this->drafts);
+        $this->assertSame([7], $this->gh->drafts);
         $this->assertSame(State::RequestChanges, $this->getTask()->state);
     }
 
     public function testStateNoTriggerSkipsActions(): void
     {
-        $this->runCommand(new StateCommand($this->store, $this->agents), ['state' => 'request-changes', '--no-trigger' => true]);
+        $this->runCommand(new StateCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['state' => 'request-changes', '--no-trigger' => true]);
         $this->assertSame([], $this->agents->launch);
         $this->assertSame(State::RequestChanges, $this->getTask()->state);
     }
@@ -38,14 +38,14 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testStateOutsideWorktreeFails(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new StateCommand($this->store, $this->agents), ['state' => 'draft']);
+        $tester = $this->runCommand(new StateCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['state' => 'draft']);
         $this->assertSame(1, $tester->getStatusCode());
     }
 
     public function testStateWithWorktreeOptionFromOutsideWorktree(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new StateCommand($this->store, $this->agents), [
+        $tester = $this->runCommand(new StateCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
             'state' => 'request-changes',
             '--worktree' => $this->wt,
         ]);
@@ -55,9 +55,9 @@ final class TaskLifecycleTest extends CommandTestBed
 
     public function testWaitingToggleRoundtrip(): void
     {
-        $this->runCommand(new WaitingCommand($this->store, $this->agents));
+        $this->runCommand(new WaitingCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(State::Waiting, $this->getTask()->state);
-        $this->runCommand(new WaitingCommand($this->store, $this->agents));
+        $this->runCommand(new WaitingCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $task = $this->getTask();
         $this->assertSame(State::InProgress, $task->state);
         $this->assertTrue($task->taskAnalystRan);
@@ -68,29 +68,29 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::RequestChanges;
         $this->store->save($task);
-        $tester = $this->runCommand(new WaitingCommand($this->store, $this->agents));
+        $tester = $this->runCommand(new WaitingCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(1, $tester->getStatusCode());
     }
 
     public function testCloseRefusesWhileAgentsActive(): void
     {
         $this->agents->active = [new SessionInfo('a', 'running')];
-        $tester = $this->runCommand(new CloseCommand($this->store, $this->agents), [], ['capture_stderr_separately' => true]);
+        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [], ['capture_stderr_separately' => true]);
         $this->assertSame(1, $tester->getStatusCode());
         $this->assertStringContainsString('agent', $tester->getErrorOutput());
     }
 
     public function testCloseRemovesWorktreeAndRecord(): void
     {
-        $tester = $this->runCommand(new CloseCommand($this->store, $this->agents), ['--yes' => true]);
+        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--yes' => true]);
         $this->assertSame(0, $tester->getStatusCode());
-        $this->assertSame([[$this->wt, 'wk-45']], $this->removed);
+        $this->assertSame([[$this->wt, 'wk-45']], $this->git->removed);
         $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
     }
 
     public function testPrecommitCheckAllowed(): void
     {
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->agents));
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(0, $tester->getStatusCode());
         $data = json_decode($tester->getDisplay(), true);
         $this->assertSame([
@@ -107,7 +107,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::Waiting;
         $this->store->save($task);
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->agents));
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(0, $tester->getStatusCode());
         $data = json_decode($tester->getDisplay(), true);
         $this->assertFalse($data['allowed']);
@@ -116,14 +116,14 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testPrecommitCheckRefusesNonTaskDir(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->agents));
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(2, $tester->getStatusCode());
     }
 
     public function testPrecommitCheckWithWorktreeOptionFromOutsideWorktree(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->agents), ['--worktree' => $this->wt]);
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--worktree' => $this->wt]);
         $this->assertSame(0, $tester->getStatusCode());
         $data = json_decode($tester->getDisplay(), true);
         $this->assertSame('wk-45', $data['branch']);
@@ -133,13 +133,13 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testPrecommitCheckWorktreeOptionUnknownPath(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->agents), ['--worktree' => $this->tmp.'/nowhere']);
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--worktree' => $this->tmp.'/nowhere']);
         $this->assertSame(2, $tester->getStatusCode());
     }
 
     public function testTaskCurrentDumpsRecord(): void
     {
-        $tester = $this->runCommand(new TaskCommand($this->store, $this->agents), ['current' => 'current']);
+        $tester = $this->runCommand(new TaskCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['current' => 'current']);
         $data = json_decode($tester->getDisplay(), true);
         $this->assertSame('wk-45', $data['branch']);
         $this->assertSame($this->tmp.'/repo', $data['repo_path']);
@@ -150,7 +150,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::RequestChanges;
         $this->store->save($task);
-        $tester = $this->runCommand(new WatchAgentCommand($this->store, $this->agents), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -158,12 +158,12 @@ final class TaskLifecycleTest extends CommandTestBed
             '--expect-state' => 'request-changes',
         ]);
         $this->assertSame(0, $tester->getStatusCode());
-        $this->assertSame([7], $this->drafts);
+        $this->assertSame([7], $this->gh->drafts);
     }
 
     public function testWatchAgentSkipsWhenStateMovedOn(): void
     {
-        $tester = $this->runCommand(new WatchAgentCommand($this->store, $this->agents), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -171,7 +171,7 @@ final class TaskLifecycleTest extends CommandTestBed
             '--expect-state' => 'request-changes',
         ]);
         $this->assertSame(0, $tester->getStatusCode());
-        $this->assertSame([], $this->drafts);
+        $this->assertSame([], $this->gh->drafts);
     }
 
     public function testWatchAgentStampsFinishedWhenAgentGiven(): void
@@ -180,7 +180,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, '2026-08-11T00:00:00+00:00', 1);
         $this->store->save($task);
 
-        $tester = $this->runCommand(new WatchAgentCommand($this->store, $this->agents), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -200,7 +200,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, 'x', 3);
         $this->store->save($task);
 
-        $tester = $this->runCommand(new RelaunchCommand($this->store, $this->agents));
+        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame(['task-analyst'], $this->agents->launch);
         $this->assertSame(['/setup.sh'], $this->agents->startupScript);
@@ -215,7 +215,7 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testRelaunchOnlyStartupSkipsAnalyst(): void
     {
         $this->writeProjects('/setup.sh');
-        $tester = $this->runCommand(new RelaunchCommand($this->store, $this->agents), ['--only' => 'startup-script']);
+        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--only' => 'startup-script']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame([], $this->agents->launch);
         $this->assertSame(['/setup.sh'], $this->agents->startupScript);
@@ -224,7 +224,7 @@ final class TaskLifecycleTest extends CommandTestBed
 
     public function testRelaunchOnlyAnalystSkipsStartup(): void
     {
-        $tester = $this->runCommand(new RelaunchCommand($this->store, $this->agents), ['--only' => 'task-analyst']);
+        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--only' => 'task-analyst']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame(['task-analyst'], $this->agents->launch);
         $this->assertSame([], $this->agents->startupScript);
@@ -235,7 +235,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::CiRed;
         $this->store->save($task);
-        $this->runCommand(new RelaunchCommand($this->store, $this->agents));
+        $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(['ci-analyst'], $this->agents->launch);
         $this->assertSame(1, $this->getTask()->agentLaunches['ci-analyst']->attempts);
     }
@@ -245,13 +245,13 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::RequestChanges;
         $this->store->save($task);
-        $this->runCommand(new RelaunchCommand($this->store, $this->agents));
+        $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(['pr-feedback'], $this->agents->launch);
     }
 
     public function testRelaunchUnknownLabelPrintsNothing(): void
     {
-        $tester = $this->runCommand(new RelaunchCommand($this->store, $this->agents), ['--only' => 'ci-analyst']);
+        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--only' => 'ci-analyst']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertStringContainsString('nothing to relaunch', $tester->getDisplay());
     }
@@ -261,12 +261,12 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::CiRed;
         $this->store->save($task);
-        $tester = $this->runCommand(new SkipCiCommand($this->store, $this->agents));
+        $tester = $this->runCommand(new SkipCiCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(0, $tester->getStatusCode());
         $updated = $this->getTask();
         $this->assertSame(State::WaitingReview, $updated->state);
         $this->assertTrue($updated->ciIgnored);
-        $this->assertSame([7], $this->readies);
+        $this->assertSame([7], $this->gh->readies);
     }
 
     public function testSkipCiFromWrongStateFails(): void
@@ -274,18 +274,18 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::Draft;
         $this->store->save($task);
-        $tester = $this->runCommand(new SkipCiCommand($this->store, $this->agents));
+        $tester = $this->runCommand(new SkipCiCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(1, $tester->getStatusCode());
     }
 
     public function testRetriggerCi(): void
     {
-        $tester = $this->runCommand(new RetriggerCiCommand($this->store, $this->agents));
+        $tester = $this->runCommand(new RetriggerCiCommand($this->gh, $this->repoSlug, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(0, $tester->getStatusCode());
         $out = $tester->getDisplay();
         $this->assertStringContainsString('re-triggered CI', $out);
         $this->assertStringContainsString('42', $out);
         $this->assertStringContainsString('43', $out);
-        $this->assertSame([7], $this->drafts);
+        $this->assertSame([7], $this->gh->drafts);
     }
 }

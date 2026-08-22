@@ -4,22 +4,33 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Config\Config;
 use Pablo\Doctor\Doctor;
+use Pablo\Store\Store;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(name: 'system:doctor', description: 'check required CLIs are installed and authenticated')]
 final class DoctorCommand extends Command
 {
-    protected function configure(): void
-    {
-        $this->setName('system:doctor')->setDescription('check required CLIs are installed and authenticated');
+    public function __construct(
+        private readonly Doctor $doctor,
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $results = Doctor::checkAll($this->projects());
-        $output->writeln(Doctor::render($results));
+        $results = $this->doctor->checkAll($this->projects());
+        $output->writeln($this->doctor->render($results));
         foreach ($results as $r) {
             if (!$r->ok()) {
                 return self::FAILURE;

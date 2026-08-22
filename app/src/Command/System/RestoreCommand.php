@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Backup\Backup;
+use Pablo\Backup\Manifest;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
-use Pablo\Provider\Git\GitRepo;
+use Pablo\Provider\Git\GitRepoInterface;
+use Pablo\Store\Store;
 use Pablo\Support\PabloError;
-use Pablo\Support\Proc;
+use Pablo\Support\ProcessRunnerInterface;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -20,12 +25,24 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Question\Question;
 
+#[AsCommand(name: 'archive:restore', description: 'restore a PABLO state backup and recreate task worktrees')]
 final class RestoreCommand extends Command
 {
+    public function __construct(
+        private readonly Backup $backup,
+        private readonly GitRepoInterface $git,
+        private readonly ProcessRunnerInterface $runner,
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+    }
+
     protected function configure(): void
     {
-        $this->setName('archive:restore')
-            ->setDescription('restore a PABLO state backup and recreate task worktrees')
+        $this
             ->addArgument('archive', InputArgument::REQUIRED, 'path to a pablo-backup-*.tar.gz archive')
             ->addOption('skip-worktrees', null, InputOption::VALUE_NONE, 'restore state and configs only, do not recreate worktrees')
             ->addOption('skip-orca', null, InputOption::VALUE_NONE, 'do not re-register repos with Orca')
@@ -35,26 +52,26 @@ final class RestoreCommand extends Command
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $archive = (string) $input->getArgument('archive');
-        $pabloRoot = Backup::pabloRoot();
-        $projectsDir = Config::projectsDir();
+        $pabloRoot = $this->backup->pabloRoot();
+        $projectsDir = $this->projectsLoader->projectsDir();
 
         $extracted = sys_get_temp_dir().'/pablo-restore-'.uniqid();
         try {
-            $manifest = Backup::extractArchive($archive, $extracted);
+            $manifest = $this->backup->extractArchive($archive, $extracted);
             $this->assertVersion($manifest, $output);
 
-            $output->writeln(\sprintf('Backup created %s for %d project(s):', $manifest['created_at'] ?? '?', \count($manifest['projects'] ?? [])));
-            foreach ($manifest['projects'] ?? [] as $project) {
-                $output->writeln(\sprintf('  - %s (origin %s, %d task branch(es))', $project['name'], $project['origin_url'] ?? 'n/a', \count($project['branches'] ?? [])));
+            $output->writeln(\sprintf('Backup created %s for %d project(s):', $manifest->createdAt, \count($manifest->projects)));
+            foreach ($manifest->projects as $project) {
+                $output->writeln(\sprintf('  - %s (origin %s, %d task branch(es))', $project->name, $project->originUrl ?? 'n/a', \count($project->branches)));
             }
 
             $overwrite = (bool) $input->getOption('yes') || $this->confirm($input, $output, 'Restore project configs from the backup?', true);
-            foreach (Backup::restoreProjects($extracted, $projectsDir, $overwrite) as $written) {
+            foreach ($this->backup->restoreProjects($extracted, $projectsDir, $overwrite) as $written) {
                 $output->writeln('  config '.$written);
             }
 
             $overwriteState = (bool) $input->getOption('yes') || $this->confirm($input, $output, 'Restore state, stamps, logs and cache into '.$pabloRoot.'?', true);
-            foreach (Backup::restoreStoreTree($extracted, $pabloRoot, $overwriteState) as $restored) {
+            foreach ($this->backup->restoreStoreTree($extracted, $pabloRoot, $overwriteState) as $restored) {
                 $output->writeln('  restored '.$restored);
             }
 
@@ -73,16 +90,13 @@ final class RestoreCommand extends Command
 
             return self::SUCCESS;
         } finally {
-            Backup::cleanupDir($extracted);
+            $this->backup->cleanupDir($extracted);
         }
     }
 
-    /**
-     * @param array<string, mixed> $manifest
-     */
-    private function assertVersion(array $manifest, OutputInterface $output): void
+    private function assertVersion(Manifest $manifest, OutputInterface $output): void
     {
-        $version = (int) ($manifest['version'] ?? 0);
+        $version = $manifest->version;
         if ($version > Backup::MANIFEST_VERSION) {
             $err = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
             $err->writeln(\sprintf('backup manifest version %d is newer than this PABLO supports (%d) — upgrade PABLO first', $version, Backup::MANIFEST_VERSION));
@@ -103,18 +117,16 @@ final class RestoreCommand extends Command
     }
 
     /**
-     * @param array<string, mixed> $manifest
-     *
      * @return list<string>
      */
-    private function recreateWorktrees(InputInterface $input, OutputInterface $output, array $manifest, string $pabloRoot): array
+    private function recreateWorktrees(InputInterface $input, OutputInterface $output, Manifest $manifest, string $pabloRoot): array
     {
         $helper = new QuestionHelper();
         $repoPaths = [];
-        foreach ($manifest['projects'] ?? [] as $project) {
-            $name = (string) $project['name'];
-            $origin = $project['origin_url'] ?? null;
-            $branches = array_values((array) ($project['branches'] ?? []));
+        foreach ($manifest->projects as $project) {
+            $name = $project->name;
+            $origin = $project->originUrl;
+            $branches = $project->branches;
             if ([] === $branches) {
                 $output->writeln(\sprintf('%s: no task branches to recreate', $name));
                 continue;
@@ -124,23 +136,23 @@ final class RestoreCommand extends Command
             $repoPath = $this->askRepoPath($helper, $input, $output, $name, $origin);
 
             $isRepo = is_dir($repoPath.'/.git') || is_dir($repoPath);
-            $hasOrigin = $isRepo && null !== GitRepo::originUrl($repoPath);
+            $hasOrigin = $isRepo && null !== $this->git->originUrl($repoPath);
             if (!is_dir($repoPath) || 0 === \count(glob($repoPath.'/*') ?: []) + \count(glob($repoPath.'/.[!.]*') ?: [])) {
                 if (null === $origin || '' === $origin) {
                     throw new PabloError($name.': destination does not exist and the backup has no origin URL to clone from; provide an existing checkout path');
                 }
                 $output->writeln('  cloning '.$origin.' …');
-                GitRepo::cloneRepo($origin, $repoPath);
+                $this->git->cloneRepo($origin, $repoPath);
                 $hasOrigin = true;
             } elseif (!$hasOrigin) {
                 if (null === $origin || '' === $origin) {
                     throw new PabloError($name.': checkout has no origin remote and the backup has no origin URL; add origin manually then re-run');
                 }
                 $output->writeln('  adding origin '.$origin.' …');
-                GitRepo::addOrigin($repoPath, $origin);
+                $this->git->addOrigin($repoPath, $origin);
                 $hasOrigin = true;
             }
-            GitRepo::fetchOrigin($repoPath);
+            $this->git->fetchOrigin($repoPath);
             $repoPaths[] = $repoPath;
 
             $cfg = $this->localProject($name);
@@ -148,12 +160,12 @@ final class RestoreCommand extends Command
 
             $store = $this->store();
             foreach ($branches as $branch) {
-                if (!GitRepo::remoteBranchExists($repoPath, $branch)) {
+                if (!$this->git->remoteBranchExists($repoPath, $branch)) {
                     $output->writeln('  ⚠ '.$branch.': not found on origin (local-only / unpushed) — skipped; push it on the source machine and re-run to recreate');
 
                     continue;
                 }
-                $path = GitRepo::recreateWorktree($repoPath, $wtRoot, $branch);
+                $path = $this->git->recreateWorktree($repoPath, $wtRoot, $branch);
                 $task = $store->get($name, $branch);
                 if (null !== $task) {
                     $task->worktreePath = $path;
@@ -195,7 +207,7 @@ final class RestoreCommand extends Command
     {
         foreach ($repoPaths as $repoPath) {
             try {
-                Proc::run(['orca', 'repo', 'add', '--path', $repoPath, '--json'], true, 30);
+                $this->runner->run(['orca', 'repo', 'add', '--path', $repoPath, '--json'], true, 30);
                 $output->writeln("  ✔ orca: registered {$repoPath}");
             } catch (\Throwable) {
                 $output->writeln("  ⚠ orca: could not register {$repoPath} (Orca may not be running — run `orca repo add --path {$repoPath}` manually)");

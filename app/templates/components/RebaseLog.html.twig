@@ -5,7 +5,7 @@
         <p class="pablo-empty">No sync has run yet — try <code>pablo sync:run &lt;project&gt;</code>.</p>
     {% else %}
         <div class="pablo-logs">
-            {% for log in logs %}
+            {% for section in logs %}{% set log = section.log %}
                 <div class="box pablo-log">
                     <div class="pablo-log-head">
                         <span class="pablo-log-project">{{ log.project }}</span>
@@ -18,42 +18,42 @@
                         {% endif %}
                     </div>
 
-                    {% if log.reports is empty %}
+                    {% if section.rows is empty %}
                         <p class="pablo-empty">No task worktrees to sync.</p>
                     {% else %}
                         <ul class="pablo-log-list">
-                            {% for r in log.reports %}
+                            {% for r in section.rows %}
                                 <li class="pablo-log-row">
                                     <span class="tag {{ r.color }}">
                                         {{ ux_icon(r.icon, {class: 'pablo-icon'}) }}
                                         <span>{{ r.label }}</span>
                                     </span>
 
-                                    <code class="pablo-log-branch">{{ r.branch }}</code>
+                                    <code class="pablo-log-branch">{{ r.report.branch }}</code>
 
-                                    {% if r.behind or r.ahead %}
+                                    {% if r.report.behind or r.report.ahead %}
                                         <span class="pablo-log-counts">
-                                            behind {{ r.behind }} · ahead {{ r.ahead }}
+                                            behind {{ r.report.behind }} · ahead {{ r.report.ahead }}
                                         </span>
                                     {% endif %}
 
-                                    {% if r.detail and r.action != 'conflict' %}
-                                        <span class="pablo-log-detail">{{ r.detail }}</span>
+                                    {% if r.report.detail and r.report.action != 'conflict' %}
+                                        <span class="pablo-log-detail">{{ r.report.detail }}</span>
                                     {% endif %}
 
-                                    {% if r.conflict_files %}
+                                    {% if r.report.conflictFiles %}
                                         <ul class="pablo-conflicts">
-                                            {% for f in r.conflict_files %}
+                                            {% for f in r.report.conflictFiles %}
                                                 <li><code>{{ f }}</code></li>
                                             {% endfor %}
                                         </ul>
                                     {% endif %}
 
-                                    {% if r.agent_handle %}
+                                    {% if r.report.agentHandle %}
                                         <div class="pablo-log-agent">
                                             {{ ux_icon('lucide:activity', {class: 'pablo-icon pablo-icon-dim'}) }}
                                             fix agent running —
-                                            <code>opencode -s {{ r.agent_handle }}</code>
+                                            <code>opencode -s {{ r.report.agentHandle }}</code>
                                         </div>
                                     {% endif %}
                                 </li>

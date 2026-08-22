@@ -39,13 +39,17 @@ final class Dashboard
     public function __construct(
         private readonly Store $store,
         private readonly PollSchedule $pollSchedule,
+        private readonly Config $config,
+        private readonly Listing $listing,
+        private readonly RepoSlug $repoSlug,
+        private readonly StateMachine $stateMachine,
     ) {
     }
 
     /** @return array<string, ProjectConfig> */
     public function projects(): array
     {
-        return Config::loadProjects(Config::projectsDir());
+        return $this->config->loadProjects();
     }
 
     /**
@@ -69,10 +73,8 @@ final class Dashboard
      * The two tables: tasks needing attention, and everything else.
      *
      * @param array<string, ProjectConfig>|null $projects
-     *
-     * @return array{attention: list<TaskView>, rest: list<TaskView>}
      */
-    public function board(?array $projects = null): array
+    public function board(?array $projects = null): Board
     {
         $projects ??= $this->projects();
 
@@ -94,7 +96,7 @@ final class Dashboard
         $this->sort($attention);
         $this->sort($rest);
 
-        return ['attention' => $attention, 'rest' => $rest];
+        return new Board($attention, $rest);
     }
 
     /**
@@ -129,7 +131,7 @@ final class Dashboard
     private function viewFor(Task $task, ProjectConfig $cfg): TaskView
     {
         $cache = $task->displayCache;
-        $def = StateMachine::states()[$task->state->value] ?? null;
+        $def = $this->stateMachine->states()[$task->state->value] ?? null;
 
         $agents = AgentActivity::fromDisplay($cache->agentCount, $cache->agentActivity);
         $pr = null !== $cache->prState
@@ -149,9 +151,9 @@ final class Dashboard
             summary: $task->summary,
             trackerStatus: $cache->trackerStatus,
             stateEnteredAt: $task->stateEnteredAt,
-            since: Listing::timeSince($task->stateEnteredAt),
+            since: $this->listing->timeSince($task->stateEnteredAt),
             worktreePath: $task->worktreePath,
-            needsAttention: Listing::isWaitingForFeedback($task, $agents),
+            needsAttention: $this->listing->isWaitingForFeedback($task, $agents),
             polledAt: $cache->at,
         );
     }
@@ -164,7 +166,7 @@ final class Dashboard
         }
 
         try {
-            return $this->slugs[$cfg->name] = RepoSlug::for($cfg);
+            return $this->slugs[$cfg->name] = $this->repoSlug->for($cfg);
         } catch (PabloError) {
             return $this->slugs[$cfg->name] = null;
         }

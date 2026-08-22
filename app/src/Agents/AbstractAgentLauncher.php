@@ -7,6 +7,8 @@ namespace Pablo\Agents;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
+use Pablo\Support\ProcessRunner;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Shared plumbing for agent backends (Orca, OpenChamber, headless).
@@ -26,6 +28,8 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
 {
     private string $agentsDir;
 
+    private readonly Store $store;
+
     private readonly string $shimPath;
 
     protected readonly string $backend;
@@ -34,7 +38,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
      * Mirrors Store::defaultRoot(): resolved per process, never at container
      * compile time (the compiled container is cached under app/var/cache).
      */
-    public static function defaultShimPath(): string
+    private static function defaultShimPath(): string
     {
         $override = getenv('PABLO_SHIM');
         if (false !== $override && '' !== $override) {
@@ -44,9 +48,21 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         return (getenv('HOME') ?: '~').'/.local/bin/pablo';
     }
 
-    /** @param string|null $shimPath absolute path used for detached self-reinvocation */
-    public function __construct(?string $shimPath = null, ?string $backend = null)
-    {
+    /**
+     * Collaborators default to real implementations right in the signature so
+     * hand-rolled test instances stay simple; the factory always passes its
+     * own injected ones through.
+     *
+     * @param string|null $shimPath absolute path used for detached self-reinvocation
+     */
+    public function __construct(
+        protected readonly ProcessRunnerInterface $runner = new ProcessRunner(),
+        protected readonly Time $time = new Time(),
+        ?Store $store = null,
+        ?string $shimPath = null,
+        ?string $backend = null,
+    ) {
+        $this->store = $store ?? new Store();
         $this->shimPath = $shimPath ?? self::defaultShimPath();
         $this->backend = $backend ?? 'orca';
         $override = getenv('PABLO_AGENTS_DIR');
@@ -71,7 +87,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
      * dispatch flock (or any other parent fd) alive after the run ends. bash
      * closes already-closed fds gracefully, unlike POSIX sh.
      */
-    protected static function detach(string $inner): string
+    private function detach(string $inner): string
     {
         $close = implode('; ', array_map(static fn (int $n) => "exec {$n}>&-", range(3, 255)));
 
@@ -86,7 +102,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     {
         $inner = implode(' ', array_map(static fn ($a) => escapeshellarg((string) $a), $argv));
 
-        return (int) trim((string) shell_exec(self::detach($inner)));
+        return (int) trim((string) shell_exec($this->detach($inner)));
     }
 
     protected function logFor(string $label): string
@@ -107,7 +123,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
                 'pid' => $pid,
                 'worktree' => $worktree,
                 'agent' => $label,
-                'started_at' => Time::utcnow(),
+                'started_at' => $this->time->utcnow(),
             ]),
         );
     }
@@ -172,10 +188,9 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
             }
             $activity = [] !== $parts ? implode(' · ', $parts) : '-';
 
-            $store = new Store();
-            $lock = Store::taskLock($store, $project, $branch, timeoutS: 2);
+            $lock = $this->store->taskLock($project, $branch, timeoutS: 2);
             try {
-                $task = $store->get($project, $branch);
+                $task = $this->store->get($project, $branch);
                 if (null === $task) {
                     return;
                 }
@@ -184,9 +199,9 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
                     prState: $task->displayCache->prState,
                     agentCount: \count($sessions),
                     agentActivity: $activity,
-                    at: Time::utcnow(),
+                    at: $this->time->utcnow(),
                 );
-                $store->save($task);
+                $this->store->save($task);
             } finally {
                 $lock->release();
             }
@@ -199,7 +214,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     {
         $log = $this->logFor($label);
         $out = [];
-        exec(self::detach($command.' >>'.escapeshellarg($log).' 2>&1'), $out);
+        exec($this->detach($command.' >>'.escapeshellarg($log).' 2>&1'), $out);
         $pid = (int) trim((string) ($out[0] ?? ''));
         $this->writePidfile($pid, $worktree, $label);
 
@@ -211,7 +226,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         $log = $this->logFor($agent);
         $out = [];
         exec(
-            self::detach('opencode run --agent '.escapeshellarg($agent)
+            $this->detach('opencode run --agent '.escapeshellarg($agent)
                 .' --dir '.escapeshellarg($worktree).' '.escapeshellarg($prompt)
                 .' >>'.escapeshellarg($log).' 2>&1'),
             $out,

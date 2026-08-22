@@ -4,30 +4,41 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
-use Pablo\Provider\Gh\GhPr;
+use Pablo\Config\Config;
+use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(name: 'task:retrigger-ci', description: 're-run all GitHub Actions jobs for the current task')]
 final class RetriggerCiCommand extends Command
 {
-    protected function configure(): void
-    {
-        $this->setName('task:retrigger-ci')->setDescription('re-run all GitHub Actions jobs for the current task');
+    public function __construct(
+        private readonly GhPrInterface $gh,
+        private readonly RepoSlug $repoSlug,
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $store = $this->store();
-        $ctx = $this->resolveCtx($store, $this->agents());
-        $repo = RepoSlug::for($ctx->cfg);
-        $lock = Store::taskLock($store, $ctx->task->project, $ctx->task->branch);
+        $ctx = $this->resolveCtx();
+        $repo = $this->repoSlug->for($ctx->cfg);
+        $lock = $store->taskLock($ctx->task->project, $ctx->task->branch);
         try {
-            $runIds = GhPr::rerunCi($repo, $ctx->task->branch);
+            $runIds = $this->gh->rerunCi($repo, $ctx->task->branch);
             if (null !== $ctx->task->prNumber) {
-                GhPr::markDraft($repo, $ctx->task->prNumber);
+                $this->gh->markDraft($repo, $ctx->task->prNumber);
             }
         } finally {
             $lock->release();

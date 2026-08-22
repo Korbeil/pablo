@@ -7,7 +7,7 @@ namespace Pablo\Provider\Tracker;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\Task;
-use Pablo\Support\Proc;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Jira provider, backed by the acli CLI (Atlassian CLI).
@@ -22,6 +22,10 @@ final class Jira implements Provider
     public const JIRA_CALL_TIMEOUT_S = 30;
 
     private const FIELDS = 'summary,status';
+
+    public function __construct(private readonly ProcessRunnerInterface $runner)
+    {
+    }
 
     public function name(): string
     {
@@ -67,7 +71,7 @@ final class Jira implements Provider
 
     public function getIssue(string $ref, ProjectConfig $cfg): Issue
     {
-        $out = Proc::run(
+        $out = $this->runner->run(
             ['acli', 'jira', 'workitem', 'view', $ref, '--json', '--fields', self::FIELDS],
             timeout: self::JIRA_CALL_TIMEOUT_S,
         );
@@ -80,7 +84,7 @@ final class Jira implements Provider
     public function listAssigned(ProjectConfig $cfg): array
     {
         $jql = "project = {$cfg->projectKey} AND assignee = currentUser() ORDER BY updated DESC";
-        $out = Proc::run([
+        $out = $this->runner->run([
             'acli', 'jira', 'workitem', 'search', '--jql', $jql,
             '--fields', self::FIELDS, '--json', '--limit', '50',
         ], timeout: self::JIRA_CALL_TIMEOUT_S);
@@ -96,7 +100,7 @@ final class Jira implements Provider
 
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
-        $out = Proc::run(
+        $out = $this->runner->run(
             ['acli', 'jira', 'workitem', 'view', $key, '--json', '--fields', 'status'],
             timeout: self::JIRA_CALL_TIMEOUT_S,
         );
@@ -107,20 +111,20 @@ final class Jira implements Provider
         return (string) ($fields['status']['name'] ?? '?');
     }
 
-    public function batchIssueStatus(array $pairs): array
+    public function batchIssueStatus(array $issues): array
     {
-        if ([] === $pairs) {
+        if ([] === $issues) {
             return [];
         }
 
         $commands = [];
         $keyIndex = [];
-        foreach ($pairs as $i => [$key]) {
-            $keyIndex[$i] = $key;
+        foreach ($issues as $key => $_) {
+            $keyIndex[] = $key;
             $commands[] = ['acli', 'jira', 'workitem', 'view', $key, '--json', '--fields', 'status'];
         }
 
-        $results = Proc::runParallel($commands, check: false, timeout: self::JIRA_CALL_TIMEOUT_S);
+        $results = $this->runner->runParallel($commands, check: false, timeout: self::JIRA_CALL_TIMEOUT_S);
         $statuses = [];
         foreach ($results as $i => $out) {
             $key = $keyIndex[$i];

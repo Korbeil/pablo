@@ -24,17 +24,24 @@ final class Store
     private readonly string $root;
 
     /**
-     * $root is resolved here rather than by the DI container: the compiled
-     * container is cached under app/var/cache/<env>, so a compile-time value
-     * would freeze PABLO_STATE_DIR (and HOME) as they were on the process that
-     * first warmed the cache.
+     * $root is resolved in the constructor rather than by the DI container:
+     * see defaultRoot(). $time defaults to a wall-clock instance in the
+     * signature so hand-rolled instances stay one-argument simple.
      */
-    public function __construct(?string $root = null)
-    {
+    public function __construct(
+        ?string $root = null,
+        private readonly Time $time = new Time(),
+    ) {
         $this->root = $root ?? self::defaultRoot();
     }
 
-    public static function defaultRoot(): string
+    /**
+     * Resolved at call time, never as a container parameter: the compiled
+     * container is cached under app/var/cache/<env>, so a compile-time value
+     * would freeze PABLO_STATE_DIR (and HOME) as they were on the process
+     * that first warmed the cache.
+     */
+    private static function defaultRoot(): string
     {
         $override = getenv('PABLO_STATE_DIR');
         if (false !== $override && '' !== $override) {
@@ -70,12 +77,12 @@ final class Store
         /** @var array<string, mixed> $data */
         $data = json_decode((string) file_get_contents($path), true);
 
-        return Task::fromJson($data);
+        return Task::fromJson($data, $this->time->utcnow());
     }
 
     public function save(Task $task): void
     {
-        $task->updatedAt = Time::utcnow();
+        $task->updatedAt = $this->time->utcnow();
         $path = $this->path($task->project, $task->branch);
         $dir = \dirname($path);
         if (!is_dir($dir)) {
@@ -109,7 +116,7 @@ final class Store
             }
             /** @var array<string, mixed> $data */
             $data = json_decode((string) file_get_contents($path), true);
-            $tasks[] = Task::fromJson($data);
+            $tasks[] = Task::fromJson($data, $this->time->utcnow());
         }
 
         return $tasks;
@@ -153,9 +160,9 @@ final class Store
      * deadline (the distinct exception replaces Python's fragile "locked"
      * substring test). Writes holder metadata into the lock file.
      */
-    public static function taskLock(self $store, string $project, string $branch, float $timeoutS = self::LOCK_TIMEOUT_S): TaskLock
+    public function taskLock(string $project, string $branch, float $timeoutS = self::LOCK_TIMEOUT_S): TaskLock
     {
-        $path = $store->lockPath($project, $branch);
+        $path = $this->lockPath($project, $branch);
         $dir = \dirname($path);
         if (!is_dir($dir)) {
             @mkdir($dir, 0o777, true);
@@ -184,7 +191,7 @@ final class Store
             fwrite($fd, json_encode([
                 'pid' => getmypid(),
                 'argv' => $_SERVER['argv'] ?? [],
-                'acquired_at' => Time::utcnow(),
+                'acquired_at' => $this->time->utcnow(),
             ], \JSON_THROW_ON_ERROR));
 
             return new TaskLock($fd);

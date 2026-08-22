@@ -21,7 +21,14 @@ final class Config
 
     public const PROVIDERS = ['github', 'jira', 'linear'];
 
-    public static function projectsDir(?string $override = null): string
+    public function __construct(private readonly GlobalConfig $global)
+    {
+    }
+
+    /** @var array<string, ProjectConfig>|null */
+    private ?array $projectsCache = null;
+
+    public function projectsDir(?string $override = null): string
     {
         if (null !== $override && '' !== $override) {
             return $override;
@@ -37,29 +44,41 @@ final class Config
         return (getenv('HOME') ?: '~').'/.pablo/projects';
     }
 
-    /** @return array<string, ProjectConfig> */
-    public static function loadProjects(?string $directory = null): array
+    /**
+     * Loaded once per instance: commands may ask for the project map several
+     * times in a single run, and each load re-reads every YAML file.
+     *
+     * @return array<string, ProjectConfig>
+     */
+    public function loadProjects(?string $directory = null): array
     {
-        $directory ??= self::projectsDir();
+        $useCache = null === $directory;
+        if ($useCache && null !== $this->projectsCache) {
+            return $this->projectsCache;
+        }
+        $directory ??= $this->projectsDir();
         if (!is_dir($directory)) {
             throw new PabloError("projects directory not found: {$directory}");
         }
-        $defaults = GlobalConfig::defaults();
+        $defaults = $this->global->defaults();
 
         $projects = [];
         foreach (glob(rtrim($directory, '/').'/*.yaml') ?: [] as $path) {
-            $cfg = self::parseProject($path, $defaults);
+            $cfg = $this->parseProject($path, $defaults);
             if (isset($projects[$cfg->name])) {
                 throw new PabloError(basename($path).": duplicate project name '{$cfg->name}'");
             }
             $projects[$cfg->name] = $cfg;
+        }
+        if ($useCache) {
+            $this->projectsCache = $projects;
         }
 
         return $projects;
     }
 
     /** @return array<string, mixed> */
-    public static function loadYaml(string $path): array
+    public function loadYaml(string $path): array
     {
         try {
             $data = Yaml::parseFile($path);
@@ -76,7 +95,7 @@ final class Config
     /**
      * @param array<string, mixed> $data
      */
-    private static function require(array $data, string $dotted, string $path): mixed
+    private function require(array $data, string $dotted, string $path): mixed
     {
         $node = $data;
         foreach (explode('.', $dotted) as $part) {
@@ -93,7 +112,7 @@ final class Config
      * @param array<string, mixed> $data
      * @param array<string, mixed> $defaults
      */
-    private static function merged(array $data, array $defaults, string $section, string $key): mixed
+    private function merged(array $data, array $defaults, string $section, string $key): mixed
     {
         foreach ([$data, $defaults] as $source) {
             $value = $source[$section] ?? null;
@@ -104,7 +123,7 @@ final class Config
         throw new PabloError("no value for {$section}.{$key} — set it in the project config or ~/.pablo/config.yaml");
     }
 
-    private static function expandHome(string $path): string
+    private function expandHome(string $path): string
     {
         if (str_starts_with($path, '~/')) {
             return getenv('HOME').substr($path, 1);
@@ -116,26 +135,26 @@ final class Config
     /**
      * @param array<string, mixed> $defaults
      */
-    private static function parseProject(string $path, array $defaults): ProjectConfig
+    private function parseProject(string $path, array $defaults): ProjectConfig
     {
-        $data = self::loadYaml($path);
+        $data = $this->loadYaml($path);
         $name = basename($path);
         $base = $path;
 
-        $projectName = (string) self::require($data, 'name', $base);
-        $type = (string) self::require($data, 'type', $base);
+        $projectName = (string) $this->require($data, 'name', $base);
+        $type = (string) $this->require($data, 'type', $base);
         if (!\in_array($type, self::PROJECT_TYPES, true)) {
             throw new PabloError(\sprintf('%s: unknown type %s (expected one of %s)', $name, var_export($type, true), '["open-source", "personal", "work"]'));
         }
 
-        $repoPath = self::expandHome((string) self::require($data, 'repo.path', $base));
-        $primaryBranch = (string) self::require($data, 'repo.primary_branch', $base);
+        $repoPath = $this->expandHome((string) $this->require($data, 'repo.path', $base));
+        $primaryBranch = (string) $this->require($data, 'repo.primary_branch', $base);
 
-        $provider = (string) self::require($data, 'issue_tracker.provider', $base);
+        $provider = (string) $this->require($data, 'issue_tracker.provider', $base);
         if (!\in_array($provider, self::PROVIDERS, true)) {
             throw new PabloError(\sprintf('%s: unknown provider %s (expected one of %s)', $name, var_export($provider, true), '["github", "jira", "linear"]'));
         }
-        $identity = (string) self::require($data, 'issue_tracker.identity', $base);
+        $identity = (string) $this->require($data, 'issue_tracker.identity', $base);
         $projectKey = $data['issue_tracker']['project_key'] ?? null;
         if (null === $projectKey) {
             throw new PabloError(\sprintf("%s: missing required key 'issue_tracker.project_key'", $name));
@@ -143,14 +162,14 @@ final class Config
 
         $rawRoot = $data['worktrees_root'] ?? null;
         if (null !== $rawRoot && '' !== $rawRoot) {
-            $worktreesRoot = self::expandHome((string) $rawRoot);
+            $worktreesRoot = $this->expandHome((string) $rawRoot);
         } else {
-            $worktreesRoot = self::expandHome('~/.pablo/worktrees').'/'.basename($repoPath);
+            $worktreesRoot = $this->expandHome('~/.pablo/worktrees').'/'.basename($repoPath);
         }
 
-        $syncInterval = self::merged($data, $defaults, 'sync', 'interval_minutes');
-        $pollInterval = self::merged($data, $defaults, 'state_polling', 'interval_minutes');
-        $strategy = self::merged($data, $defaults, 'sync', 'strategy');
+        $syncInterval = $this->merged($data, $defaults, 'sync', 'interval_minutes');
+        $pollInterval = $this->merged($data, $defaults, 'state_polling', 'interval_minutes');
+        $strategy = $this->merged($data, $defaults, 'sync', 'strategy');
         if (!\in_array($strategy, ['rebase', 'merge'], true)) {
             throw new PabloError(\sprintf('%s: sync.strategy must be \'rebase\' or \'merge\', got %s', $name, var_export($strategy, true)));
         }
@@ -179,13 +198,13 @@ final class Config
             site: $data['issue_tracker']['site'] ?? null,
             confluenceSpace: $data['confluence']['space'] ?? null,
             syncStrategy: (string) $strategy,
-            syncAutoApply: (bool) self::merged($data, $defaults, 'sync', 'auto_apply'),
+            syncAutoApply: (bool) $this->merged($data, $defaults, 'sync', 'auto_apply'),
             syncInterval: (int) $syncInterval,
             pollInterval: (int) $pollInterval,
             failureSignal: $data['testing']['failure_signal'] ?? null,
-            botWhitelist: array_values((array) self::merged($data, $defaults, 'review', 'bot_whitelist')),
-            ciIgnoreChecks: array_values((array) self::merged($data, $defaults, 'ci', 'ignore_checks')),
-            startupScript: $startup ? self::expandHome((string) $startup) : null,
+            botWhitelist: array_values((array) $this->merged($data, $defaults, 'review', 'bot_whitelist')),
+            ciIgnoreChecks: array_values((array) $this->merged($data, $defaults, 'ci', 'ignore_checks')),
+            startupScript: $startup ? $this->expandHome((string) $startup) : null,
             defaultModel: $defaultModel,
             prDescriptionLocale: $prDescriptionLocale,
         );

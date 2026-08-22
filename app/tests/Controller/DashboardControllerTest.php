@@ -56,6 +56,14 @@ final class DashboardControllerTest extends WebTestCase
             pr_description_locale: en
             YAML);
 
+        // Real git repos with a GitHub origin, so RepoSlug resolves the
+        // PR links without the old static seam.
+        foreach (['repo' => 'wallet-kit', 'bookkeeper' => 'bookkeeper'] as $dir => $slug) {
+            mkdir($this->tmp.'/'.$dir, 0o777, true);
+            (new \Symfony\Component\Process\Process(['git', 'init', '-q', $this->tmp.'/'.$dir]))->run();
+            (new \Symfony\Component\Process\Process(['git', '-C', $this->tmp.'/'.$dir, 'remote', 'add', 'origin', "git@github.com:acme/{$slug}.git"]))->run();
+        }
+
         file_put_contents($this->tmp.'/projects/wallet-kit.yaml', <<<YAML
             name: wallet-kit
             type: work
@@ -79,13 +87,10 @@ final class DashboardControllerTest extends WebTestCase
                 identity: octocat
                 project_key: BK
             YAML);
-
-        RepoSlug::setFor(static fn () => 'acme/wallet-kit');
     }
 
     protected function tearDown(): void
     {
-        RepoSlug::setFor(null);
         foreach (['PABLO_STATE_DIR', 'PABLO_PROJECTS_DIR', 'PABLO_STAMPS_DIR', 'PABLO_LOGS_DIR'] as $var) {
             putenv($var);
         }

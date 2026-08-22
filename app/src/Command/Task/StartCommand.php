@@ -4,50 +4,62 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
+use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
-use Pablo\Provider\Git\GitRepo;
-use Pablo\Provider\Tracker\ProviderRegistry;
+use Pablo\Provider\Git\GitRepoInterface;
+use Pablo\Provider\Tracker\ProviderRegistryInterface;
 use Pablo\StateMachine\StateMachine;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
 use Pablo\Support\Naming;
 use Pablo\Support\PabloError;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(name: 'task:start', description: 'start a task (issue URL or --project + prompt)', aliases: ['start'])]
 final class StartCommand extends Command
 {
+    public function __construct(
+        private readonly ProviderRegistryInterface $providers,
+        private readonly Naming $naming,
+        private readonly GitRepoInterface $git,
+        private readonly StateMachine $stateMachine,
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+    }
     public const SUMMARY_MAX_WORDS = 5;
 
     protected function configure(): void
     {
-        $this->setName('task:start')
-            ->setAliases(['start'])
-            ->setDescription('start a task (issue URL or --project + prompt)')
+        $this
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'project name for plain-prompt tasks')
             ->addArgument('input', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'issue URL or task prompt');
     }
 
     /**
      * @param array<string, ProjectConfig> $projects
-     *
-     * @return array{0: ProjectConfig, 1: \Pablo\Provider\Tracker\Provider, 2: string}|null
      */
-    private function matchIssueUrl(string $url, array $projects, ?string $project): ?array
+    private function matchIssueUrl(string $url, array $projects, ?string $project): ?IssueMatch
     {
         $candidates = null !== $project && isset($projects[$project]) ? [$projects[$project]] : array_values($projects);
         foreach ($candidates as $cfg) {
-            $provider = ProviderRegistry::get($cfg->provider);
+            $provider = $this->providers->get($cfg->provider);
             $ref = $provider->matchUrl($url, $cfg);
             if (null !== $ref) {
-                return [$cfg, $provider, $ref];
+                return new IssueMatch($cfg, $provider, $ref);
             }
         }
 
@@ -56,10 +68,8 @@ final class StartCommand extends Command
 
     /**
      * @param array<string, ProjectConfig> $projects
-     *
-     * @return array{0: ProjectConfig, 1: \Pablo\Provider\Tracker\Provider, 2: string}|null
      */
-    private function matchIssueKey(string $text, array $projects, ?string $project): ?array
+    private function matchIssueKey(string $text, array $projects, ?string $project): ?IssueMatch
     {
         $candidates = null !== $project && isset($projects[$project]) ? [$projects[$project]] : array_values($projects);
         if (false === preg_match_all('/\b([A-Za-z][A-Za-z0-9]*)-(\d+)\b/', $text, $matches, \PREG_SET_ORDER)) {
@@ -72,7 +82,7 @@ final class StartCommand extends Command
                     continue;
                 }
                 if (strtoupper($cfg->projectKey) === $prefix) {
-                    return [$cfg, ProviderRegistry::get($cfg->provider), strtoupper($m[0])];
+                    return new IssueMatch($cfg, $this->providers->get($cfg->provider), strtoupper($m[0]));
                 }
             }
         }
@@ -83,7 +93,7 @@ final class StartCommand extends Command
     private function branchBase(ProjectConfig $cfg, Issue $issue): string
     {
         if ('github' === $cfg->provider) {
-            return Naming::branchName($cfg->projectKey, $issue->key);
+            return $this->naming->branchName($cfg->projectKey, $issue->key);
         }
 
         return strtolower($issue->key);
@@ -91,9 +101,9 @@ final class StartCommand extends Command
 
     private function createTask(Store $store, ProjectConfig $cfg, string $branch, ?Issue $issue, ?string $prompt, AgentLauncherInterface $agents): Task
     {
-        $lock = Store::taskLock($store, $cfg->name, $branch);
+        $lock = $store->taskLock($cfg->name, $branch);
         try {
-            $worktree = GitRepo::createWorktree($cfg->repoPath, $cfg->worktreesRoot, $branch, $cfg->primaryBranch);
+            $worktree = $this->git->createWorktree($cfg->repoPath, $cfg->worktreesRoot, $branch, $cfg->primaryBranch);
             $task = new Task(project: $cfg->name, branch: $branch, worktreePath: $worktree, state: State::InProgress);
             $task->issue = $issue;
             $task->prompt = $prompt;
@@ -101,7 +111,7 @@ final class StartCommand extends Command
                 ? implode(' ', \array_slice(preg_split('/\s+/', trim($prompt)) ?: [], 0, self::SUMMARY_MAX_WORDS))
                 : null;
             $ctx = new TaskCtx(task: $task, cfg: $cfg, store: $store, agents: $agents);
-            StateMachine::enterState($ctx, State::InProgress);
+            $this->stateMachine->enterState($ctx, State::InProgress);
         } finally {
             $lock->release();
         }
@@ -119,7 +129,7 @@ final class StartCommand extends Command
             }
         }
         $base = $this->branchBase($cfg, $issue);
-        $branch = Naming::dedupe($base, GitRepo::allBranchNames($cfg->repoPath));
+        $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repoPath));
         $task = $this->createTask($store, $cfg, $branch, $issue, null, $agents);
         $ghIssue = 'github' === $cfg->provider ? $issue->key : null;
         $agents->setWorktreeDisplayName($task->worktreePath, $issue->key, $ghIssue);
@@ -146,16 +156,16 @@ final class StartCommand extends Command
             if (null === $matched) {
                 throw new PabloError("no managed project matches this issue URL: {$text} — check the issue_tracker config of your projects");
             }
-            [$cfg, $provider, $ref] = $matched;
+            $issue = $matched->provider->getIssue($matched->ref, $matched->cfg);
 
-            return $this->startIssueTask($store, $cfg, $provider->getIssue($ref, $cfg), $agents, $output);
+            return $this->startIssueTask($store, $matched->cfg, $issue, $agents, $output);
         }
 
         $keyMatched = $this->matchIssueKey($text, $projects, $project);
         if (null !== $keyMatched) {
-            [$cfg, $provider, $key] = $keyMatched;
+            $issue = $keyMatched->provider->getIssue($keyMatched->ref, $keyMatched->cfg);
 
-            return $this->startIssueTask($store, $cfg, $provider->getIssue($key, $cfg), $agents, $output);
+            return $this->startIssueTask($store, $keyMatched->cfg, $issue, $agents, $output);
         }
 
         if (null === $project) {
@@ -165,8 +175,8 @@ final class StartCommand extends Command
         if (null === $cfg) {
             throw new PabloError("unknown project '{$project}'; configured projects: ".implode(', ', array_keys($projects)));
         }
-        $base = Naming::slugBranch($cfg->projectKey, $text);
-        $branch = Naming::dedupe($base, GitRepo::allBranchNames($cfg->repoPath));
+        $base = $this->naming->slugBranch($cfg->projectKey, $text);
+        $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repoPath));
         $task = $this->createTask($store, $cfg, $branch, null, $text, $agents);
         $agents->setWorktreeDisplayName($task->worktreePath, $branch);
         $output->writeln("started task in project {$cfg->name}");

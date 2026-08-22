@@ -7,10 +7,13 @@ namespace Pablo\Tests\Command\System;
 use Pablo\Backup\Backup;
 use Pablo\Command\System\RestoreCommand;
 use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
+use Pablo\Domain\Time;
 use Pablo\Store\Store;
-use Pablo\Support\Proc;
+use Pablo\Tests\FakeAgents;
+use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\Git\RepoHelper;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
@@ -27,8 +30,15 @@ final class RestoreCommandTest extends TestCase
     private string $wt;
     private string $prevCwd;
     private Store $store;
+    private FakeProcessRunner $runner;
+
     /** @var list<list<string>> */
     private array $orcaCalls = [];
+
+    private function makeBackup(): Backup
+    {
+        return new Backup(new \Pablo\Provider\Git\GitRepo(), $this->runner, new Time());
+    }
 
     protected function setUp(): void
     {
@@ -95,7 +105,8 @@ YAML,
         putenv('PABLO_ROOT='.$this->pabloRoot);
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
         $this->orcaCalls = [];
-        Proc::setRunner(function (array $argv): string {
+        $this->runner = new FakeProcessRunner();
+        $this->runner->onRun = function (array $argv): string {
             if (\in_array('orca', $argv, true) && \in_array('repo', $argv, true) && \in_array('list', $argv, true)) {
                 return '{"ok":true,"result":{"repos":[{"path":"/tmp/acme"}]}}';
             }
@@ -106,7 +117,7 @@ YAML,
             }
 
             throw new \RuntimeException('unexpected proc call: '.implode(' ', $argv));
-        });
+        };
         $this->prevCwd = (string) getcwd();
     }
 
@@ -116,16 +127,17 @@ YAML,
         putenv('PABLO_ROOT');
         putenv('PABLO_PROJECTS_DIR');
         $this->unsetGlobalConfig();
-        Proc::setRunner(null);
-        Backup::cleanupDir($this->tmp);
+        $backup = $this->makeBackup();
+        $backup->cleanupDir($this->tmp);
     }
 
     public function testRestoreRecreatesWorktreeAndRewritesTaskPath(): void
     {
-        $projects = Config::loadProjects($this->projectsDir);
-        $archive = Backup::writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
+        $loader = new Config(new GlobalConfig());
+        $projects = $loader->loadProjects($this->projectsDir);
+        $archive = $this->makeBackup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
 
-        $command = new RestoreCommand($this->store);
+        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, $this->store, $loader, new \Pablo\Agents\AgentLauncherFactory(new GlobalConfig()), new FakeAgents());
         $tester = new CommandTester($command);
         $tester->setInputs([$this->clone]);
         $tester->execute(['archive' => $archive, '--yes' => true]);
@@ -153,10 +165,11 @@ YAML,
         RepoHelper::git($this->clone, ['checkout', 'main']);
         $this->store->save(new Task('acme', 'local-only', $this->tmp.'/old/local-only', State::InProgress));
 
-        $projects = Config::loadProjects($this->projectsDir);
-        $archive = Backup::writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
+        $loader = new Config(new GlobalConfig());
+        $projects = $loader->loadProjects($this->projectsDir);
+        $archive = $this->makeBackup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
 
-        $command = new RestoreCommand($this->store);
+        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, $this->store, $loader, new \Pablo\Agents\AgentLauncherFactory(new GlobalConfig()), new FakeAgents());
         $tester = new CommandTester($command);
         $tester->setInputs([$this->clone]);
         $tester->execute(['archive' => $archive, '--yes' => true]);
@@ -168,10 +181,11 @@ YAML,
 
     public function testSkipWorktreesRestoresStateOnly(): void
     {
-        $projects = Config::loadProjects($this->projectsDir);
-        $archive = Backup::writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
+        $loader = new Config(new GlobalConfig());
+        $projects = $loader->loadProjects($this->projectsDir);
+        $archive = $this->makeBackup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
 
-        $command = new RestoreCommand($this->store);
+        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, $this->store, $loader, new \Pablo\Agents\AgentLauncherFactory(new GlobalConfig()), new FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['archive' => $archive, '--yes' => true, '--skip-worktrees' => true]);
 
@@ -182,10 +196,11 @@ YAML,
 
     public function testSkipOrcaRegistersNoRepos(): void
     {
-        $projects = Config::loadProjects($this->projectsDir);
-        $archive = Backup::writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
+        $loader = new Config(new GlobalConfig());
+        $projects = $loader->loadProjects($this->projectsDir);
+        $archive = $this->makeBackup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
 
-        $command = new RestoreCommand($this->store);
+        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, $this->store, $loader, new \Pablo\Agents\AgentLauncherFactory(new GlobalConfig()), new FakeAgents());
         $tester = new CommandTester($command);
         $tester->setInputs([$this->clone]);
         $tester->execute(['archive' => $archive, '--yes' => true, '--skip-orca' => true]);

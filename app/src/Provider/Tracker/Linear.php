@@ -7,13 +7,20 @@ namespace Pablo\Provider\Tracker;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\Task;
-use Pablo\Support\Proc;
+use Pablo\Domain\Time;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Linear provider, backed by schpet's linear CLI.
  */
 final class Linear implements Provider
 {
+    public function __construct(
+        private readonly ProcessRunnerInterface $runner,
+        private readonly Time $time,
+    ) {
+    }
+
     public function name(): string
     {
         return 'linear';
@@ -40,7 +47,7 @@ final class Linear implements Provider
     /** @return array<string, mixed> */
     private function view(string $key): array
     {
-        $out = Proc::run(['linear', 'issue', 'view', $key, '--json']);
+        $out = $this->runner->run(['linear', 'issue', 'view', $key, '--json']);
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
 
@@ -69,7 +76,7 @@ final class Linear implements Provider
 
     public function listAssigned(ProjectConfig $cfg): array
     {
-        $out = Proc::run(['linear', 'issue', 'list', '--assignee', $cfg->identity, '--json']);
+        $out = $this->runner->run(['linear', 'issue', 'list', '--assignee', $cfg->identity, '--json']);
         $issues = [];
         /** @var array<int, array<string, mixed>> $items */
         $items = json_decode($out, true);
@@ -87,20 +94,20 @@ final class Linear implements Provider
         return (string) $data['state']['name'];
     }
 
-    public function batchIssueStatus(array $pairs): array
+    public function batchIssueStatus(array $issues): array
     {
-        if ([] === $pairs) {
+        if ([] === $issues) {
             return [];
         }
 
         $commands = [];
         $keyIndex = [];
-        foreach ($pairs as $i => [$key]) {
-            $keyIndex[$i] = $key;
+        foreach ($issues as $key => $_) {
+            $keyIndex[] = $key;
             $commands[] = ['linear', 'issue', 'view', $key, '--json'];
         }
 
-        $results = Proc::runParallel($commands, check: false);
+        $results = $this->runner->runParallel($commands, check: false);
         $statuses = [];
         foreach ($results as $i => $out) {
             $key = $keyIndex[$i];
@@ -125,7 +132,7 @@ final class Linear implements Provider
         $stamps = [];
         foreach ($data['history'] ?? [] as $entry) {
             if (($entry['toState']['name'] ?? null) === $cfg->failureSignal) {
-                $stamps[] = Proc::parseTs((string) $entry['createdAt']);
+                $stamps[] = $this->time->parseTs((string) $entry['createdAt']);
             }
         }
         sort($stamps);

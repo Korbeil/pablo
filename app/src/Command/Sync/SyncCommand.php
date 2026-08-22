@@ -4,20 +4,35 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Sync;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Config\Config;
 use Pablo\Provider\Git\Sync;
+use Pablo\Store\Store;
 use Pablo\Support\PabloError;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(name: 'sync:run', description: 'sync task worktrees with the primary branch')]
 final class SyncCommand extends Command
 {
+    public function __construct(
+        private readonly Sync $sync,
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+    }
+
     protected function configure(): void
     {
-        $this->setName('sync:run')
-            ->setDescription('sync task worktrees with the primary branch')
+        $this
             ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project')
             ->addOption('apply', null, InputOption::VALUE_NONE, 'actually sync (default dry-run unless sync.auto_apply is set)');
     }
@@ -36,7 +51,7 @@ final class SyncCommand extends Command
         $agents = $this->agents();
         $apply = $input->getOption('apply') ? true : null;
         foreach ($projects as $name => $cfg) {
-            $reports = Sync::syncProject($cfg, $store, $apply, $agents);
+            $reports = $this->sync->syncProject($cfg, $store, $apply, $agents);
             $output->writeln("# {$name}");
             $output->writeln(Sync::renderReports($reports));
         }

@@ -4,19 +4,34 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Config\Config;
 use Pablo\Poller\Poller;
+use Pablo\Store\Store;
 use Pablo\Support\PabloError;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(name: 'system:poll', description: 'run the task-state polling once')]
 final class PollCommand extends Command
 {
+    public function __construct(
+        private readonly Poller $poller,
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+    }
+
     protected function configure(): void
     {
-        $this->setName('system:poll')
-            ->setDescription('run the task-state polling once')
+        $this
             ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project');
     }
 
@@ -33,7 +48,7 @@ final class PollCommand extends Command
         $store = $this->store();
         $agents = $this->agents();
         foreach ($projects as $name => $cfg) {
-            foreach (Poller::pollProject($cfg, $store, $agents) as $event) {
+            foreach ($this->poller->pollProject($cfg, $store, $agents) as $event) {
                 $output->writeln("[{$name}] {$event}");
             }
         }

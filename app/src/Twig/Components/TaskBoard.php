@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Twig\Components;
 
+use Pablo\Dashboard\Board;
 use Pablo\Dashboard\Dashboard;
 use Pablo\Dashboard\TaskView;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
@@ -45,13 +46,13 @@ final class TaskBoard
     /** @return list<TaskView> */
     public function attention(): array
     {
-        return $this->board()['attention'];
+        return $this->board()->attention;
     }
 
     /** @return list<TaskView> */
     public function rest(): array
     {
-        return $this->board()['rest'];
+        return $this->board()->rest;
     }
 
     /**
@@ -65,11 +66,9 @@ final class TaskBoard
         $this->emit(self::TYPE_CHANGED_EVENT, ['type' => $type]);
     }
 
-    /** @var array{attention: list<TaskView>, rest: list<TaskView>}|null */
-    private ?array $board = null;
+    private ?Board $board = null;
 
-    /** @return array{attention: list<TaskView>, rest: list<TaskView>} */
-    private function board(): array
+    private function board(): Board
     {
         return $this->board ??= $this->dashboard->board($this->dashboard->projectsOfType($this->type));
     }

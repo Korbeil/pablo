@@ -6,7 +6,7 @@ namespace Pablo\Tests\Command\System;
 
 use Pablo\Command\System\ProjectNewCommand;
 use Pablo\Config\Config;
-use Pablo\Provider\Git\GitRepo;
+use Pablo\Tests\FakeGit;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -15,7 +15,13 @@ final class ProjectNewCommandTest extends TestCase
 {
     use UsesGlobalConfig;
 
+    private function loader(): Config
+    {
+        return new Config(new \Pablo\Config\GlobalConfig());
+    }
+
     private string $tmp;
+    private FakeGit $git;
     private string $projectsDir;
     private string $globalConfigYaml;
 
@@ -43,17 +49,18 @@ YAML;
 
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
 
-        GitRepo::setUserEmail(static fn (?string $cwd = null) => 'git@example.com');
-        GitRepo::setOriginUrl(null);
-        GitRepo::setAllBranchNames(null);
+        $this->git = new FakeGit();
+        $this->git->userEmail = 'git@example.com';
+        // The wizard probes the repo path; there is none under /home/me, so
+        // every probe fails and documented defaults apply.
+        $this->git->gitThrows = 'git rev-parse failed: not a repository';
     }
 
     protected function tearDown(): void
     {
         putenv('PABLO_PROJECTS_DIR');
         $this->unsetGlobalConfig();
-        GitRepo::setUserEmail(null);
-        GitRepo::setOriginUrl(null);
+
         $this->removeDir($this->tmp);
     }
 
@@ -79,7 +86,7 @@ YAML;
 
     public function testHappyPathJiraWithDefaults(): void
     {
-        $command = new ProjectNewCommand();
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -98,7 +105,7 @@ YAML;
 
         $this->assertSame(0, $tester->getStatusCode());
 
-        $projects = Config::loadProjects($this->projectsDir);
+        $projects = $this->loader()->loadProjects($this->projectsDir);
         $this->assertArrayHasKey('my-project', $projects);
 
         $cfg = $projects['my-project'];
@@ -117,9 +124,9 @@ YAML;
 
     public function testHappyPathGithub(): void
     {
-        GitRepo::setOriginUrl(static fn (string $repo) => 'git@github.com:stripe/payment-kit.git');
+        $this->git->originUrl = static fn (string $repo) => 'git@github.com:stripe/payment-kit.git';
 
-        $command = new ProjectNewCommand();
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -137,7 +144,7 @@ YAML;
 
         $this->assertSame(0, $tester->getStatusCode());
 
-        $cfg = Config::loadProjects($this->projectsDir)['payment-kit'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['payment-kit'];
         $this->assertSame('payment-kit', $cfg->name);
         $this->assertSame('open-source', $cfg->type);
         $this->assertSame('github', $cfg->provider);
@@ -148,7 +155,7 @@ YAML;
 
     public function testHappyPathLinear(): void
     {
-        $command = new ProjectNewCommand();
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -166,7 +173,7 @@ YAML;
 
         $this->assertSame(0, $tester->getStatusCode());
 
-        $cfg = Config::loadProjects($this->projectsDir)['my-app'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['my-app'];
         $this->assertSame('my-app', $cfg->name);
         $this->assertSame('personal', $cfg->type);
         $this->assertSame('linear', $cfg->provider);
@@ -177,7 +184,7 @@ YAML;
 
     public function testWithFailureSignal(): void
     {
-        $command = new ProjectNewCommand();
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -196,7 +203,7 @@ YAML;
 
         $this->assertSame(0, $tester->getStatusCode());
 
-        $cfg = Config::loadProjects($this->projectsDir)['qa-test'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['qa-test'];
         $this->assertSame('qa-failed', $cfg->failureSignal);
     }
 
@@ -214,7 +221,7 @@ issue_tracker:
   project_key: EX
 YAML);
 
-        $command = new ProjectNewCommand();
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -234,13 +241,13 @@ YAML);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertStringContainsString('already exists', $tester->getDisplay());
 
-        $projects = Config::loadProjects($this->projectsDir);
+        $projects = $this->loader()->loadProjects($this->projectsDir);
         $this->assertArrayHasKey('existing2', $projects);
     }
 
     public function testAbortsOnNoConfirm(): void
     {
-        $command = new ProjectNewCommand();
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([

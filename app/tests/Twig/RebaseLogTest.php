@@ -24,6 +24,20 @@ final class RebaseLogTest extends WebTestCase
     use RestoresErrorHandlers;
     use UsesGlobalConfig;
 
+    private function sync(): Sync
+    {
+        $slugGit = new \Pablo\Tests\FakeGit();
+        $slugGit->originUrl = 'git@github.com:octocat/proj.git';
+
+        return new Sync(
+            new \Pablo\Provider\Git\GitRepo(),
+            new \Pablo\Tests\FakeGhPr(),
+            new \Pablo\Support\RepoSlug($slugGit),
+            new \Pablo\Support\ProcessRunner(),
+            new \Pablo\Domain\Time(),
+        );
+    }
+
     private string $tmp;
 
     protected function setUp(): void
@@ -54,10 +68,10 @@ final class RebaseLogTest extends WebTestCase
         $this->writeProject('wallet-kit', 'work');
         $this->writeProject('bookkeeper', 'open-source');
 
-        Sync::saveLastLog('wallet-kit', 'rebase', [
+        $this->sync()->saveLastLog('wallet-kit', 'rebase', [
             new SyncReport(worktree: '/wt/a', branch: 'wk-fix', action: 'synced'),
         ]);
-        Sync::saveLastLog('bookkeeper', 'rebase', [
+        $this->sync()->saveLastLog('bookkeeper', 'rebase', [
             new SyncReport(worktree: '/wt/b', branch: 'bk-tidy', action: 'synced'),
         ]);
     }

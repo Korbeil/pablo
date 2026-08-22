@@ -4,27 +4,16 @@ declare(strict_types=1);
 
 namespace Pablo\Support;
 
-use Pablo\Command\Command;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Exception\RuntimeException as ProcessRuntimeException;
 use Symfony\Component\Process\Process;
 
 /**
- * Helpers for shelling out to external CLIs (gh/acli/linear/orca) and for
- * parsing ISO-8601 timestamps. Mirrors providers.run_cli / parse_ts.
+ * Runs external CLIs (gh/acli/linear/orca) via Symfony Process. Injected as
+ * ProcessRunnerInterface; tests provide fakes instead of shelling out.
  */
-final class Proc
+final class ProcessRunner implements ProcessRunnerInterface
 {
-    /** @var callable|null replacement runner (test seam, mirrors monkeypatch) */
-    /** @var callable|null */
-    private static $runner;
-
-    /** @param callable(array<int, string>, bool, ?float): string $runner */
-    public static function setRunner(?callable $runner): void
-    {
-        self::$runner = $runner;
-    }
-
     /**
      * Environment to launch an external CLI with.
      *
@@ -39,7 +28,7 @@ final class Proc
      *
      * @return array<string, string>
      */
-    public static function envFor(array $argv): array
+    private static function envFor(array $argv): array
     {
         if ('acli' !== ($argv[0] ?? '')) {
             return [];
@@ -48,23 +37,17 @@ final class Proc
         return ['DBUS_SESSION_BUS_ADDRESS' => 'unix:path='.sys_get_temp_dir().'/pablo-nokeyring'];
     }
 
-    /**
-     * @param list<string> $argv
-     */
-    public static function run(array $argv, bool $check = true, ?float $timeout = null): string
+    public function run(array $argv, bool $check = true, ?float $timeout = null): string
     {
-        if (null !== self::$runner) {
-            return (self::$runner)($argv, $check, $timeout);
-        }
         $process = new Process($argv, env: self::envFor($argv));
         if (null !== $timeout) {
             $process->setTimeout($timeout);
         }
         try {
             $process->run();
-        } catch (ProcessTimedOutException $e) {
+        } catch (ProcessTimedOutException) {
             throw new PabloError(\sprintf('%s timed out after %ss: %s', $argv[0], $timeout, implode(' ', $argv)));
-        } catch (ProcessRuntimeException $e) {
+        } catch (ProcessRuntimeException) {
             // Command could not be executed (typically: binary not installed).
             throw new PabloError(\sprintf('%s is not installed (required for this project\'s provider)', $argv[0]));
         }
@@ -78,24 +61,10 @@ final class Proc
         return $process->getOutput();
     }
 
-    /**
-     * @param list<list<string>> $commandGroups
-     *
-     * @return list<string> stdout for each command, in same order
-     */
-    public static function runParallel(array $commandGroups, bool $check = true, ?float $timeout = null): array
+    public function runParallel(array $commandGroups, bool $check = true, ?float $timeout = null): array
     {
         if ([] === $commandGroups) {
             return [];
-        }
-
-        if (null !== self::$runner) {
-            $results = [];
-            foreach ($commandGroups as $argv) {
-                $results[] = (self::$runner)($argv, $check, $timeout);
-            }
-
-            return $results;
         }
 
         $processes = [];
@@ -112,14 +81,14 @@ final class Proc
         foreach ($processes as $i => $p) {
             try {
                 $p->wait();
-            } catch (ProcessTimedOutException $e) {
+            } catch (ProcessTimedOutException) {
                 if ($check) {
                     throw new PabloError(\sprintf('%s timed out after %ss: %s', $commandGroups[$i][0], $timeout, implode(' ', $commandGroups[$i])));
                 }
                 $results[$i] = '';
 
                 continue;
-            } catch (ProcessRuntimeException $e) {
+            } catch (ProcessRuntimeException) {
                 if ($check) {
                     throw new PabloError(\sprintf('%s is not installed (required for this project\'s provider)', $commandGroups[$i][0]));
                 }
@@ -142,11 +111,19 @@ final class Proc
         return array_values($results);
     }
 
-    /**
-     * Parse an ISO-8601 timestamp (accepting a trailing Z) as UTC.
-     */
-    public static function parseTs(string $value): \DateTimeImmutable
+    public function probe(array $argv, ?float $timeout = null): ProbeResult
     {
-        return new \DateTimeImmutable($value);
+        $process = new Process($argv, env: self::envFor($argv));
+        if (null !== $timeout) {
+            $process->setTimeout($timeout);
+        }
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            return new ProbeResult(124, 'timed out after '.$timeout.'s');
+        }
+        $output = trim(trim($process->getErrorOutput())."\n".trim($process->getOutput()));
+
+        return new ProbeResult($process->getExitCode() ?? -1, $output);
     }
 }

@@ -13,6 +13,18 @@ final class ConfigTest extends TestCase
 {
     use UsesGlobalConfig;
 
+    private ?Config $config = null;
+
+    private function loader(): Config
+    {
+        return $this->config ??= new Config(new GlobalConfig());
+    }
+
+    private function gconf(): GlobalConfig
+    {
+        return new GlobalConfig();
+    }
+
     private const DEFAULTS = <<<'YAML'
 sync:
   strategy: rebase
@@ -109,14 +121,14 @@ YAML;
     public function testLoadsOnlyProjectYamls(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $projects = Config::loadProjects($this->projectsDir);
+        $projects = $this->loader()->loadProjects($this->projectsDir);
         $this->assertSame(['mini'], array_keys($projects));
     }
 
     public function testPerKeyMerge(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT."sync:\n  interval_minutes: 5\n");
-        $cfg = Config::loadProjects($this->projectsDir)['mini'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
         $this->assertSame(5, $cfg->syncInterval);
         $this->assertSame('rebase', $cfg->syncStrategy);
         $this->assertFalse($cfg->syncAutoApply);
@@ -130,7 +142,7 @@ YAML;
     public function testProjectValueWins(): void
     {
         $this->write('wallet-kit.yaml', self::FULL_PROJECT);
-        $cfg = Config::loadProjects($this->projectsDir)['wallet-kit'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
         $this->assertSame('merge', $cfg->syncStrategy);
         $this->assertTrue($cfg->syncAutoApply);
         $this->assertSame(5, $cfg->syncInterval);
@@ -145,52 +157,52 @@ YAML;
     public function testWorktreesRootDefault(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $cfg = Config::loadProjects($this->projectsDir)['mini'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
         $this->assertSame(getenv('HOME').'/.pablo/worktrees/mini', $cfg->worktreesRoot);
     }
 
     public function testSiteOptional(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $this->assertNull(Config::loadProjects($this->projectsDir)['mini']->site);
+        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->site);
         $this->write('mini.yaml', str_replace(
             '  project_key: MI'."\n",
             "  project_key: MI\n  site: acme.atlassian.net\n",
             self::MINIMAL_PROJECT,
         ));
-        $this->assertSame('acme.atlassian.net', Config::loadProjects($this->projectsDir)['mini']->site);
+        $this->assertSame('acme.atlassian.net', $this->loader()->loadProjects($this->projectsDir)['mini']->site);
     }
 
     public function testConfluenceSpaceOptional(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $this->assertNull(Config::loadProjects($this->projectsDir)['mini']->confluenceSpace);
+        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->confluenceSpace);
         $this->write('mini.yaml', self::MINIMAL_PROJECT."confluence:\n  space: PIM\n");
-        $this->assertSame('PIM', Config::loadProjects($this->projectsDir)['mini']->confluenceSpace);
+        $this->assertSame('PIM', $this->loader()->loadProjects($this->projectsDir)['mini']->confluenceSpace);
     }
 
     public function testIssueRepoOptional(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $this->assertNull(Config::loadProjects($this->projectsDir)['mini']->issueRepo);
+        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->issueRepo);
         $this->write('mini.yaml', str_replace(
             '  project_key: MI'."\n",
             "  project_key: MI\n  repo: acme/upstream\n",
             self::MINIMAL_PROJECT,
         ));
-        $this->assertSame('acme/upstream', Config::loadProjects($this->projectsDir)['mini']->issueRepo);
+        $this->assertSame('acme/upstream', $this->loader()->loadProjects($this->projectsDir)['mini']->issueRepo);
     }
 
     public function testStartupScriptOptional(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $this->assertNull(Config::loadProjects($this->projectsDir)['mini']->startupScript);
+        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->startupScript);
     }
 
     public function testStartupScriptParsed(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT."startup_script: ~/scripts/pablo-setup.sh\n");
-        $cfg = Config::loadProjects($this->projectsDir)['mini'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
         $this->assertSame(getenv('HOME').'/scripts/pablo-setup.sh', $cfg->startupScript);
     }
 
@@ -198,7 +210,7 @@ YAML;
     {
         $this->write('broken.yaml', "name: broken\ntype: work\n");
         try {
-            Config::loadProjects($this->projectsDir);
+            $this->loader()->loadProjects($this->projectsDir);
             $this->fail('expected PabloError');
         } catch (PabloError $e) {
             $this->assertStringContainsString('broken.yaml', $e->getMessage());
@@ -210,7 +222,7 @@ YAML;
     {
         $this->write('bad.yaml', str_replace('type: personal', 'type: hobby', self::MINIMAL_PROJECT));
         try {
-            Config::loadProjects($this->projectsDir);
+            $this->loader()->loadProjects($this->projectsDir);
             $this->fail('expected PabloError');
         } catch (PabloError $e) {
             $this->assertStringContainsString('hobby', $e->getMessage());
@@ -221,7 +233,7 @@ YAML;
     {
         $this->write('bad.yaml', str_replace('provider: github', 'provider: gitlab', self::MINIMAL_PROJECT));
         try {
-            Config::loadProjects($this->projectsDir);
+            $this->loader()->loadProjects($this->projectsDir);
             $this->fail('expected PabloError');
         } catch (PabloError $e) {
             $this->assertStringContainsString('gitlab', $e->getMessage());
@@ -232,7 +244,7 @@ YAML;
     {
         $this->write('bad.yaml', str_replace("  project_key: MI\n", '', self::MINIMAL_PROJECT));
         try {
-            Config::loadProjects($this->projectsDir);
+            $this->loader()->loadProjects($this->projectsDir);
             $this->fail('expected PabloError');
         } catch (PabloError $e) {
             $this->assertStringContainsString('project_key', $e->getMessage());
@@ -242,7 +254,7 @@ YAML;
     public function testDefaultsComeFromGlobalConfig(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $cfg = Config::loadProjects($this->projectsDir)['mini'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
         $this->assertSame('rebase', $cfg->syncStrategy);
         $this->assertSame(30, $cfg->syncInterval);
         $this->assertSame(10, $cfg->pollInterval);
@@ -255,7 +267,7 @@ YAML;
     public function testProjectValueWinsOverGlobalDefaults(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT."sync:\n  strategy: merge\n  interval_minutes: 5\n");
-        $cfg = Config::loadProjects($this->projectsDir)['mini'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
         $this->assertSame('merge', $cfg->syncStrategy);
         $this->assertSame(5, $cfg->syncInterval);
         $this->assertSame(10, $cfg->pollInterval);
@@ -264,7 +276,7 @@ YAML;
     public function testProjectDefaultModelLocaleWinsOverGlobal(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT."default_model: openrouter/custom/model\npr_description_locale: fr\n");
-        $cfg = Config::loadProjects($this->projectsDir)['mini'];
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
         $this->assertSame('openrouter/custom/model', $cfg->defaultModel);
         $this->assertSame('fr', $cfg->prDescriptionLocale);
     }
@@ -274,7 +286,7 @@ YAML;
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         $this->writeGlobalConfig("sync:\n  strategy: rebase\n  interval_minutes: 30\nstate_polling:\n  interval_minutes: 10\nreview:\n  bot_whitelist: []\nci:\n  ignore_checks: []\n");
         try {
-            Config::loadProjects($this->projectsDir);
+            $this->loader()->loadProjects($this->projectsDir);
             $this->fail('expected PabloError');
         } catch (PabloError $e) {
             $this->assertStringContainsString('default_model', $e->getMessage());
@@ -286,7 +298,7 @@ YAML;
         putenv('PABLO_CONFIG='.$this->projectsDir.'/missing.yaml');
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         try {
-            Config::loadProjects($this->projectsDir);
+            $this->loader()->loadProjects($this->projectsDir);
             $this->fail('expected PabloError');
         } catch (PabloError $e) {
             $this->assertStringContainsString('sync.interval_minutes', $e->getMessage());
@@ -295,16 +307,16 @@ YAML;
 
     public function testGlobalConfigPathHonorsOverride(): void
     {
-        $this->assertSame($this->configPath, GlobalConfig::configPath());
-        $this->assertSame('/tmp/custom-config.yaml', GlobalConfig::configPath('/tmp/custom-config.yaml'));
+        $this->assertSame($this->configPath, $this->gconf()->configPath());
+        $this->assertSame('/tmp/custom-config.yaml', $this->gconf()->configPath('/tmp/custom-config.yaml'));
         putenv('PABLO_CONFIG');
-        $this->assertSame(getenv('HOME').'/.pablo/config.yaml', GlobalConfig::configPath());
+        $this->assertSame(getenv('HOME').'/.pablo/config.yaml', $this->gconf()->configPath());
     }
 
     public function testProjectsDirDefaultsToUserConfig(): void
     {
         putenv('PABLO_PROJECTS_DIR');
-        $this->assertSame(getenv('HOME').'/.pablo/projects', Config::projectsDir());
-        $this->assertSame('/tmp/custom-projects', Config::projectsDir('/tmp/custom-projects'));
+        $this->assertSame(getenv('HOME').'/.pablo/projects', $this->loader()->projectsDir());
+        $this->assertSame('/tmp/custom-projects', $this->loader()->projectsDir('/tmp/custom-projects'));
     }
 }

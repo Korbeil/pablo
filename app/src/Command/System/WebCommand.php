@@ -6,6 +6,7 @@ namespace Pablo\Command\System;
 
 use Pablo\Command\Command;
 use Pablo\Support\PabloError;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -16,6 +17,7 @@ use Symfony\Component\Process\Process;
  *
  * No Docker, no symfony CLI, no extra daemon: `pablo web` and ctrl-c.
  */
+#[AsCommand(name: 'web', description: 'serve the read-only dashboard on 127.0.0.1')]
 final class WebCommand extends Command
 {
     public const DEFAULT_PORT = 8321;
@@ -34,8 +36,7 @@ final class WebCommand extends Command
 
     protected function configure(): void
     {
-        $this->setName('web')
-            ->setDescription('serve the read-only dashboard on 127.0.0.1')
+        $this
             ->addOption('port', 'p', InputOption::VALUE_REQUIRED, 'port to listen on', (string) self::DEFAULT_PORT)
             ->addOption('open', null, InputOption::VALUE_NONE, 'open the dashboard in your browser');
     }

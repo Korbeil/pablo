@@ -8,7 +8,6 @@ use Pablo\Domain\AgentActivity;
 use Pablo\Domain\Issue;
 use Pablo\Domain\PrBadge;
 use Pablo\Domain\State;
-use Pablo\Listing\Listing;
 
 /**
  * One row of the dashboard's task tables.
@@ -51,7 +50,7 @@ final readonly class TaskView
     /** Ordering within a table, mirroring the terminal listing exactly. */
     public function rank(): int
     {
-        return Listing::stateRank($this->state);
+        return $this->state->displayRank();
     }
 
     /** Bulma colour modifier for the state tag. */

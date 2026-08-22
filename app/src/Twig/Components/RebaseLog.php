@@ -41,7 +41,7 @@ final class RebaseLog
         $this->type = $type;
     }
 
-    /** @return list<array{project: string, timestamp: ?string, strategy: string, reports: list<array<string, mixed>>}> */
+    /** @return list<\Pablo\Dashboard\RebaseLogSection> */
     public function logs(): array
     {
         return $this->view->forProjects($this->dashboard->projectsOfType($this->type));

@@ -6,18 +6,19 @@ namespace Pablo\Command\System;
 
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(name: 'system:generate-agents', description: 'generate opencode agent .md files from .md.template + project configs')]
 final class GenerateAgentsCommand extends Command
 {
     private const TEMPLATE_NAMES = ['task-analyst', 'task-feedback'];
 
     protected function configure(): void
     {
-        $this->setName('system:generate-agents')
-            ->setDescription('generate opencode agent .md files from .md.template + project configs')
+        $this
             ->addOption('agents-dir', null, InputOption::VALUE_REQUIRED, 'agents directory (default: repo opencode/agents)');
     }
 
@@ -25,7 +26,7 @@ final class GenerateAgentsCommand extends Command
     {
         $agentsDir = $input->getOption('agents-dir') ?? \dirname(__DIR__, 4).'/opencode/agents';
 
-        $projectsDir = Config::projectsDir();
+        $projectsDir = $this->projectsLoader->projectsDir();
         if (!is_dir($projectsDir)) {
             $output->writeln('No projects directory found — generating agents with all providers enabled.');
             $enabledProviders = Config::PROVIDERS;
@@ -77,7 +78,7 @@ final class GenerateAgentsCommand extends Command
     {
         $providers = [];
         foreach (glob(rtrim($projectsDir, '/').'/*.yaml') ?: [] as $path) {
-            $data = Config::loadYaml($path);
+            $data = $this->projectsLoader->loadYaml($path);
             if (isset($data['issue_tracker']['provider'])) {
                 $providers[] = $data['issue_tracker']['provider'];
             }

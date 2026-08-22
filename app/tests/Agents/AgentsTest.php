@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents;
 
 use Pablo\Agents\Agents;
-use Pablo\Support\Proc;
+use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -15,6 +15,15 @@ use PHPUnit\Framework\TestCase;
  */
 final class AgentsTest extends TestCase
 {
+    protected FakeProcessRunner $runner;
+
+    /** Registers a canned runner and returns it. */
+    private function startRunner(callable $fn): FakeProcessRunner
+    {
+        $this->runner->onRun = $fn;
+
+        return $this->runner;
+    }
     private string $tmp;
     private string $agentsDir;
     private Agents $agents;
@@ -25,13 +34,13 @@ final class AgentsTest extends TestCase
         mkdir($this->tmp, 0o777, true);
         $this->agentsDir = $this->tmp.'/agents';
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
-        $this->agents = new Agents('/x/pablo');
+        $this->runner = new FakeProcessRunner();
+        $this->agents = new Agents($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo');
     }
 
     protected function tearDown(): void
     {
         putenv('PABLO_AGENTS_DIR');
-        Proc::setRunner(null);
     }
 
     /** @param array<string, mixed> $payload */
@@ -49,7 +58,7 @@ final class AgentsTest extends TestCase
     {
         $marker = $this->tmp.'/ran.txt';
         $method = new \ReflectionMethod(Agents::class, 'detach');
-        $command = (string) $method->invoke(null, 'echo DETACHED_RAN > '.$marker);
+        $command = (string) $method->invoke($this->agents, 'echo DETACHED_RAN > '.$marker);
         $pid = (int) trim((string) shell_exec($command));
         $deadline = microtime(true) + 5;
         while (!file_exists($marker) && microtime(true) < $deadline) {
@@ -64,7 +73,7 @@ final class AgentsTest extends TestCase
     public function testOrcaLaunchBuildsCommand(): void
     {
         $calls = [];
-        Proc::setRunner(function (array $argv) use (&$calls): string {
+        $this->startRunner(function (array $argv) use (&$calls): string {
             $calls[] = $argv;
 
             return $this->orcaOk(['handle' => 'term_123']);
@@ -79,7 +88,9 @@ final class AgentsTest extends TestCase
         $this->assertSame(['orca', 'terminal', 'create'], \array_slice($argv, 0, 3));
         $this->assertContains('path:'.$this->tmp, $argv);
         $this->assertContains('pablo:task-analyst', $argv);
-        $command = $argv[array_search('--command', $argv, true) + 1];
+        $key = array_search('--command', $argv, true);
+        $this->assertIsInt($key);
+        $command = $argv[$key + 1];
         $this->assertStringStartsWith('opencode ', $command);
         $this->assertStringContainsString('--agent task-analyst', $command);
         $this->assertStringContainsString('--prompt', $command);
@@ -100,7 +111,7 @@ final class AgentsTest extends TestCase
                 ['path' => '/elsewhere', 'agents' => [['paneKey' => 'c', 'state' => 'working']]],
             ],
         ];
-        Proc::setRunner(fn (array $argv): string => $this->orcaOk($ps));
+        $this->startRunner(fn (array $argv): string => $this->orcaOk($ps));
         $sessions = $this->agents->activeSessions($this->tmp);
         $this->assertSame([['a', 'running'], ['b', 'waiting']], array_map(static fn ($s) => [$s->handle, $s->status], $sessions));
     }
@@ -118,7 +129,7 @@ final class AgentsTest extends TestCase
                 ],
             ],
         ];
-        Proc::setRunner(fn (array $argv): string => $this->orcaOk($ps));
+        $this->startRunner(fn (array $argv): string => $this->orcaOk($ps));
         $sessions = $this->agents->activeSessions($this->tmp);
         // The finished "done" agent is skipped so the worktree can be closed.
         $this->assertSame([['b', 'running']], array_map(static fn ($s) => [$s->handle, $s->status], $sessions));
@@ -137,7 +148,7 @@ final class AgentsTest extends TestCase
                 ],
             ],
         ];
-        Proc::setRunner(fn (array $argv): string => $this->orcaOk($ps));
+        $this->startRunner(fn (array $argv): string => $this->orcaOk($ps));
         $this->assertSame([], $this->agents->activeSessions($this->tmp));
     }
 
@@ -155,7 +166,7 @@ final class AgentsTest extends TestCase
                 ],
             ],
         ];
-        Proc::setRunner(fn (array $argv): string => $this->orcaOk($ps));
+        $this->startRunner(fn (array $argv): string => $this->orcaOk($ps));
         // Display-only path: finished analysts surface as waiting so the
         // "💭 Waiting for feedback" split can surface them.
         $this->assertSame(
@@ -181,7 +192,7 @@ final class AgentsTest extends TestCase
                 ['path' => $wtB, 'agents' => [['paneKey' => 'b1', 'state' => 'working']]],
             ],
         ];
-        Proc::setRunner(fn (array $argv): string => $this->orcaOk($ps));
+        $this->startRunner(fn (array $argv): string => $this->orcaOk($ps));
         $result = $this->agents->bulkDisplaySessions([$wtA, $wtB]);
         $this->assertSame([['a1', 'waiting']], array_map(static fn ($s) => [$s->handle, $s->status], $result[$wtA]));
         $this->assertSame([['b1', 'running']], array_map(static fn ($s) => [$s->handle, $s->status], $result[$wtB]));
@@ -201,7 +212,7 @@ final class AgentsTest extends TestCase
             ],
         ];
         $calls = [];
-        Proc::setRunner(function (array $argv) use (&$calls, $ps): string {
+        $this->startRunner(function (array $argv) use (&$calls, $ps): string {
             $calls[] = $argv;
 
             return $this->orcaOk($ps);
@@ -214,7 +225,7 @@ final class AgentsTest extends TestCase
 
     public function testHeadlessSessionsFromPidfiles(): void
     {
-        Proc::setRunner(fn (array $argv): string => $this->orcaErr('down'));
+        $this->startRunner(fn (array $argv): string => $this->orcaErr('down'));
         mkdir($this->agentsDir, 0o777, true);
         $alive = getmypid();
         file_put_contents($this->agentsDir.'/'.$alive.'.json', json_encode(['pid' => $alive, 'worktree' => $this->tmp, 'agent' => 'task-analyst']));
@@ -234,7 +245,7 @@ final class AgentsTest extends TestCase
     public function testSetWorktreeDisplayNameCallsOrca(): void
     {
         $calls = [];
-        Proc::setRunner(function (array $argv) use (&$calls): string {
+        $this->startRunner(function (array $argv) use (&$calls): string {
             $calls[] = $argv;
 
             return $this->orcaOk([]);
@@ -246,25 +257,29 @@ final class AgentsTest extends TestCase
         $this->assertContains('OMS-6407', $argv);
         $this->assertContains('--display-name', $argv);
         $this->assertContains('--issue', $argv);
-        $this->assertSame('null', $argv[array_search('--issue', $argv, true) + 1]);
+        $key = array_search('--issue', $argv, true);
+        $this->assertIsInt($key);
+        $this->assertSame('null', $argv[$key + 1]);
     }
 
     public function testSetWorktreeDisplayNameLinksGithubIssue(): void
     {
         $calls = [];
-        Proc::setRunner(function (array $argv) use (&$calls): string {
+        $this->startRunner(function (array $argv) use (&$calls): string {
             $calls[] = $argv;
 
             return $this->orcaOk([]);
         });
         $this->agents->setWorktreeDisplayName($this->tmp, 'OMS-6407', '273');
         $argv = $calls[0];
-        $this->assertSame('273', $argv[array_search('--issue', $argv, true) + 1]);
+        $key = array_search('--issue', $argv, true);
+        $this->assertIsInt($key);
+        $this->assertSame('273', $argv[$key + 1]);
     }
 
     public function testSetWorktreeDisplayNameSilentlyIgnoresFailure(): void
     {
-        Proc::setRunner(fn (array $argv): string => $this->orcaErr('selector_not_found'));
+        $this->startRunner(fn (array $argv): string => $this->orcaErr('selector_not_found'));
         $this->agents->setWorktreeDisplayName($this->tmp, 'OMS-6407'); // must not throw
         $this->addToAssertionCount(1);
     }

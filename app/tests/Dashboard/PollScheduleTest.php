@@ -6,7 +6,6 @@ namespace Pablo\Tests\Dashboard;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Dashboard\PollSchedule;
-use Pablo\Dispatch\Dispatch;
 use PHPUnit\Framework\TestCase;
 
 final class PollScheduleTest extends TestCase
@@ -19,7 +18,7 @@ final class PollScheduleTest extends TestCase
         $this->stamps = sys_get_temp_dir().'/pablo-poll-'.uniqid();
         mkdir($this->stamps, 0o777, true);
         putenv('PABLO_STAMPS_DIR='.$this->stamps);
-        $this->schedule = new PollSchedule();
+        $this->schedule = new PollSchedule(new \Pablo\Dispatch\Stamps());
     }
 
     protected function tearDown(): void
@@ -184,7 +183,7 @@ final class PollScheduleTest extends TestCase
     public function testLastPollDurationSFromJsonStamp(): void
     {
         $ranAt = $this->at('2026-08-06T10:01:00+00:00')->getTimestamp();
-        file_put_contents($this->stamps.'/a.poll', Dispatch::encodeStamp((float) $ranAt, 37.4));
+        file_put_contents($this->stamps.'/a.poll', (new \Pablo\Dispatch\Stamps())->encodeStamp((float) $ranAt, 37.4));
 
         $this->assertSame(37.4, $this->schedule->lastPollDurationS('a'));
         $this->assertSame(37.4, $this->schedule->windowFor($this->cfg('a'))->lastRunDurationS);

@@ -56,7 +56,7 @@ YAML);
         $this->copyTemplate('task-analyst');
         $this->copyTemplate('task-feedback');
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         putenv('PABLO_PROJECTS_DIR='.$this->tmp.'/nonexistent');
@@ -77,7 +77,7 @@ YAML);
         $this->copyTemplate('task-analyst');
         $this->copyTemplate('task-feedback');
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -99,7 +99,7 @@ YAML);
         $this->copyTemplate('task-analyst');
         $this->copyTemplate('task-feedback');
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -119,7 +119,7 @@ YAML);
         $this->writeProject('p2', 'jira');
         $this->copyTemplate('task-analyst');
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -132,7 +132,7 @@ YAML);
 
     public function testReturnsFailureOnMissingTemplate(): void
     {
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -148,7 +148,7 @@ YAML);
         $this->copyTemplate('task-analyst');
         $this->copyTemplate('task-feedback');
 
-        $command = new GenerateAgentsCommand();
+        $command = new GenerateAgentsCommand(new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 

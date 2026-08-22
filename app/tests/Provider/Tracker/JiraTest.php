@@ -8,11 +8,22 @@ use Pablo\Config\ProjectConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Provider\Tracker\Jira;
-use Pablo\Support\Proc;
+use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
 final class JiraTest extends TestCase
 {
+    private FakeProcessRunner $runner;
+
+    /** Registers a canned runner and returns it. */
+    private function startRunner(callable $fn): FakeProcessRunner
+    {
+        $r = new FakeProcessRunner();
+        $r->onRun = $fn;
+        $this->runner = $r;
+
+        return $r;
+    }
     private const ISSUE_JSON = [
         'key' => 'XXX-123',
         'fields' => ['summary' => 'Fix product import', 'status' => ['name' => 'In Progress']],
@@ -31,11 +42,6 @@ final class JiraTest extends TestCase
         mkdir($this->tmp, 0o777, true);
     }
 
-    protected function tearDown(): void
-    {
-        Proc::setRunner(null);
-    }
-
     /** @var array<string, mixed> view payload */
     private array $view = self::ISSUE_JSON;
 
@@ -52,7 +58,7 @@ final class JiraTest extends TestCase
     {
         $this->view = $view ?? self::ISSUE_JSON;
         $this->search = $search;
-        Proc::setRunner(function (array $argv, bool $check = true, ?float $timeout = null): string {
+        $this->startRunner(function (array $argv, bool $check = true, ?float $timeout = null): string {
             $this->calls[] = $argv;
             if (\in_array('search', $argv, true)) {
                 return json_encode($this->search ?? [$this->view], \JSON_THROW_ON_ERROR);
@@ -90,7 +96,7 @@ final class JiraTest extends TestCase
 
     public function testMatchUrl(): void
     {
-        $provider = new Jira();
+        $provider = $this->svc();
         $c = $this->cfg();
         $this->assertSame('XXX-123', $provider->matchUrl('https://acme.atlassian.net/browse/XXX-123', $c));
         $this->assertNull($provider->matchUrl('https://acme.atlassian.net/browse/YYY-9', $c));
@@ -100,7 +106,7 @@ final class JiraTest extends TestCase
     public function testGetIssueParsesFields(): void
     {
         $this->configure();
-        $issue = (new Jira())->getIssue('XXX-123', $this->cfg());
+        $issue = $this->svc()->getIssue('XXX-123', $this->cfg());
         $this->assertSame('XXX-123', $issue->key);
         $this->assertSame('Fix product import', $issue->title);
         $this->assertSame('In Progress', $issue->status);
@@ -111,7 +117,7 @@ final class JiraTest extends TestCase
     public function testListAssignedUsesJqlCurrentUser(): void
     {
         $this->configure(null, [self::ISSUE_JSON]);
-        $issues = (new Jira())->listAssigned($this->cfg());
+        $issues = $this->svc()->listAssigned($this->cfg());
         $this->assertSame(['XXX-123'], array_map(static fn ($i) => $i->key, $issues));
         $argv = $this->calls[\count($this->calls) - 1];
         $this->assertContains('search', $argv);
@@ -124,37 +130,42 @@ final class JiraTest extends TestCase
     public function testIssueStatus(): void
     {
         $this->configure();
-        $this->assertSame('In Progress', (new Jira())->issueStatus('XXX-123', $this->cfg()));
+        $this->assertSame('In Progress', $this->svc()->issueStatus('XXX-123', $this->cfg()));
     }
 
     public function testFailureSignalEmptyWhenChangelogUnavailable(): void
     {
         $this->configure();
         $task = new Task('acme-pim', 'xxx-123', $this->tmp, State::NeedsTesting);
-        $task->issue = (new Jira())->getIssue('XXX-123', $this->cfg());
-        $this->assertSame([], (new Jira())->failureSignalEvents($task, $this->cfg()));
+        $task->issue = $this->svc()->getIssue('XXX-123', $this->cfg());
+        $this->assertSame([], $this->svc()->failureSignalEvents($task, $this->cfg()));
     }
 
     public function testFailureSignalEmptyEvenWhenStatusMatchesSignal(): void
     {
         $this->configure(self::ISSUE_JSON_DIFF_STATUS);
         $task = new Task('acme-pim', 'xxx-123', $this->tmp, State::NeedsTesting);
-        $task->issue = (new Jira())->getIssue('XXX-123', $this->cfg());
-        $this->assertSame([], (new Jira())->failureSignalEvents($task, $this->cfg()));
+        $task->issue = $this->svc()->getIssue('XXX-123', $this->cfg());
+        $this->assertSame([], $this->svc()->failureSignalEvents($task, $this->cfg()));
     }
 
     public function testSignalViaStatusFlag(): void
     {
-        $this->assertTrue((new Jira())->supportsSignalViaStatus());
+        $this->assertTrue($this->svc()->supportsSignalViaStatus());
     }
 
     public function testCliNameIsAcli(): void
     {
-        $this->assertSame('acli', (new Jira())->cliName());
+        $this->assertSame('acli', $this->svc()->cliName());
     }
 
     public function testAuthCheckCmd(): void
     {
-        $this->assertSame(['acli', 'jira', 'auth', 'status'], (new Jira())->authCheckCmd());
+        $this->assertSame(['acli', 'jira', 'auth', 'status'], $this->svc()->authCheckCmd());
+    }
+
+    private function svc(): Jira
+    {
+        return new Jira($this->runner ?? new FakeProcessRunner());
     }
 }
