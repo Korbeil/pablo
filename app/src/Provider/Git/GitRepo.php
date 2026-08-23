@@ -121,7 +121,11 @@ final class GitRepo implements GitRepoInterface
 
     public function removeWorktree(string $repo, string $path, string $branch): void
     {
-        $this->git($repo, ['worktree', 'remove', $path]);
+        if (is_dir($path)) {
+            $this->git($repo, ['worktree', 'remove', $path]);
+        } else {
+            $this->git($repo, ['worktree', 'prune']);
+        }
         $this->deleteBranches($repo, $branch);
     }
 

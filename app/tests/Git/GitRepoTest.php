@@ -87,6 +87,18 @@ final class GitRepoTest extends TestCase
         $this->assertContains('other-topic', $names);
     }
 
+    public function testRemoveWorktreeToleratesAlreadyDeletedDirectory(): void
+    {
+        $wt = $this->makeWorktree('wk-9');
+        (new \Symfony\Component\Process\Process(['rm', '-rf', $wt]))->run();
+
+        $this->git()->removeWorktree($this->clone, $wt, 'wk-9');
+
+        $this->assertDirectoryDoesNotExist($wt);
+        $this->assertStringNotContainsString('wk-9', RepoHelper::git($this->clone, ['worktree', 'list']));
+        $this->assertNotContains('wk-9', $this->git()->allBranchNames($this->clone));
+    }
+
     public function testAllBranchNamesIncludesRemote(): void
     {
         $wt = $this->makeWorktree();

@@ -47,7 +47,9 @@ Key subcommands:
 - `pablo task:state` — manually force the current task's state
 - `pablo task:waiting` — pause/resume toggle
 - `pablo task:relaunch` — re-fire the current state's agent/startup launchers
-- `pablo task:close` — manual close (escape hatch)
+- `pablo task:close` — manual close (escape hatch); `pablo task:close <branch>`
+  (`--project <name>` if ambiguous) closes any task from anywhere, stale
+  worktree registrations included
 - `pablo system:doctor` — CLI preflight check
 - `pablo archive:backup` — write a restorable archive of all `~/.pablo` state
 - `pablo archive:restore` — restore state/configs and recreate task worktrees

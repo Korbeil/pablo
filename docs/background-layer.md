@@ -87,10 +87,14 @@ other transition evaluation stops (merged PRs' branches may be gone on
 GitHub), and the close completes on a later poll once the agents are
 done. Merge detection keeps running even in `waiting`.
 
-**Fallback — `pablo task:close`**, run from inside the worktree: the escape
-hatch for abandoning/cleaning up. It refuses while agents are active
-(`--yes` overrides), and `cd`s to the project's `repo_path` before
-deleting the worktree so the shell isn't left in a deleted cwd.
+**Fallback — `pablo task:close`**: the escape hatch for abandoning/cleaning
+up. With no arguments it closes the cwd's task; `pablo task:close <branch>`
+(`--project <name>` when several projects have a task with that branch)
+closes any task from anywhere, including records whose worktree directory
+was already deleted (the stale git registration is pruned). It refuses
+while agents are active (`--yes` overrides), and `cd`s to the project's
+`repo_path` before deleting the worktree so the shell isn't left in a
+deleted cwd.
 
 ## Agent running & activity (Orca CLI)
 
