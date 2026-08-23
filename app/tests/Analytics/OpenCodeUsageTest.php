@@ -8,6 +8,7 @@ use Pablo\Analytics\OpenCodeUsage;
 use Pablo\Domain\Time;
 use Pablo\Support\ProbeResult;
 use Pablo\Support\ProcessRunnerInterface;
+use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
 final class OpenCodeUsageTest extends TestCase
@@ -117,6 +118,21 @@ final class OpenCodeUsageTest extends TestCase
         $this->assertNotNull($snapshot);
         $this->assertSame('exact', $snapshot->quality);
         $this->assertSame('ses_a', $snapshot->sessionId);
+    }
+
+    public function testOpenchamberProbeAsksForArchivedSessions(): void
+    {
+        $runner = new FakeProcessRunner();
+        (new OpenCodeUsage($runner, new Time()))->harvest('/wt', self::LAUNCHED, null);
+
+        $openchamberCalls = array_filter(
+            $runner->probeCalls,
+            static fn (array $argv): bool => 'openchamber' === ($argv[0] ?? ''),
+        );
+        $this->assertNotEmpty($openchamberCalls);
+        foreach ($openchamberCalls as $argv) {
+            $this->assertContains('--all', $argv);
+        }
     }
 
     private function usage(\Closure $onList, \Closure $onExport, ?\Closure $onOpenchamberList = null): OpenCodeUsage

@@ -90,7 +90,7 @@ final class OpenCodeUsage
         try {
             $probe = $this->runner->probe([
                 'openchamber', 'session', 'list', '--dir', $worktree,
-                '--limit', (string) self::SESSION_MAX_COUNT, '--json',
+                '--limit', (string) self::SESSION_MAX_COUNT, '--all', '--json',
             ]);
             if (0 !== $probe->exitCode) {
                 return null;

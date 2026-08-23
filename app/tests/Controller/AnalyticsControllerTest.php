@@ -8,6 +8,7 @@ use Pablo\Tests\RestoresErrorHandlers;
 use Pablo\Tests\UsesGlobalConfig;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Crawler;
 
 /**
  * End-to-end smoke test for the /analytics page.
@@ -268,9 +269,9 @@ final class AnalyticsControllerTest extends WebTestCase
 
         $typeTabs = $crawler->filter('[aria-label="Filter by project type"] a');
         $this->assertSame(4, $typeTabs->count());
-        foreach ($typeTabs as $node) {
-            /** @var \DOMElement $node */
-            $this->assertStringContainsString('days=7', (string) $node->getAttribute('href'));
+        $hrefs = $typeTabs->each(static fn (Crawler $node): string => (string) $node->attr('href'));
+        foreach ($hrefs as $href) {
+            $this->assertStringContainsString('days=7', $href);
         }
         $active = $crawler->filter('[aria-label="Filter by project type"] li.is-active');
         $this->assertSame(1, $active->count());
