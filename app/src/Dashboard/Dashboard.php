@@ -33,6 +33,12 @@ use Pablo\Support\RepoSlug;
  */
 final class Dashboard
 {
+    /**
+     * Project types the analytics/task tabs offer; '' means "All projects".
+     * Mirrors Config::PROJECT_TYPES with the All sentinel prepended.
+     */
+    public const TYPES = ['', 'work', 'open-source', 'personal'];
+
     /** @var array<string, ?string> memoised repo slugs, keyed by project name */
     private array $slugs = [];
 

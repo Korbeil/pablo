@@ -8,6 +8,7 @@ use Pablo\Analytics\AnalyticsAggregator;
 use Pablo\Analytics\AnalyticsEvent;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Dashboard\AnalyticsCharts;
+use Pablo\Dashboard\Dashboard;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -29,6 +30,7 @@ final class AnalyticsController extends AbstractController
         private readonly AnalyticsReader $reader,
         private readonly AnalyticsAggregator $aggregator,
         private readonly AnalyticsCharts $charts,
+        private readonly Dashboard $dashboard,
     ) {
     }
 
@@ -39,6 +41,19 @@ final class AnalyticsController extends AbstractController
         if (!\in_array($days, self::DAY_CHOICES, true)) {
             $days = '30';
         }
+        $type = (string) $request->query->get('type', '');
+        if (!\in_array($type, Dashboard::TYPES, true)) {
+            $type = '';
+        }
+        // Type resolution shares the task board's predicate
+        // (Dashboard::projectsOfType), so the two filters can never disagree.
+        // Events whose project has no config anymore cannot be attributed to
+        // a type: they stay visible under All, never under a specific tab.
+        $allowed = null;
+        if ('' !== $type) {
+            $allowed = array_fill_keys(array_keys($this->dashboard->projectsOfType($type)), true);
+        }
+
         $since = null;
         if ('all' !== $days) {
             $since = new \DateTimeImmutable('@'.(time() - (int) $days * 86_400));
@@ -47,9 +62,14 @@ final class AnalyticsController extends AbstractController
 
         /** @var list<AnalyticsEvent> $events */
         $events = [];
+        $anyEvents = false;
         foreach ($this->reader->read(null) as $payload) {
             $event = AnalyticsEvent::fromEvent($payload);
+            $anyEvents = true;
             if ('' !== $event->ts() && $this->tsOf($event) < $cutoffTs) {
+                continue;
+            }
+            if (null !== $allowed && !isset($allowed[$event->project()])) {
                 continue;
             }
             $events[] = $event;
@@ -74,7 +94,10 @@ final class AnalyticsController extends AbstractController
         return $this->render('analytics/index.html.twig', [
             'active_days' => $days,
             'day_choices' => self::DAY_CHOICES,
+            'active_type' => $type,
+            'type_choices' => Dashboard::TYPES,
             'has_events' => [] !== $events,
+            'has_any_events' => $anyEvents,
             'kpis' => [
                 'Tasks opened' => (string) $opened,
                 'Tasks closed' => (string) $closed,

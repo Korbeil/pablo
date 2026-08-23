@@ -30,9 +30,6 @@ final class TaskBoard
     /** How often the browser asks for a fresh render, in milliseconds. */
     public const POLL_MS = 30000;
 
-    /** Project types the tabs offer; '' means "All projects". */
-    public const TYPES = ['', 'work', 'open-source', 'personal'];
-
     /** Event broadcast to the other dashboard sections when the filter moves. */
     public const TYPE_CHANGED_EVENT = 'pablo:type-change';
 

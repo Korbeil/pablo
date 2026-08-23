@@ -13,18 +13,44 @@ use Symfony\Component\Console\Tester\CommandTester;
 final class StatsCommandTest extends TestCase
 {
     private string $root;
+    private string $projectsDir;
 
     protected function setUp(): void
     {
         $this->root = sys_get_temp_dir().'/pablo-stats-'.uniqid();
         mkdir($this->root.'/proj', 0o777, true);
         putenv('PABLO_ANALYTICS_DIR='.$this->root);
+        $this->projectsDir = sys_get_temp_dir().'/pablo-stats-projects-'.uniqid();
+        mkdir($this->projectsDir, 0o777, true);
+        putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
     }
 
     protected function tearDown(): void
     {
         putenv('PABLO_ANALYTICS_DIR');
-        exec('rm -rf '.escapeshellarg($this->root));
+        putenv('PABLO_PROJECTS_DIR');
+        exec('rm -rf '.escapeshellarg($this->root).' '.escapeshellarg($this->projectsDir));
+    }
+
+    /** Writes a typed project config so --type resolution has something to match. */
+    private function writeProject(string $name, string $type): void
+    {
+        file_put_contents($this->projectsDir.'/'.$name.'.yaml', \sprintf(
+            <<<'YAML'
+                name: %s
+                type: %s
+                repo:
+                    path: /tmp/nowhere-%s
+                    primary_branch: main
+                issue_tracker:
+                    provider: github
+                    identity: octocat
+                    project_key: KK
+                YAML,
+            $name,
+            $type,
+            $name,
+        ));
     }
 
     /**
@@ -194,5 +220,58 @@ final class StatsCommandTest extends TestCase
         $this->assertSame(-1, $payload['agents']['ci-analyst']['avg_user_wait_s']);
         // Tasks/states remain unfiltered.
         $this->assertSame(1, $payload['tasks']['proj']['closed']);
+    }
+
+    /** Seeds a single task_opened for an arbitrary project name. */
+    private function seedOpened(string $project, int $agoS = -100): void
+    {
+        $dir = $this->root.'/'.$project;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0o777, true);
+        }
+        file_put_contents(
+            $dir.'/'.gmdate('Y-m').'.jsonl',
+            json_encode(['ts' => gmdate('Y-m-d\TH:i:sP', time() + $agoS), 'type' => 'task_opened', 'project' => $project, 'branch' => 'b'], \JSON_UNESCAPED_SLASHES).\PHP_EOL,
+            \FILE_APPEND,
+        );
+    }
+
+    public function testTypeFiltersByConfiguredProjectType(): void
+    {
+        $this->writeProject('wk', 'work');
+        $this->writeProject('bk', 'open-source');
+        $this->seedOpened('wk');
+        $this->seedOpened('bk');
+        // Orphan: no config, so it matches no type.
+        $this->seedOpened('gone');
+
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'json', '--type' => 'work']);
+        /** @var array<string, mixed> $payload */
+        $payload = json_decode($tester->getDisplay(), true);
+        $this->assertSame(['wk'], array_keys($payload['tasks']));
+
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'json', '--type' => 'open-source']);
+        /** @var array<string, mixed> $payload */
+        $payload = json_decode($tester->getDisplay(), true);
+        $this->assertSame(['bk'], array_keys($payload['tasks']));
+
+        // Without --type everything is visible, orphans included.
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'json']);
+        /** @var array<string, mixed> $payload */
+        $payload = json_decode($tester->getDisplay(), true);
+        ksort($payload['tasks']);
+        $this->assertSame(['bk', 'gone', 'wk'], array_keys($payload['tasks']));
+    }
+
+    public function testInvalidTypeFails(): void
+    {
+        $this->seedLifecycle();
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--type' => 'bogus']);
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("invalid --type 'bogus'", $tester->getDisplay());
     }
 }

@@ -117,7 +117,10 @@ as [UX Chart.js](https://ux.symfony.com/chartjs) graphs: five KPI tiles
 (tasks opened/closed, merged %, agent runs, cost) plus six charts — tasks
 opened-vs-closed per day, tokens per agent (stacked in/out/cache), cache
 hit %, avg runtime, cost doughnut, and state dwell + entries (rework
-loops). A `?days=7|30|90|all` tab filters the window.
+loops). Two link-tab rows filter the view: `?days=7|30|90|all` for the
+window and `?type=` (All/Work/Open-source/Personal) reusing the task
+board's project-type predicate — events whose project no longer has a
+config can't be attributed to a type, so they show under All only.
 
 The same guarantees apply, and then some: the page reads only the local
 JSONL log under `~/.pablo/analytics/` — it cannot touch a git/gh/orca/

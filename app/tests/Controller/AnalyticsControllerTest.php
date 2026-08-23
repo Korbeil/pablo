@@ -64,6 +64,18 @@ final class AnalyticsControllerTest extends WebTestCase
                 identity: octocat
                 project_key: WK
             YAML);
+
+        file_put_contents($this->tmp.'/projects/bookkeeper.yaml', <<<'YAML'
+            name: bookkeeper
+            type: open-source
+            repo:
+                path: /tmp/nowhere-bk
+                primary_branch: main
+            issue_tracker:
+                provider: github
+                identity: octocat
+                project_key: BK
+            YAML);
     }
 
     protected function tearDown(): void
@@ -78,26 +90,29 @@ final class AnalyticsControllerTest extends WebTestCase
     }
 
     /** Seeds one complete lifecycle 2 days ago (within ?days=7 and =30). */
-    private function seedLifecycle(int $baseOffsetS = -2 * 86_400): void
+    private function seedLifecycle(int $baseOffsetS = -2 * 86_400, string $project = 'proj', string $agent = 'task-analyst'): void
     {
         $iso = static fn (int $offset): string => gmdate('Y-m-d\TH:i:sP', time() + $baseOffsetS + $offset);
-        $events = [
-            ['ts' => $iso(0), 'type' => 'task_opened', 'project' => 'proj', 'branch' => 'wk-1', 'initial_state' => 'in-progress'],
-            ['ts' => $iso(600), 'type' => 'state_entered', 'project' => 'proj', 'branch' => 'wk-1', 'from' => 'in-progress', 'to' => 'draft'],
-            ['ts' => $iso(1200), 'type' => 'agent_run_started', 'project' => 'proj', 'branch' => 'wk-1', 'run_id' => 'r1', 'agent' => 'task-analyst', 'backend' => 'orca', 'launched_at' => $iso(1200)],
+        $events = [['ts' => $iso(0), 'type' => 'task_opened', 'project' => $project, 'branch' => 'wk-1', 'initial_state' => 'in-progress'],
+            ['ts' => $iso(600), 'type' => 'state_entered', 'project' => $project, 'branch' => 'wk-1', 'from' => 'in-progress', 'to' => 'draft'],
+            ['ts' => $iso(1200), 'type' => 'agent_run_started', 'project' => $project, 'branch' => 'wk-1', 'run_id' => 'r1', 'agent' => $agent, 'backend' => 'orca', 'launched_at' => $iso(1200)],
             [
-                'ts' => $iso(2400), 'type' => 'agent_run_finished', 'project' => 'proj', 'branch' => 'wk-1',
-                'run_id' => 'r1', 'agent' => 'task-analyst', 'backend' => 'orca',
+                'ts' => $iso(2400), 'type' => 'agent_run_finished', 'project' => $project, 'branch' => 'wk-1',
+                'run_id' => 'r1', 'agent' => $agent, 'backend' => 'orca',
                 'started_at' => $iso(1200), 'finished_at' => $iso(2400), 'duration_s' => 1200,
                 'input' => 1000, 'output' => 200, 'reasoning' => 50, 'cache_read' => 500,
                 'cache_write' => 100, 'tokens_total' => 1850, 'cost' => 0.25,
                 'models' => ['anthropic/claude'], 'session_id' => 'ses_a', 'harvest' => 'exact',
             ],
-            ['ts' => $iso(4800), 'type' => 'state_entered', 'project' => 'proj', 'branch' => 'wk-1', 'from' => 'draft', 'to' => 'ready-to-review'],
-            ['ts' => $iso(9600), 'type' => 'task_closed', 'project' => 'proj', 'branch' => 'wk-1', 'final_state' => 'waiting-review', 'merged' => true],
+            ['ts' => $iso(4800), 'type' => 'state_entered', 'project' => $project, 'branch' => 'wk-1', 'from' => 'draft', 'to' => 'ready-to-review'],
+            ['ts' => $iso(9600), 'type' => 'task_closed', 'project' => $project, 'branch' => 'wk-1', 'final_state' => 'waiting-review', 'merged' => true],
         ];
+        $dir = $this->tmp.'/analytics/'.($project ?: 'proj');
+        if (!is_dir($dir)) {
+            mkdir($dir, 0o777, true);
+        }
         file_put_contents(
-            $this->tmp.'/analytics/proj/'.gmdate('Y-m').'.jsonl',
+            $dir.'/'.gmdate('Y-m').'.jsonl',
             implode("\n", array_map(static fn (array $e) => json_encode($e, \JSON_UNESCAPED_SLASHES), $events))."\n",
         );
     }
@@ -174,7 +189,8 @@ final class AnalyticsControllerTest extends WebTestCase
 
         $client = $this->browser();
         $empty = $client->request('GET', '/analytics?days=7');
-        $this->assertStringContainsString('No analytics events recorded yet', $empty->text());
+        // Events exist in the log but none survive the window.
+        $this->assertStringContainsString('No analytics events match this filter', $empty->text());
 
         $all = $client->request('GET', '/analytics?days=all');
         $this->assertStringContainsString('Tasks opened vs closed', $all->text());
@@ -185,8 +201,79 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->seedLifecycle();
         $crawler = $this->browser()->request('GET', '/analytics?days=bogus');
         $this->assertResponseIsSuccessful();
-        $active = $crawler->filter('.pablo-tabs li.is-active');
+        $active = $crawler->filter('[aria-label="Time range"] li.is-active');
         $this->assertSame(1, $active->count());
         $this->assertStringContainsString('30d', $active->text());
+    }
+
+    public function testTypeFilterIsolatesProjectsByConfigType(): void
+    {
+        // wallet-kit is configured as `work`, bookkeeper as `open-source`.
+        $this->seedLifecycle(project: 'wallet-kit');
+        $this->seedLifecycle(project: 'bookkeeper', agent: 'pr-feedback');
+
+        $client = $this->browser();
+
+        $all = $client->request('GET', '/analytics?days=all');
+        $allViews = '';
+        foreach ($all->filter('canvas') as $node) {
+            /** @var \DOMElement $node */
+            $allViews .= (string) $node->getAttribute('data-symfony--ux-chartjs--chart-view-value');
+        }
+        $this->assertStringContainsString('task-analyst', $allViews);
+        $this->assertStringContainsString('pr-feedback', $allViews);
+
+        $work = $client->request('GET', '/analytics?days=all&type=work');
+        $rendered = '';
+        foreach ($work->filter('canvas') as $node) {
+            $rendered .= $node->C14N();
+        }
+        $this->assertStringContainsString('task-analyst', $rendered);
+        $this->assertStringNotContainsString('pr-feedback', $rendered);
+        $active = $work->filter('.pablo-tabs li.is-active');
+        $this->assertSame(2, $active->count(), 'one active type tab + one active days tab');
+
+        $openSource = $client->request('GET', '/analytics?days=all&type=open-source');
+        $rendered = '';
+        foreach ($openSource->filter('canvas') as $node) {
+            $rendered .= $node->C14N();
+        }
+        $this->assertStringNotContainsString('task-analyst', $rendered);
+    }
+
+    public function testOrphanEventsStayOnAllButNeverMatchAType(): void
+    {
+        // 'gone' has no project config anymore: its history survives under
+        // All but is excluded from every specific type tab.
+        $this->seedLifecycle(project: 'gone');
+        $client = $this->browser();
+
+        $all = $client->request('GET', '/analytics?days=all');
+        $allViews = '';
+        foreach ($all->filter('canvas') as $node) {
+            /** @var \DOMElement $node */
+            $allViews .= (string) $node->getAttribute('data-symfony--ux-chartjs--chart-view-value');
+        }
+        $this->assertStringContainsString('task-analyst', $allViews);
+
+        $filtered = $client->request('GET', '/analytics?days=all&type=personal');
+        $this->assertStringContainsString('No analytics events match this filter', $filtered->text());
+    }
+
+    /** Days and type filters combine; switching one preserves the other. */
+    public function testTypeTabsPreserveDaysParameter(): void
+    {
+        $this->seedLifecycle(project: 'wallet-kit');
+        $crawler = $this->browser()->request('GET', '/analytics?days=7&type=work');
+
+        $typeTabs = $crawler->filter('[aria-label="Filter by project type"] a');
+        $this->assertSame(4, $typeTabs->count());
+        foreach ($typeTabs as $node) {
+            /* @var \DOMElement $node */
+            $this->assertStringContainsString('days=7', (string) $node->getAttribute('href'));
+        }
+        $active = $crawler->filter('[aria-label="Filter by project type"] li.is-active');
+        $this->assertSame(1, $active->count());
+        $this->assertStringContainsString('Work', $active->text());
     }
 }

@@ -26,9 +26,23 @@
                     {{ ux_icon('lucide:chart-column', {class: 'pablo-icon'}) }}
                     Analytics
                 </h2>
-                <p class="pablo-empty">No analytics events recorded yet — start a task and the log will fill up.</p>
+                {% if has_any_events %}
+                    <p class="pablo-empty">No analytics events match this filter.</p>
+                {% else %}
+                    <p class="pablo-empty">No analytics events recorded yet — start a task and the log will fill up.</p>
+                {% endif %}
             </section>
         {% else %}
+            <nav class="tabs is-boxed pablo-tabs" aria-label="Filter by project type">
+                <ul>
+                    {% for t in type_choices %}
+                        <li class="{{ active_type == t ? 'is-active' : '' }}">
+                            <a href="{{ path('analytics', {days: active_days, type: t}) }}">{{ t == '' ? 'All' : t|capitalize }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </nav>
+
             <nav class="tabs is-boxed pablo-tabs" aria-label="Time range">
                 <ul>
                     {% for choice in day_choices %}

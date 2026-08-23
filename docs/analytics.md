@@ -86,6 +86,7 @@ OpenCode session to the right run.
 ```bash
 pablo stats                        # last 30 days, all projects, tables
 pablo stats --days 7 --project wallet-kit
+pablo stats --type open-source     # same type tabs as the /analytics page
 pablo stats --agent ci-analyst     # filter only the agents table
 pablo stats --format json          # machine-readable aggregation
 ```

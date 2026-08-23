@@ -12,9 +12,11 @@ use Pablo\Analytics\AnalyticsReader;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Dashboard\Dashboard;
 use Pablo\Domain\Time;
 use Pablo\Listing\Listing;
 use Pablo\Store\Store;
+use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -46,6 +48,7 @@ final class StatsCommand extends Command
         $this
             ->addOption('days', null, InputOption::VALUE_REQUIRED, 'look back N days (0 = all time)', '30')
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'restrict to one project')
+            ->addOption('type', null, InputOption::VALUE_REQUIRED, 'restrict to one project type (work/open-source/personal)', '', Dashboard::TYPES)
             ->addOption('agent', null, InputOption::VALUE_REQUIRED, 'restrict the agents table to one agent')
             ->addOption('format', null, InputOption::VALUE_REQUIRED, 'output format', 'table', ['table', 'json']);
     }
@@ -55,12 +58,19 @@ final class StatsCommand extends Command
         $days = max(0, (int) $input->getOption('days'));
         $cutoffTs = 0 === $days ? 0 : $this->time->parseTs($this->time->utcnow())->getTimestamp() - $days * 86_400;
         $projectFilter = (string) ($input->getOption('project') ?: '') ?: null;
+        $typeFilter = (string) $input->getOption('type');
+        if (!\in_array($typeFilter, Dashboard::TYPES, true)) {
+            throw new PabloError(\sprintf("invalid --type '%s'; expected one of: %s", $typeFilter, implode(', ', array_filter(Dashboard::TYPES))));
+        }
 
         /** @var list<AnalyticsEvent> $events */
         $events = [];
         foreach ($this->reader->read($projectFilter) as $payload) {
             $event = AnalyticsEvent::fromEvent($payload);
             if ('' !== $event->ts() && $cutoffTs > 0 && $this->tsOf($event) < $cutoffTs) {
+                continue;
+            }
+            if ('' !== $typeFilter && !$this->projectHasType($event->project(), $typeFilter)) {
                 continue;
             }
             $events[] = $event;
@@ -193,6 +203,23 @@ final class StatsCommand extends Command
         } catch (\Throwable) {
             return 0;
         }
+    }
+
+    /**
+     * Same predicate as the task board's type tabs (Dashboard::projectsOfType),
+     * so the CLI and the web page can never disagree about what a filter
+     * includes. Projects removed from config match no type — their history
+     * stays visible only without --type.
+     */
+    private function projectHasType(string $project, string $type): bool
+    {
+        foreach ($this->projectsLoader->loadProjects() as $name => $cfg) {
+            if ($name === $project && $cfg->type === $type) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function intOf(mixed $value): int
