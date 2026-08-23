@@ -20,6 +20,7 @@ use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\FakeAgents;
+use Pablo\Tests\FakeAnalytics;
 use PHPUnit\Framework\TestCase;
 
 final class FakePollProvider implements Provider
@@ -113,6 +114,8 @@ final class PollerTest extends TestCase
     private \Pablo\Tests\FakeGhPr $gh;
     private \Pablo\Tests\FakeGit $git;
     private Poller $poller;
+    private \Pablo\Provider\Tracker\ProviderRegistryInterface $providers;
+    private \Pablo\Tests\FakeProcessRunner $runner;
 
     /** @var array<string, mixed> */
     private array $stubs;
@@ -137,7 +140,8 @@ final class PollerTest extends TestCase
         $this->gh->isMergedOverride = fn () => $this->stubs['merged'];
         $this->gh->evaluateReviewsOverride = fn () => $this->stubs['verdict'];
         $this->git = new \Pablo\Tests\FakeGit();
-        $providers = new class($this->provider) implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
+        $this->runner = new \Pablo\Tests\FakeProcessRunner();
+        $this->providers = new class($this->provider) implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
             public function __construct(private readonly Provider $provider)
             {
             }
@@ -151,8 +155,20 @@ final class PollerTest extends TestCase
         $git->originUrl = 'git@github.com:acme/proj.git';
         $repoSlug = new RepoSlug($git);
         $time = new \Pablo\Domain\Time();
-        $sm = new StateMachine($this->gh, $providers, $repoSlug, $time);
-        $this->poller = new Poller($this->gh, $this->git, $providers, $repoSlug, $sm, $time);
+        $sm = new StateMachine($this->gh, $this->providers, $repoSlug, $time);
+        $this->poller = new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time);
+    }
+
+    /** A poller whose analytics/usage collaborators are test doubles. */
+    private function analyticsPoller(FakeAnalytics $analytics): Poller
+    {
+        $git = new \Pablo\Tests\FakeGit();
+        $git->originUrl = 'git@github.com:acme/proj.git';
+        $repoSlug = new RepoSlug($git);
+        $time = new \Pablo\Domain\Time();
+        $sm = new StateMachine($this->gh, $this->providers, $repoSlug, $time);
+
+        return new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, $analytics, new \Pablo\Analytics\OpenCodeUsage($this->runner));
     }
 
     protected function tearDown(): void
@@ -241,11 +257,11 @@ final class PollerTest extends TestCase
             ->format('c');
     }
 
-    private function setLaunch(Store $store, string $label, int $attempts = 1, int $ago = 0): void
+    private function setLaunch(Store $store, string $label, int $attempts = 1, int $ago = 0, ?string $finishedAt = null, bool $reported = false): void
     {
         $task = $this->taskOrFail($store);
         $agent = Agent::tryByName($label) ?? Agent::TaskAnalyst;
-        $task->agentLaunches[$agent->value] = new AgentLaunch($agent, $this->freshTs($ago), $attempts);
+        $task->agentLaunches[$agent->value] = new AgentLaunch($agent, $this->freshTs($ago), $attempts, $finishedAt, reported: $reported);
         $store->save($task);
     }
 
@@ -582,6 +598,67 @@ final class PollerTest extends TestCase
         $this->setLaunch($store, 'task-analyst', Poller::LAUNCH_MAX_ATTEMPTS, 301);
         $this->poll($cfg, $store);
         $this->assertSame([], $this->agents->launch);
+    }
+
+    public function testHealedLaunchIsReportedExactlyOnce(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::InProgress));
+        $this->setState($store, State::InProgress, ['prNumber' => null]);
+        $this->setLaunch($store, 'task-analyst', Poller::LAUNCH_MAX_ATTEMPTS, 301);
+
+        $analytics = new FakeAnalytics();
+        $poller = $this->analyticsPoller($analytics);
+        $events = $poller->pollProject($cfg, $store, $this->agents);
+
+        // The heal message is preserved...
+        $healed = array_filter($events, static fn (string $e) => str_contains($e, 'finished → waiting for feedback'));
+        $this->assertNotEmpty($healed);
+        // ...and exactly one agent_run_finished event is emitted.
+        $this->assertCount(1, $analytics->runsFinished);
+        $record = $analytics->runsFinished[0];
+        $this->assertSame('task-analyst', $record->agent);
+        $this->assertSame('unknown', $record->backend);
+        $this->assertNotNull($record->startedAt);
+        $this->assertSame(301, $record->durationS);
+
+        $launch = $this->taskOrFail($store)->agentLaunches['task-analyst'];
+        $this->assertTrue($launch->reported);
+        $this->assertNotNull($launch->runId);
+        $this->assertNotNull($launch->finishedAt);
+
+        // Second cycle: no duplicate event.
+        $poller->pollProject($cfg, $store, $this->agents);
+        $this->assertCount(1, $analytics->runsFinished);
+    }
+
+    public function testFinishedButUnreportedLaunchIsBackfilledWithoutRestamp(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::InProgress));
+        $this->setState($store, State::InProgress, ['prNumber' => null]);
+        // A watcher died after stamping finishedAt but before reporting.
+        $this->setLaunch($store, 'task-analyst', 1, 0, finishedAt: '2026-08-01T05:00:00+00:00');
+        $seeded = $this->taskOrFail($store)->agentLaunches['task-analyst'];
+
+        $analytics = new FakeAnalytics();
+        $poller = $this->analyticsPoller($analytics);
+        $events = $poller->pollProject($cfg, $store, $this->agents);
+
+        $this->assertCount(1, $analytics->runsFinished);
+        $record = $analytics->runsFinished[0];
+        $this->assertSame('2026-08-01T05:00:00+00:00', $record->finishedAt);
+        $this->assertSame($seeded->launchedAt, $record->startedAt);
+        $this->assertIsInt($record->durationS);
+        $this->assertTrue($this->taskOrFail($store)->agentLaunches['task-analyst']->reported);
+        // The original stamp must not be rewritten by the backfill.
+        $this->assertSame($seeded->finishedAt, $this->taskOrFail($store)->agentLaunches['task-analyst']->finishedAt);
+        // And no heal message: the run was already stamped before.
+        $this->assertSame([], array_values(array_filter($events, static fn (string $e) => str_contains($e, 'waiting for feedback'))));
     }
 
     public function testRelaunchesMissingAgentPastWindow(): void

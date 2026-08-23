@@ -6,6 +6,8 @@ namespace Pablo\Command\Task;
 
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Analytics\AnalyticsInterface;
+use Pablo\Analytics\NullAnalytics;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
@@ -37,6 +39,7 @@ final class StartCommand extends Command
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
         AgentLauncherInterface $agents,
+        private readonly AnalyticsInterface $analytics = new NullAnalytics(),
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
@@ -112,6 +115,9 @@ final class StartCommand extends Command
                 : null;
             $ctx = new TaskCtx(task: $task, cfg: $cfg, store: $store, agents: $agents);
             $this->stateMachine->enterState($ctx, State::InProgress);
+            // The reuse path in startIssueTask() never reaches createTask(),
+            // so this fires exactly once per task lifetime.
+            $this->analytics->taskOpened($task);
         } finally {
             $lock->release();
         }

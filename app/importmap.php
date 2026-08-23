@@ -1,35 +1,34 @@
 <?php
 
 /**
- * Importmap for the PABLO dashboard.
+ * Returns the importmap for this application.
  *
- * Remote packages are vendored into assets/vendor/ by
- * `php bin/console importmap:install` and COMMITTED — bin/install.sh never
- * runs that command, so an un-vendored entry means a dashboard with no
- * JavaScript on a fresh clone. See the anchored `vendor/` rule in .gitignore.
+ * - "path" is a path inside the asset mapper system. Use the
+ *     "debug:asset-map" command to see the full list of paths.
  *
- * The two @symfony/* entries resolve through the asset-path namespaces the UX
- * bundles register themselves (`bin/console debug:asset-map`), so they need no
- * vendoring and stay in lockstep with the installed PHP packages.
+ * - "entrypoint" (JavaScript only) set to true for any module that will
+ *     be used as an "entrypoint" (and passed to the importmap() Twig function).
  *
- * @return array<string, array{
- *     path: string,
- *     type?: 'js'|'css'|'json',
- *     entrypoint?: bool,
+ * The "importmap:require" command can be used to add new entries to this file.
+ *
+ * @return array<string, array{    // Import name as key, description of the imported file as value
+ *     path: string,               // Logical, relative or absolute path to the file
+ *     type?: 'js'|'css'|'json',   // Type of the file, defaults to 'js'
+ *     entrypoint?: bool,          // Whether the file is an entrypoint, for 'js' only
  * }|array{
- *     version: string,
- *     package_specifier?: string,
+ *     version: string,            // Version of the remote package
+ *     package_specifier?: string, // Remote "package-name/path" specifier, defaults to the import name
  *     type?: 'js'|'css'|'json',
  *     entrypoint?: bool,
  * }>
  */
 return [
-    'app' => [
-        'path' => './assets/app.js',
-        'entrypoint' => true,
-    ],
+    'app' => ['path' => './assets/app.js', 'entrypoint' => true],
     '@hotwired/stimulus' => ['version' => '3.2.2'],
     '@symfony/stimulus-bundle' => ['path' => '@symfony/stimulus-bundle/loader.js'],
     '@symfony/ux-live-component' => ['path' => '@symfony/ux-live-component/live_controller.js'],
     'bulma/css/bulma.min.css' => ['version' => '1.0.4', 'type' => 'css'],
+    '@symfony/ux-chartjs' => ['path' => '@symfony/ux-chartjs/controller.js'],
+    'chart.js' => ['version' => '4.5.1'],
+    '@kurkle/color' => ['version' => '0.3.4'],
 ];

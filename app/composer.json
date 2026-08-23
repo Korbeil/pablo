@@ -25,6 +25,7 @@
         "symfony/process": "^8.0",
         "symfony/stimulus-bundle": "^3.4",
         "symfony/twig-bundle": "^8.1",
+        "symfony/ux-chartjs": "^3.4",
         "symfony/ux-icons": "^3.4",
         "symfony/ux-live-component": "^3.4",
         "symfony/ux-twig-component": "^3.4",

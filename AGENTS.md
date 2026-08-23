@@ -88,6 +88,10 @@ store + per-task flock) · `src/Poller/` (state polling) ·
 `src/Agents/` (agent launchers: Orca + headless `Agents`, optional
 `OpenChamber`, `AbstractAgentLauncher` base, `AgentLauncher` factory
 selected via `agent_backend`/`PABLO_AGENT_BACKEND`) · `src/Listing/` (terminal tables) ·
+`src/Analytics/` (append-only JSONL analytics under `~/.pablo/analytics/`:
+task lifetimes, state transitions, agent runs with token/cost usage
+harvested from the local OpenCode CLI; best-effort, never throws into task
+flows, never persists prompt content — see `docs/analytics.md`) ·
 `src/Doctor/` (preflight checks) · `src/Dispatch/` (cron entry point) ·
 `src/Support/` (`PabloError`, `Proc`, `Naming`, `RepoSlug`).
 
@@ -154,8 +158,9 @@ PHPUnit. Never remove it or widen the exemption. The engine is DI-based: every
 former static class (`GhPr`, `GitRepo`, `Proc`, `Config`, `StateMachine`, …) is
 a constructor-injected service behind an interface where tests need fakes
 (`GhPrInterface`, `GitRepoInterface`, `ProcessRunnerInterface`,
-`ProviderRegistryInterface`). Test doubles live beside `tests/FakeAgents.php`
-(`FakeGit`, `FakeGhPr`, `FakeProcessRunner`, `StubProviders`) and
+`ProviderRegistryInterface`, `AnalyticsInterface`). Test doubles live beside
+`tests/FakeAgents.php` (`FakeGit`, `FakeGhPr`, `FakeProcessRunner`,
+`StubProviders`, `FakeAnalytics`) and
 `tests/Command/CommandTestBed.php` is the abstract bed for command tests,
 wiring that fake graph in `setUp`. `tests/EngineGraph.php` builds the same
 graph for engine-layer tests (poller, listing, dispatch).

@@ -32,6 +32,12 @@ body {
     flex-wrap: wrap;
 }
 
+.pablo-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
 .pablo-brand {
     display: flex;
     align-items: center;
@@ -369,4 +375,61 @@ body {
 
 .pablo-slack-block textarea {
     font-size: 0.82rem;
+}
+
+/* ---------------------------------------------------------- analytics --- */
+
+.pablo-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--pablo-gap);
+    margin: var(--pablo-gap) 0;
+}
+
+.pablo-kpi {
+    background: var(--bulma-scheme-main, #fff);
+    border: 1px solid var(--bulma-border-weak, #ededed);
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.pablo-kpi-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--bulma-text-strong, #1d1d1d);
+}
+
+.pablo-kpi-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bulma-text, #4a4a4a);
+}
+
+.pablo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr));
+    gap: var(--pablo-gap);
+}
+
+.pablo-chart-card {
+    background: var(--bulma-scheme-main, #fff);
+    border: 1px solid var(--bulma-border-weak, #ededed);
+    border-radius: 6px;
+    padding: 1.1rem 1.25rem 0.9rem;
+}
+
+.pablo-chart-card .pablo-heading {
+    margin-bottom: 1.25rem;
+}
+
+/* Fixed-height box so maintainAspectRatio:false charts size to something
+   stable; padding keeps tick labels off the card edges. */
+.pablo-chart-box {
+    position: relative;
+    height: 18rem;
+    padding: 0.25rem 0.75rem 0.75rem;
 }

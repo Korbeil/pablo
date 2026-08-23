@@ -12,7 +12,13 @@
                     <p class="pablo-tagline">Personal Assistant for Boring Logic &amp; Operations</p>
                 </div>
             </div>
-            <twig:SlackModal />
+            <div class="pablo-header-actions">
+                <twig:SlackModal />
+                <a class="button is-link is-light" href="{{ path('analytics') }}">
+                    {{ ux_icon('lucide:chart-column', {class: 'pablo-icon'}) }}
+                    <span>Analytics</span>
+                </a>
+            </div>
         </div>
     </header>
 

@@ -109,6 +109,24 @@ branch, behind/ahead counts, conflicting files, and the
 launched. Sync overwrites this file each run, so there is no history —
 only "what the last sync did".
 
+## The analytics page (`/analytics`)
+
+Linked from the task board's header ("Analytics"), with a "Task board"
+button back. It shows the same aggregated numbers `pablo stats` prints,
+as [UX Chart.js](https://ux.symfony.com/chartjs) graphs: five KPI tiles
+(tasks opened/closed, merged %, agent runs, cost) plus six charts — tasks
+opened-vs-closed per day, tokens per agent (stacked in/out/cache), cache
+hit %, avg runtime, cost doughnut, and state dwell + entries (rework
+loops). A `?days=7|30|90|all` tab filters the window.
+
+The same guarantees apply, and then some: the page reads only the local
+JSONL log under `~/.pablo/analytics/` — it cannot touch a git/gh/orca/
+tracker CLI even by accident. Numbers come from
+`Analytics\AnalyticsAggregator`, the single source of truth shared with
+`pablo stats` (same rule as `PrBadge`/`AgentActivity`: terminal and web
+cannot drift); `Dashboard\AnalyticsCharts` turns those numbers into Chart
+objects. Empty log renders a friendly empty state instead of canvases.
+
 ## Architecture
 
 | | |
@@ -117,9 +135,11 @@ only "what the last sync did".
 | `src/Dashboard/TaskView.php` | one table row (state presentation, badges, timings) |
 | `src/Dashboard/PollSchedule.php`, `PollWindow.php` | stamp reading + tick rounding |
 | `src/Dashboard/RebaseLogView.php` | decodes the sync log, maps actions to icon/colour |
+| `src/Dashboard/AnalyticsCharts.php` | builds the six `/analytics` Chart objects from aggregator output |
 | `src/Domain/PrBadge.php`, `AgentActivity.php` | value objects shared by the terminal and the web renderers |
 | `src/Twig/Components/` | `TaskBoard`, `PollProgress`, `SlackModal` (live); `RebaseLog` (plain) |
 | `src/Controller/DashboardController.php` | the single `GET /` route |
+| `src/Controller/AnalyticsController.php` | the `GET /analytics` route |
 | `src/Command/System/WebCommand.php` | `pablo web` |
 
 `Listing` still renders the terminal cells, but now over `PrBadge` /

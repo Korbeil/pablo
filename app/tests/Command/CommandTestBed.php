@@ -15,6 +15,7 @@ use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\FakeAgents;
+use Pablo\Tests\FakeAnalytics;
 use Pablo\Tests\FakeGhPr;
 use Pablo\Tests\FakeGit;
 use Pablo\Tests\FakeProcessRunner;
@@ -42,6 +43,7 @@ abstract class CommandTestBed extends TestCase
     protected StubProviders $providers;
     protected RepoSlug $repoSlug;
     protected StateMachine $stateMachine;
+    protected FakeAnalytics $analytics;
     protected Time $time;
     protected string $prevCwd;
 
@@ -72,7 +74,8 @@ abstract class CommandTestBed extends TestCase
         $this->projectsLoader = new Config($this->globalConfig);
         $this->agentLaunchers = new AgentLauncherFactory($this->globalConfig);
         $this->repoSlug = new RepoSlug($this->git);
-        $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time);
+        $this->analytics = new FakeAnalytics();
+        $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time, $this->analytics);
 
         $task = new Task('wallet-kit', 'wk-45', $this->wt, State::InProgress);
         $task->prNumber = 7;

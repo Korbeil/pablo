@@ -72,7 +72,7 @@ final class Task
     }
 
     /**
-     * @return array{project: string, branch: string, worktree_path: string, state: string, state_entered_at: string, issue: ?array<string, mixed>, summary: ?string, prompt: ?string, state_before_waiting: ?string, task_analyst_ran: bool, startup_script_ran: bool, agent_launches: array<string, array{launched_at: ?string, attempts: int, finished_at: ?string}>, needs_testing_entered_at: ?string, last_handled_signal_at: ?string, last_seen_issue_status: ?string, ci_ignored: bool, pr_number: ?int, merged: bool, created_at: string, updated_at: string, cached_tracker_status: ?string, cached_pr_state: ?string, cached_agent_count: ?int, cached_agent_activity: ?string, cached_at: ?string}
+     * @return array{project: string, branch: string, worktree_path: string, state: string, state_entered_at: string, issue: ?array<string, mixed>, summary: ?string, prompt: ?string, state_before_waiting: ?string, task_analyst_ran: bool, startup_script_ran: bool, agent_launches: array<string, array{launched_at: ?string, attempts: int, finished_at: ?string, run_id: ?string, reported: bool}>, needs_testing_entered_at: ?string, last_handled_signal_at: ?string, last_seen_issue_status: ?string, ci_ignored: bool, pr_number: ?int, merged: bool, created_at: string, updated_at: string, cached_tracker_status: ?string, cached_pr_state: ?string, cached_agent_count: ?int, cached_agent_activity: ?string, cached_at: ?string}
      */
     public function toJson(): array
     {

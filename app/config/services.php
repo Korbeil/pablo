@@ -5,6 +5,11 @@ declare(strict_types=1);
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Analytics\AnalyticsAggregator;
+use Pablo\Analytics\AnalyticsInterface;
+use Pablo\Analytics\AnalyticsReader;
+use Pablo\Analytics\JsonlAnalytics;
+use Pablo\Analytics\OpenCodeUsage;
 use Pablo\App\ConsoleApplication;
 use Pablo\Backup\Backup;
 use Pablo\Command\Command as PabloCommand;
@@ -66,6 +71,14 @@ return static function (ContainerConfigurator $container): void {
     $services->set(GlobalConfig::class);
     $services->set(Config::class);
     $services->set(Store::class);
+
+    // Analytics: append-only JSONL under ~/.pablo/analytics (root resolved at
+    // call time — never a container parameter, same rule as Store).
+    $services->set(JsonlAnalytics::class);
+    $services->set(AnalyticsReader::class);
+    $services->set(AnalyticsAggregator::class);
+    $services->set(OpenCodeUsage::class);
+    $services->alias(AnalyticsInterface::class, JsonlAnalytics::class);
 
     // Tracker providers and their registry.
     $services->set(Github::class);

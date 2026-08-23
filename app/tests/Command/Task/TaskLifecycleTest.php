@@ -16,7 +16,9 @@ use Pablo\Command\Task\TaskCommand;
 use Pablo\Command\Task\WaitingCommand;
 use Pablo\Domain\Agent;
 use Pablo\Domain\State;
+use Pablo\Domain\Task;
 use Pablo\Tests\Command\CommandTestBed;
+use Pablo\Tests\FakeAnalytics;
 
 final class TaskLifecycleTest extends CommandTestBed
 {
@@ -88,6 +90,75 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
     }
 
+    public function testCloseByBranchFromAnywhere(): void
+    {
+        chdir($this->tmp);
+        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertSame([[$this->wt, 'wk-45']], $this->git->removed);
+        $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
+        $this->assertStringContainsString('closed wk-45 (wallet-kit)', $tester->getDisplay());
+    }
+
+    public function testCloseAmbiguousBranchRequiresProject(): void
+    {
+        mkdir($this->tmp.'/repo2', 0o777, true);
+        file_put_contents($this->projectsDir.'/other-kit.yaml', <<<YAML
+            name: other-kit
+            type: open-source
+            repo:
+              path: {$this->tmp}/repo2
+              primary_branch: main
+            worktrees_root: {$this->tmp}/wt2
+            issue_tracker:
+              provider: github
+              identity: octocat
+              project_key: OK
+            sync:
+              strategy: rebase
+              auto_apply: false
+              interval_minutes: 30
+            state_polling:
+              interval_minutes: 10
+            review:
+              bot_whitelist: []
+            ci:
+              ignore_checks: []
+            YAML);
+        $this->store->save(new Task('other-kit', 'wk-45', $this->tmp.'/wt2/wk-45', State::InProgress));
+
+        $close = fn (): CloseCommand => new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+
+        chdir($this->tmp);
+        $tester = $this->runCommand($close(), ['branch' => 'wk-45'], ['capture_stderr_separately' => true]);
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('several projects', $tester->getErrorOutput());
+        $this->assertStringContainsString('other-kit', $tester->getErrorOutput());
+        $this->assertStringContainsString('wallet-kit', $tester->getErrorOutput());
+
+        $tester = $this->runCommand($close(), ['branch' => 'wk-45', '--project' => 'wallet-kit']);
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
+    }
+
+    public function testCloseUnknownBranchFails(): void
+    {
+        chdir($this->tmp);
+        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'nope'], ['capture_stderr_separately' => true]);
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("no PABLO task named 'nope'", $tester->getErrorOutput());
+    }
+
+    public function testCloseOrphanedRecordPrunesStaleWorktree(): void
+    {
+        (new \Symfony\Component\Process\Process(['rm', '-rf', $this->wt]))->run();
+        chdir($this->tmp);
+        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
+        $this->assertStringContainsString('stale worktree pruned', $tester->getDisplay());
+    }
+
     public function testPrecommitCheckAllowed(): void
     {
         $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
@@ -150,7 +221,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::RequestChanges;
         $this->store->save($task);
-        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new FakeAnalytics(), new \Pablo\Analytics\OpenCodeUsage($this->runner)), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -163,7 +234,7 @@ final class TaskLifecycleTest extends CommandTestBed
 
     public function testWatchAgentSkipsWhenStateMovedOn(): void
     {
-        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new FakeAnalytics(), new \Pablo\Analytics\OpenCodeUsage($this->runner)), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -180,7 +251,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, '2026-08-11T00:00:00+00:00', 1);
         $this->store->save($task);
 
-        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new FakeAnalytics(), new \Pablo\Analytics\OpenCodeUsage($this->runner)), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -190,6 +261,10 @@ final class TaskLifecycleTest extends CommandTestBed
 
         $launch = $this->getTask()->agentLaunches['task-analyst'];
         $this->assertNotNull($launch->finishedAt);
+        // The watcher reports the run and marks it so the poller's
+        // reconciliation sweep never re-emits it.
+        $this->assertTrue($launch->reported);
+        $this->assertNotNull($launch->runId);
     }
 
     public function testRelaunchFiresBothAndResetsCounters(): void

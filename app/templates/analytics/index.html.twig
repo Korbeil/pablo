@@ -1,0 +1,114 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}PABLO analytics{% endblock %}
+
+{% block body %}
+    <header class="pablo-header">
+        <div class="pablo-container pablo-header-inner">
+            <div class="pablo-brand">
+                <img class="pablo-logo" src="{{ asset('images/pablo.png') }}" alt="PABLO logo">
+                <div>
+                    <h1 class="pablo-title">P.A.B.L.O. analytics</h1>
+                    <p class="pablo-tagline">Task lifetimes, agent runs, tokens &amp; cost</p>
+                </div>
+            </div>
+            <a class="button is-light" href="{{ path('dashboard') }}">
+                {{ ux_icon('lucide:arrow-left', {class: 'pablo-icon'}) }}
+                Task board
+            </a>
+        </div>
+    </header>
+
+    <main class="pablo-container">
+        {% if not has_events %}
+            <section class="pablo-section">
+                <h2 class="pablo-heading">
+                    {{ ux_icon('lucide:chart-column', {class: 'pablo-icon'}) }}
+                    Analytics
+                </h2>
+                <p class="pablo-empty">No analytics events recorded yet — start a task and the log will fill up.</p>
+            </section>
+        {% else %}
+            <nav class="tabs is-boxed pablo-tabs" aria-label="Time range">
+                <ul>
+                    {% for choice in day_choices %}
+                        <li class="{{ active_days == choice ? 'is-active' : '' }}">
+                            <a href="{{ path('analytics', {days: choice}) }}">{{ choice == 'all' ? 'All time' : choice ~ 'd' }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </nav>
+
+            <div class="pablo-kpis">
+                {% for label, value in kpis %}
+                    <div class="pablo-kpi">
+                        <span class="pablo-kpi-value">{{ value }}</span>
+                        <span class="pablo-kpi-label">{{ label }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+
+            {% if throughput %}
+                <section class="pablo-section pablo-chart-card">
+                    <h2 class="pablo-heading">
+                        {{ ux_icon('lucide:git-branch', {class: 'pablo-icon'}) }}
+                        Tasks opened vs closed
+                    </h2>
+                    <div class="pablo-chart-box">{{ render_chart(throughput) }}</div>
+                </section>
+            {% endif %}
+
+            <div class="pablo-grid">
+                {% if tokens %}
+                    <section class="pablo-section pablo-chart-card">
+                        <h2 class="pablo-heading">
+                            {{ ux_icon('lucide:coins', {class: 'pablo-icon'}) }}
+                            Tokens per agent
+                        </h2>
+                        <div class="pablo-chart-box">{{ render_chart(tokens) }}</div>
+                    </section>
+                {% endif %}
+
+                {% if cache_hit %}
+                    <section class="pablo-section pablo-chart-card">
+                        <h2 class="pablo-heading">
+                            {{ ux_icon('lucide:zap', {class: 'pablo-icon'}) }}
+                            Cache hit %
+                        </h2>
+                        <div class="pablo-chart-box">{{ render_chart(cache_hit) }}</div>
+                    </section>
+                {% endif %}
+
+                {% if runtime %}
+                    <section class="pablo-section pablo-chart-card">
+                        <h2 class="pablo-heading">
+                            {{ ux_icon('lucide:timer', {class: 'pablo-icon'}) }}
+                            Avg runtime per agent
+                        </h2>
+                        <div class="pablo-chart-box">{{ render_chart(runtime) }}</div>
+                    </section>
+                {% endif %}
+
+                {% if cost_chart %}
+                    <section class="pablo-section pablo-chart-card">
+                        <h2 class="pablo-heading">
+                            {{ ux_icon('lucide:dollar-sign', {class: 'pablo-icon'}) }}
+                            Cost per agent
+                        </h2>
+                        <div class="pablo-chart-box">{{ render_chart(cost_chart) }}</div>
+                    </section>
+                {% endif %}
+
+                {% if dwell %}
+                    <section class="pablo-section pablo-chart-card">
+                        <h2 class="pablo-heading">
+                            {{ ux_icon('lucide:repeat', {class: 'pablo-icon'}) }}
+                            State dwell &amp; entries (rework loops)
+                        </h2>
+                        <div class="pablo-chart-box">{{ render_chart(dwell) }}</div>
+                    </section>
+                {% endif %}
+            </div>
+        {% endif %}
+    </main>
+{% endblock %}

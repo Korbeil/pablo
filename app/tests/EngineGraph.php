@@ -37,6 +37,7 @@ final class EngineGraph
     public StubProviders $providers;
     public RepoSlug $repoSlug;
     public StateMachine $stateMachine;
+    public FakeAnalytics $analytics;
     public Stamps $stamps;
     public Doctor $doctor;
     public Sync $sync;
@@ -58,11 +59,21 @@ final class EngineGraph
         $this->agentLaunchers = new AgentLauncherFactory($this->global);
         $this->providers = new StubProviders();
         $this->repoSlug = new RepoSlug($this->git);
-        $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time);
+        $this->analytics = new FakeAnalytics();
+        $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time, $this->analytics);
         $this->stamps = new Stamps();
         $this->doctor = new Doctor($this->runner, $this->agentLaunchers);
         $this->sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->runner, $this->time);
-        $this->poller = new Poller($this->gh, $this->git, $this->providers, $this->repoSlug, $this->stateMachine, $this->time);
+        $this->poller = new Poller(
+            $this->gh,
+            $this->git,
+            $this->providers,
+            $this->repoSlug,
+            $this->stateMachine,
+            $this->time,
+            $this->analytics,
+            new \Pablo\Analytics\OpenCodeUsage($this->runner),
+        );
         $this->listing = new Listing($this->stamps, $this->gh, $this->git, $this->providers, $this->repoSlug, $this->stateMachine, $this->time);
         $this->dispatch = new Dispatch($this->doctor, $this->sync, $this->poller, $this->agentLaunchers, $this->stamps);
         $this->backup = new Backup($this->git, $this->runner, $this->time);

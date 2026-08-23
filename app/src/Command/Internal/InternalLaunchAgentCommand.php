@@ -4,15 +4,39 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Internal;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Analytics\AnalyticsInterface;
+use Pablo\Analytics\OpenCodeUsage;
 use Pablo\Command\Command;
+use Pablo\Config\Config;
+use Pablo\Domain\Time;
+use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
+/**
+ * Runs inside the detached self-reinvocation subprocess: launches the agent
+ * synchronously, then spawns internal:watch-agent to await its conclusion.
+ * This is the single funnel every agent launch passes through, which makes
+ * it the natural agent_run_started analytics hook.
+ */
 #[AsCommand(name: 'internal:launch-agent', hidden: true)]
 final class InternalLaunchAgentCommand extends Command
 {
+    public function __construct(
+        private readonly AnalyticsInterface $analytics,
+        private readonly Time $time,
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+    }
+
     protected function configure(): void
     {
         $this
@@ -27,16 +51,20 @@ final class InternalLaunchAgentCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $agents = $this->agentLaunchers->create((string) $input->getOption('backend'));
-        $handle = $agents->doLaunchAgent((string) $input->getOption('worktree'), (string) $input->getOption('agent'), (string) $input->getOption('prompt'));
-        $agents->spawnWatcher(
-            (string) $input->getOption('project'),
-            (string) $input->getOption('branch'),
-            $handle,
-            (string) $input->getOption('agent'),
-            '',
-        );
-        $agents->refreshAgentDisplayCache((string) $input->getOption('project'), (string) $input->getOption('branch'), (string) $input->getOption('worktree'));
+        $backend = (string) $input->getOption('backend');
+        $worktree = (string) $input->getOption('worktree');
+        $agent = (string) $input->getOption('agent');
+        $prompt = (string) $input->getOption('prompt');
+        $project = (string) $input->getOption('project');
+        $branch = (string) $input->getOption('branch');
+        $runId = bin2hex(random_bytes(8));
+        // Record the attempt before launching: a failed/hanging launch must
+        // still count as an agent run started.
+        $this->analytics->agentRunStarted($project, $branch, $worktree, $agent, $backend, $runId, $this->time->utcnow(), $prompt);
+        $agents = $this->agentLaunchers->create($backend);
+        $handle = $agents->doLaunchAgent($worktree, $agent, $prompt);
+        $agents->spawnWatcher($project, $branch, $handle, $agent, '', null, $runId, OpenCodeUsage::fingerprint($prompt));
+        $agents->refreshAgentDisplayCache($project, $branch, $worktree);
 
         return self::SUCCESS;
     }

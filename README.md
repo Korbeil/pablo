@@ -50,7 +50,7 @@ pablo task:start --project wallet-kit "fix callback verification"   # ...or from
 pablo task:list             # see all active tasks and their state
 /pablo-commit-and-pr         # commit, push, open a draft PR
 pablo task:waiting           # pause/resume a task
-pablo task:close             # abandon/clean up a task (escape hatch)
+pablo task:close [branch]    # abandon/clean up a task (--project X if ambiguous)
 ```
 
 Or, for the same picture in a browser:
@@ -185,6 +185,7 @@ Namespaces mirror folders (`Pablo\ => src/`).
 | `Provider/Confluence/` | Confluence page fetch via the `acli` CLI |
 | `Provider/Tracker/` | one class per issue tracker + `ProviderInterface`/registry |
 | `Agents/` | launching OpenCode agents via Orca (or, optionally, OpenChamber), activity queries |
+| `Analytics/` | append-only JSONL analytics (task lifetimes, agent runs/tokens/cost) + `pablo stats` |
 | `Listing/` | the `pablo task:list` terminal tables |
 | `Domain/PrBadge`, `Domain/AgentActivity` | PR/agent state as structure, shared by the terminal and web renderers |
 | `Doctor/` | CLI preflight checks (`pablo system:doctor`) |
@@ -212,6 +213,9 @@ before making non-trivial changes in that area:
   `pablo task:list` and `pablo project:list` output
 - [docs/dashboard.md](docs/dashboard.md) — the `pablo web` dashboard: what
   it shows, what it guarantees, how its assets are vendored
+- [docs/analytics.md](docs/analytics.md) — the local analytics event log
+  and `pablo stats`: task lifetimes, per-agent run counts, token/cost
+  usage (with cache hit rate), state dwell times
 
 ## Development
 

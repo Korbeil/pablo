@@ -8,6 +8,12 @@
                     "@symfony/ux-live-component/dist/live.min.css": true
                 }
             }
+        },
+        "@symfony/ux-chartjs": {
+            "chart": {
+                "enabled": true,
+                "fetch": "eager"
+            }
         }
     },
     "entrypoints": []

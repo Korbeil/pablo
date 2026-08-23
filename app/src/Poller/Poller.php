@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Pablo\Poller;
 
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Analytics\AgentRunRecord;
+use Pablo\Analytics\AnalyticsInterface;
+use Pablo\Analytics\NullAnalytics;
+use Pablo\Analytics\OpenCodeUsage;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\AgentActivity;
 use Pablo\Domain\AgentLaunch;
@@ -20,6 +24,7 @@ use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
 use Pablo\Support\PabloError;
+use Pablo\Support\ProcessRunner;
 use Pablo\Support\RepoSlug;
 
 /**
@@ -46,6 +51,8 @@ final class Poller
         private readonly RepoSlug $repoSlug,
         private readonly StateMachine $stateMachine,
         private readonly Time $time,
+        private readonly AnalyticsInterface $analytics = new NullAnalytics(),
+        private readonly OpenCodeUsage $usage = new OpenCodeUsage(new ProcessRunner()),
     ) {
     }
 
@@ -152,37 +159,71 @@ final class Poller
         } catch (PabloError $e) {
             $events[] = "{$ctx->task->branch}: PR merged → task closed (worktree already gone: {$e->getMessage()})";
         }
+        // Before the record disappears: the close event is what preserves the
+        // task's final metadata for analytics (merge auto-close path).
+        $this->analytics->taskClosed($ctx->task);
         $ctx->store->delete($ctx->task->project, $ctx->task->branch);
     }
 
-    /** @param list<string> $events */
+    /**
+     * Analytics reconciliation: every concluded PABLO-triggered agent run
+     * must appear in the event log exactly once, whichever component
+     * observed the conclusion. The watcher normally reports and marks the
+     * launch reported=true; this sweep catches everything else (healed
+     * launches, watchers that died before reporting, pre-analytics legacy).
+     *
+     * @param list<string> $events
+     */
     private function stampFinishedAgents(TaskCtx $ctx, array &$events): void
     {
         $task = $ctx->task;
-        $now = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->getTimestamp();
+        $now = $this->time->parseTs($this->time->utcnow())->getTimestamp();
         $changed = false;
         foreach ($task->agentLaunches as $label => $record) {
-            if (null !== $record->finishedAt || null === $record->launchedAt) {
+            if ($record->reported || null === $record->launchedAt) {
                 continue;
             }
-            if ($record->attempts < self::LAUNCH_MAX_ATTEMPTS) {
-                continue; // still within the healing window; don't preempt relaunch
+            $finishedAt = $record->finishedAt;
+            if (null === $finishedAt) {
+                if ($record->attempts < self::LAUNCH_MAX_ATTEMPTS) {
+                    continue; // still within the healing window; don't preempt relaunch
+                }
+                $ageS = $now - $this->time->parseTs($record->launchedAt)->getTimestamp();
+                if ($ageS < self::LAUNCH_WINDOW_S) {
+                    continue; // give the agent time to show up before declaring it done
+                }
+                // PABLO gave up retrying a PABLO-triggered agent, it launched a
+                // while back and the task hasn't moved: its run has concluded and
+                // the ball is with the user (review the plan, commit-and-pr).
+                // PABLO-owned, so it never depends on Orca reporting the agent.
+                $finishedAt = $this->time->utcnow();
+                $events[] = "{$task->branch}: {$record->agent->value} finished → waiting for feedback";
             }
-            $ageS = $now - (new \DateTimeImmutable($record->launchedAt))->getTimestamp();
-            if ($ageS < self::LAUNCH_WINDOW_S) {
-                continue; // give the agent time to show up before declaring it done
+            $runId = $record->runId ?? bin2hex(random_bytes(8));
+            try {
+                $this->analytics->agentRunFinished(new AgentRunRecord(
+                    project: $task->project,
+                    branch: $task->branch,
+                    runId: $runId,
+                    agent: $record->agent->value,
+                    backend: 'unknown',
+                    startedAt: $record->launchedAt,
+                    finishedAt: $finishedAt,
+                    durationS: max(0, $this->time->parseTs($finishedAt)->getTimestamp() - $this->time->parseTs($record->launchedAt)->getTimestamp()),
+                    usage: $this->usage->harvest($task->worktreePath, $record->launchedAt, null),
+                ));
+            } catch (\Throwable) {
+                // analytics is best-effort by contract; still mark reported so
+                // a poison run cannot re-harvest every cycle.
             }
-            // PABLO gave up retrying a PABLO-triggered agent, it launched a
-            // while back and the task hasn't moved: its run has concluded and
-            // the ball is with the user (review the plan, commit-and-pr).
-            // PABLO-owned, so it never depends on Orca reporting the agent.
             $task->agentLaunches[$label] = new AgentLaunch(
                 $record->agent,
                 $record->launchedAt,
                 $record->attempts,
-                $this->time->utcnow(),
+                $finishedAt,
+                runId: $runId,
+                reported: true,
             );
-            $events[] = "{$task->branch}: {$record->agent->value} finished → waiting for feedback";
             $changed = true;
         }
         if ($changed) {

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\StateMachine;
 
+use Pablo\Analytics\AnalyticsInterface;
+use Pablo\Analytics\NullAnalytics;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\State;
@@ -45,6 +47,7 @@ final class StateMachine
         private readonly ProviderRegistryInterface $providers,
         private readonly RepoSlug $repoSlug,
         private readonly Time $time,
+        private readonly AnalyticsInterface $analytics = new NullAnalytics(),
     ) {
     }
 
@@ -305,6 +308,9 @@ final class StateMachine
             ($stateDef['onEnter'])($ctx);
         }
         $ctx->store->save($ctx->task);
+        // Only after a successful save: a transition that failed to persist
+        // must not pollute the analytics timeline.
+        $this->analytics->stateEntered($ctx->task, $ctx->previousState);
     }
 
     public function toggleWaiting(TaskCtx $ctx): State

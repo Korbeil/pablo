@@ -157,7 +157,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         return "pid:{$pid}";
     }
 
-    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null): void
+    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null, ?string $runId = null, ?string $promptFingerprint = null): void
     {
         $argv = [
             $this->shimPath, 'internal:watch-agent',
@@ -169,6 +169,14 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         if (null !== $expectState) {
             $argv[] = '--expect-state';
             $argv[] = $expectState;
+        }
+        if (null !== $runId) {
+            $argv[] = '--run-id';
+            $argv[] = $runId;
+        }
+        if (null !== $promptFingerprint) {
+            $argv[] = '--prompt-fingerprint';
+            $argv[] = $promptFingerprint;
         }
         $this->spawnDetached($argv);
     }

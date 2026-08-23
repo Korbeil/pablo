@@ -29,6 +29,9 @@ final class FakeAgents implements AgentLauncherInterface
     /** @var list<string> recorded display names */
     public array $displayNames = [];
 
+    /** @var list<array{run_id: ?string, fingerprint: ?string}> every spawnWatcher() invocation */
+    public array $watchers = [];
+
     public bool $hasAnyOrcaAgent = false;
 
     public ?string $workingTreeSessionsKey = null;
@@ -99,8 +102,9 @@ final class FakeAgents implements AgentLauncherInterface
     {
     }
 
-    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null): void
+    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null, ?string $runId = null, ?string $promptFingerprint = null): void
     {
+        $this->watchers[] = ['run_id' => $runId, 'fingerprint' => $promptFingerprint];
     }
 
     public function setWorktreeDisplayName(string $worktree, string $name, ?string $issueNumber = null): void
