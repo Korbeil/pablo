@@ -267,6 +267,64 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->assertNotNull($launch->runId);
     }
 
+    public function testWatchAgentDoesNotReReportAnAlreadyReportedLaunch(): void
+    {
+        $task = $this->getTask();
+        $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(
+            Agent::TaskAnalyst,
+            '2026-08-11T00:00:00+00:00',
+            1,
+            '2026-08-11T00:05:00+00:00',
+            runId: 'seeded-run',
+            reported: true,
+        );
+        $this->store->save($task);
+
+        $analytics = new FakeAnalytics();
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, $analytics, new \Pablo\Analytics\OpenCodeUsage($this->runner)), [
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+            '--handle' => 't1',
+            '--agent' => 'task-analyst',
+            '--backend' => 'openchamber',
+        ]);
+        $this->assertSame(0, $tester->getStatusCode());
+        // The sweep got there first: no second event may be emitted.
+        $this->assertSame([], $analytics->runsFinished);
+        $launch = $this->getTask()->agentLaunches['task-analyst'];
+        $this->assertTrue($launch->reported);
+        $this->assertSame('seeded-run', $launch->runId);
+    }
+
+    public function testLaunchAgentPersistsRunIdOnTheLaunchRecord(): void
+    {
+        $task = $this->getTask();
+        $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, '2026-08-11T00:00:00+00:00', 1);
+        $this->store->save($task);
+
+        $analytics = new FakeAnalytics();
+        $tester = $this->runCommand(new \Pablo\Command\Internal\InternalLaunchAgentCommand($analytics, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+            '--worktree' => $this->wt,
+            '--agent' => 'task-analyst',
+            '--prompt' => 'plan the thing',
+            '--backend' => 'orca',
+        ]);
+        $this->assertSame(0, $tester->getStatusCode());
+
+        // The generated run id is persisted onto the launch record so a
+        // sweep-emitted finished event keeps the same id as its start event.
+        $runId = $analytics->runsStarted[0]['runId'];
+        $this->assertNotSame('', $runId);
+        $launch = $this->getTask()->agentLaunches['task-analyst'];
+        $this->assertSame($runId, $launch->runId);
+        $this->assertFalse($launch->reported);
+        // Launch metadata is preserved, not restamped.
+        $this->assertSame('2026-08-11T00:00:00+00:00', $launch->launchedAt);
+        $this->assertSame(1, $launch->attempts);
+    }
+
     public function testRelaunchFiresBothAndResetsCounters(): void
     {
         $this->writeProjects('/setup.sh');

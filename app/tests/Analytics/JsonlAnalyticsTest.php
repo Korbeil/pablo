@@ -129,6 +129,34 @@ final class JsonlAnalyticsTest extends TestCase
         $this->assertSame('openchamber', $event['backend']);
     }
 
+    public function testDuplicateAgentRunFinishedIsAppendedOnce(): void
+    {
+        $analytics = new JsonlAnalytics();
+        $finish = static fn (string $runId, string $backend, string $finishedAt): \Pablo\Analytics\AgentRunRecord => new \Pablo\Analytics\AgentRunRecord(
+            project: 'proj',
+            branch: 'br-1',
+            runId: $runId,
+            agent: 'task-analyst',
+            backend: $backend,
+            startedAt: '2026-08-01T00:00:00+00:00',
+            finishedAt: $finishedAt,
+            durationS: 1800,
+            usage: null,
+        );
+        $analytics->agentRunFinished($finish('r1', 'openchamber', '2026-08-01T00:30:00+00:00'));
+        // A sweep twin (different run id/backend, same run identity) is dropped.
+        $analytics->agentRunFinished($finish('r2', 'unknown', '2026-08-01T00:30:00+00:00'));
+
+        $file = $this->root.'/proj/'.gmdate('Y-m').'.jsonl';
+        $lines = file($file, \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES) ?: [];
+        $this->assertCount(1, $lines);
+
+        // A genuinely different finish is a different run and still lands.
+        $analytics->agentRunFinished($finish('r3', 'openchamber', '2026-08-01T01:10:00+00:00'));
+        $lines = file($file, \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES) ?: [];
+        $this->assertCount(2, $lines);
+    }
+
     public function testTaskClosedCarriesFinalMetadata(): void
     {
         $analytics = new JsonlAnalytics();

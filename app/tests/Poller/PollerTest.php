@@ -661,6 +661,24 @@ final class PollerTest extends TestCase
         $this->assertSame([], array_values(array_filter($events, static fn (string $e) => str_contains($e, 'waiting for feedback'))));
     }
 
+    public function testReportedLaunchIsNeverReReportedBySweep(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::InProgress));
+        $this->setState($store, State::InProgress, ['prNumber' => null]);
+        // The watcher already reported this launch (reported=true): the sweep
+        // must not emit a second event for the same run.
+        $this->setLaunch($store, 'task-analyst', 1, 0, finishedAt: '2026-08-01T05:00:00+00:00', reported: true);
+
+        $analytics = new FakeAnalytics();
+        $poller = $this->analyticsPoller($analytics);
+        $poller->pollProject($cfg, $store, $this->agents);
+
+        $this->assertSame([], $analytics->runsFinished);
+    }
+
     public function testRelaunchesMissingAgentPastWindow(): void
     {
         foreach ([

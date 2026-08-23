@@ -26,6 +26,23 @@ and marking it reported. Every concluded PABLO-triggered run therefore
 appears exactly once, regardless of which component observed the
 conclusion, at no extra cost beyond the existing poll cadence.
 
+That guarantee is enforced at three layers, so a bug or version skew in any
+one component can never double-count a run:
+
+1. **Caller idempotence** — both emitters skip runs already marked
+   `reported`: a slow watcher never re-reports after the sweep, and the
+   sweep never re-emits after the watcher. Launches also persist their run
+   id at launch time, so sweep-emitted events keep the same id as their
+   `agent_run_started`.
+2. **Log-level guard** — `agentRunFinished` refuses to append an event whose
+   identity (project + branch + agent + started_at + finished_at) already
+   exists in the current or previous month file.
+3. **Read-time dedup** — the aggregator collapses finished events sharing
+   that identity into one run, keeping the richest row (real backend over
+   `unknown`, better harvest quality, non-null usage). Historical duplicates
+   from earlier builds are thus invisible to `pablo stats` and the dashboard
+   even though they remain in the log.
+
 From these, `pablo stats` derives:
 
 - **Task lifetimes** — open→close duration avg/p50/p90 and merge rate per

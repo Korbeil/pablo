@@ -138,6 +138,41 @@ final class AnalyticsAggregatorTest extends TestCase
         ];
     }
 
+    public function testDuplicateFinishedRunsAreCountedOnceWithRichestRowWinning(): void
+    {
+        $iso = static fn (int $offset): string => gmdate('Y-m-d\TH:i:sP', time() + ((int) self::BASE) + $offset);
+
+        $events = [
+            AnalyticsEvent::fromEvent(['ts' => $iso(0), 'type' => 'task_opened', 'project' => 'proj', 'branch' => 'wk-1']),
+            AnalyticsEvent::fromEvent(['ts' => $iso(100), 'type' => 'agent_run_started', 'project' => 'proj', 'branch' => 'wk-1', 'run_id' => 'r1', 'agent' => 'task-analyst', 'backend' => 'orca', 'launched_at' => $iso(0)]),
+            // Watcher emission: real backend, window harvest with usage.
+            AnalyticsEvent::fromEvent([
+                'ts' => $iso(200), 'type' => 'agent_run_finished', 'project' => 'proj', 'branch' => 'wk-1',
+                'run_id' => 'r1', 'agent' => 'task-analyst', 'backend' => 'openchamber',
+                'started_at' => $iso(0), 'finished_at' => $iso(200), 'duration_s' => 200,
+                'input' => 300, 'output' => 40, 'reasoning' => 10, 'cache_read' => 700,
+                'cache_write' => 0, 'tokens_total' => 1050, 'cost' => 0.0,
+                'models' => ['opencode-go/x'], 'session_id' => 'ses_a', 'harvest' => 'window',
+            ]),
+            // Sweep twin: same run identity, unknown backend, no usage — skipped.
+            AnalyticsEvent::fromEvent([
+                'ts' => $iso(4000), 'type' => 'agent_run_finished', 'project' => 'proj', 'branch' => 'wk-1',
+                'run_id' => 'random', 'agent' => 'task-analyst', 'backend' => 'unknown',
+                'started_at' => $iso(0), 'finished_at' => $iso(200), 'duration_s' => 200,
+                'input' => null, 'output' => null, 'reasoning' => null, 'cache_read' => null,
+                'cache_write' => null, 'tokens_total' => null, 'cost' => null,
+                'models' => [], 'session_id' => null, 'harvest' => 'none',
+            ]),
+        ];
+
+        $agent = $this->aggregator()->agentStats($events)['task-analyst'];
+
+        $this->assertSame(1, $agent['runs']);
+        $this->assertSame(1, $agent['starts']);
+        $this->assertSame(300, $agent['tokens_in']);
+        $this->assertSame(700, $agent['cache_read']);
+    }
+
     private function aggregator(): AnalyticsAggregator
     {
         return new AnalyticsAggregator(new Time());

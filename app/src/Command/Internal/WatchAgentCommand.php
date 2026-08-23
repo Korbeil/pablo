@@ -74,7 +74,10 @@ final class WatchAgentCommand extends Command
             if (null !== $agentName) {
                 $agent = Agent::tryByName((string) $agentName);
                 $launch = null !== $agent ? ($task->agentLaunches[$agent->value] ?? null) : null;
-                if (null !== $launch) {
+                // The poller's sweep may already have reported this run (slow
+                // watcher past its healing window); emitting again would
+                // double-count it in analytics.
+                if (null !== $launch && !$launch->reported) {
                     // The agent's run has concluded; the ball is with the user
                     // (review the plan and commit-and-PR) until they act.
                     $finishedAt = $this->time->utcnow();

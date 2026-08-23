@@ -10,6 +10,8 @@ use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\OpenCodeUsage;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Domain\Agent;
+use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -61,11 +63,44 @@ final class InternalLaunchAgentCommand extends Command
         // Record the attempt before launching: a failed/hanging launch must
         // still count as an agent run started.
         $this->analytics->agentRunStarted($project, $branch, $worktree, $agent, $backend, $runId, $this->time->utcnow(), $prompt);
+        // Persist the run id onto the launch record so a sweep-emitted
+        // agent_run_finished keeps the same id as its agent_run_started.
+        $this->persistRunId($project, $branch, $agent, $runId);
         $agents = $this->agentLaunchers->create($backend);
         $handle = $agents->doLaunchAgent($worktree, $agent, $prompt);
         $agents->spawnWatcher($project, $branch, $handle, $agent, '', null, $runId, OpenCodeUsage::fingerprint($prompt));
         $agents->refreshAgentDisplayCache($project, $branch, $worktree);
 
         return self::SUCCESS;
+    }
+
+    private function persistRunId(string $project, string $branch, string $agent, string $runId): void
+    {
+        try {
+            $store = $this->store();
+            $lock = $store->taskLock($project, $branch);
+            try {
+                $task = $store->get($project, $branch);
+                $agentEnum = Agent::tryByName($agent);
+                $label = null !== $agentEnum ? $agentEnum->value : $agent;
+                $existing = null !== $task ? ($task->agentLaunches[$label] ?? null) : null;
+                if (null === $task || null === $existing || $existing->reported) {
+                    return;
+                }
+                $task->agentLaunches[$label] = new AgentLaunch(
+                    $existing->agent,
+                    $existing->launchedAt,
+                    $existing->attempts,
+                    $existing->finishedAt,
+                    runId: $runId,
+                    reported: false,
+                );
+                $store->save($task);
+            } finally {
+                $lock->release();
+            }
+        } catch (\Throwable) {
+            // best-effort: the watcher argv carries the same run id anyway
+        }
     }
 }

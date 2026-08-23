@@ -104,6 +104,7 @@ final class AnalyticsAggregator
 
         /** @var array<string, int> $started */
         $started = [];
+        $superseded = self::supersededFinishedEvents($events);
         foreach ($events as $event) {
             if ('agent_run_started' === $event->type()) {
                 $name = (string) $event->get('agent');
@@ -112,6 +113,9 @@ final class AnalyticsAggregator
                 }
                 $started[$name] = ($started[$name] ?? 0) + 1;
             } elseif ('agent_run_finished' === $event->type()) {
+                if (isset($superseded[spl_object_id($event)])) {
+                    continue; // duplicate emission of an already-counted run
+                }
                 $name = (string) $event->get('agent');
                 if ('' !== $agentFilter && $name !== $agentFilter) {
                     continue;
@@ -156,6 +160,69 @@ final class AnalyticsAggregator
         uasort($stats, static fn (array $a, array $b) => $b['runs'] <=> $a['runs']);
 
         return $stats;
+    }
+
+    /**
+     * Duplicate finished emissions (version skew, a duplicated watcher or a
+     * sweep racing its watcher) must never double-count a run. Twins share
+     * project + branch + agent + started_at + finished_at; all but the
+     * richest row of each group are skipped by agentStats.
+     *
+     * @param list<AnalyticsEvent> $events
+     *
+     * @return array<int, true> spl_object_id => true for every event to skip
+     */
+    private static function supersededFinishedEvents(array $events): array
+    {
+        /** @var array<string, AnalyticsEvent> $best */
+        $best = [];
+        $skip = [];
+        foreach ($events as $event) {
+            if ('agent_run_finished' !== $event->type()) {
+                continue;
+            }
+            $key = implode('|', [
+                $event->project(),
+                $event->branch(),
+                (string) $event->get('agent'),
+                (string) $event->get('started_at'),
+                (string) $event->get('finished_at'),
+            ]);
+            $incumbent = $best[$key] ?? null;
+            if (null === $incumbent) {
+                $best[$key] = $event;
+
+                continue;
+            }
+            $loser = self::richerThan($event, $incumbent) ? $incumbent : $event;
+            if ($loser === $incumbent) {
+                $best[$key] = $event;
+            }
+            $skip[spl_object_id($loser)] = true;
+        }
+
+        return $skip;
+    }
+
+    private static function richerThan(AnalyticsEvent $candidate, AnalyticsEvent $incumbent): bool
+    {
+        return self::richness($candidate) > self::richness($incumbent);
+    }
+
+    /** @return array{0: int, 1: int, 2: int} */
+    private static function richness(AnalyticsEvent $event): array
+    {
+        $quality = match ((string) $event->get('harvest')) {
+            'exact' => 2,
+            'window' => 1,
+            default => 0,
+        };
+
+        return [
+            'unknown' === (string) $event->get('backend') ? 0 : 1,
+            $quality,
+            null !== $event->get('tokens_total') || '' !== (string) $event->get('session_id') ? 1 : 0,
+        ];
     }
 
     /**

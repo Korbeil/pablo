@@ -80,6 +80,9 @@ final class JsonlAnalytics implements AnalyticsInterface
 
     public function agentRunFinished(AgentRunRecord $run): void
     {
+        if ($this->alreadyReported($run)) {
+            return;
+        }
         $usage = $run->usage;
         $this->record($run->project, [
             'type' => 'agent_run_finished',
@@ -122,6 +125,53 @@ final class JsonlAnalytics implements AnalyticsInterface
             'agent_runs' => $attempts,
             'duration_s' => $durationS,
         ]);
+    }
+
+    /**
+     * Exactly-once guard at the log level: a finished run is identified by
+     * project + branch + agent + started_at + finished_at. Version skew or a
+     * duplicated watcher/sweep must never append the same run twice. Scans
+     * the current and previous month file (runs can straddle a month end).
+     */
+    private function alreadyReported(AgentRunRecord $run): bool
+    {
+        try {
+            $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+            $months = array_unique([
+                $now->format('Y-m'),
+                $now->modify('-1 month')->format('Y-m'),
+            ]);
+            foreach ($months as $month) {
+                $file = self::root().'/'.$run->project.'/'.$month.'.jsonl';
+                if (!is_file($file)) {
+                    continue;
+                }
+                $handle = @fopen($file, 'r');
+                if (false === $handle) {
+                    continue;
+                }
+                try {
+                    while (false !== ($line = fgets($handle))) {
+                        $event = json_decode(trim($line), true);
+                        if (!\is_array($event) || 'agent_run_finished' !== ($event['type'] ?? null)) {
+                            continue;
+                        }
+                        if (($event['branch'] ?? null) === $run->branch
+                            && ($event['agent'] ?? null) === $run->agent
+                            && ($event['started_at'] ?? null) === $run->startedAt
+                            && ($event['finished_at'] ?? null) === $run->finishedAt) {
+                            return true;
+                        }
+                    }
+                } finally {
+                    fclose($handle);
+                }
+            }
+        } catch (\Throwable) {
+            // best-effort: on any doubt, allow the append
+        }
+
+        return false;
     }
 
     /**
