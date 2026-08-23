@@ -269,7 +269,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $typeTabs = $crawler->filter('[aria-label="Filter by project type"] a');
         $this->assertSame(4, $typeTabs->count());
         foreach ($typeTabs as $node) {
-            /* @var \DOMElement $node */
+            /** @var \DOMElement $node */
             $this->assertStringContainsString('days=7', (string) $node->getAttribute('href'));
         }
         $active = $crawler->filter('[aria-label="Filter by project type"] li.is-active');

@@ -55,25 +55,35 @@ the DI container cache).
 
 ## Token/cost harvesting
 
-Both Orca-launched (interactive terminal) and headless `opencode run`
-sessions land in the same local OpenCode storage. When an agent run
-concludes, PABLO lists recent OpenCode sessions whose directory matches the
-worktree and whose creation is not before the launch time, then attributes
-usage:
+Where usage is read from depends on how the run was launched:
 
-- With a prompt fingerprint available (sha256 prefix of the launch prompt,
-  computed in memory), each candidate session is exported and matched
-  against its first user message → `harvest: "exact"`.
-- Without a match (or without a fingerprint) every candidate in the window
-  is merged → `harvest: "window"`.
-- Nothing found (OpenCode absent, empty output) → usage fields are null and
-  `harvest: "none"`; timing is still recorded.
+- **OpenChamber backend** — those sessions live behind OpenChamber's own
+  OpenCode server, which the plain `opencode` CLI's project-scoped
+  `session list` / `export` cannot see. PABLO therefore aggregates the
+  session rows returned by `openchamber session list --dir <worktree>`
+  (per-session tokens, cache, cost and model), keeping every session created
+  at/after the launch time (minus a small grace) → `harvest: "window"`.
+  Rows carry no transcripts, so prompt fingerprints are not matched on this
+  path.
+- **Orca / headless `opencode run`** — both land in the same local OpenCode
+  storage. PABLO lists recent sessions whose directory matches the worktree
+  and whose creation is not before the launch time:
+  - With a prompt fingerprint available (sha256 prefix of the launch prompt,
+    computed in memory), each candidate session is exported and matched
+    against its first user message → `harvest: "exact"`.
+  - Without a match (or without a fingerprint) every candidate in the window
+    is merged → `harvest: "window"`.
+- Nothing found (CLI absent, no candidates, empty output) → usage fields are
+  null and `harvest: "none"`; timing is still recorded.
 
-Per assistant message OpenCode reports `input` / `output` / `reasoning` /
-`cache.read` / `cache.write` / `total` plus cost and model id; PABLO sums
-those across the session. Note `cache.write` counts tokens written to the
-prompt cache during that step, so hit rate is a per-run aggregate — which is
-what makes agent-to-agent comparison meaningful.
+Token accounting follows OpenCode's own numbers — `input` / `output` /
+`reasoning` / `cache.read` / `cache.write` / total plus cost and model id —
+summed per assistant message on the OpenCode-storage path and pre-summed per
+session on the OpenChamber path. Note `cache.write` counts tokens written to
+the prompt cache during that step, so hit rate is a per-run aggregate —
+which is what makes agent-to-agent comparison meaningful. Subscription
+plans report zero cost on both paths, so accumulated cost can legitimately
+stay at zero while token counts are real.
 
 ## Privacy
 
