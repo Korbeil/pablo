@@ -316,8 +316,10 @@ final class Poller
         }
 
         if (null !== $task->prNumber && $this->gh->isMerged($slug, $task->prNumber)) {
+            // Set before branching: the close event below is what analytics
+            // records, and the flag must be true on the immediate path too.
+            $task->merged = true;
             if ([] !== $ctx->agents->activeSessions($task->worktreePath)) {
-                $task->merged = true;
                 $ctx->store->save($task);
                 $events[] = "{$task->branch}: PR merged, close deferred (agents still running)";
             } else {

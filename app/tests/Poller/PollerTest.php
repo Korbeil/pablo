@@ -492,6 +492,27 @@ final class PollerTest extends TestCase
         $this->assertSame(['pr-1'], array_column($this->git->removed, 1));
     }
 
+    public function testMergeImmediateCloseRecordsMergedTrue(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp']));
+        $this->stubs['merged'] = true;
+
+        // No active agent sessions: the poller takes the immediate-close
+        // branch, and the emitted task_closed event must carry merged=true.
+        $analytics = new FakeAnalytics();
+        $poller = $this->analyticsPoller($analytics);
+        $events = $poller->pollProject($cfg, $store, $this->agents);
+
+        $this->assertNull($this->getTask($store));
+        $this->assertStringContainsString('PR merged', implode("\n", $events));
+        $this->assertCount(1, $analytics->closed);
+        $this->assertTrue($analytics->closed[0]->merged);
+        $this->assertSame(7, $analytics->closed[0]->prNumber);
+    }
+
     public function testPrNumberDiscoveredForDraft(): void
     {
         $e = $this->newEnv();
