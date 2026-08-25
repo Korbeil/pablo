@@ -22,8 +22,9 @@ rules documented below, never on its own judgement.
 
 ## Quick start
 
-Prerequisites: PHP 8.4.1+ + Composer, `gh` (+ `gh auth login`), the Orca
-and opencode apps, the Atlassian CLI `acli` (`acli auth login`). Full details and
+Prerequisites: PHP 8.4.1+ + Composer, `gh` (+ `gh auth login`), the opencode
+app plus an agent backend (Orca or OpenChamber — see below), and the
+Atlassian CLI `acli` (`acli auth login`). Full details and
 platform-specific steps: [docs/installation.md](docs/installation.md).
 
 ```bash
@@ -33,6 +34,21 @@ platform-specific steps: [docs/installation.md](docs/installation.md).
 pablo system:doctor        # verify everything's installed and authenticated
 pablo system:setup         # or walk through fixing CLIs one step at a time
 ```
+
+### Agent backends
+
+PABLO launches its agents through a pluggable backend:
+
+- **Orca** (default) — task worktrees are registered with `orca repo add`,
+  and agents run in Orca terminals you can open and chat with.
+- **OpenChamber** — set `agent_backend: openchamber` in
+  `~/.pablo/config.yaml` (or `PABLO_AGENT_BACKEND=openchamber`) to use the
+  directory-based OpenChamber CLI instead — no repo registration step.
+- **Headless fallback** — repos not registered with Orca automatically fall
+  back to plain `opencode run`, so PABLO works without either backend.
+
+Details: [docs/background-layer.md](docs/background-layer.md#agent-running--activity-orca-cli)
+and [docs/installation.md](docs/installation.md).
 
 Add a project with the interactive wizard (`pablo project:new`) or by dropping a
 YAML file in `~/.pablo/projects/` (copy the template
