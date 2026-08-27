@@ -1,5 +1,5 @@
 mode: primary
-model: opencode-go/ox-alpha-free
+model: openrouter/z-ai/glm-5.3-flash
 temperature: 0.2
 permission:
   edit: deny
