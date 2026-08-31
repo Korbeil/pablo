@@ -15,9 +15,9 @@ use Symfony\UX\LiveComponent\ComponentToolsTrait;
 use Symfony\UX\LiveComponent\DefaultActionTrait;
 
 /**
- * Both task tables, re-rendered on a poll.
+ * All three task tables, re-rendered on a poll.
  *
- * One Dashboard::board() call feeds both tables, and it reads only the
+ * One Dashboard::board() call feeds all three tables, and it reads only the
  * poller-written display cache — so a re-render is a handful of file reads,
  * never a gh/orca/tracker call.
  */
@@ -44,6 +44,12 @@ final class TaskBoard
     public function attention(): array
     {
         return $this->board()->attention;
+    }
+
+    /** @return list<TaskView> */
+    public function working(): array
+    {
+        return $this->board()->working;
     }
 
     /** @return list<TaskView> */

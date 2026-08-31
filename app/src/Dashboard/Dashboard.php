@@ -18,9 +18,9 @@ use Pablo\Support\RepoSlug;
 /**
  * Everything the dashboard renders, read straight off disk.
  *
- * The two tables use Listing::isWaitingForFeedback() — the same predicate the
- * terminal listing splits on — so `pablo tasks` and this page can never
- * disagree about what is waiting on you.
+ * The three tables use Listing::isWaitingForFeedback() / isWorking() — the
+ * same predicates the terminal listing splits on — so `pablo tasks` and this
+ * page can never disagree about where a task belongs.
  *
  * Deliberately cache-only: task rows come from the poller-written DisplayCache,
  * never from a live provider lookup, so the page paints instantly and a browser
@@ -76,7 +76,8 @@ final class Dashboard
     }
 
     /**
-     * The two tables: tasks needing attention, and everything else.
+     * The three tables: tasks needing attention, tasks with a working agent,
+     * and everything else.
      *
      * @param array<string, ProjectConfig>|null $projects
      */
@@ -85,6 +86,7 @@ final class Dashboard
         $projects ??= $this->projects();
 
         $attention = [];
+        $working = [];
         $rest = [];
         foreach ($this->store->allTasks() as $task) {
             $cfg = $projects[$task->project] ?? null;
@@ -94,15 +96,18 @@ final class Dashboard
             $view = $this->viewFor($task, $cfg);
             if ($view->needsAttention) {
                 $attention[] = $view;
+            } elseif ($view->working) {
+                $working[] = $view;
             } else {
                 $rest[] = $view;
             }
         }
 
         $this->sort($attention);
+        $this->sort($working);
         $this->sort($rest);
 
-        return new Board($attention, $rest);
+        return new Board($attention, $working, $rest);
     }
 
     /**
@@ -160,6 +165,7 @@ final class Dashboard
             since: $this->listing->timeSince($task->stateEnteredAt),
             worktreePath: $task->worktreePath,
             needsAttention: $this->listing->isWaitingForFeedback($task, $agents),
+            working: $this->listing->isWorking($agents),
             polledAt: $cache->at,
         );
     }

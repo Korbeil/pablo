@@ -370,6 +370,38 @@ final class ListingTest extends TestCase
         $this->assertGreaterThan($otherIdx, strpos($table, 'wk-46'));
     }
 
+    public function testTasksSplitIntoThreeSections(): void
+    {
+        $this->store->save($this->finished($this->task('wk-45', State::InProgress)));
+        $this->agents->bulk = ['/tmp/y' => [new SessionInfo('b', 'running')]];
+        $this->store->save($this->task('wk-46', State::Draft, null, null, null, '/tmp/y'));
+        $this->store->save($this->task('wk-47', State::NeedsTesting, null, null, null, '/tmp/z'));
+
+        $table = $this->listing->tasksTable($this->projects(), $this->store, $this->agents);
+        $waitingIdx = strpos($table, '💭 Waiting for feedback');
+        $workingIdx = strpos($table, '🏃 Working');
+        $otherIdx = strpos($table, 'Other tasks');
+        $this->assertNotFalse($waitingIdx);
+        $this->assertNotFalse($workingIdx);
+        $this->assertNotFalse($otherIdx);
+        $this->assertLessThan($workingIdx, $waitingIdx);
+        $this->assertLessThan($otherIdx, $workingIdx);
+        $this->assertLessThan($workingIdx, strpos($table, 'wk-45'));
+        $this->assertGreaterThan($workingIdx, strpos($table, 'wk-46'));
+        $this->assertGreaterThan($otherIdx, strpos($table, 'wk-47'));
+    }
+
+    public function testWorkingAgentPutsAnyStateInTheWorkingSection(): void
+    {
+        $this->agents->bulk = ['/tmp/x' => [new SessionInfo('a', 'running')]];
+        $this->store->save($this->task('wk-45', State::NeedsTesting));
+
+        $table = $this->listing->tasksTable($this->projects(), $this->store, $this->agents);
+        $this->assertStringContainsString('🏃 Working', $table);
+        $this->assertStringContainsString('wk-45', $table);
+        $this->assertStringNotContainsString('Other tasks', $table);
+    }
+
     public function testTasksSortedByState(): void
     {
         $this->store->save($this->task('wk-in-progress', State::InProgress, null, null, null, '/tmp/a'));
@@ -406,6 +438,7 @@ final class ListingTest extends TestCase
 
         $table = $this->listing->tasksTable($this->projects(), $this->store, $this->agents);
         $this->assertStringNotContainsString('💭 Waiting for feedback', $table);
+        $this->assertStringContainsString('🏃 Working', $table);
         $this->assertStringNotContainsString('Other tasks', $table);
         $this->assertStringContainsString('🏃 1', $table);
     }
@@ -417,6 +450,8 @@ final class ListingTest extends TestCase
 
         $table = $this->listing->tasksTable($this->projects(), $this->store, $this->agents);
         $this->assertStringNotContainsString('💭 Waiting for feedback', $table);
+        $this->assertStringContainsString('🏃 Working', $table);
+        $this->assertStringNotContainsString('Other tasks', $table);
         $this->assertStringContainsString('🏃 1 · 💭 1', $table);
     }
 
