@@ -72,4 +72,10 @@ final readonly class AgentActivity
     {
         return $this->waiting > 0;
     }
+
+    /** True when at least one agent is actively working right now. */
+    public function isRunning(): bool
+    {
+        return $this->running > 0;
+    }
 }

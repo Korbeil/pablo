@@ -65,6 +65,7 @@ render, so clock drift cannot accumulate.
 ```
 state ∈ {in-progress, ci-red, request-changes, testing-failed}
 AND an agent is waiting for input (💭)
+AND no agent is currently working (no 🏃)
 ```
 
 **Other tasks** — everything else.

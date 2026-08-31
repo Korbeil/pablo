@@ -70,13 +70,22 @@ final class Listing
      * union keeps existing behaviour while adding the PABLO-owned signal, which
      * is what surfaces an agent Orca has already evicted from its list.
      *
+     * A task with an agent currently working on it (🏃) never qualifies: the
+     * ball is not with the user yet, however many earlier runs have concluded.
+     *
      * Note it deliberately excludes needs-testing and waiting-review: those
      * mean the ball is with QA/reviewers, not with you.
      */
     public function isWaitingForFeedback(Task $task, ?AgentActivity $agents = null): bool
     {
-        return \in_array($task->state, self::WAITING_FEEDBACK_STATES, true)
-            && ($task->hasFinishedAgent() || (null !== $agents && $agents->isWaiting()));
+        if (!\in_array($task->state, self::WAITING_FEEDBACK_STATES, true)) {
+            return false;
+        }
+        if (null !== $agents && $agents->isRunning()) {
+            return false;
+        }
+
+        return $task->hasFinishedAgent() || (null !== $agents && $agents->isWaiting());
     }
 
     // ------------------------------------------------------- ordering ----

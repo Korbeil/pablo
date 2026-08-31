@@ -16,6 +16,7 @@ final class AgentActivityTest extends TestCase
         $this->assertSame(0, $a->total);
         $this->assertSame('-', $a->render());
         $this->assertFalse($a->isWaiting());
+        $this->assertFalse($a->isRunning());
     }
 
     public function testCountsAndRenders(): void
@@ -30,6 +31,14 @@ final class AgentActivityTest extends TestCase
         $this->assertSame(1, $a->waiting);
         $this->assertSame('🏃 2 · 💭 1', $a->render());
         $this->assertTrue($a->isWaiting());
+        $this->assertTrue($a->isRunning());
+    }
+
+    public function testWaitingAloneIsNotRunning(): void
+    {
+        $a = AgentActivity::fromSessions([new SessionInfo('h1', 'waiting')]);
+        $this->assertTrue($a->isWaiting());
+        $this->assertFalse($a->isRunning());
     }
 
     /**

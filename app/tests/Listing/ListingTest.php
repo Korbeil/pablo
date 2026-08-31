@@ -399,6 +399,36 @@ final class ListingTest extends TestCase
         $this->assertStringContainsString('wk-45', $table);
     }
 
+    public function testRunningAgentKeepsTaskOutOfWaitingSection(): void
+    {
+        $this->agents->bulk = ['/tmp/x' => [new SessionInfo('a', 'running')]];
+        $this->store->save($this->finished($this->task('wk-45', State::InProgress)));
+
+        $table = $this->listing->tasksTable($this->projects(), $this->store, $this->agents);
+        $this->assertStringNotContainsString('💭 Waiting for feedback', $table);
+        $this->assertStringNotContainsString('Other tasks', $table);
+        $this->assertStringContainsString('🏃 1', $table);
+    }
+
+    public function testRunningAgentWinsOverWaitingSession(): void
+    {
+        $this->agents->bulk = ['/tmp/x' => [new SessionInfo('a', 'waiting'), new SessionInfo('b', 'running')]];
+        $this->store->save($this->finished($this->task('wk-45', State::RequestChanges)));
+
+        $table = $this->listing->tasksTable($this->projects(), $this->store, $this->agents);
+        $this->assertStringNotContainsString('💭 Waiting for feedback', $table);
+        $this->assertStringContainsString('🏃 1 · 💭 1', $table);
+    }
+
+    public function testWaitingAgentStillSurfacesWhenNothingRunning(): void
+    {
+        $this->agents->bulk = ['/tmp/x' => [new SessionInfo('a', 'waiting')]];
+        $this->store->save($this->finished($this->task('wk-45', State::InProgress)));
+
+        $table = $this->listing->tasksTable($this->projects(), $this->store, $this->agents);
+        $this->assertStringContainsString('💭 Waiting for feedback', $table);
+    }
+
     public function testRenderSlackEmptyRowsWaitingReview(): void
     {
         $this->assertSame('No PRs waiting for review right now 🎉', $this->listing->renderSlack([], State::WaitingReview->value));

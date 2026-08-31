@@ -9,8 +9,10 @@ order):
 1. **💭 Waiting for feedback** — tasks in 🔨 in-progress, 🔴 ci-red,
    🔁 request-changes, or 🚨 testing-failed that also have at least one
    agent session in the waiting-on-feedback state (activity cell contains
-   `💭`). Tasks in any other state always appear in "Other tasks",
-   regardless of agent activity.
+   `💭`) and no agent currently working on them (an activity cell with
+   `🏃` keeps the task out of this section — the ball is not with you
+   yet, however many earlier runs have concluded). Tasks in any other
+   state always appear in "Other tasks", regardless of agent activity.
 2. **Other tasks** — everything else. The "Other tasks" header is
    omitted when there are no waiting-feedback tasks, preserving the
    single-table look for the common case.
