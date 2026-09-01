@@ -34,9 +34,13 @@ final class OpenChamberTest extends TestCase
         mkdir($this->tmp, 0o777, true);
         $this->agentsDir = $this->tmp.'/agents';
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
+        $this->agentFilesDir = $this->tmp.'/agent-files';
+        mkdir($this->agentFilesDir, 0o777, true);
         $this->runner = new FakeProcessRunner();
-        $this->agents = new OpenChamber($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo');
+        $this->agents = new OpenChamber($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo', $this->agentFilesDir);
     }
+
+    private string $agentFilesDir;
 
     protected function tearDown(): void
     {
@@ -98,7 +102,75 @@ final class OpenChamberTest extends TestCase
 
         $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'hi');
         // Falls back to the shared headless path -> pid handle.
+
         $this->assertStringStartsWith('pid:', $handle);
+    }
+
+    public function testLaunchPinsModelFromAgentFrontmatter(): void
+    {
+        file_put_contents($this->agentFilesDir.'/task-analyst.md', <<<'MD'
+---
+mode: primary
+model: opencode-go/glm-5.3-flash
+temperature: 0.2
+---
+
+Body.
+MD);
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+            if (\in_array('create', $argv, true)) {
+                return $this->ocOk(['sessionId' => 'ses_abc', 'directory' => $this->tmp, 'title' => 'pablo:task-analyst']);
+            }
+
+            return $this->ocOk(['action' => 'send', 'sessionId' => 'ses_abc']);
+        });
+
+        $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'Analyze issue #45');
+
+        $this->assertSame('ses_abc', $handle);
+        $this->assertSame('opencode-go/glm-5.3-flash', $this->argvValue($calls[0], '--model'));
+        $this->assertSame('opencode-go/glm-5.3-flash', $this->argvValue($calls[1], '--model'));
+    }
+
+    public function testLaunchOmitsModelWhenFrontmatterHasNone(): void
+    {
+        file_put_contents($this->agentFilesDir.'/task-analyst.md', <<<'MD'
+---
+mode: primary
+---
+
+Body.
+MD);
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+            if (\in_array('create', $argv, true)) {
+                return $this->ocOk(['sessionId' => 'ses_abc', 'directory' => $this->tmp, 'title' => 'pablo:task-analyst']);
+            }
+
+            return $this->ocOk(['action' => 'send', 'sessionId' => 'ses_abc']);
+        });
+
+        $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'Analyze issue #45');
+
+        $this->assertNull($this->argvValue($calls[0], '--model'));
+        $this->assertNull($this->argvValue($calls[1], '--model'));
+    }
+
+    /** @param array<mixed> $argv
+     *
+     * @return string|null value following the flag, or null when absent
+     */
+    private function argvValue(array $argv, string $flag): ?string
+    {
+        $key = array_search($flag, $argv, true);
+        if (false === $key) {
+            return null;
+        }
+
+        return (string) $argv[(int) $key + 1];
     }
 
     private function writeSession(string $sessionId, string $worktree): void

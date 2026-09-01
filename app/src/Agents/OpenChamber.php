@@ -34,9 +34,13 @@ final class OpenChamber extends AbstractAgentLauncher
         Time $time = new Time(),
         ?Store $store = null,
         ?string $shimPath = null,
+        ?string $agentsDir = null,
     ) {
         parent::__construct($runner, $time, $store, $shimPath, 'openchamber');
+        $this->agentFilesDir = $agentsDir ?? \dirname(__DIR__, 3).'/opencode/agents';
     }
+
+    private readonly string $agentFilesDir;
 
     /** @param list<string> $argv
      *
@@ -56,20 +60,57 @@ final class OpenChamber extends AbstractAgentLauncher
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt): string
     {
-        $created = $this->openchamber([
+        $model = $this->agentModel($agent);
+        $create = [
             'session', 'create', '--dir', $worktree, '--title', 'pablo:'.$agent,
-        ]);
+        ];
+        if (null !== $model) {
+            $create[] = '--model';
+            $create[] = $model;
+        }
+        $created = $this->openchamber($create);
         $sessionId = $created['sessionId'] ?? null;
         if (!\is_string($sessionId) || '' === $sessionId) {
             return $this->launchHeadless($worktree, $agent, $prompt);
         }
         $this->writeSessionPidfile($sessionId, $worktree, $agent);
-        $this->openchamber([
+        $send = [
             'session', 'send', '--session', $sessionId, '--dir', $worktree,
             '--prompt', $prompt, '--agent', $agent,
-        ]);
+        ];
+        if (null !== $model) {
+            $send[] = '--model';
+            $send[] = $model;
+        }
+        $this->openchamber($send);
 
         return $sessionId;
+    }
+
+    /**
+     * The model declared in the agent's frontmatter (`opencode/agents/<agent>.md`,
+     * the same file `system:generate-agents` writes and `install.sh` symlinks into
+     * ~/.config/opencode). OpenChamber otherwise falls back to its own
+     * "configured selection", which can silently pick a different model than the
+     * one the agent config declares.
+     *
+     * @return string|null null when the file or a `model:` line is missing
+     */
+    private function agentModel(string $agent): ?string
+    {
+        $path = $this->agentFilesDir.'/'.$agent.'.md';
+        if (!is_file($path)) {
+            return null;
+        }
+        $content = (string) file_get_contents($path);
+        if (1 !== preg_match('/^---\R(.*?)\R---\R/su', $content, $m)) {
+            return null;
+        }
+        if (1 !== preg_match('/^model:\s*(\S+)\s*$/m', $m[1], $model)) {
+            return null;
+        }
+
+        return $model[1];
     }
 
     public function doRunStartupScript(string $worktree, string $script): string
