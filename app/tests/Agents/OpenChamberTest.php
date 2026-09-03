@@ -111,7 +111,7 @@ final class OpenChamberTest extends TestCase
         file_put_contents($this->agentFilesDir.'/task-analyst.md', <<<'MD'
 ---
 mode: primary
-model: opencode-go/glm-5.3-flash
+model: litellm/glm-5.3-flash
 temperature: 0.2
 ---
 
@@ -130,8 +130,8 @@ MD);
         $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'Analyze issue #45');
 
         $this->assertSame('ses_abc', $handle);
-        $this->assertSame('opencode-go/glm-5.3-flash', $this->argvValue($calls[0], '--model'));
-        $this->assertSame('opencode-go/glm-5.3-flash', $this->argvValue($calls[1], '--model'));
+        $this->assertSame('litellm/glm-5.3-flash', $this->argvValue($calls[0], '--model'));
+        $this->assertSame('litellm/glm-5.3-flash', $this->argvValue($calls[1], '--model'));
     }
 
     public function testLaunchOmitsModelWhenFrontmatterHasNone(): void

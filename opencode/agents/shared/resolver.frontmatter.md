@@ -1,5 +1,5 @@
 mode: primary
-model: deepinfra/zai-org/GLM-5.3-Flash
+model: litellm/glm-5.3-flash
 temperature: 0.5
 permission:
   edit: allow
