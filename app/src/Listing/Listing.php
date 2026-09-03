@@ -88,21 +88,6 @@ final class Listing
         return $task->hasFinishedAgent() || (null !== $agents && $agents->isWaiting());
     }
 
-    /**
-     * Is at least one agent actively working on this task right now?
-     *
-     * The single definition of the "🏃 Working" split, shared by the terminal
-     * listing and the web dashboard so the two cannot drift. Unlike the
-     * waiting-feedback split it has no state condition: any task whose
-     * activity cell reports a running agent (🏃) is mid-flight, whatever its
-     * state — the ball is with the agent, not with you. Naturally disjoint
-     * from isWaitingForFeedback(), which a running agent always excludes.
-     */
-    public function isWorking(?AgentActivity $agents = null): bool
-    {
-        return null !== $agents && $agents->isRunning();
-    }
-
     // ------------------------------------------------------- ordering ----
 
     public function stateRank(State $state): int
@@ -384,10 +369,11 @@ final class Listing
     }
 
     /**
-     * Tasks split into three sections, each sorted by state (ties keep store
+     * Tasks split into two sections, each sorted by state (ties keep store
      * insertion order — stable): "💭 Waiting for feedback" = states in
-     * WAITING_FEEDBACK_STATES with a waiting agent, "🏃 Working" = any task
-     * with a running agent, and the tail for everything else.
+     * WAITING_FEEDBACK_STATES with a waiting agent, and the tail ("Other
+     * tasks") for everything else — including tasks with a running agent,
+     * whose 🏃 activity cell keeps them visible.
      *
      * @param array<string, ProjectConfig> $projects
      */
@@ -490,21 +476,17 @@ final class Listing
         }
 
         $waitingEntries = [];
-        $workingEntries = [];
         $restEntries = [];
         foreach ($entries as $entry) {
             $activity = AgentActivity::fromDisplay((int) $entry[1][3], $entry[1][4]);
             if ($this->isWaitingForFeedback($entry[0], $activity)) {
                 $waitingEntries[] = $entry;
-            } elseif ($this->isWorking($activity)) {
-                $workingEntries[] = $entry;
             } else {
                 $restEntries[] = $entry;
             }
         }
 
         usort($waitingEntries, fn (array $a, array $b): int => $this->rankEntries($a[0], $b[0]));
-        usort($workingEntries, fn (array $a, array $b): int => $this->rankEntries($a[0], $b[0]));
         usort($restEntries, fn (array $a, array $b): int => $this->rankEntries($a[0], $b[0]));
 
         $sections = [];
@@ -512,13 +494,9 @@ final class Listing
             $rows = array_map(static fn ($e) => $e[1], $waitingEntries);
             $sections[] = "💭 Waiting for feedback\n\n".$this->table(self::TASKS_HEADERS, $rows);
         }
-        if ([] !== $workingEntries) {
-            $rows = array_map(static fn ($e) => $e[1], $workingEntries);
-            $sections[] = "🏃 Working\n\n".$this->table(self::TASKS_HEADERS, $rows);
-        }
         if ([] !== $restEntries) {
             $rows = array_map(static fn ($e) => $e[1], $restEntries);
-            $header = [] !== $waitingEntries || [] !== $workingEntries ? "Other tasks\n\n" : '';
+            $header = [] !== $waitingEntries ? "Other tasks\n\n" : '';
             $sections[] = $header.$this->table(self::TASKS_HEADERS, $rows);
         }
         $pollHeader = $this->lastPollHeader($projects);

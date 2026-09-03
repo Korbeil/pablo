@@ -58,7 +58,7 @@ The component re-renders every 15s; the `countdown` Stimulus controller
 interpolates locally once a second in between and re-syncs on every
 render, so clock drift cannot accumulate.
 
-### Three task tables
+### Two task tables
 
 **💭 Waiting for feedback** — tasks actually blocked on you:
 
@@ -68,15 +68,14 @@ AND an agent is waiting for input (💭)
 AND no agent is currently working (no 🏃)
 ```
 
-**🏃 Working** — every task with at least one agent currently working on
-it (🏃), whatever its state: the ball is with the agent, not with you.
+**Other tasks** — everything else, including tasks with an agent
+currently working on them (`🏃` keeps the activity visible in the
+Agents/Activity columns).
 
-**Other tasks** — everything else.
-
-All three come from `Listing::isWaitingForFeedback()` /
-`Listing::isWorking()`, the *same* predicates the terminal listing splits
-on, so `pablo tasks` and this page can never disagree. All tables then
-sort by `Listing::stateRank()` then `stateEnteredAt`, also like the CLI.
+Both come from `Listing::isWaitingForFeedback()`, the *same* predicate
+the terminal listing splits on, so `pablo tasks` and this page can never
+disagree. All tables then sort by `Listing::stateRank()` then
+`stateEnteredAt`, also like the CLI.
 
 Two states deliberately never qualify, however long they sit there:
 `needs-testing` means review was approved and the ball is with the PO/QA,
@@ -84,9 +83,9 @@ and `waiting-review` means it is with reviewers. Neither is your move. An
 earlier, wider rule that counted `needs-testing` as "needs attention" put
 10 of 11 real tasks in the top table, which carried no signal at all.
 
-Unlike the CLI, the web page keeps all three headings even when a
-section is empty — a table needs its header, and the waiting empty state
-reads "Nothing is waiting on you right now 🎉".
+Unlike the CLI, the web page keeps both headings even when a section is
+empty — a table needs its header, and the waiting empty state reads
+"Nothing is waiting on you right now 🎉".
 
 Re-renders every 30s.
 

@@ -114,7 +114,7 @@ final class DashboardControllerTest extends WebTestCase
         return static::createClient();
     }
 
-    public function testRendersAllThreeTables(): void
+    public function testRendersBothTables(): void
     {
         $this->seed('wk-1-ci-red', State::CiRed);
         $this->seed('wk-2-draft', State::Draft);
@@ -127,29 +127,30 @@ final class DashboardControllerTest extends WebTestCase
 
         $headings = $crawler->filter('.pablo-heading')->each(static fn ($n) => trim($n->text()));
         $joined = implode(' | ', $headings);
-        // Same wording as the terminal listing's three sections.
+        // Same wording as the terminal listing's two sections.
         $this->assertStringContainsString('Waiting for feedback', $joined);
-        $this->assertStringContainsString('Working', $joined);
         $this->assertStringContainsString('Other tasks', $joined);
+        $this->assertStringNotContainsString('Working', $joined);
 
         $this->assertSame(1, $crawler->filter('td:contains("wk-1-ci-red")')->count());
         $this->assertSame(1, $crawler->filter('td:contains("wk-2-draft")')->count());
     }
 
-    public function testTablesAreOrderedAttentionWorkingRest(): void
+    public function testTablesAreOrderedAttentionRest(): void
     {
         // ci-red alone is not enough — an agent must actually be blocked on us.
         $this->seed('wk-1-ci-red', State::CiRed, new DisplayCache(null, null, 1, '💭 1', '2026-08-06T10:00:00+00:00'));
+        // A running agent no longer earns its own table; it lands in rest.
         $this->seed('wk-2-running', State::Draft, new DisplayCache(null, null, 1, '🏃 1', '2026-08-06T10:00:00+00:00'));
         $this->seed('wk-3-draft', State::Draft);
 
         $crawler = $this->browser()->request('GET', '/');
 
         $tables = $crawler->filter('table');
-        $this->assertSame(3, $tables->count());
+        $this->assertSame(2, $tables->count());
         $this->assertStringContainsString('wk-1-ci-red', $tables->eq(0)->text());
         $this->assertStringContainsString('wk-2-running', $tables->eq(1)->text());
-        $this->assertStringContainsString('wk-3-draft', $tables->eq(2)->text());
+        $this->assertStringContainsString('wk-3-draft', $tables->eq(1)->text());
     }
 
     public function testEmptyStateIsFriendly(): void

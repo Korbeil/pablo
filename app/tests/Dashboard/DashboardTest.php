@@ -148,14 +148,13 @@ final class DashboardTest extends TestCase
             ['a-testing-failed', 'b-request-changes', 'c-ci-red', 'g-in-progress'],
             $this->branches($board->attention),
         );
-        $this->assertSame([], $this->branches($board->working));
         $this->assertSame(
             ['d-needs-testing', 'f-waiting-review', 'c2-ci-red-no-agent', 'e-draft', 'h-waiting'],
             $this->branches($board->rest),
         );
     }
 
-    /** A running agent is not a blocked one — it lands in the Working table. */
+    /** A running agent is not a blocked one — it lands in the rest table. */
     public function testRunningAgentDoesNotEarnAttention(): void
     {
         $this->seed('quiet-ci-red', State::CiRed, cache: $this->running());
@@ -164,11 +163,11 @@ final class DashboardTest extends TestCase
         $board = $this->dashboard->board($this->projects());
 
         $this->assertSame(['blocked-ci-red'], $this->branches($board->attention));
-        $this->assertSame(['quiet-ci-red'], $this->branches($board->working));
+        $this->assertSame(['quiet-ci-red'], $this->branches($board->rest));
     }
 
-    /** The Working table takes every task with a running agent, any state. */
-    public function testWorkingBucketSitsBetweenAttentionAndRest(): void
+    /** A running agent no longer earns its own table — the task lands in rest. */
+    public function testRunningAgentLandsInRest(): void
     {
         $this->seed('blocked', State::InProgress, cache: $this->waiting());
         $this->seed('working', State::NeedsTesting, cache: $this->running());
@@ -177,8 +176,7 @@ final class DashboardTest extends TestCase
         $board = $this->dashboard->board($this->projects());
 
         $this->assertSame(['blocked'], $this->branches($board->attention));
-        $this->assertSame(['working'], $this->branches($board->working));
-        $this->assertSame(['quiet'], $this->branches($board->rest));
+        $this->assertSame(['working', 'quiet'], $this->branches($board->rest));
     }
 
     public function testSortIsByStateRankThenStateEnteredAt(): void

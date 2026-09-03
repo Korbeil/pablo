@@ -33,7 +33,6 @@ final readonly class TaskView
         public string $since,
         public string $worktreePath,
         public bool $needsAttention,
-        public bool $working,
         public ?string $polledAt,
     ) {
     }

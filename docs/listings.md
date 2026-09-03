@@ -1,6 +1,6 @@
 # Listings
 
-**`pablo task:list`** — active tasks, split into three tables (each sorted
+**`pablo task:list`** — active tasks, split into two tables (each sorted
 by state, in this order: 🚨 testing-failed · 🧪 needs-testing ·
 🔁 request-changes · 👀 waiting-review · 👀 ready-to-review · 🔴 ci-red
 · 📝 draft · ⏸️ waiting · 🔨 in-progress; ties keep store insertion
@@ -12,12 +12,11 @@ order):
    `💭`) and no agent currently working on them (an activity cell with
    `🏃` keeps the task out of this section — the ball is not with you
    yet, however many earlier runs have concluded).
-2. **🏃 Working** — every task with at least one agent currently working
-   on it (activity cell contains `🏃`), whatever its state: the ball is
-   with the agent, not with you.
-3. **Other tasks** — everything else. The "Other tasks" header is
-   omitted when both other sections are empty, preserving the
-   single-table look for the common case.
+2. **Other tasks** — everything else, including tasks with an agent
+   currently working on them (`🏃` keeps the activity visible in the
+   Agents/Activity columns). The "Other tasks" header is omitted when the
+   other section is empty, preserving the single-table look for the
+   common case.
 
 Columns in order: ① branch (project) ② PABLO state ③ linked issue +
 title, or the ≤5-word summary for prompt tasks ④ the tracker's own
