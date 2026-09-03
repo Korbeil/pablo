@@ -1,5 +1,5 @@
 mode: primary
-model: opencode-go/glm-5.3-flash
+model: deepinfra/zai-org/GLM-5.3-Flash
 temperature: 0.5
 permission:
   edit: allow
