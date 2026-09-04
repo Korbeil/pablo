@@ -31,6 +31,7 @@ final class StateMachine
         State::CiRed,
         State::RequestChanges,
         State::TestingFailed,
+        State::WaitingReview,
     ];
 
     public const WAITING_FORBIDDEN_FROM = [State::RequestChanges, State::TestingFailed];

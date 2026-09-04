@@ -102,7 +102,8 @@ behavior is never duplicated.
 ### `/pablo-commit-and-pr`
 
 The single, uniform way work (re-)enters `draft`, valid from exactly
-**`in-progress`, `ci-red`, `request-changes`, `testing-failed`** (guarded
+**`in-progress`, `ci-red`, `request-changes`, `testing-failed`,
+`waiting-review`** (guarded
 by `pablo task:precommit-check`; it refuses outside a PABLO task worktree —
 the original `/commit-and-pr` still exists for non-PABLO work). It
 commits (house staging/message rules), pushes, creates the GitHub PR **as

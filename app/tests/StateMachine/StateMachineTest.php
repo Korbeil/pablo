@@ -282,7 +282,7 @@ final class StateMachineTest extends TestCase
     public function testCommitAllowedSet(): void
     {
         $this->assertSame(
-            [State::InProgress, State::CiRed, State::RequestChanges, State::TestingFailed],
+            [State::InProgress, State::CiRed, State::RequestChanges, State::TestingFailed, State::WaitingReview],
             StateMachine::COMMIT_ALLOWED_FROM,
         );
     }
