@@ -171,34 +171,35 @@ Existing PR for this branch:
       task check" JSON) based on the actual diff. Check (`[x]`) only
       checklist items that are genuinely true; leave the rest unchecked.
       Remove HTML comments (`<!-- ... -->`) from the final output.
-   - If no template exists, use the following structure (headings in the
-     configured locale — English shown here, translate to French if
-     `pr_description_locale` is `fr`):
+    - If no template exists, use the following structure (headings in the
+      configured locale — English shown here, translate to French if
+      `pr_description_locale` is `fr`):
 
-     ```markdown
-     ## Description
+      ```markdown
+      ## Description
 
-     <clear summary of what this PR does and why>
+      <1–3 sentences: what changes for the user and why>
 
-     ## Changes
+      ## Changes
 
-     - <list of notable changes>
+      - <max 4 bullets — user-visible behavior only>
 
-     ## How to test
+      ## How to test
 
-     1. <manual test steps or commands>
+      1. <1–3 steps to observe the new behavior>
+      ```
 
-     ## Notes
-
-     <attention points for the reviewer — omit if nothing to flag>
-     ```
-
-   - Style: direct, no filler ("This PR aims to..." → prefer "Adds...",
-     "Fixes...", "Refactors..."), written in the configured locale.
-   - Base every claim on the actual diff — never invent tests,
-     migrations, or impacts that aren't in the code.
-   - Explicitly mention breaking changes, new dependencies
-     (`composer.json` changes), migrations, and config changes if present.
+    - **Concise.** Description = 1–3 sentences, Changes = max 4 bullets,
+      How to test = 1–3 steps. No filler ("This PR aims to..." → prefer
+      "Adds...", "Fixes...", "Refactors..."), written in the configured
+      locale.
+    - **Functionality-first.** Describe what changes for the user, not how
+      the code is built — no file paths, class names, or implementation
+      details unless strictly needed to understand.
+    - Base every claim on the actual diff — never invent tests,
+      migrations, or impacts that aren't in the code.
+    - Flag breaking changes in one short line inside the Description if
+      present.
 
 4. **Push and PR**
    - `git push --force-with-lease -u origin <branch>` (always use
