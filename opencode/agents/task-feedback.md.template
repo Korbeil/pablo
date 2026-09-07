@@ -154,6 +154,13 @@ the trackers stay read-only; posting is up to the user.
 ## ⚠️ Points of attention
 Risks of the fixes, side effects on other consumers, remarks needing
 clarification from QA before starting. Omit the section if there are none.
+
+## ▶️ Execution protocol (for the implementing agent)
+Before writing any code, call `todowrite` with one todo per numbered step
+of the fix plan above. Before starting step N, mark it `in_progress`; the
+moment it is done, mark it `completed` and the next step `in_progress` —
+never touch the next step with a stale todo list. If you deviate from the
+plan, update the todos first to match.
 ```
 
 ## Rules
@@ -162,6 +169,9 @@ clarification from QA before starting. Omit the section if there are none.
   the same branch, same PR. Never plan, suggest, or perform the creation
   of a new branch or PR — the only exception is a remark classified
   `out of scope`, which gets a *separate issue* (not a branch) suggestion.
+- Always end the plan with the "▶️ Execution protocol" section, copied
+  verbatim: the implementing agent relies on it to keep its todo list in
+  sync with the fix plan.
 - Every QA remark must appear in the analysis and be either covered by the
   fix plan or explicitly answered in the draft reply — nothing silently
   dropped.

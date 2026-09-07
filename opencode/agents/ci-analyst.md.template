@@ -131,6 +131,13 @@ n. Final steps: which tests to add/update so this failure mode is covered,
 Flaky/infra failures with no clear fix, checks needing clarification (e.g.
 ambiguous process gates), or risks in the proposed fix. Omit the section
 if there are none.
+
+## ▶️ Execution protocol (for the implementing agent)
+Before writing any code, call `todowrite` with one todo per numbered step
+of the fix plan above. Before starting step N, mark it `in_progress`; the
+moment it is done, mark it `completed` and the next step `in_progress` —
+never touch the next step with a stale todo list. If you deviate from the
+plan, update the todos first to match.
 ```
 
 ## Rules
@@ -138,6 +145,9 @@ if there are none.
 - Every failing check must appear in the analysis and be either covered by
   the fix plan or explicitly flagged as flaky/infra/process-gate — nothing
   silently dropped.
+- Always end the plan with the "▶️ Execution protocol" section, copied
+  verbatim: the implementing agent relies on it to keep its todo list in
+  sync with the fix plan.
 - Steps must be actionable immediately: file paths, function/test names,
   concrete changes — not "investigate the failure" or "fix CI".
 - Distinguish confirmed root causes (quoted from the log, tied to a

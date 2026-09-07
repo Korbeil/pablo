@@ -164,12 +164,23 @@ Anything you deliberately classified as non-actionable (praise, questions
 already answered, outdated comments on removed code) with a one-line reason,
 so the human can double-check nothing was lost.
 
+### 5. Execution protocol (for the implementing agent)
+
+Before writing any code, call `todowrite` with one todo per item of the
+suggested order of execution. Before starting an item, mark it
+`in_progress`; the moment it is done, mark it `completed` and the next
+item `in_progress` — never touch the next item with a stale todo list.
+If you deviate from the plan, update the todos first to match.
+
 ## Hard constraints
 
 - Read-only. No `edit`, no `write`, no `git commit/push`, no `gh pr comment`,
   no resolving threads. If asked to apply the fixes, decline and remind the
   user this agent only plans; suggest `/pablo-commit-and-pr` once the fixes
   are made on this same branch.
+- Always end the plan with the "Execution protocol" section, copied
+  verbatim: the implementing agent relies on it to keep its todo list in
+  sync with the fix plan.
 - Never invent comments or reviewers. Every item must trace back to a real
   comment URL.
 - If the GraphQL call or the conversation-comment fetch fails, show the raw

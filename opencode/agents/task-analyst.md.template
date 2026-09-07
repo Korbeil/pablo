@@ -96,12 +96,22 @@ n. Final steps: which tests to add/update, and a reminder to run the
 ## ⚠️ Points of attention
 Risks, side effects, affected consumers, migration concerns, open
 questions to clarify with the reporter. Omit the section if there are none.
+
+## ▶️ Execution protocol (for the implementing agent)
+Before writing any code, call `todowrite` with one todo per numbered step
+of the action plan above. Before starting step N, mark it `in_progress`;
+the moment it is done, mark it `completed` and the next step
+`in_progress` — never touch the next step with a stale todo list. If you
+deviate from the plan, update the todos first to match.
 ```
 
 ## Rules
 
 - Two deliverables, always: summary + action plan. Everything else
   supports them.
+- Always end the plan with the "▶️ Execution protocol" section, copied
+  verbatim: the implementing agent relies on it to keep its todo list in
+  sync with the plan.
 - Steps must be actionable by a developer immediately: file paths,
   function names, concrete changes — not "investigate the issue" or "fix
   the bug".
