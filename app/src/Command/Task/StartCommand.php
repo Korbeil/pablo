@@ -21,6 +21,7 @@ use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
 use Pablo\Support\Naming;
 use Pablo\Support\PabloError;
+use Pablo\Support\TaskSummarizer;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -35,6 +36,7 @@ final class StartCommand extends Command
         private readonly Naming $naming,
         private readonly GitRepoInterface $git,
         private readonly StateMachine $stateMachine,
+        private readonly TaskSummarizer $summarizer,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -43,6 +45,10 @@ final class StartCommand extends Command
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
+    /**
+     * Fallback word cap: used only when the LLM summarizer fails (see
+     * TaskSummarizer). Prefer the LLM's own summary whenever it works.
+     */
     public const SUMMARY_MAX_WORDS = 5;
 
     protected function configure(): void
@@ -111,7 +117,8 @@ final class StartCommand extends Command
             $task->issue = $issue;
             $task->prompt = $prompt;
             $task->summary = null !== $prompt
-                ? implode(' ', \array_slice(preg_split('/\s+/', trim($prompt)) ?: [], 0, self::SUMMARY_MAX_WORDS))
+                ? $this->summarizer->summarize($cfg->repoPath, $prompt)
+                    ?? implode(' ', \array_slice(preg_split('/\s+/', trim($prompt)) ?: [], 0, self::SUMMARY_MAX_WORDS))
                 : null;
             $ctx = new TaskCtx(task: $task, cfg: $cfg, store: $store, agents: $agents);
             $this->stateMachine->enterState($ctx, State::InProgress);

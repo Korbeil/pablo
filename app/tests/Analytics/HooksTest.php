@@ -14,6 +14,7 @@ use Pablo\Domain\State;
 use Pablo\Domain\Task as TaskRecord;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Support\Naming;
+use Pablo\Support\TaskSummarizer;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
@@ -41,6 +42,7 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
             new Naming(),
             $this->git,
             $this->stateMachine,
+            new TaskSummarizer($this->runner),
             $this->store,
             $this->projectsLoader,
             $this->agentLaunchers,

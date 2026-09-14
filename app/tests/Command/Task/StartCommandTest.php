@@ -17,9 +17,11 @@ use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\Naming;
 use Pablo\Support\RepoSlug;
+use Pablo\Support\TaskSummarizer;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeGhPr;
 use Pablo\Tests\FakeGit;
+use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
@@ -110,6 +112,8 @@ final class StartCommandTest extends TestCase
 
     private ProviderRegistryInterface $currentProviders;
 
+    private FakeProcessRunner $summarizerRunner;
+
     protected function setUp(): void
     {
         $this->tmp = sys_get_temp_dir().'/pablo-start-'.uniqid();
@@ -118,6 +122,7 @@ final class StartCommandTest extends TestCase
         mkdir($this->projectsDir, 0o777, true);
         $this->store = new Store($this->tmp.'/state');
         $this->agents = new FakeAgents();
+        $this->summarizerRunner = new FakeProcessRunner();
         $this->writeGlobalConfig(<<<'YAML'
 sync:
   strategy: rebase
@@ -219,6 +224,7 @@ YAML,
             new Naming(),
             $this->git,
             $sm,
+            new TaskSummarizer($this->summarizerRunner),
             $this->store,
             $loader,
             $factory,
@@ -308,6 +314,35 @@ YAML,
         $this->assertNull($task->issue);
         $this->assertSame('fix callback verification quickly now', $task->prompt);
         $this->assertSame(['task-analyst'], $this->agents->launch);
+    }
+
+    public function testStartPromptUsesAiSummary(): void
+    {
+        $this->summarizerRunner->outputs = ['fix webhook callback verification retries'];
+        $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
+        $this->configureProviders(['github' => new FakeStartProvider(null)]);
+        $tester = $this->runCommand(['--project' => 'wallet-kit', 'input' => ['fix callback verification quickly now']]);
+        $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
+        $task = $this->store->get('wallet-kit', 'wk-fix-callback-verification-quickly');
+        $this->assertNotNull($task);
+        $this->assertSame('fix webhook callback verification retries', $task->summary);
+        [$argv] = $this->summarizerRunner->calls[0];
+        $this->assertSame('opencode', $argv[0]);
+        $this->assertSame('opencode/big-pickle', $argv[3]);
+        $this->assertStringContainsString('fix callback verification quickly now', (string) end($argv));
+        $this->assertStringEndsWith($this->tmp.'/repo', $argv[5]);
+    }
+
+    public function testStartPromptFallsBackToTruncationWhenSummarizerFails(): void
+    {
+        $this->summarizerRunner->onRun = static fn (): string => throw new \RuntimeException('opencode unavailable');
+        $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
+        $this->configureProviders(['github' => new FakeStartProvider(null)]);
+        $tester = $this->runCommand(['--project' => 'wallet-kit', 'input' => ['fix callback verification quickly now']]);
+        $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
+        $task = $this->store->get('wallet-kit', 'wk-fix-callback-verification-quickly');
+        $this->assertNotNull($task);
+        $this->assertSame('fix callback verification quickly now', $task->summary);
     }
 
     public function testStartUnknownProjectErrors(): void

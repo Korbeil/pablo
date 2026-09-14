@@ -38,6 +38,7 @@ use Pablo\Support\Naming;
 use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
+use Pablo\Support\TaskSummarizer;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
@@ -67,6 +68,7 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(Time::class);
     $services->set(Naming::class);
+    $services->set(TaskSummarizer::class);
     $services->set(RepoSlug::class);
     $services->set(GlobalConfig::class);
     $services->set(Config::class);
