@@ -316,14 +316,15 @@ YAML,
         $this->assertSame(['task-analyst'], $this->agents->launch);
     }
 
-    public function testStartPromptUsesAiSummary(): void
+    public function testStartPromptUsesAiSummaryForTaskAndBranch(): void
     {
         $this->summarizerRunner->outputs = ['fix webhook callback verification retries'];
         $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
         $this->configureProviders(['github' => new FakeStartProvider(null)]);
         $tester = $this->runCommand(['--project' => 'wallet-kit', 'input' => ['fix callback verification quickly now']]);
         $this->assertSame(Command::SUCCESS, $tester->getStatusCode());
-        $task = $this->store->get('wallet-kit', 'wk-fix-callback-verification-quickly');
+        $this->assertSame([['wk-fix-webhook-callback-verification', 'main']], $this->created);
+        $task = $this->store->get('wallet-kit', 'wk-fix-webhook-callback-verification');
         $this->assertNotNull($task);
         $this->assertSame('fix webhook callback verification retries', $task->summary);
         [$argv] = $this->summarizerRunner->calls[0];

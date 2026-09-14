@@ -108,7 +108,7 @@ final class StartCommand extends Command
         return strtolower($issue->key);
     }
 
-    private function createTask(Store $store, ProjectConfig $cfg, string $branch, ?Issue $issue, ?string $prompt, AgentLauncherInterface $agents): Task
+    private function createTask(Store $store, ProjectConfig $cfg, string $branch, ?Issue $issue, ?string $prompt, ?string $summary, AgentLauncherInterface $agents): Task
     {
         $lock = $store->taskLock($cfg->name, $branch);
         try {
@@ -117,7 +117,7 @@ final class StartCommand extends Command
             $task->issue = $issue;
             $task->prompt = $prompt;
             $task->summary = null !== $prompt
-                ? $this->summarizer->summarize($cfg->repoPath, $prompt)
+                ? $summary
                     ?? implode(' ', \array_slice(preg_split('/\s+/', trim($prompt)) ?: [], 0, self::SUMMARY_MAX_WORDS))
                 : null;
             $ctx = new TaskCtx(task: $task, cfg: $cfg, store: $store, agents: $agents);
@@ -143,7 +143,7 @@ final class StartCommand extends Command
         }
         $base = $this->branchBase($cfg, $issue);
         $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repoPath));
-        $task = $this->createTask($store, $cfg, $branch, $issue, null, $agents);
+        $task = $this->createTask($store, $cfg, $branch, $issue, null, null, $agents);
         $ghIssue = 'github' === $cfg->provider ? $issue->key : null;
         $agents->setWorktreeDisplayName($task->worktreePath, $issue->key, $ghIssue);
         $output->writeln("started {$issue->key} ({$issue->title}) in project {$cfg->name}");
@@ -188,9 +188,13 @@ final class StartCommand extends Command
         if (null === $cfg) {
             throw new PabloError("unknown project '{$project}'; configured projects: ".implode(', ', array_keys($projects)));
         }
-        $base = $this->naming->slugBranch($cfg->projectKey, $text);
+        // The AI summary feeds the branch/worktree name (Naming::slugBranch
+        // keeps the slug convention), falling back to the raw prompt when the
+        // summarizer fails.
+        $summary = $this->summarizer->summarize($cfg->repoPath, $text);
+        $base = $this->naming->slugBranch($cfg->projectKey, $summary ?? $text);
         $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repoPath));
-        $task = $this->createTask($store, $cfg, $branch, null, $text, $agents);
+        $task = $this->createTask($store, $cfg, $branch, null, $text, $summary, $agents);
         $agents->setWorktreeDisplayName($task->worktreePath, $branch);
         $output->writeln("started task in project {$cfg->name}");
         $output->writeln("worktree: {$task->worktreePath} (branch {$branch})");

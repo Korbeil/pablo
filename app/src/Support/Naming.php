@@ -20,7 +20,8 @@ final class Naming
     }
 
     /**
-     * Branch name for a prompt-started task: key + short slug of the prompt.
+     * Branch name for a prompt-started task: key + short slug of the AI
+     * summary (or of the raw prompt when it failed).
      *
      * Uses iconv ASCII//TRANSLIT (ext-intl is not installed). Only divergence
      * from the Python NFKD-drop reference is 'ß' -> "ss" (iconv) instead of
