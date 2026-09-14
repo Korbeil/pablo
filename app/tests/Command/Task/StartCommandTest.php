@@ -318,7 +318,10 @@ YAML,
 
     public function testStartPromptUsesAiSummaryForTaskAndBranch(): void
     {
-        $this->summarizerRunner->outputs = ['fix webhook callback verification retries'];
+        $events = json_encode([
+            'type' => 'text', 'sessionID' => 'ses_s', 'part' => ['type' => 'text', 'text' => 'fix webhook callback verification retries'],
+        ]);
+        $this->summarizerRunner->outputs = [false === $events ? '' : $events];
         $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
         $this->configureProviders(['github' => new FakeStartProvider(null)]);
         $tester = $this->runCommand(['--project' => 'wallet-kit', 'input' => ['fix callback verification quickly now']]);
@@ -332,6 +335,9 @@ YAML,
         $this->assertSame('opencode/big-pickle', $argv[3]);
         $this->assertStringContainsString('fix callback verification quickly now', (string) end($argv));
         $this->assertStringEndsWith($this->tmp.'/repo', $argv[5]);
+
+        $delete = $this->summarizerRunner->calls[1][0];
+        $this->assertSame(['opencode', 'session', 'delete', 'ses_s'], $delete);
     }
 
     public function testStartPromptFallsBackToTruncationWhenSummarizerFails(): void
