@@ -191,11 +191,15 @@ YAML,
     private function makeRegistry(array $byName): ProviderRegistryInterface
     {
         return new class($byName) implements ProviderRegistryInterface {
+            /** @var array<string, Provider> */
+            private readonly array $byName;
+
             /**
              * @param array<string, Provider> $byName
              */
-            public function __construct(private readonly array $byName)
+            public function __construct(array $byName)
             {
+                $this->byName = $byName;
             }
 
             public function get(string $name): Provider

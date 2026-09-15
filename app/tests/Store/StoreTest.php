@@ -100,6 +100,28 @@ final class StoreTest extends TestCase
         $this->assertSame(['a'], array_map(static fn (Task $t) => $t->project, $this->store->allTasks('a')));
     }
 
+    public function testSlashBranchIsFlattenedToTheStateFilename(): void
+    {
+        $task = $this->makeTask('sezane-pim', 'release/pim-upgrade-php-version');
+        $this->store->save($task);
+
+        $file = $this->root.'/state/sezane-pim/release__pim-upgrade-php-version.json';
+        $this->assertFileExists($file);
+        $this->assertFileDoesNotExist(\dirname($file, 2).'/sezane-pim/release/pim-upgrade-php-version.json');
+
+        $loaded = $this->store->get('sezane-pim', 'release/pim-upgrade-php-version');
+        $this->assertNotNull($loaded);
+        $this->assertSame('release/pim-upgrade-php-version', $loaded->branch);
+
+        $all = $this->store->allTasks();
+        $this->assertCount(1, $all);
+        $this->assertSame('sezane-pim', $all[0]->project);
+        $this->assertSame('release/pim-upgrade-php-version', $all[0]->branch);
+
+        $this->store->delete('sezane-pim', 'release/pim-upgrade-php-version');
+        $this->assertFileDoesNotExist($file);
+    }
+
     public function testPromptTaskSerializesNullIssue(): void
     {
         $task = $this->makeTask();
