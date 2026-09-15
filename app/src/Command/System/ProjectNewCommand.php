@@ -85,8 +85,11 @@ final class ProjectNewCommand extends Command
             $failureSignal = $this->askRequired($helper, $input, $output, "Failure signal ({$hint})", null);
         }
 
+        // Branch prefix (optional; falls back to ~/.pablo/config.yaml)
+        $branchPrefix = $this->askOptional($helper, $input, $output, 'Branch prefix (prepended to every branch, e.g. "pablo/", optional)', null);
+
         // Build YAML
-        $yaml = $this->buildYaml($name, $type, $repoPath, $detectedBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal);
+        $yaml = $this->buildYaml($name, $type, $repoPath, $detectedBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix);
 
         // 9. Confirm & write
         $output->writeln('');
@@ -275,7 +278,7 @@ final class ProjectNewCommand extends Command
     /**
      * @return array<string, mixed>
      */
-    private function buildStructure(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal): array
+    private function buildStructure(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null): array
     {
         $data = [
             'name' => $name,
@@ -303,6 +306,9 @@ final class ProjectNewCommand extends Command
         if (null !== $failureSignal) {
             $data['testing'] = ['failure_signal' => $failureSignal];
         }
+        if (null !== $branchPrefix) {
+            $data['branch_prefix'] = $branchPrefix;
+        }
 
         return $data;
     }
@@ -315,9 +321,9 @@ final class ProjectNewCommand extends Command
         return Yaml::dump($data, 4, 2);
     }
 
-    private function buildYaml(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal): string
+    private function buildYaml(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null): string
     {
-        $data = $this->buildStructure($name, $type, $repoPath, $primaryBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal);
+        $data = $this->buildStructure($name, $type, $repoPath, $primaryBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix);
 
         return $this->dumpYaml($data);
     }

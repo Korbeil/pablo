@@ -157,7 +157,7 @@ YAML);
         $this->unsetGlobalConfig();
     }
 
-    private function writeProject(string $name, ?string $repo = null, ?string $projKey = null, string $provider = 'github'): void
+    private function writeProject(string $name, ?string $repo = null, ?string $projKey = null, string $provider = 'github', ?string $branchPrefix = null): void
     {
         $repo ??= $this->tmp.'/'.$name;
         $projKey ??= strtoupper(substr($name, 0, 2));
@@ -173,12 +173,15 @@ issue_tracker:
   provider: %s
   identity: octocat
   project_key: %s
+branch_prefix: %s
+
 YAML,
             $name,
             $repo,
             $name,
             $provider,
             $projKey,
+            $branchPrefix ?? '',
         ));
     }
 
@@ -292,6 +295,60 @@ YAML,
         $this->configureProviders(['github' => new FakeStartProvider($issue)]);
         $this->runCommand(['input' => [$issue->url]]);
         $this->assertSame([['wk-45-2', 'main']], $this->created);
+    }
+
+    public function testBranchPrefixFromGlobalConfigPrependedToIssueBranch(): void
+    {
+        $this->writeGlobalConfig("branch_prefix: p/\n".<<<'YAML'
+sync:
+  strategy: rebase
+  auto_apply: false
+  interval_minutes: 30
+state_polling:
+  interval_minutes: 10
+review:
+  bot_whitelist: []
+ci:
+  ignore_checks: []
+default_model: openrouter/test/model
+pr_description_locale: en
+YAML);
+        $issue = new Issue('github', '45', 'https://github.com/acme/wallet-kit/issues/45', 'T', 'WK');
+        $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
+        $this->configureProviders(['github' => new FakeStartProvider($issue)]);
+        $this->runCommand(['input' => [$issue->url]]);
+        $this->assertSame([['p/wk-45', 'main']], $this->created);
+    }
+
+    public function testBranchPrefixProjectOverridesGlobal(): void
+    {
+        $this->writeGlobalConfig("branch_prefix: g/\n".<<<'YAML'
+sync:
+  strategy: rebase
+  auto_apply: false
+  interval_minutes: 30
+state_polling:
+  interval_minutes: 10
+review:
+  bot_whitelist: []
+ci:
+  ignore_checks: []
+default_model: openrouter/test/model
+pr_description_locale: en
+YAML);
+        $issue = new Issue('github', '45', 'https://github.com/acme/wallet-kit/issues/45', 'T', 'WK');
+        $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK', 'github', 'local/');
+        $this->configureProviders(['github' => new FakeStartProvider($issue)]);
+        $this->runCommand(['input' => [$issue->url]]);
+        $this->assertSame([['local/wk-45', 'main']], $this->created);
+    }
+
+    public function testBranchPrefixAppliesToSlugBranch(): void
+    {
+        $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK', 'github', 'feat/');
+        $this->configureProviders(['github' => new FakeStartProvider(null)]);
+        $this->runCommand(['--project' => 'wallet-kit', 'input' => ['fix callback verification quickly now']]);
+        $this->assertSame([['feat/wk-fix-callback-verification-quickly', 'main']], $this->created);
     }
 
     public function testStartPromptRequiresProject(): void

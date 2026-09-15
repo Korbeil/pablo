@@ -101,11 +101,23 @@ final class StartCommand extends Command
 
     private function branchBase(ProjectConfig $cfg, Issue $issue): string
     {
-        if ('github' === $cfg->provider) {
-            return $this->naming->branchName($cfg->projectKey, $issue->key);
-        }
+        $base = 'github' === $cfg->provider
+            ? $this->naming->branchName($cfg->projectKey, $issue->key)
+            : strtolower($issue->key);
 
-        return strtolower($issue->key);
+        return $this->prefixed($cfg, $base);
+    }
+
+    /**
+     * Prepends the project's branch_prefix (global or per-project override;
+     * raw, no separator — the user writes "pablo/" or "pablo-" themselves).
+     * null/'' means the default unprefixed naming.
+     */
+    private function prefixed(ProjectConfig $cfg, string $base): string
+    {
+        $prefix = $cfg->branchPrefix ?? '';
+
+        return '' === $prefix ? $base : $prefix.$base;
     }
 
     private function createTask(Store $store, ProjectConfig $cfg, string $branch, ?Issue $issue, ?string $prompt, ?string $summary, AgentLauncherInterface $agents): Task
@@ -192,7 +204,7 @@ final class StartCommand extends Command
         // keeps the slug convention), falling back to the raw prompt when the
         // summarizer fails.
         $summary = $this->summarizer->summarize($cfg->repoPath, $text);
-        $base = $this->naming->slugBranch($cfg->projectKey, $summary ?? $text);
+        $base = $this->prefixed($cfg, $this->naming->slugBranch($cfg->projectKey, $summary ?? $text));
         $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repoPath));
         $task = $this->createTask($store, $cfg, $branch, null, $text, $summary, $agents);
         $agents->setWorktreeDisplayName($task->worktreePath, $branch);

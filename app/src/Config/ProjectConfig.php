@@ -31,6 +31,7 @@ final class ProjectConfig
         public readonly array $ciIgnoreChecks,
         public readonly string $defaultModel,
         public readonly string $prDescriptionLocale,
+        public readonly ?string $branchPrefix = null,
         public readonly ?string $site = null,
         public readonly ?string $confluenceSpace = null,
         public readonly ?string $startupScript = null,
@@ -63,6 +64,7 @@ final class ProjectConfig
             'startup_script' => $this->startupScript,
             'default_model' => $this->defaultModel,
             'pr_description_locale' => $this->prDescriptionLocale,
+            'branch_prefix' => $this->branchPrefix,
         ];
     }
 }

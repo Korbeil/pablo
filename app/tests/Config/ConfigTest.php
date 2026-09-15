@@ -161,6 +161,33 @@ YAML;
         $this->assertSame(getenv('HOME').'/.pablo/worktrees/mini', $cfg->worktreesRoot);
     }
 
+    public function testBranchPrefixOptional(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->branchPrefix);
+    }
+
+    public function testBranchPrefixComesFromGlobalConfig(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->writeGlobalConfig(self::DEFAULTS."\nbranch_prefix: pablo/\n");
+        $this->assertSame('pablo/', $this->loader()->loadProjects($this->projectsDir)['mini']->branchPrefix);
+    }
+
+    public function testBranchPrefixProjectValueWins(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."branch_prefix: wk/\n");
+        $this->writeGlobalConfig(self::DEFAULTS."\nbranch_prefix: pablo/\n");
+        $this->assertSame('wk/', $this->loader()->loadProjects($this->projectsDir)['mini']->branchPrefix);
+    }
+
+    public function testBranchPrefixEmptyStringMeansNoPrefix(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->writeGlobalConfig(self::DEFAULTS."\nbranch_prefix: ''\n");
+        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->branchPrefix);
+    }
+
     public function testSiteOptional(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);

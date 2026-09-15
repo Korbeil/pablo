@@ -100,6 +100,7 @@ YAML;
             '', // project key (accepts default: MY-PROJECT)
             '', // provider identity (accepts default: git@example.com)
             'n', // failure signal? no
+            '', // branch prefix (empty = skip)
             'y', // confirm write
         ]);
         $tester->execute([]);
@@ -139,6 +140,7 @@ YAML;
             '', // project key (default: PAYMENT-KIT)
             '', // identity (default: git@example.com)
             'n', // failure signal? no
+            '', // branch prefix (empty = skip)
             'y', // confirm write
         ]);
         $tester->execute([]);
@@ -168,6 +170,7 @@ YAML;
             'PROJ', // project key
             'user@linear.app', // identity
             'n', // failure signal? no
+            '', // branch prefix (empty = skip)
             'y', // confirm write
         ]);
         $tester->execute([]);
@@ -198,6 +201,7 @@ YAML;
             'me@example.com',
             'y', // failure signal? yes
             'qa-failed', // failure signal value
+            'p/', // branch prefix
             'y', // confirm write
         ]);
         $tester->execute([]);
@@ -206,6 +210,7 @@ YAML;
 
         $cfg = $this->loader()->loadProjects($this->projectsDir)['qa-test'];
         $this->assertSame('qa-failed', $cfg->failureSignal);
+        $this->assertSame('p/', $cfg->branchPrefix);
     }
 
     public function testRejectsDuplicateName(): void
@@ -235,6 +240,7 @@ YAML);
             '',               // project key
             'u@e.com',
             'n',              // failure signal? no
+            '',               // branch prefix (empty = skip)
             'y',              // confirm write
         ]);
         $tester->execute([]);
@@ -283,6 +289,7 @@ YAML);
             'LIN', // project key
             'u@l.app', // identity
             'n', // failure signal? no
+            '', // branch prefix (empty = skip)
             'y', // confirm write
         ]);
         $tester->execute([]);
@@ -308,6 +315,7 @@ YAML);
             '', // project key (default: SECOND-GH)
             'u@e.com', // identity
             'n', // failure signal? no
+            '', // branch prefix (empty = skip)
             'y', // confirm write
         ]);
         $tester->execute([]);

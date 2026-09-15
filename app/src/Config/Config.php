@@ -184,6 +184,12 @@ final class Config
         if (null === $prDescriptionLocale) {
             throw new PabloError('no value for pr_description_locale — set it in the project config or ~/.pablo/config.yaml');
         }
+        $branchPrefix = $data['branch_prefix'] ?? $defaults['branch_prefix'] ?? null;
+        if (null !== $branchPrefix && '' === (string) $branchPrefix) {
+            $branchPrefix = null;
+        } elseif (null !== $branchPrefix) {
+            $branchPrefix = (string) $branchPrefix;
+        }
 
         return new ProjectConfig(
             name: $projectName,
@@ -207,6 +213,7 @@ final class Config
             startupScript: $startup ? $this->expandHome((string) $startup) : null,
             defaultModel: $defaultModel,
             prDescriptionLocale: $prDescriptionLocale,
+            branchPrefix: $branchPrefix,
         );
     }
 }

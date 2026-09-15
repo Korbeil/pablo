@@ -65,18 +65,26 @@ default_model: openrouter/deepseek/deepseek-v4-flash-0731
                              # optional; the agent model used for this project's tasks.
                              # Falls back to the global default_model in ~/.pablo/config.yaml.
 pr_description_locale: en   # optional; locale used when drafting PR descriptions for this
-                             # project. Falls back to the global pr_description_locale in
-                             # ~/.pablo/config.yaml.
+                              # project. Falls back to the global pr_description_locale in
+                              # ~/.pablo/config.yaml.
+branch_prefix: pablo/        # optional; raw prefix prepended to every branch name PABLO
+                              # generates (e.g. "pablo/xxx-123"). Inserted verbatim — no
+                              # separator is added, so write the slash yourself. Falls back
+                              # to the global branch_prefix in ~/.pablo/config.yaml.
+                              # Unset (or empty) everywhere = the classic unprefixed naming.
 ```
 
 **Default-eligible keys** (fall back per key to `~/.pablo/config.yaml`
 when a project omits them — a project can override just one and inherit
 the rest): `sync.strategy`, `sync.auto_apply`, `sync.interval_minutes`,
 `state_polling.interval_minutes`, `review.bot_whitelist`,
-`ci.ignore_checks`, `default_model`, `pr_description_locale`. Shipped
-defaults: `rebase`, `false`, `30`, `10`, `[]`, `[]`; `default_model` and
-`pr_description_locale` have no built-in value — each must be set either
-per project or globally, otherwise loading the project fails. New keys
+`ci.ignore_checks`, `default_model`, `pr_description_locale`,
+`branch_prefix`. Shipped
+defaults: `rebase`, `false`, `30`, `10`, `[]`, `[]`; `default_model`,
+`pr_description_locale` and `branch_prefix`
+have no built-in value — `default_model` and `pr_description_locale` must
+be set either per project or globally, otherwise loading the project
+fails; `branch_prefix` is optional (unset everywhere = no prefix). New keys
 added later should follow the same pattern unless they have no sensible
 global default (like `issue_tracker`).
 
@@ -95,10 +103,13 @@ system:doctor`/`system:setup` also check the `openchamber` CLI. See
 Branches created or matched by PABLO always follow the fixed pattern:
 
 ```
-[project-key]-[issue-id]
+[branch-prefix][project-key]-[issue-id]
 ```
 
-lowercased, e.g. `xxx-123` for Jira issue `XXX-123`.
+lowercased, e.g. `xxx-123` for Jira issue `XXX-123`. `branch-prefix` comes
+from the optional `branch_prefix` config key (global default +
+per-project override, see above); when unset, the name is exactly
+`[project-key]-[issue-id]`.
 
 - **Jira / Linear**: `project-key` is the issue's own project key (e.g.
   `XXX`), lowercased. `issue-id` is the numeric/short ID from the issue
