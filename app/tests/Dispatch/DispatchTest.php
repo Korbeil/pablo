@@ -30,7 +30,7 @@ final class DispatchTest extends TestCase
         $this->runner = new \Pablo\Tests\FakeProcessRunner();
         $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
         $global = new \Pablo\Config\GlobalConfig();
-        $doctor = new Doctor($this->runner, new \Pablo\Agents\AgentLauncherFactory($global));
+        $doctor = new Doctor($this->runner, new \Pablo\Agents\AgentLauncherFactory($global), static fn (string $name): string => '/usr/bin/'.$name);
         $time = new \Pablo\Domain\Time();
         $git = new \Pablo\Tests\FakeGit();
         $gh = new \Pablo\Tests\FakeGhPr();

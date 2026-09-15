@@ -48,10 +48,21 @@ function qa_twig_cs_fixer(): void
 #[AsTask(name: 'phpstan', namespace: 'qa', description: 'Run PHPStan static analysis on app/src and app/tests', aliases: ['phpstan'])]
 function qa_phpstan(bool $generateBaseline = false): void
 {
-    $params = ['analyse', '--configuration', __DIR__ . '/app/phpstan.neon', '--memory-limit=-1', '-v'];
+    $args = ['analyse', '--configuration', __DIR__ . '/app/phpstan.neon', '--memory-limit=-1', '-v'];
     if ($generateBaseline) {
-        $params[] = '--generate-baseline';
-        $params[] = 'app/phpstan-baseline.neon';
+        $args[] = '--generate-baseline';
+        $args[] = __DIR__ . '/app/phpstan-baseline.neon';
+    }
+
+    // Prefer phpstan installed as an app dev dependency: it runs in CI from the
+    // normal `composer install` (see .github/workflows/ci.yml) and avoids the
+    // fragile in-process Composer tool sandbox. The sandbox below stays as the
+    // fallback for checkouts that never ran `composer install` in app/.
+    $appBinary = __DIR__ . '/app/vendor/bin/phpstan';
+    if (is_file($appBinary) && is_file(__DIR__ . '/app/vendor/autoload.php')) {
+        run(['php', $appBinary, ...$args]);
+
+        return;
     }
 
     // The static castor runtime ships without ext-simplexml, which
@@ -63,7 +74,7 @@ function qa_phpstan(bool $generateBaseline = false): void
     // app/composer.json — that is not where this phpstan runs from.
     // containerXmlPath is deliberately NOT configured: it would require a
     // warmed debug cache and break analysis on a clean checkout.
-    phpstan($params, extraDependencies: [
+    phpstan($args, extraDependencies: [
         'phpstan/extension-installer' => '^1.4',
         'phpstan/phpstan-symfony' => '^2.0',
     ]);

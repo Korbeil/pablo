@@ -36,7 +36,7 @@ jobs:
         with:
           php-version: 8.5
           coverage: none
-          extensions: mbstring, dom, xml
+          extensions: mbstring, dom, xml, simplexml
       - name: composer install
         working-directory: app
         run: composer install --no-interaction --prefer-dist
@@ -70,7 +70,7 @@ jobs:
         with:
           php-version: 8.5
           coverage: none
-          extensions: mbstring, dom, xml
+          extensions: mbstring, dom, xml, simplexml
       - name: composer install
         working-directory: app
         run: composer install --no-interaction --prefer-dist

@@ -7,16 +7,35 @@ namespace Pablo\Tests\Command\Report;
 use Pablo\Analytics\AnalyticsAggregator;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Command\Report\StatsCommand;
+use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
 
 final class StatsCommandTest extends TestCase
 {
+    use UsesGlobalConfig;
+
+    private const CONFIG_DEFAULTS = <<<'YAML'
+sync:
+  strategy: rebase
+  auto_apply: false
+  interval_minutes: 30
+state_polling:
+  interval_minutes: 10
+review:
+  bot_whitelist: []
+ci:
+  ignore_checks: []
+default_model: openrouter/test/model
+pr_description_locale: en
+YAML;
+
     private string $root;
     private string $projectsDir;
 
     protected function setUp(): void
     {
+        $this->writeGlobalConfig(self::CONFIG_DEFAULTS);
         $this->root = sys_get_temp_dir().'/pablo-stats-'.uniqid();
         mkdir($this->root.'/proj', 0o777, true);
         putenv('PABLO_ANALYTICS_DIR='.$this->root);
@@ -29,6 +48,7 @@ final class StatsCommandTest extends TestCase
     {
         putenv('PABLO_ANALYTICS_DIR');
         putenv('PABLO_PROJECTS_DIR');
+        $this->unsetGlobalConfig();
         exec('rm -rf '.escapeshellarg($this->root).' '.escapeshellarg($this->projectsDir));
     }
 
