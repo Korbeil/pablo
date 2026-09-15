@@ -61,6 +61,10 @@ YAML;
         $this->projectsDir = $this->tmp.'/projects';
         mkdir($this->projectsDir, 0o777, true);
 
+        // Hermetic by default: pretend every CLI exists, whatever the real
+        // PATH holds (tests that exercise a missing CLI override onWhich).
+        $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
+
         $this->writeGlobalConfig(self::DEFAULTS);
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
     }
