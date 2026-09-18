@@ -98,8 +98,8 @@ Edit templates/profiles in the repo and regenerate — never the generated
 
 ## Skills
 
-None yet. Shared logic that would have been "skills" lives in the PABLO
-engine instead, which agents/commands reach through `pablo` subcommands;
-if reusable prompt-side knowledge emerges later it goes to
-`opencode/skills/<name>/SKILL.md` following the same install-by-symlink
-pattern.
+- **`pablo-task`** (`opencode/skills/pablo-task/SKILL.md`) — teaches OpenCode
+  agents how to create a PABLO task (`pablo task:start` from an issue URL or
+  `--project <name>` + prompt) and nothing else. Installed by
+  `bin/install.sh`, which symlinks each `opencode/skills/<name>/` directory
+  into `~/.config/opencode/skill/<name>/`.

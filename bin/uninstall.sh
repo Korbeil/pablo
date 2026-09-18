@@ -53,6 +53,9 @@ for f in "$REPO_DIR"/opencode/agents/*.md "$REPO_DIR"/opencode/commands/*.md; do
     remove_if_ours "$OPENCODE_DIR/agents/$(basename "$f")"
     remove_if_ours "$OPENCODE_DIR/commands/$(basename "$f")"
 done
+for d in "$REPO_DIR"/opencode/skills/*/; do
+    remove_if_ours "$OPENCODE_DIR/skill/$(basename "$d")"
+done
 
 remove_if_ours "$BIN_DIR/pablo"
 
