@@ -105,6 +105,14 @@ done
 for f in "$REPO_DIR"/opencode/commands/*.md; do
     link_into "$f" "$OPENCODE_DIR/commands"
 done
+for d in "$REPO_DIR"/opencode/skills/*/; do
+    name="$(basename "$d")"
+    [ -e "$OPENCODE_DIR/skill/$name" ] && [ ! -L "$OPENCODE_DIR/skill/$name" ] &&
+        die "$OPENCODE_DIR/skill/$name exists and is not a symlink — refusing to overwrite"
+    mkdir -p "$OPENCODE_DIR/skill"
+    ln -sfn "$REPO_DIR/opencode/skills/$name" "$OPENCODE_DIR/skill/$name"
+    info "linked $OPENCODE_DIR/skill/$name"
+done
 
 # 4. Background dispatcher (per-platform) ------------------------------------
 case "$OS" in

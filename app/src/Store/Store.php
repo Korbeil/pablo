@@ -13,7 +13,8 @@ use Symfony\Component\Process\Process;
  * Central task-state store, owned by PABLO's installation.
  *
  * Lives under ~/.pablo/state/<project>/<branch>.json (never inside a project
- * repo). Each task has a sibling .lock file used with flock(2) so the sync
+ * repo; slashes in branch names are flattened to "__" in the filename — see
+ * encode()). Each task has a sibling .lock file used with flock(2) so the sync
  * job, the state poller, and interactive commands never interleave on the
  * same task; the kernel releases the lock if the holder crashes.
  */
@@ -59,12 +60,23 @@ final class Store
 
     public function path(string $project, string $branch): string
     {
-        return rtrim($this->root, '/').'/'.$project.'/'.$branch.'.json';
+        return rtrim($this->root, '/').'/'.$project.'/'.self::encodeBranch($branch).'.json';
     }
 
     public function lockPath(string $project, string $branch): string
     {
-        return rtrim($this->root, '/').'/'.$project.'/'.$branch.'.lock';
+        return rtrim($this->root, '/').'/'.$project.'/'.self::encodeBranch($branch).'.lock';
+    }
+
+    /**
+     * Branch names may contain slashes (e.g. "release/foo"); those would nest
+     * the state file into subdirectories and break allTasks()'s flat one-level
+     * discovery — so slashes are flattened to "__" in the filename only. The
+     * Task record always carries the real, unflattened branch name.
+     */
+    public static function encodeBranch(string $branch): string
+    {
+        return str_replace('/', '__', $branch);
     }
 
     public function get(string $project, string $branch): ?Task
