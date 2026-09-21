@@ -61,13 +61,13 @@ final class AgentsTest extends TestCase
         $command = (string) $method->invoke($this->agents, 'echo DETACHED_RAN > '.$marker);
         $pid = (int) trim((string) shell_exec($command));
         $deadline = microtime(true) + 5;
-        while (!file_exists($marker) && microtime(true) < $deadline) {
+        $content = '';
+        while ('DETACHED_RAN' !== ($content = trim((string) @file_get_contents($marker))) && microtime(true) < $deadline) {
             usleep(50_000);
         }
 
         $this->assertGreaterThan(0, $pid);
-        $this->assertFileExists($marker);
-        $this->assertSame('DETACHED_RAN', trim((string) file_get_contents($marker)));
+        $this->assertSame('DETACHED_RAN', $content);
     }
 
     public function testOrcaLaunchBuildsCommand(): void
