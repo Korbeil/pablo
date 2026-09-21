@@ -75,7 +75,14 @@ final class SlackModal
         $this->error = null;
         try {
             $projects = $this->dashboard->projects();
-            $this->reviewBlock = $this->block($projects, State::WaitingReview);
+            // Approved tasks sit in `approved` only when testing is disabled
+            // (otherwise they chain straight to needs-testing); they belong
+            // on the review side — nothing left for the agent to do.
+            $rows = [
+                ...$this->listing->queueTasks($projects, $this->store, State::WaitingReview->value),
+                ...$this->listing->queueTasks($projects, $this->store, State::Approved->value),
+            ];
+            $this->reviewBlock = $this->listing->renderSlack($rows, State::WaitingReview->value);
             $this->testingBlock = $this->block($projects, State::NeedsTesting);
         } catch (PabloError $e) {
             $this->error = $e->getMessage();

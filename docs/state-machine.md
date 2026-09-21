@@ -68,7 +68,7 @@ pablo task:start --project wallet-kit "fix callback verification"   # from a pro
 
 One state per task:
 `in-progress` → (`/pablo-commit-and-pr`) → `draft` → `ci-red` /
-`ready-to-review` → `waiting-review` → `needs-testing` /
+`ready-to-review` → `waiting-review` → `approved` → `needs-testing` /
 `request-changes` → … → closed on merge. Plus `waiting` (manual pause)
 and `testing-failed`.
 
@@ -92,18 +92,22 @@ behavior is never duplicated.
 | `ci-red` | 🔴 ci-red | poller: CI failure | run `ci-analyst` |
 | `ready-to-review` | 👀 waiting-review | poller: CI green | `gh pr ready`, then chain to `waiting-review` |
 | `waiting-review` | 👀 waiting-review | chained | — |
-| `needs-testing` | 🧪 needs-testing | poller: review approved | stamp the failure-signal baseline |
+| `approved` | ✅ approved | poller: review approved | chain to `needs-testing`; no-op (terminal) when `testing.enabled: false` |
+| `needs-testing` | 🧪 needs-testing | chained (or poller, legacy) | stamp the failure-signal baseline |
 | `request-changes` | 🔁 request-changes | poller: changes/comment | run `pr-feedback`, then PR → draft |
 | `testing-failed` | ❌ testing-failed | poller: failure signal | run `task-feedback`, then PR → draft |
 
 (`ready-to-review` is a momentary pass-through — it renders as
-👀 waiting-review if ever caught in the listing.)
+👀 waiting-review if ever caught in the listing. `approved` is the same
+pattern: with `testing.enabled` (the default) it chains straight to
+needs-testing; with `testing.enabled: false` it is terminal — the task
+sits there until merge auto-closes it.)
 
 ### `/pablo-commit-and-pr`
 
 The single, uniform way work (re-)enters `draft`, valid from exactly
 **`in-progress`, `ci-red`, `request-changes`, `testing-failed`,
-`waiting-review`** (guarded
+`waiting-review`, `approved`** (guarded
 by `pablo task:precommit-check`; it refuses outside a PABLO task worktree —
 the original `/commit-and-pr` still exists for non-PABLO work). It
 commits (house staging/message rules), pushes, creates the GitHub PR **as
@@ -121,7 +125,10 @@ call restores the saved state and runs its normal on-enter actions
 (subject to run-once flags; restoring into `needs-testing` keeps the
 existing failure-signal baseline so pause-time events are deferred, not
 lost). **Forbidden from `request-changes` and `testing-failed`** — also
-when forcing `waiting` via `pablo task:state`. While paused: no transition
+when forcing `waiting` via `pablo task:state`. Restoring into
+`needs-testing` is likewise refused when `testing.enabled: false`
+(including a task paused from needs-testing before the flag was set —
+move it manually). While paused: no transition
 polling except **merge detection**, and worktree sync keeps running.
 
 ### `pablo task:state` (manual override)
@@ -132,7 +139,9 @@ actions as the automatic transition would; `--no-trigger` skips them
 (bookkeeping-only) **except for `waiting`**, whose on-enter (saving the
 previous state) is what makes the pause restorable. Typical use: a
 reviewer's stale "changes requested" blocks the evaluation while they're
-on vacation — force the task past it.
+on vacation — force the task past it. Forcing `needs-testing` is refused
+when `testing.enabled: false` (the guard lives in `enterState()`, so
+every path — automatic, command, restore — is covered).
 
 ### Post-draft transitions (automatic, polled)
 
@@ -145,7 +154,7 @@ on vacation — force the task past it.
   rebase push); back via the normal green path. The PR never left ready
   status on GitHub, so the review anchor doesn't move and pre-blip
   reviews stay valid.
-- **Review evaluation** (`waiting-review` → `needs-testing` /
+- **Review evaluation** (`waiting-review` → `approved` /
   `request-changes`): the user's own reviews never count (replying to a
   thread creates a `COMMENTED` review under their name); bot reviews are
   ignored unless whitelisted in `review.bot_whitelist`; only reviews
@@ -153,7 +162,8 @@ on vacation — force the task past it.
   count (never PABLO's internal transitions, and never `reviewDecision`,
   which has no timestamp cutoff); latest review per reviewer wins; a
   changes-requested or plain comment review beats any approval (mixed
-  verdicts → `request-changes`).
+  verdicts → `request-changes`). Approval enters `approved`, which
+  chains straight to `needs-testing` unless `testing.enabled: false`.
 - `needs-testing` → `testing-failed` when the configured
   `testing.failure_signal` fires — a **new** label application (GitHub)
   or status transition (Jira/Linear) that is newer than both the task's
@@ -163,7 +173,9 @@ on vacation — force the task past it.
   PABLO never removes the label or touches the tracker.
 - **Accepted gap (deliberate, don't "fix"):** CI turning red during
   `needs-testing` causes no transition — a broken CI surfaces at merge
-  time anyway.
+  time anyway. The same holds for `approved` when `testing.enabled:
+  false`: the poller only watches for a CI blip there, a red CI causes
+  no transition, and it surfaces at merge.
 - On entering `request-changes` / `testing-failed`, the corresponding
   agent runs and **once it finishes** a detached watcher
   (`pablo internal:watch-agent`) switches the GitHub PR to draft

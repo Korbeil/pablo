@@ -85,9 +85,11 @@ the terminal listing splits on, so `pablo tasks` and this page can never
 disagree. All tables then sort by `Listing::stateRank()` then
 `stateEnteredAt`, also like the CLI.
 
-Two states deliberately never qualify, however long they sit there:
+Three states deliberately never qualify, however long they sit there:
 `needs-testing` means review was approved and the ball is with the PO/QA,
-and `waiting-review` means it is with reviewers. Neither is your move. An
+`waiting-review` means it is with reviewers, and ✅ `approved` (only
+reachable with `testing.enabled: false`) means there is nothing left for
+the agent to do — merge closes the task. None of these is your move. An
 earlier, wider rule that counted `needs-testing` as "needs attention" put
 10 of 11 real tasks in the top table, which carried no signal at all.
 

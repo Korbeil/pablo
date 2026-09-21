@@ -208,6 +208,7 @@ final class Config
             syncInterval: (int) $syncInterval,
             pollInterval: (int) $pollInterval,
             failureSignal: $data['testing']['failure_signal'] ?? null,
+            testingEnabled: (bool) ($data['testing']['enabled'] ?? $defaults['testing']['enabled'] ?? true),
             botWhitelist: array_values((array) $this->merged($data, $defaults, 'review', 'bot_whitelist')),
             ciIgnoreChecks: array_values((array) $this->merged($data, $defaults, 'ci', 'ignore_checks')),
             startupScript: $startup ? $this->expandHome((string) $startup) : null,

@@ -32,6 +32,7 @@ final class StateMachine
         State::RequestChanges,
         State::TestingFailed,
         State::WaitingReview,
+        State::Approved,
     ];
 
     public const WAITING_FORBIDDEN_FROM = [State::RequestChanges, State::TestingFailed];
@@ -67,6 +68,10 @@ final class StateMachine
             // Momentary pass-through: displayed as waiting-review if ever seen.
             State::ReadyToReview->value => ['emoji' => '👀', 'label' => 'waiting-review', 'onEnter' => $this->enterReadyToReview(...), 'polled' => true],
             State::WaitingReview->value => ['emoji' => '👀', 'label' => 'waiting-review', 'onEnter' => null, 'polled' => true],
+            // Momentary pass-through when testing is enabled (chains to
+            // needs-testing); terminal when testing.enabled: false — the
+            // task sits there until merge auto-closes it.
+            State::Approved->value => ['emoji' => '✅', 'label' => 'approved', 'onEnter' => $this->enterApproved(...), 'polled' => true],
             State::NeedsTesting->value => ['emoji' => '🧪', 'label' => 'needs-testing', 'onEnter' => $this->enterNeedsTesting(...), 'polled' => true],
             State::RequestChanges->value => ['emoji' => '🔁', 'label' => 'request-changes', 'onEnter' => $this->enterRequestChanges(...), 'polled' => false],
             State::TestingFailed->value => ['emoji' => '🚨', 'label' => 'testing-failed', 'onEnter' => $this->enterTestingFailed(...), 'polled' => false],
@@ -154,6 +159,15 @@ final class StateMachine
         }
         // Momentary state: immediately settle into waiting-review.
         $this->enterState($ctx, State::WaitingReview);
+    }
+
+    public function enterApproved(TaskCtx $ctx): void
+    {
+        if (!$ctx->cfg->testingEnabled) {
+            return; // terminal: the task waits here until merge auto-closes it
+        }
+        // Momentary state: immediately settle into needs-testing.
+        $this->enterState($ctx, State::NeedsTesting);
     }
 
     private function currentIssueStatus(TaskCtx $ctx): ?string
@@ -301,6 +315,9 @@ final class StateMachine
         }
         if (State::Waiting === $target && \in_array($ctx->task->state, self::WAITING_FORBIDDEN_FROM, true)) {
             throw new PabloError("going from {$ctx->task->state->value} to waiting is impossible — address ".'the feedback and use /commit-and-pr instead');
+        }
+        if (State::NeedsTesting === $target && !$ctx->cfg->testingEnabled) {
+            throw new PabloError('needs-testing is disabled for this project (testing.enabled: false)');
         }
         $ctx->previousState = $ctx->task->state;
         $ctx->task->state = $target;

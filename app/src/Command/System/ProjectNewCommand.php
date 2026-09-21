@@ -78,9 +78,10 @@ final class ProjectNewCommand extends Command
         $defaultEmail = $this->git->userEmail($repoPath) ?? '';
         $identity = $this->askIdentity($helper, $input, $output, $defaultEmail);
 
-        // 8. Failure signal
+        // 8. Testing flow
+        $testingEnabled = $helper->ask($input, $output, new ConfirmationQuestion('[Y/n] Enable the QA/testing flow (needs-testing -> testing-failed)? ', true));
         $failureSignal = null;
-        if ($helper->ask($input, $output, new ConfirmationQuestion('[y/N] Add a failure signal (for needs-testing -> testing-failed detection)? ', false))) {
+        if ($testingEnabled && $helper->ask($input, $output, new ConfirmationQuestion('[y/N] Add a failure signal (for needs-testing -> testing-failed detection)? ', false))) {
             $hint = 'github' === $provider ? 'a GitHub label name' : 'a Jira/Linear status value';
             $failureSignal = $this->askRequired($helper, $input, $output, "Failure signal ({$hint})", null);
         }
@@ -89,7 +90,7 @@ final class ProjectNewCommand extends Command
         $branchPrefix = $this->askOptional($helper, $input, $output, 'Branch prefix (prepended to every branch, e.g. "pablo/", optional)', null);
 
         // Build YAML
-        $yaml = $this->buildYaml($name, $type, $repoPath, $detectedBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix);
+        $yaml = $this->buildYaml($name, $type, $repoPath, $detectedBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix, $testingEnabled);
 
         // 9. Confirm & write
         $output->writeln('');
@@ -278,7 +279,7 @@ final class ProjectNewCommand extends Command
     /**
      * @return array<string, mixed>
      */
-    private function buildStructure(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null): array
+    private function buildStructure(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null, bool $testingEnabled = true): array
     {
         $data = [
             'name' => $name,
@@ -303,7 +304,9 @@ final class ProjectNewCommand extends Command
         if (null !== $confluenceSpace) {
             $data['confluence'] = ['space' => $confluenceSpace];
         }
-        if (null !== $failureSignal) {
+        if (!$testingEnabled) {
+            $data['testing'] = ['enabled' => false];
+        } elseif (null !== $failureSignal) {
             $data['testing'] = ['failure_signal' => $failureSignal];
         }
         if (null !== $branchPrefix) {
@@ -321,9 +324,9 @@ final class ProjectNewCommand extends Command
         return Yaml::dump($data, 4, 2);
     }
 
-    private function buildYaml(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null): string
+    private function buildYaml(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null, bool $testingEnabled = true): string
     {
-        $data = $this->buildStructure($name, $type, $repoPath, $primaryBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix);
+        $data = $this->buildStructure($name, $type, $repoPath, $primaryBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix, $testingEnabled);
 
         return $this->dumpYaml($data);
     }

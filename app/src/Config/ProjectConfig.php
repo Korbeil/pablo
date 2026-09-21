@@ -36,6 +36,7 @@ final class ProjectConfig
         public readonly ?string $confluenceSpace = null,
         public readonly ?string $startupScript = null,
         public readonly ?string $issueRepo = null,
+        public readonly bool $testingEnabled = true,
     ) {
     }
 
@@ -57,6 +58,7 @@ final class ProjectConfig
             'sync_interval' => $this->syncInterval,
             'poll_interval' => $this->pollInterval,
             'failure_signal' => $this->failureSignal,
+            'testing_enabled' => $this->testingEnabled,
             'bot_whitelist' => $this->botWhitelist,
             'ci_ignore_checks' => $this->ciIgnoreChecks,
             'site' => $this->site,

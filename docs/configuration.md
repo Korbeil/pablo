@@ -43,10 +43,13 @@ sync:
 state_polling:
   interval_minutes: 10       # cadence of the cron-driven state polling
 testing:
+  enabled: true              # false → no QA/testing flow: review approval settles the
+                              # task in ✅ approved until merge auto-closes it;
+                              # entering needs-testing is refused (task:state included)
   failure_signal: qa-failed  # GitHub: a label name watched on the PR.
                              # Jira/Linear: a status value watched on the issue.
                              # optional; without it needs-testing → testing-failed
-                             # never triggers automatically
+                             # never triggers automatically (dead when enabled: false)
 review:
   bot_whitelist: []          # bot accounts whose PR reviews count anyway,
                              # e.g. ["copilot-pull-request-reviewer[bot]"]
@@ -78,9 +81,9 @@ branch_prefix: pablo/        # optional; raw prefix prepended to every branch na
 when a project omits them — a project can override just one and inherit
 the rest): `sync.strategy`, `sync.auto_apply`, `sync.interval_minutes`,
 `state_polling.interval_minutes`, `review.bot_whitelist`,
-`ci.ignore_checks`, `default_model`, `pr_description_locale`,
-`branch_prefix`. Shipped
-defaults: `rebase`, `false`, `30`, `10`, `[]`, `[]`; `default_model`,
+`ci.ignore_checks`, `testing.enabled`, `default_model`,
+`pr_description_locale`, `branch_prefix`. Shipped
+defaults: `rebase`, `false`, `30`, `10`, `[]`, `[]`, `true`; `default_model`,
 `pr_description_locale` and `branch_prefix`
 have no built-in value — `default_model` and `pr_description_locale` must
 be set either per project or globally, otherwise loading the project

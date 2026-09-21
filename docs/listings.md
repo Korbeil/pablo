@@ -1,7 +1,7 @@
 # Listings
 
 **`pablo task:list`** — active tasks, split into two tables (each sorted
-by state, in this order: 🚨 testing-failed · 🧪 needs-testing ·
+by state, in this order: 🚨 testing-failed · 🧪 needs-testing · ✅ approved ·
 🔁 request-changes · 👀 waiting-review · 👀 ready-to-review · 🔴 ci-red
 · 📝 draft · ⏸️ waiting · 🔨 in-progress; ties keep store insertion
 order):

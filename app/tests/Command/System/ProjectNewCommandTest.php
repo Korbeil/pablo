@@ -99,6 +99,7 @@ YAML;
             '', // confluence space (empty = skip)
             '', // project key (accepts default: MY-PROJECT)
             '', // provider identity (accepts default: git@example.com)
+            '', // enable testing flow? (accepts default: yes)
             'n', // failure signal? no
             '', // branch prefix (empty = skip)
             'y', // confirm write
@@ -139,6 +140,7 @@ YAML;
             'stripe/payment-kit', // issue repo
             '', // project key (default: PAYMENT-KIT)
             '', // identity (default: git@example.com)
+            '', // enable testing flow? (default: yes)
             'n', // failure signal? no
             '', // branch prefix (empty = skip)
             'y', // confirm write
@@ -169,6 +171,7 @@ YAML;
             '', // confluence space (empty = skip)
             'PROJ', // project key
             'user@linear.app', // identity
+            '', // enable testing flow? (default: yes)
             'n', // failure signal? no
             '', // branch prefix (empty = skip)
             'y', // confirm write
@@ -199,6 +202,7 @@ YAML;
             '', // issue repo (empty)
             'QT', // project key
             'me@example.com',
+            '', // enable testing flow? (default: yes)
             'y', // failure signal? yes
             'qa-failed', // failure signal value
             'p/', // branch prefix
@@ -210,7 +214,38 @@ YAML;
 
         $cfg = $this->loader()->loadProjects($this->projectsDir)['qa-test'];
         $this->assertSame('qa-failed', $cfg->failureSignal);
+        $this->assertTrue($cfg->testingEnabled);
         $this->assertSame('p/', $cfg->branchPrefix);
+    }
+
+    public function testDisablingTestingSkipsFailureSignalQuestion(): void
+    {
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $tester = new CommandTester($command);
+
+        $tester->setInputs([
+            '/home/me/dev/no-qa',
+            'no-qa',
+            '0', // type: work
+            '0', // provider: github
+            '', // issue repo (empty)
+            'NQ', // project key
+            'me@example.com',
+            'n', // enable testing flow? no — signal question must be skipped
+            'p/', // branch prefix (the signal question is NOT asked)
+            'y', // confirm write
+        ]);
+        $tester->execute([]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['no-qa'];
+        $this->assertFalse($cfg->testingEnabled);
+        $this->assertNull($cfg->failureSignal);
+
+        $yaml = file_get_contents($this->projectsDir.'/no-qa.yaml');
+        $this->assertIsString($yaml);
+        $this->assertStringContainsString('enabled: false', $yaml);
     }
 
     public function testRejectsDuplicateName(): void
@@ -239,6 +274,7 @@ YAML);
             '',               // issue repo
             '',               // project key
             'u@e.com',
+            '',             // enable testing flow? (default: yes)
             'n',              // failure signal? no
             '',               // branch prefix (empty = skip)
             'y',              // confirm write
@@ -265,6 +301,7 @@ YAML);
             '', // issue repo
             '', // project key (default: ABORT)
             'u@e.com',
+            '', // enable testing flow? (default: yes)
             'n', // failure signal? no
             'n', // DON'T confirm
         ]);
@@ -288,6 +325,7 @@ YAML);
             '', // confluence space (empty = skip)
             'LIN', // project key
             'u@l.app', // identity
+            '', // enable testing flow? (default: yes)
             'n', // failure signal? no
             '', // branch prefix (empty = skip)
             'y', // confirm write
@@ -314,6 +352,7 @@ YAML);
             '', // issue repo
             '', // project key (default: SECOND-GH)
             'u@e.com', // identity
+            '', // enable testing flow? (default: yes)
             'n', // failure signal? no
             '', // branch prefix (empty = skip)
             'y', // confirm write
