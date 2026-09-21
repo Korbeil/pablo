@@ -105,6 +105,41 @@ body {
     opacity: 0.55;
 }
 
+/* Theme toggle: exactly one glyph per state, keyed only on the
+   html[data-theme] attribute theme_controller.js maintains. No media
+   queries: system mode = attribute absent = monitor, regardless of OS.
+   The [hidden] rule is back-up for the controller, which also sets
+   hidden on inactive glyphs so a broken stylesheet can't surface two. */
+.pablo-theme-icon {
+    display: none;
+}
+
+html[data-theme=light] .pablo-theme-icon-light {
+    display: inline-block;
+}
+
+html[data-theme=dark] .pablo-theme-icon-dark {
+    display: inline-block;
+}
+
+html:not([data-theme]) .pablo-theme-icon-system {
+    display: inline-block;
+}
+
+/* JS back-stop for syncGlyphs(): :root lifts specificity (0,3,0) above every
+   show rule (0,2,1), and its position after them wins any remaining tie. */
+:root .pablo-theme-icon[hidden] {
+    display: none;
+}
+
+/* The toggle's only icon is the glyph itself; the breathing room other
+   buttons give their icon would just pad this one asymmetrically. The
+   .button qualifier lifts this above `.button .pablo-icon` below: at equal
+   specificity it would lose on source order and the 0.45em would stick. */
+.button.pablo-theme-toggle .pablo-icon {
+    margin-right: 0;
+}
+
 /* Buttons place the icon directly beside its label with no wrapper, so give
    it its own breathing room (Bulma only spaces its own .icon element). */
 .button .pablo-icon {

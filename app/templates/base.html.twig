@@ -13,6 +13,17 @@
             }
         })();
     </script>
+    {# Theme bootstrap: must run before first paint. A stored choice sets
+       data-theme on <html>; anything else (absent, 'system', storage blocked)
+       leaves the attribute off so Bulma follows prefers-color-scheme. #}
+    <script>
+        try {
+            var theme = localStorage.getItem('pablo-theme');
+            if (theme === 'light' || theme === 'dark') {
+                document.documentElement.dataset.theme = theme;
+            }
+        } catch (e) {}
+    </script>
     {% block stylesheets %}{% endblock %}
     {% block javascripts %}
         {{ importmap('app') }}

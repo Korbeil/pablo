@@ -184,6 +184,22 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->assertGreaterThanOrEqual(1, $backLinks->count());
     }
 
+    /** The theme switcher must be mounted here too, with its three state glyphs. */
+    public function testThemeToggleIsMounted(): void
+    {
+        $crawler = $this->browser()->request('GET', '/analytics');
+
+        $toggle = $crawler->filter('[data-controller="theme"]');
+        $this->assertSame(1, $toggle->count());
+        $this->assertSame('theme#toggle', $toggle->attr('data-action'));
+        // The bare token powers the CSS hide-everything base rule; without it
+        // the glyphs are unrestrained and all three show at once.
+        $this->assertSame(3, $crawler->filter('.pablo-theme-icon')->count());
+        $this->assertSame(1, $crawler->filter('.pablo-theme-icon-light')->count());
+        $this->assertSame(1, $crawler->filter('.pablo-theme-icon-dark')->count());
+        $this->assertSame(1, $crawler->filter('.pablo-theme-icon-system')->count());
+    }
+
     public function testDaysFilterExcludesOldEvents(): void
     {
         $this->seedLifecycle(-40 * 86_400); // whole lifecycle 40 days ago

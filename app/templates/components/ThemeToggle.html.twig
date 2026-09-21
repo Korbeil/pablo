@@ -1,0 +1,10 @@
+{# Theme switcher: cycles light -> dark -> system (see theme_controller.js).
+   Exactly one glyph shows per state — sun (light), moon (dark), monitor
+   (system) — via the mutually exclusive CSS rules in app.css keyed on the
+   html[data-theme] attribute. The controller additionally sets hidden on
+   the inactive glyphs, so a single icon shows even before/without CSS. #}
+<button type="button" class="button is-light pablo-theme-toggle" data-controller="theme" data-action="theme#toggle" title="Toggle colour theme (light / dark / system)" aria-label="Toggle colour theme (light / dark / system)">
+    {{ ux_icon('lucide:sun', {class: 'pablo-icon pablo-theme-icon pablo-theme-icon-light'}) }}
+    {{ ux_icon('lucide:moon', {class: 'pablo-icon pablo-theme-icon pablo-theme-icon-dark'}) }}
+    {{ ux_icon('lucide:monitor', {class: 'pablo-icon pablo-theme-icon pablo-theme-icon-system'}) }}
+</button>

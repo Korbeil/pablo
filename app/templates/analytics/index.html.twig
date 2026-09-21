@@ -12,10 +12,13 @@
                     <p class="pablo-tagline">Task lifetimes, agent runs, tokens &amp; cost</p>
                 </div>
             </div>
-            <a class="button is-light" href="{{ path('dashboard') }}">
-                {{ ux_icon('lucide:arrow-left', {class: 'pablo-icon'}) }}
-                Task board
-            </a>
+            <div class="pablo-header-actions">
+                <twig:ThemeToggle />
+                <a class="button is-light" href="{{ path('dashboard') }}">
+                    {{ ux_icon('lucide:arrow-left', {class: 'pablo-icon'}) }}
+                    Task board
+                </a>
+            </div>
         </div>
     </header>
 

@@ -173,6 +173,22 @@ final class DashboardControllerTest extends WebTestCase
         $this->assertSame(['NewTaskModal', 'PollProgress', 'RebaseLog', 'SlackModal', 'TaskBoard'], $names);
     }
 
+    /** The theme switcher must be mounted with its three state glyphs. */
+    public function testThemeToggleIsMounted(): void
+    {
+        $crawler = $this->browser()->request('GET', '/');
+
+        $toggle = $crawler->filter('[data-controller="theme"]');
+        $this->assertSame(1, $toggle->count());
+        $this->assertSame('theme#toggle', $toggle->attr('data-action'));
+        // The bare token powers the CSS hide-everything base rule; without it
+        // the glyphs are unrestrained and all three show at once.
+        $this->assertSame(3, $crawler->filter('.pablo-theme-icon')->count());
+        $this->assertSame(1, $crawler->filter('.pablo-theme-icon-light')->count());
+        $this->assertSame(1, $crawler->filter('.pablo-theme-icon-dark')->count());
+        $this->assertSame(1, $crawler->filter('.pablo-theme-icon-system')->count());
+    }
+
     /**
      * One tick polls every due project, so there is exactly one countdown bar
      * however many projects are configured; per-project last-run times live in
