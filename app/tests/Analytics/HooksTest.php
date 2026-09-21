@@ -15,6 +15,7 @@ use Pablo\Domain\Task as TaskRecord;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Support\Naming;
 use Pablo\Support\TaskSummarizer;
+use Pablo\Task\TaskStarter;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
@@ -37,17 +38,23 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
     public function testStartRecordsTaskOpenedOnce(): void
     {
         $this->git->allBranchNames = [];
-        $cmd = new StartCommand(
+        $starter = new TaskStarter(
             $this->providers,
             new Naming(),
             $this->git,
             $this->stateMachine,
             new TaskSummarizer($this->runner),
+            $this->analytics,
             $this->store,
             $this->projectsLoader,
+            $this->agents,
+        );
+        $cmd = new StartCommand(
+            $starter,
+            $this->projectsLoader,
+            $this->store,
             $this->agentLaunchers,
             $this->agents,
-            $this->analytics,
         );
         $tester = $this->runCommand($cmd, ['--project' => 'wallet-kit', 'input' => ['fix the thing']]);
         $this->assertSame(0, $tester->getStatusCode());

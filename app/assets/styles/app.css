@@ -111,6 +111,11 @@ body {
     margin-right: 0.45em;
 }
 
+/* Same breathing room inside toggle-tab anchors (new-task modal modes). */
+.tabs a .pablo-icon {
+    margin-right: 0.5em;
+}
+
 .pablo-log-row .tag .pablo-icon {
     margin-right: 0.35em;
 }

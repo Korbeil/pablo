@@ -19,9 +19,14 @@ supervised; the page itself is unchanged and strictly read-only.
 
 ## Guarantees
 
-**Read-only.** Nothing reachable from the page mutates task state, a
-worktree, a PR, or an issue tracker — the same rule the rest of PABLO
-follows. There is no button that writes.
+**Read-only on render.** Nothing reachable from a page load or a poll
+mutates task state, a worktree, a PR, or an issue tracker — the same rule
+the rest of PABLO follows. There is one button that writes: the
+**new-task modal**, which runs `TaskStarter` (the same core as
+`task:start`) only on its explicit "Start task" submit — never on page
+load, never on a poll, and it creates a worktree + task + the
+task-analyst agent like the CLI always has. Everything else stays
+read-only.
 
 **Loopback only.** `pablo web` always binds `127.0.0.1` and that is not
 configurable. The page has no authentication and exposes branch names,
@@ -29,11 +34,14 @@ issue titles and PR URLs.
 
 **No provider calls on render.** The task tables are built entirely from
 the poller-written `DisplayCache` on each task record, so loading or
-polling the page never runs `gh`, `orca`, or a tracker CLI. The one
-exception is the Slack modal, which is why it loads on demand rather
-than with the page. The only subprocess a page render can make is one
-local `git remote get-url origin` per project that has a PR (memoised
-per request, used to build PR links, degrades to an unlinked badge).
+polling the page never runs `gh`, `orca`, or a tracker CLI. Two
+exceptions, both on explicit user action rather than with the page: the
+Slack modal (a live `gh` PR lookup per queued task) and the new-task
+modal (which may run the `opencode` branch summarizer for a prompt task
+before creating the worktree and launching task-analyst). The only
+subprocess a page render can make is one local `git remote get-url
+origin` per project that has a PR (memoised per request, used to build
+PR links, degrades to an unlinked badge).
 
 **Works offline.** Bulma and the Stimulus/LiveComponent JS are vendored
 into `app/assets/vendor/` and committed; the Lucide icons are imported
@@ -103,6 +111,26 @@ Copying uses `navigator.clipboard`, which needs a secure context —
 `http://127.0.0.1` counts as one, so it works without TLS. There is an
 `execCommand` fallback for anything that doesn't.
 
+### New task
+
+A button in the header opens a modal that starts a task — the same
+`TaskStarter` service the `task:start` CLI wraps, so the two surfaces
+cannot drift. Two modes:
+
+* **Issue link** — an issue URL (`https://github.com/.../issues/123`) or
+  an issue key (`ABC-123`) in a textarea. No project needed — the starter
+  scans every configured project.
+* **Prompt** — a textarea for long prompts plus a project dropdown fed
+  from the configured projects. The branch name comes from the AI
+  summary of the prompt, so the submit button can spin for tens of
+  seconds before the task appears in the tables.
+
+Errors (unmatched URL, missing project) render in the modal; a start
+renders the outcome ("Started WK-123 ... worktree ... task-analyst is
+running") and closes the modal; a second start of the same issue shows
+"reusing it" like the CLI. It is the page's only write surface — see
+the guarantees above for why and how that's bounded.
+
 ### Last sync
 
 One card per project showing the last sync/rebase session
@@ -143,7 +171,8 @@ objects. Empty log renders a friendly empty state instead of canvases.
 | `src/Dashboard/RebaseLogView.php` | decodes the sync log, maps actions to icon/colour |
 | `src/Dashboard/AnalyticsCharts.php` | builds the six `/analytics` Chart objects from aggregator output |
 | `src/Domain/PrBadge.php`, `AgentActivity.php` | value objects shared by the terminal and the web renderers |
-| `src/Twig/Components/` | `TaskBoard`, `PollProgress`, `SlackModal` (live); `RebaseLog` (plain) |
+| `src/Twig/Components/` | `TaskBoard`, `PollProgress`, `SlackModal`, `NewTaskModal` (live); `RebaseLog` (plain) |
+| `src/Task/TaskStarter.php`, `StartResult.php` | the `task:start` core, shared by the CLI command and the new-task modal; `IssueMatch.php` lives beside it |
 | `src/Controller/DashboardController.php` | the single `GET /` route |
 | `src/Controller/AnalyticsController.php` | the `GET /analytics` route |
 | `src/Command/System/WebCommand.php` | `pablo web` |

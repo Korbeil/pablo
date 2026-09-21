@@ -1,0 +1,117 @@
+{# @var this \Pablo\Twig\Components\NewTaskModal #}
+<div {{ attributes }}>
+    <button type="button"
+            class="button is-link is-light"
+            data-action="live#action"
+            data-live-action-param="open"
+            data-loading="addClass(is-loading)">
+        {{ ux_icon('lucide:plus', {class: 'pablo-icon'}) }}
+        <span>New task</span>
+    </button>
+
+    <div class="modal {{ this.open ? 'is-active' : '' }}">
+        <div class="modal-background"
+             data-action="live#action"
+             data-live-action-param="close"></div>
+
+        <div class="modal-card pablo-modal">
+            <header class="modal-card-head">
+                <p class="modal-card-title">
+                    {{ ux_icon('lucide:plus', {class: 'pablo-icon'}) }}
+                    New task
+                </p>
+                <button class="delete" aria-label="close"
+                        data-action="live#action"
+                        data-live-action-param="close"></button>
+            </header>
+
+            <section class="modal-card-body">
+                <div class="tabs is-toggle is-small">
+                    <ul>
+                        <li class="{{ 'prompt' != this.mode ? 'is-active' : '' }}">
+                            <a data-action="live#action"
+                               data-live-action-param="useIssueMode">
+                                {{ ux_icon('lucide:link', {class: 'pablo-icon'}) }}
+                                <span>Issue link</span>
+                            </a>
+                        </li>
+                        <li class="{{ 'prompt' == this.mode ? 'is-active' : '' }}">
+                            <a data-action="live#action"
+                               data-live-action-param="usePromptMode">
+                                {{ ux_icon('lucide:pen-line', {class: 'pablo-icon'}) }}
+                                <span>Prompt</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
+                {% if this.error %}
+                    <div class="notification is-danger is-light">
+                        {{ ux_icon('lucide:triangle-alert', {class: 'pablo-icon'}) }}
+                        {{ this.error }}
+                    </div>
+                {% elseif this.message %}
+                    <div class="notification is-success is-light">
+                        {{ ux_icon('lucide:check', {class: 'pablo-icon'}) }}
+                        {{ this.message }}
+                    </div>
+                {% endif %}
+
+                {% if 'issue' == this.mode %}
+                    <div class="field">
+                        <label class="label">Issue URL or key</label>
+                        <div class="control">
+                            <input class="input"
+                                   type="text"
+                                   name="text"
+                                   placeholder="https://github.com/…/issues/123 or ABC-123"
+                                   data-model="text"
+                                   data-action="live#update">
+                        </div>
+                        <p class="help">No project needed — PABLO scans every configured project.</p>
+                    </div>
+                {% else %}
+                    <div class="field">
+                        <label class="label">Project</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select name="project" data-model="project" data-action="live#update">
+                                    <option value="">— pick a project —</option>
+                                    {% for type, names in this.projectChoices %}
+                                        <optgroup label="{{ type }}">
+                                            {% for name in names %}
+                                                <option value="{{ name }}" {{ this.project == name ? 'selected' : '' }}>{{ name }}</option>
+                                            {% endfor %}
+                                        </optgroup>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="label">Prompt</label>
+                        <div class="control">
+                            <textarea class="textarea"
+                                      name="text"
+                                      rows="6"
+                                      placeholder="Describe what PABLO should work on…"
+                                      data-model="text"
+                                      data-action="live#update"></textarea>
+                        </div>
+                        <p class="help">The branch name comes from an AI summary of the prompt; task-analyst starts right after creation, so this can take a moment.</p>
+                    </div>
+                {% endif %}
+            </section>
+
+            <footer class="modal-card-foot">
+                <button class="button is-link"
+                        data-action="live#action"
+                        data-live-action-param="start"
+                        data-loading="addClass(is-loading)">
+                    {{ ux_icon('lucide:rocket', {class: 'pablo-icon'}) }}
+                    <span>Start task</span>
+                </button>
+            </footer>
+        </div>
+    </div>
+</div>

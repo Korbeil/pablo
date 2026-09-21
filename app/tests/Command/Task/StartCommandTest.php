@@ -18,7 +18,9 @@ use Pablo\Store\Store;
 use Pablo\Support\Naming;
 use Pablo\Support\RepoSlug;
 use Pablo\Support\TaskSummarizer;
+use Pablo\Task\TaskStarter;
 use Pablo\Tests\FakeAgents;
+use Pablo\Tests\FakeAnalytics;
 use Pablo\Tests\FakeGhPr;
 use Pablo\Tests\FakeGit;
 use Pablo\Tests\FakeProcessRunner;
@@ -226,14 +228,21 @@ YAML,
         $gh = new FakeGhPr();
         $sm = new StateMachine($gh, $registry, $repoSlug, $time);
         $factory = new AgentLauncherFactory($global);
-        $cmd = new \Pablo\Command\Task\StartCommand(
+        $starter = new TaskStarter(
             $this->currentProviders,
             new Naming(),
             $this->git,
             $sm,
             new TaskSummarizer($this->summarizerRunner),
+            new FakeAnalytics(),
             $this->store,
             $loader,
+            $this->agents,
+        );
+        $cmd = new \Pablo\Command\Task\StartCommand(
+            $starter,
+            $loader,
+            $this->store,
             $factory,
             $this->agents,
         );

@@ -161,7 +161,7 @@ final class DashboardControllerTest extends WebTestCase
         $this->assertStringContainsString('Nothing is waiting on you right now', $crawler->text());
     }
 
-    /** All three live components must be mounted for polling to work at all. */
+    /** All four live components must be mounted (the new-task modal is the dashboard's one write exception, Slack modal the one network exception). */
     public function testLiveComponentsAreMounted(): void
     {
         $crawler = $this->browser()->request('GET', '/');
@@ -170,7 +170,7 @@ final class DashboardControllerTest extends WebTestCase
             ->each(static fn ($n) => $n->attr('data-live-name-value'));
 
         sort($names);
-        $this->assertSame(['PollProgress', 'RebaseLog', 'SlackModal', 'TaskBoard'], $names);
+        $this->assertSame(['NewTaskModal', 'PollProgress', 'RebaseLog', 'SlackModal', 'TaskBoard'], $names);
     }
 
     /**
@@ -254,8 +254,12 @@ final class DashboardControllerTest extends WebTestCase
     {
         $crawler = $this->browser()->request('GET', '/');
 
-        $this->assertSame(0, $crawler->filter('textarea')->count());
-        $this->assertSame(0, $crawler->filter('.modal.is-active')->count());
+        $modal = $crawler->filter('[data-live-name-value="SlackModal"]');
+        $this->assertSame(0, $modal->filter('textarea')->count());
+        $this->assertSame(0, $modal->filter('.modal.is-active')->count());
+        // The new-task modal is rendered shut, too — open state lives in the component.
+        $modal = $crawler->filter('[data-live-name-value="NewTaskModal"]');
+        $this->assertSame(0, $modal->filter('.modal.is-active')->count());
     }
 
     /**

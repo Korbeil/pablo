@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Command\Task;
+namespace Pablo\Task;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Provider\Tracker\Provider;
