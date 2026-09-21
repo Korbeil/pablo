@@ -184,7 +184,7 @@ final class PollerTest extends TestCase
         return ['tmp' => $tmp];
     }
 
-    private function cfg(string $tmp): ProjectConfig
+    private function cfg(string $tmp, bool $testingEnabled = true): ProjectConfig
     {
         return new ProjectConfig(
             name: 'proj',
@@ -200,6 +200,7 @@ final class PollerTest extends TestCase
             syncInterval: 30,
             pollInterval: 10,
             failureSignal: 'qa-failed',
+            testingEnabled: $testingEnabled,
             botWhitelist: [],
             ciIgnoreChecks: [],
             defaultModel: 'openrouter/test/model',
@@ -322,6 +323,49 @@ final class PollerTest extends TestCase
         $this->poll($cfg, $store);
         $this->assertSame(State::NeedsTesting, $this->taskOrFail($store)->state);
         $this->assertNotNull($this->taskOrFail($store)->needsTestingEnteredAt);
+    }
+
+    public function testWaitingReviewApprovedStaysInApprovedWhenTestingDisabled(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp'], testingEnabled: false);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::WaitingReview));
+        $this->stubs['ci'] = 'green';
+        $this->stubs['verdict'] = 'approved';
+        $this->poll($cfg, $store);
+        $this->assertSame(State::Approved, $this->taskOrFail($store)->state);
+        $this->assertNull($this->taskOrFail($store)->needsTestingEnteredAt);
+    }
+
+    public function testApprovedWithRedCiMovesToCiRedWhenTestingDisabled(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp'], testingEnabled: false);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::WaitingReview));
+        $this->stubs['ci'] = 'green';
+        $this->stubs['verdict'] = 'approved';
+        $this->poll($cfg, $store);
+        $this->assertSame(State::Approved, $this->taskOrFail($store)->state);
+
+        $this->stubs['ci'] = 'red';
+        $this->poll($cfg, $store);
+        $this->assertSame(State::CiRed, $this->taskOrFail($store)->state);
+    }
+
+    public function testLegacyNeedsTestingKeepsSignalWhenTestingDisabled(): void
+    {
+        // Only *entry* is gated: a task already in needs-testing keeps
+        // polling testing-failed normally even with testing disabled.
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp'], testingEnabled: false);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::NeedsTesting));
+        $this->setState($store, State::NeedsTesting, ['needsTestingEnteredAt' => '2026-07-22T00:00:00+00:00']);
+        $this->provider->events = [new \DateTimeImmutable('2026-07-23T00:00:00+00:00')];
+        $this->poll($cfg, $store);
+        $this->assertSame(State::TestingFailed, $this->taskOrFail($store)->state);
     }
 
     public function testWaitingReviewChangesToRequestChanges(): void

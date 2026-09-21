@@ -41,6 +41,7 @@ final class Poller
         State::CiRed->value => ['checkCiGreen'],
         State::ReadyToReview->value => ['checkCiRed', 'checkReviews'],
         State::WaitingReview->value => ['checkCiRed', 'checkReviews'],
+        State::Approved->value => ['checkCiRed'],
         State::NeedsTesting->value => ['checkFailureSignal'],
     ];
 
@@ -97,7 +98,7 @@ final class Poller
         $prReviews = $this->gh->fetchReviews($slug, $prNumber);
         $verdict = $this->gh->evaluateReviews($prReviews->reviews, $anchor, $prReviews->author, $ctx->cfg->botWhitelist);
         if ('approved' === $verdict) {
-            return State::NeedsTesting;
+            return State::Approved;
         }
         if ('changes' === $verdict) {
             return State::RequestChanges;

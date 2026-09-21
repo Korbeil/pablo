@@ -233,6 +233,34 @@ YAML;
         $this->assertSame(getenv('HOME').'/scripts/pablo-setup.sh', $cfg->startupScript);
     }
 
+    public function testTestingModuleEnabledDefault(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->assertTrue($this->loader()->loadProjects($this->projectsDir)['mini']->testingEnabled);
+    }
+
+    public function testTestingModuleDisabled(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."testing:\n  enabled: false\n");
+        $this->assertFalse($this->loader()->loadProjects($this->projectsDir)['mini']->testingEnabled);
+    }
+
+    public function testTestingModuleDisabledFallsBackToGlobalDefault(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->writeGlobalConfig(self::DEFAULTS."\ntesting:\n  enabled: false\n");
+        $this->assertFalse($this->loader()->loadProjects($this->projectsDir)['mini']->testingEnabled);
+    }
+
+    public function testDisabledTestingWithFailureSignalParsesFine(): void
+    {
+        // The signal is simply unreachable; no config error — forces nothing.
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."testing:\n  enabled: false\n  failure_signal: qa-failed\n");
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
+        $this->assertFalse($cfg->testingEnabled);
+        $this->assertSame('qa-failed', $cfg->failureSignal);
+    }
+
     public function testMissingRequiredKeyNamesFileAndKey(): void
     {
         $this->write('broken.yaml', "name: broken\ntype: work\n");

@@ -264,6 +264,79 @@ final class StateMachineTest extends TestCase
         $this->assertSame($baseline, $this->task->needsTestingEnteredAt);
     }
 
+    // -------------------------------------------------- testing disabled ---
+
+    private function ctxWithTestingDisabled(): TaskCtx
+    {
+        $cfg = new ProjectConfig(
+            name: $this->cfg->name,
+            type: $this->cfg->type,
+            repoPath: $this->cfg->repoPath,
+            primaryBranch: $this->cfg->primaryBranch,
+            worktreesRoot: $this->cfg->worktreesRoot,
+            provider: $this->cfg->provider,
+            identity: $this->cfg->identity,
+            projectKey: $this->cfg->projectKey,
+            syncStrategy: $this->cfg->syncStrategy,
+            syncAutoApply: $this->cfg->syncAutoApply,
+            syncInterval: $this->cfg->syncInterval,
+            pollInterval: $this->cfg->pollInterval,
+            failureSignal: $this->cfg->failureSignal,
+            testingEnabled: false,
+            botWhitelist: $this->cfg->botWhitelist,
+            ciIgnoreChecks: $this->cfg->ciIgnoreChecks,
+            defaultModel: $this->cfg->defaultModel,
+            prDescriptionLocale: $this->cfg->prDescriptionLocale,
+        );
+
+        return new TaskCtx(task: $this->task, cfg: $cfg, store: $this->store, agents: $this->agents);
+    }
+
+    public function testApprovedChainsToNeedsTestingWhenTestingEnabled(): void
+    {
+        $this->task->state = State::WaitingReview;
+        $this->sm->enterState($this->ctx, State::Approved);
+        $this->assertSame(State::NeedsTesting, $this->task->state);
+        $this->assertNotNull($this->task->needsTestingEnteredAt);
+    }
+
+    public function testApprovedIsTerminalWhenTestingDisabled(): void
+    {
+        $ctx = $this->ctxWithTestingDisabled();
+        $this->task->state = State::WaitingReview;
+        $this->sm->enterState($ctx, State::Approved);
+        $this->assertSame(State::Approved, $this->task->state);
+        $this->assertNull($this->task->needsTestingEnteredAt);
+    }
+
+    public function testNeedsTestingRefusedWhenTestingDisabled(): void
+    {
+        $ctx = $this->ctxWithTestingDisabled();
+        $this->task->state = State::WaitingReview;
+        try {
+            $this->sm->enterState($ctx, State::NeedsTesting);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString('testing.enabled: false', $e->getMessage());
+        }
+        $this->assertSame(State::WaitingReview, $this->task->state);
+    }
+
+    public function testNeedsTestingRestoreFromWaitingRefusedWhenTestingDisabled(): void
+    {
+        $ctx = $this->ctxWithTestingDisabled();
+        $this->task->state = State::NeedsTesting;
+        $this->task->stateBeforeWaiting = State::NeedsTesting;
+        $this->task->state = State::Waiting;
+        try {
+            $this->sm->toggleWaiting($ctx);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString('testing.enabled: false', $e->getMessage());
+        }
+        $this->assertSame(State::Waiting, $this->task->state);
+    }
+
     public function testEnterStatePersists(): void
     {
         $this->sm->enterState($this->ctx, State::Draft);
@@ -282,7 +355,7 @@ final class StateMachineTest extends TestCase
     public function testCommitAllowedSet(): void
     {
         $this->assertSame(
-            [State::InProgress, State::CiRed, State::RequestChanges, State::TestingFailed, State::WaitingReview],
+            [State::InProgress, State::CiRed, State::RequestChanges, State::TestingFailed, State::WaitingReview, State::Approved],
             StateMachine::COMMIT_ALLOWED_FROM,
         );
     }

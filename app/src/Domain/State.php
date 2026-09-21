@@ -15,6 +15,7 @@ enum State: string
     case CiRed = 'ci-red';
     case ReadyToReview = 'ready-to-review';
     case WaitingReview = 'waiting-review';
+    case Approved = 'approved';
     case NeedsTesting = 'needs-testing';
     case RequestChanges = 'request-changes';
     case TestingFailed = 'testing-failed';
@@ -35,6 +36,7 @@ enum State: string
     public const DISPLAY_ORDER = [
         self::TestingFailed,
         self::NeedsTesting,
+        self::Approved,
         self::RequestChanges,
         self::WaitingReview,
         self::ReadyToReview,

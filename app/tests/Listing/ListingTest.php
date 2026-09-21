@@ -471,6 +471,17 @@ final class ListingTest extends TestCase
         $this->assertSame('Nothing needs testing right now 🎉', $this->listing->renderSlack([], State::NeedsTesting->value));
     }
 
+    public function testRenderSlackEmptyRowsApproved(): void
+    {
+        $this->assertSame('No approved PRs awaiting merge right now 🎉', $this->listing->renderSlack([], State::Approved->value));
+    }
+
+    public function testApprovedRanksBetweenNeedsTestingAndRequestChanges(): void
+    {
+        $this->assertGreaterThan($this->listing->stateRank(State::NeedsTesting), $this->listing->stateRank(State::Approved));
+        $this->assertLessThan($this->listing->stateRank(State::RequestChanges), $this->listing->stateRank(State::Approved));
+    }
+
     public function testRenderSlackEmptyRowsUnknownStateFallsBack(): void
     {
         $this->assertStringContainsString('🎉', $this->listing->renderSlack([], 'request-changes'));

@@ -43,6 +43,7 @@ final class Listing
     private const SLACK_EMPTY = [
         State::WaitingReview->value => 'No PRs waiting for review right now 🎉',
         State::NeedsTesting->value => 'Nothing needs testing right now 🎉',
+        State::Approved->value => 'No approved PRs awaiting merge right now 🎉',
     ];
 
     private const TASKS_HEADERS = ['Project', 'Task', 'State', 'Agents', 'Activity', 'Issue', 'Tracker', 'PR', 'Since'];
