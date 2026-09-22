@@ -1,4 +1,5 @@
 ---
+name: pablo-task
 description: Use when the user wants to start or create a Pablo task, or asks to "work on this issue" / "start a task" through PABLO.
 ---
 
