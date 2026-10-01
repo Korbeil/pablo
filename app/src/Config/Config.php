@@ -110,6 +110,22 @@ final class Config
 
     /**
      * @param array<string, mixed> $data
+     */
+    private function optional(array $data, string $dotted): mixed
+    {
+        $node = $data;
+        foreach (explode('.', $dotted) as $part) {
+            if (!\is_array($node) || !\array_key_exists($part, $node)) {
+                return null;
+            }
+            $node = $node[$part];
+        }
+
+        return $node;
+    }
+
+    /**
+     * @param array<string, mixed> $data
      * @param array<string, mixed> $defaults
      */
     private function merged(array $data, array $defaults, string $section, string $key): mixed
@@ -149,6 +165,7 @@ final class Config
 
         $repoPath = $this->expandHome((string) $this->require($data, 'repo.path', $base));
         $primaryBranch = (string) $this->require($data, 'repo.primary_branch', $base);
+        $primaryRemote = (string) ($this->optional($data, 'repo.primary_remote') ?? 'origin');
 
         $provider = (string) $this->require($data, 'issue_tracker.provider', $base);
         if (!\in_array($provider, self::PROVIDERS, true)) {
@@ -196,6 +213,7 @@ final class Config
             type: $type,
             repoPath: $repoPath,
             primaryBranch: $primaryBranch,
+            primaryRemote: $primaryRemote,
             worktreesRoot: $worktreesRoot,
             provider: $provider,
             identity: $identity,

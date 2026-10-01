@@ -101,7 +101,7 @@ final class NewTaskModalTest extends TestCase
         $this->git = new FakeGit();
         $this->git->originUrl = 'git@github.com:acme/wallet-kit.git';
         $this->git->allBranchNames = [];
-        $this->git->createWorktree = static function (string $repo, string $root, string $branch, string $base): string {
+        $this->git->createWorktree = static function (string $repo, string $root, string $branch, string $base, string $remote = 'origin'): string {
             $path = rtrim($root, '/').'/'.$branch;
             @mkdir(\dirname($path), 0o777, true);
 

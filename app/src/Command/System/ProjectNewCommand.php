@@ -71,6 +71,16 @@ final class ProjectNewCommand extends Command
             $issueRepo = $this->askOptional($helper, $input, $output, 'Issue repo (e.g. acme/upstream, optional)', $defaultIssueRepo);
         }
 
+        // 5b. Git sync remote (fork only: sync against the upstream remote)
+        // A fork is detected when the issue repo lives on a different slug
+        // than the checkout's origin (e.g. origin=me/lib, issues=acme/lib).
+        $remoteUrl ??= null;
+        $originSlug = null !== $remoteUrl ? $this->originToSlug($remoteUrl) : null;
+        $isFork = null !== $issueRepo && null !== $originSlug && $issueRepo !== $originSlug;
+        $primaryRemote = $isFork
+            ? ($this->askOptional($helper, $input, $output, 'Primary git remote for sync (e.g. "upstream" when origin is a fork, optional)', 'origin') ?? 'origin')
+            : 'origin';
+
         // 6. Project key
         $projectKey = $this->askProjectKey($helper, $input, $output, strtoupper($projectName), $provider);
 
@@ -90,7 +100,7 @@ final class ProjectNewCommand extends Command
         $branchPrefix = $this->askOptional($helper, $input, $output, 'Branch prefix (prepended to every branch, e.g. "pablo/", optional)', null);
 
         // Build YAML
-        $yaml = $this->buildYaml($name, $type, $repoPath, $detectedBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix, $testingEnabled);
+        $yaml = $this->buildYaml($name, $type, $repoPath, $detectedBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix, $testingEnabled, $primaryRemote);
 
         // 9. Confirm & write
         $output->writeln('');
@@ -279,7 +289,7 @@ final class ProjectNewCommand extends Command
     /**
      * @return array<string, mixed>
      */
-    private function buildStructure(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null, bool $testingEnabled = true): array
+    private function buildStructure(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null, bool $testingEnabled = true, string $primaryRemote = 'origin'): array
     {
         $data = [
             'name' => $name,
@@ -312,6 +322,9 @@ final class ProjectNewCommand extends Command
         if (null !== $branchPrefix) {
             $data['branch_prefix'] = $branchPrefix;
         }
+        if ('origin' !== $primaryRemote) {
+            $data['repo']['primary_remote'] = $primaryRemote;
+        }
 
         return $data;
     }
@@ -324,9 +337,9 @@ final class ProjectNewCommand extends Command
         return Yaml::dump($data, 4, 2);
     }
 
-    private function buildYaml(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null, bool $testingEnabled = true): string
+    private function buildYaml(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null, bool $testingEnabled = true, string $primaryRemote = 'origin'): string
     {
-        $data = $this->buildStructure($name, $type, $repoPath, $primaryBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix, $testingEnabled);
+        $data = $this->buildStructure($name, $type, $repoPath, $primaryBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix, $testingEnabled, $primaryRemote);
 
         return $this->dumpYaml($data);
     }

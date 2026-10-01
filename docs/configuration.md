@@ -18,6 +18,10 @@ type: open-source            # work | open-source | personal (required)
 repo:
   path: ~/dev/wallet-kit     # the main checkout (required)
   primary_branch: main       # (required)
+  primary_remote: upstream   # optional; git remote used for sync/base fetch.
+                              # Default "origin". Set when origin is your fork
+                              # and sync must integrate against the upstream
+                              # repo (e.g. primary_remote: upstream).
 worktrees_root: ~/dev/wallet-kit-worktrees
                              # optional; default ~/.pablo/worktrees/<repo-dir-name>/
 issue_tracker:

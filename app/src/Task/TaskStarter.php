@@ -162,7 +162,7 @@ final class TaskStarter
     {
         $lock = $this->store->taskLock($cfg->name, $branch);
         try {
-            $worktree = $this->git->createWorktree($cfg->repoPath, $cfg->worktreesRoot, $branch, $cfg->primaryBranch);
+            $worktree = $this->git->createWorktree($cfg->repoPath, $cfg->worktreesRoot, $branch, $cfg->primaryBranch, $cfg->primaryRemote);
             $task = new Task(project: $cfg->name, branch: $branch, worktreePath: $worktree, state: State::InProgress);
             $task->issue = $issue;
             $task->prompt = $prompt;
