@@ -6,6 +6,7 @@ description: >-
   conflict in the chain, stages, continues the rebase, and pushes with
   --force-with-lease. Auto-run by PABLO when a sync conflict is detected.
 {{SHARED_FRONTMATTER:resolver}}
+{{SHARED_BODY:housekeeping}}
 ---
 
 You are a PABLO rebase conflict resolver. A sync/rebase operation hit

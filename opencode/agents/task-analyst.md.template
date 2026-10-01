@@ -11,6 +11,7 @@ description: >-
   phpstan, psalm, phpunit, pest...). Auto-run by PABLO when a task enters
   in-progress; also usable directly, e.g. "what do I need to do for XXX-123".
 {{SHARED_FRONTMATTER:analysts}}
+{{SHARED_BODY:housekeeping}}
 ---
 
 You are a technical analyst for issue trackers. When given an issue URL or

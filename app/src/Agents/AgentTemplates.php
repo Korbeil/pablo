@@ -69,7 +69,7 @@ final class AgentTemplates
      * @param list<string> $enabledProviders
      *
      * @throws AgentTemplateError when the template, a provider section or a
-     *                            shared frontmatter profile is missing/unreadable
+     *                            shared frontmatter/body profile is missing/unreadable
      */
     public function render(string $agentsDir, string $name, array $enabledProviders): string
     {
@@ -92,20 +92,29 @@ final class AgentTemplates
             $template,
         );
 
-        $sharedTokens = preg_match_all('/\{\{SHARED_FRONTMATTER:([a-z-]+)\}\}/', $content, $tokenMatches)
-            ? array_unique($tokenMatches[1])
-            : [];
+        $tokenMatches = [];
+        $tokenCount = preg_match_all('/\{\{SHARED_(FRONTMATTER|BODY):([a-z-]+)\}\}/', $content, $tokenMatches);
+        $sharedSlots = [];
+        if (false !== $tokenCount) {
+            for ($i = 0; $i < $tokenCount; ++$i) {
+                $sharedSlots[$tokenMatches[1][$i].':'.$tokenMatches[2][$i]] = true;
+            }
+        }
 
-        foreach ($sharedTokens as $profile) {
-            $profilePath = $agentsDir.'/shared/'.$profile.'.frontmatter.md';
-            $frontmatter = @file_get_contents($profilePath);
-            if (false === $frontmatter || '' === trim($frontmatter)) {
-                throw new AgentTemplateError("Shared frontmatter profile not found: {$profilePath}");
+        $extensionByType = ['FRONTMATTER' => 'frontmatter.md', 'BODY' => 'body.md'];
+        $labelByType = ['FRONTMATTER' => 'frontmatter', 'BODY' => 'body'];
+
+        foreach (array_keys($sharedSlots) as $slotKey) {
+            [$type, $profile] = array_pad(explode(':', (string) $slotKey, 2), 2, '');
+            $profilePath = $agentsDir.'/shared/'.$profile.'.'.$extensionByType[$type];
+            $shared = @file_get_contents($profilePath);
+            if (false === $shared || '' === trim($shared)) {
+                throw new AgentTemplateError(\sprintf('Shared %s profile not found: %s', $labelByType[$type], $profilePath));
             }
 
             $content = str_replace(
-                '{{SHARED_FRONTMATTER:'.$profile.'}}'."\n",
-                rtrim($frontmatter, "\n")."\n",
+                '{{SHARED_'.$type.':'.$profile.'}}'."\n",
+                rtrim($shared, "\n")."\n",
                 $content,
             );
         }

@@ -9,6 +9,7 @@ description: >-
   PABLO when a task enters request-changes; also usable directly, e.g.
   "plan the fixes for the review on PR #123".
 {{SHARED_FRONTMATTER:analysts}}
+{{SHARED_BODY:housekeeping}}
 ---
 
 You are a PR review feedback planner. Given a pull request, you gather every
@@ -122,7 +123,8 @@ or disappeared, say so explicitly and recommend replying/resolving instead of
 
 ## Step 3 — Produce the plan
 
-Write the plan in the same language as the review comments. Structure:
+Write the plan in English (quote reviewer wording verbatim when it
+aids precision). Structure:
 
 ### 1. Summary
 - PR title, number, link.
