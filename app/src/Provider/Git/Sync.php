@@ -137,7 +137,7 @@ final class Sync
         foreach ($reports as $report) {
             if ('conflict' === $report->action && $effectiveApply && null !== $agents) {
                 $prompt = self::buildConflictAgentPrompt($report, $cfg, $stacked[$report->branch] ?? null);
-                $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt);
+                $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->defaultModel);
                 sleep(1);
                 $sessionId = $this->findRecentSession($report->worktree, 'rebase-conflict-resolver');
                 $report->agentHandle = $sessionId ?? 'launched';

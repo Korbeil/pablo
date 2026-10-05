@@ -336,6 +336,83 @@ YAML;
         $this->assertSame('fr', $cfg->prDescriptionLocale);
     }
 
+    public function testDefaultModelByTypeAppliesPerProjectType(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  work: litellm/anthropic/claude-opus\n  open-source: litellm/glm-5.3-flash\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT);
+        $this->write('corp.yaml', <<<'YAML'
+name: corp
+type: work
+repo:
+  path: ~/dev/corp
+  primary_branch: main
+issue_tracker:
+  provider: github
+  identity: octocat
+  project_key: CO
+
+YAML);
+        $projects = $this->loader()->loadProjects($this->projectsDir);
+        $this->assertSame('litellm/glm-5.3-flash', $projects['wallet-kit']->defaultModel);
+        $this->assertSame('litellm/anthropic/claude-opus', $projects['corp']->defaultModel);
+    }
+
+    public function testProjectDefaultModelBeatsTypeMap(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  open-source: litellm/glm-5.3-flash\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT."\ndefault_model: openrouter/custom/model\n");
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
+        $this->assertSame('openrouter/custom/model', $cfg->defaultModel);
+    }
+
+    public function testTypeMapBeatsGlobalScalar(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  open-source: litellm/glm-5.3-flash\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT);
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
+        $this->assertSame('litellm/glm-5.3-flash', $cfg->defaultModel);
+    }
+
+    public function testTypeMapWithoutMatchingTypeFallsBackToGlobalScalar(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  work: litellm/anthropic/claude-opus\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT);
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
+        $this->assertSame('openrouter/deepseek/deepseek-v4-flash-0731', $cfg->defaultModel);
+    }
+
+    public function testTypeMapUnknownTypeRejected(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  wrok: litellm/anthropic/claude-opus\n");
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        try {
+            $this->loader()->loadProjects($this->projectsDir);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString('default_model_by_type has unknown type', $e->getMessage());
+        }
+    }
+
+    public function testTypeMapMustBeAMapping(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type: litellm/glm-5.3-flash\n");
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        try {
+            $this->loader()->loadProjects($this->projectsDir);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString('default_model_by_type must be a mapping', $e->getMessage());
+        }
+    }
+
+    public function testTypeMapEmptyValueIgnored(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  open-source: \"\"\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT);
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
+        $this->assertSame('openrouter/deepseek/deepseek-v4-flash-0731', $cfg->defaultModel);
+    }
+
     public function testMissingDefaultModelAndLocaleThrows(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);

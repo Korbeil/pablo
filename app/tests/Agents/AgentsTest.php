@@ -95,6 +95,23 @@ final class AgentsTest extends TestCase
         $this->assertStringContainsString('--agent task-analyst', $command);
         $this->assertStringContainsString('--prompt', $command);
         $this->assertStringContainsString('Analyze issue #45', $command);
+        $this->assertStringNotContainsString('--model', $command);
+    }
+
+    public function testOrcaLaunchPassesModelToCommand(): void
+    {
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+
+            return $this->orcaOk(['handle' => 'term_123']);
+        });
+
+        $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'Analyze issue #45', 'litellm/anthropic/claude-opus');
+        $key = array_search('--command', $calls[1], true);
+        $this->assertIsInt($key);
+        $command = $calls[1][$key + 1];
+        $this->assertStringContainsString("--model 'litellm/anthropic/claude-opus'", $command);
     }
 
     public function testOrcaSessionsMapAgentStates(): void

@@ -103,6 +103,14 @@ user posts it. Per-agent texts destined for third parties keep their
 own language rules on top (e.g. `task-feedback`'s ready-to-post draft
 reply follows the language QA used).
 
+The generated frontmatter carries a hard-coded `model:` line, but it is
+only the last-resort fallback: at launch time `internal:launch-agent`
+resolves the model from config — the project's `default_model`, else
+`default_model_by_type[<project type>]`, else the global `default_model`
+— and passes it to the backend as `--model` (see
+[configuration.md](configuration.md)). Backends other than OpenChamber
+never read the frontmatter's model at all.
+
 The task templates additionally carry `{{ISSUE_TRACKER_SECTION}}` /
 `{{ISSUE_TRACKER_NAMES}}`, filled per the enabled providers as before.
 Edit templates/profiles in the repo and regenerate — never the generated

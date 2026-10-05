@@ -229,12 +229,13 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         return "pid:{$pid}";
     }
 
-    public function launchHeadless(string $worktree, string $agent, string $prompt): string
+    public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
         $log = $this->logFor($agent);
         $out = [];
         exec(
-            $this->detach('opencode run --agent '.escapeshellarg($agent)
+            $this->detach('opencode run'.(null !== $model ? ' --model '.escapeshellarg($model) : '')
+                .' --agent '.escapeshellarg($agent)
                 .' --dir '.escapeshellarg($worktree).' '.escapeshellarg($prompt)
                 .' >>'.escapeshellarg($log).' 2>&1'),
             $out,

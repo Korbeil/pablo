@@ -58,9 +58,11 @@ final class OpenChamber extends AbstractAgentLauncher
         return \is_array($data) && ($data['status'] ?? null) === 'ok' ? $data : null;
     }
 
-    public function doLaunchAgent(string $worktree, string $agent, string $prompt): string
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
-        $model = $this->agentModel($agent);
+        // The resolved config model (project default_model / type map) wins;
+        // the agent file's frontmatter model is only the fallback.
+        $model ??= $this->agentModel($agent);
         $create = [
             'session', 'create', '--dir', $worktree, '--title', 'pablo:'.$agent,
         ];
@@ -71,7 +73,7 @@ final class OpenChamber extends AbstractAgentLauncher
         $created = $this->openchamber($create);
         $sessionId = $created['sessionId'] ?? null;
         if (!\is_string($sessionId) || '' === $sessionId) {
-            return $this->launchHeadless($worktree, $agent, $prompt);
+            return $this->launchHeadless($worktree, $agent, $prompt, $model);
         }
         $this->writeSessionPidfile($sessionId, $worktree, $agent);
         $send = [
@@ -90,9 +92,13 @@ final class OpenChamber extends AbstractAgentLauncher
     /**
      * The model declared in the agent's frontmatter (`opencode/agents/<agent>.md`,
      * the same file `system:generate-agents` writes and `install.sh` symlinks into
-     * ~/.config/opencode). OpenChamber otherwise falls back to its own
+     * `~/.config/opencode`). OpenChamber otherwise falls back to its own
      * "configured selection", which can silently pick a different model than the
      * one the agent config declares.
+     *
+     * Only consulted when no model was resolved from config
+     * (project default_model / default_model_by_type / global default_model):
+     * those arrive as doLaunchAgent()'s $model parameter and win.
      *
      * @return string|null null when the file or a `model:` line is missing
      */
