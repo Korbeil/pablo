@@ -66,12 +66,28 @@ final class InternalLaunchAgentCommand extends Command
         // Persist the run id onto the launch record so a sweep-emitted
         // agent_run_finished keeps the same id as its agent_run_started.
         $this->persistRunId($project, $branch, $agent, $runId);
+        // The project's resolved agent model (project default_model /
+        // default_model_by_type / global default_model) is looked up inside
+        // the detached subprocess — launch()'s argv stays untouched. A config
+        // lookup failure must not fail the launch itself: fall back to the
+        // agent file's frontmatter model.
         $agents = $this->agentLaunchers->create($backend);
-        $handle = $agents->doLaunchAgent($worktree, $agent, $prompt);
+        $handle = $agents->doLaunchAgent($worktree, $agent, $prompt, $this->modelFor($project));
         $agents->spawnWatcher($project, $branch, $handle, $agent, '', null, $runId, OpenCodeUsage::fingerprint($prompt));
         $agents->refreshAgentDisplayCache($project, $branch, $worktree);
 
         return self::SUCCESS;
+    }
+
+    private function modelFor(string $project): ?string
+    {
+        try {
+            $cfg = $this->projectsLoader->loadProjects()[$project] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $cfg?->defaultModel;
     }
 
     private function persistRunId(string $project, string $branch, string $agent, string $runId): void

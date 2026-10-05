@@ -151,6 +151,7 @@ YAML);
             $content = file_get_contents($this->agentsDir.'/'.$name.'.md');
             \assert(false !== $content);
             $this->assertStringNotContainsString('{{SHARED_FRONTMATTER:', $content, $name);
+            $this->assertStringNotContainsString('{{SHARED_BODY:', $content, $name);
         }
 
         $analyst = file_get_contents($this->agentsDir.'/ci-analyst.md');
@@ -164,6 +165,42 @@ YAML);
         $this->assertStringContainsString('"github*": deny', $resolver);
         $this->assertStringNotContainsString('"github*": allow', $resolver);
         $this->assertStringContainsString('"git rebase*": allow', $resolver);
+    }
+
+    public function testInjectsSharedBodyHousekeepingProfile(): void
+    {
+        $this->writeProject('p1', 'github');
+        $this->copyAllTemplates();
+
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $tester = new CommandTester($command);
+        $tester->execute(['--agents-dir' => $this->agentsDir]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+
+        foreach (self::TEMPLATE_NAMES as $name) {
+            $content = file_get_contents($this->agentsDir.'/'.$name.'.md');
+            \assert(false !== $content);
+            $this->assertStringContainsString('## Language', $content, $name);
+            $this->assertStringContainsString('written in', $content, $name);
+            $this->assertStringContainsString('**English**', $content, $name);
+            $this->assertStringContainsString('GitHub etiquette', $content, $name);
+            $this->assertStringContainsString('Never post, reply, or edit anything on GitHub', $content, $name);
+            $this->assertStringContainsString('draft in your output', $content, $name);
+        }
+    }
+
+    public function testFailsOnMissingSharedBodyProfile(): void
+    {
+        $this->copyAllTemplates();
+        unlink($this->agentsDir.'/shared/housekeeping.body.md');
+
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $tester = new CommandTester($command);
+        $tester->execute(['--agents-dir' => $this->agentsDir]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('Shared body profile not found', $tester->getDisplay());
     }
 
     public function testFailsOnMissingSharedFrontmatterProfile(): void

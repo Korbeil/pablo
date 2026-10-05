@@ -100,7 +100,7 @@ final class GitRepo implements GitRepoInterface
         return null;
     }
 
-    public function createWorktree(string $repo, string $worktreesRoot, string $branch, string $base): string
+    public function createWorktree(string $repo, string $worktreesRoot, string $branch, string $base, string $remote = 'origin'): string
     {
         if (!is_dir($worktreesRoot)) {
             @mkdir($worktreesRoot, 0o777, true);
@@ -109,10 +109,10 @@ final class GitRepo implements GitRepoInterface
         if (file_exists($path)) {
             throw new PabloError("worktree path already exists: {$path}");
         }
-        $this->git($repo, ['fetch', 'origin'], check: false); // best effort; base may be local-only
+        $this->git($repo, ['fetch', $remote], check: false); // best effort; base may be local-only
         $start = $base;
-        if ($this->refExists($repo, "origin/{$base}")) {
-            $start = "origin/{$base}";
+        if ($this->refExists($repo, "{$remote}/{$base}")) {
+            $start = "{$remote}/{$base}";
         }
         $this->git($repo, ['worktree', 'add', '-b', $branch, $path, $start]);
 
@@ -270,8 +270,9 @@ final class GitRepo implements GitRepoInterface
         bool $apply,
         ?callable $push = null,
         ?string $base = null,
+        string $remote = 'origin',
     ): SyncReport {
-        return $this->doSync($wt, $branch, $primary, $strategy, $apply, $push ?? $this->pushWithLease(...), $base);
+        return $this->doSync($wt, $branch, $primary, $strategy, $apply, $push ?? $this->pushWithLease(...), $base, $remote);
     }
 
     private function doSync(
@@ -282,19 +283,20 @@ final class GitRepo implements GitRepoInterface
         bool $apply,
         callable $push,
         ?string $base,
+        string $remote,
     ): SyncReport {
-        $this->git($wt, ['fetch', '--prune', 'origin']);
+        $this->git($wt, ['fetch', '--prune', $remote]);
 
-        $remoteBranch = "origin/{$branch}";
+        $remoteBranch = "{$remote}/{$branch}";
         $hasRemote = $this->refExists($wt, $remoteBranch);
         $remoteNew = $hasRemote ? $this->counts($wt, $remoteBranch)->behind : 0;
 
-        $target = $this->refExists($wt, "origin/{$primary}") ? "origin/{$primary}" : $primary;
-        if (null !== $base && '' !== $base && $this->refExists($wt, "origin/{$base}")) {
+        $target = $this->refExists($wt, "{$remote}/{$primary}") ? "{$remote}/{$primary}" : $primary;
+        if (null !== $base && '' !== $base && $this->refExists($wt, "{$remote}/{$base}")) {
             // A stacked branch tracks its PR's actual base (e.g. another open
             // branch) rather than the primary, so integrate against that to
             // keep the stacking intact.
-            $target = "origin/{$base}";
+            $target = "{$remote}/{$base}";
         }
         $counts = $this->counts($wt, $target);
         $behind = $counts->behind;

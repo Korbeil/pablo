@@ -57,6 +57,11 @@ final class GlobalConfig
             throw new PabloError(basename($path).': expected a mapping at top level');
         }
 
+        $byType = $data['default_model_by_type'] ?? null;
+        if (null !== $byType && !\is_array($byType)) {
+            throw new PabloError(basename($path).': default_model_by_type must be a mapping of project type to model');
+        }
+
         return [
             'sync' => \is_array($data['sync'] ?? null) ? $data['sync'] : [],
             'state_polling' => \is_array($data['state_polling'] ?? null) ? $data['state_polling'] : [],
@@ -64,6 +69,7 @@ final class GlobalConfig
             'ci' => \is_array($data['ci'] ?? null) ? $data['ci'] : [],
             'testing' => \is_array($data['testing'] ?? null) ? $data['testing'] : ['enabled' => true],
             'default_model' => isset($data['default_model']) ? (string) $data['default_model'] : null,
+            'default_model_by_type' => \is_array($byType) ? $byType : null,
             'pr_description_locale' => isset($data['pr_description_locale']) ? (string) $data['pr_description_locale'] : null,
             'branch_prefix' => isset($data['branch_prefix']) ? (string) $data['branch_prefix'] : null,
             'agent_backend' => isset($data['agent_backend']) ? (string) $data['agent_backend'] : null,

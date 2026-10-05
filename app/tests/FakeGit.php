@@ -101,10 +101,10 @@ final class FakeGit implements GitRepoInterface
         return \is_string($this->userEmail) ? $this->userEmail : null;
     }
 
-    public function createWorktree(string $repo, string $worktreesRoot, string $branch, string $base): string
+    public function createWorktree(string $repo, string $worktreesRoot, string $branch, string $base, string $remote = 'origin'): string
     {
         if (null !== $this->createWorktree) {
-            return ($this->createWorktree)($repo, $worktreesRoot, $branch, $base);
+            return ($this->createWorktree)($repo, $worktreesRoot, $branch, $base, $remote);
         }
 
         return rtrim($worktreesRoot, '/').'/'.$branch;
@@ -168,8 +168,9 @@ final class FakeGit implements GitRepoInterface
         bool $apply,
         ?callable $push = null,
         ?string $base = null,
+        string $remote = 'origin',
     ): SyncReport {
-        $this->syncCalls[] = ['wt' => $wt, 'branch' => $branch, 'apply' => $apply, 'base' => $base];
+        $this->syncCalls[] = ['wt' => $wt, 'branch' => $branch, 'apply' => $apply, 'base' => $base, 'remote' => $remote];
 
         return $this->syncReport ?? new SyncReport(worktree: $wt, branch: $branch, action: 'up-to-date');
     }

@@ -21,9 +21,10 @@ interface AgentLauncherInterface
     /**
      * Run the agent launch synchronously and return a backend handle (Orca
      * terminal id, OpenChamber session id, or "pid:N"). Only ever runs inside
-     * the detached internal:launch-agent subprocess.
+     * the detached internal:launch-agent subprocess. $model overrides the
+     * agent file's frontmatter model (null = frontmatter fallback).
      */
-    public function doLaunchAgent(string $worktree, string $agent, string $prompt): string;
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string;
 
     /** Run the startup script synchronously and return a backend handle. */
     public function doRunStartupScript(string $worktree, string $script): string;
@@ -66,7 +67,7 @@ interface AgentLauncherInterface
 
     public function refreshAgentDisplayCache(string $project, string $branch, string $worktree): void;
 
-    public function launchHeadless(string $worktree, string $agent, string $prompt): string;
+    public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null): string;
 
     public function hasAnyOrcaAgent(string $worktree): bool;
 }

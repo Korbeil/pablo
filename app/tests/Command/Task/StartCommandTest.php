@@ -144,7 +144,7 @@ YAML);
         $this->git->originUrl = 'git@github.com:acme/wallet-kit.git';
         $this->git->allBranchNames = [];
         $this->currentProviders = $this->makeRegistry([]);
-        $this->git->createWorktree = function (string $repo, string $root, string $branch, string $base): string {
+        $this->git->createWorktree = function (string $repo, string $root, string $branch, string $base, string $remote = 'origin'): string {
             $this->created[] = [$branch, $base];
             $path = rtrim($root, '/').'/'.$branch;
             @mkdir(\dirname($path), 0o777, true);

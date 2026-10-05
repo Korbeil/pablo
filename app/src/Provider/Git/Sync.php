@@ -120,6 +120,7 @@ final class Sync
                         $cfg->syncStrategy,
                         $effectiveApply,
                         base: $stacked[$branch] ?? null,
+                        remote: $cfg->primaryRemote,
                     );
                 } finally {
                     $lock->release();
@@ -136,7 +137,7 @@ final class Sync
         foreach ($reports as $report) {
             if ('conflict' === $report->action && $effectiveApply && null !== $agents) {
                 $prompt = self::buildConflictAgentPrompt($report, $cfg, $stacked[$report->branch] ?? null);
-                $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt);
+                $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->defaultModel);
                 sleep(1);
                 $sessionId = $this->findRecentSession($report->worktree, 'rebase-conflict-resolver');
                 $report->agentHandle = $sessionId ?? 'launched';
@@ -171,18 +172,19 @@ final class Sync
 
     public function buildConflictAgentPrompt(SyncReport $report, ProjectConfig $cfg, ?string $stackedBase = null): string
     {
-        $target = 'origin/'.$cfg->primaryBranch;
+        $remote = $cfg->primaryRemote;
+        $target = $remote.'/'.$cfg->primaryBranch;
         $stacked = null !== $stackedBase && '' !== $stackedBase && $stackedBase !== $cfg->primaryBranch;
         if ($stacked) {
-            $target = 'origin/'.$stackedBase;
+            $target = $remote.'/'.$stackedBase;
         }
         $lines = [
             "PABLO sync hit rebase conflicts on branch `{$report->branch}`.",
             "Rebase onto `{$target}` using strategy `{$cfg->syncStrategy}` was aborted.",
             'The worktree is clean — you must re-run the rebase yourself.',
             '',
-            '1. `git fetch --prune origin`',
-            "2. If `origin/{$report->branch}` has new commits, rebase onto it first.",
+            '1. `git fetch --prune '.implode(' ', array_unique([$remote, 'origin'])).'`',
+            "2. If `{$remote}/{$report->branch}` has new commits, rebase onto it first.",
             "3. `git rebase {$target}`",
             '4. Resolve every conflict. `git add` resolved files, `git rebase --continue`.',
             '5. Repeat until the rebase completes cleanly.',
@@ -191,9 +193,10 @@ final class Sync
             'Conflicting files from the original attempt:',
         ];
         if ($stacked) {
+            $primaryTarget = $remote.'/'.$cfg->primaryBranch;
             array_splice($lines, 3, 0, [
                 '',
-                "This branch's PR is stacked on `{$target}` (not `origin/{$cfg->primaryBranch}`),",
+                "This branch's PR is stacked on `{$target}` (not `{$primaryTarget}`),",
                 "so keep the stacking intact by rebasing onto `{$target}` — do NOT rebase",
                 'onto the primary branch unless the stack base really has changed.',
             ]);

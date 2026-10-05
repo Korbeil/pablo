@@ -159,6 +159,32 @@ MD);
         $this->assertNull($this->argvValue($calls[1], '--model'));
     }
 
+    public function testResolvedModelOverridesFrontmatter(): void
+    {
+        file_put_contents($this->agentFilesDir.'/task-analyst.md', <<<'MD'
+---
+mode: primary
+model: litellm/glm-5.3-flash
+---
+
+Body.
+MD);
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+            if (\in_array('create', $argv, true)) {
+                return $this->ocOk(['sessionId' => 'ses_abc', 'directory' => $this->tmp, 'title' => 'pablo:task-analyst']);
+            }
+
+            return $this->ocOk(['action' => 'send', 'sessionId' => 'ses_abc']);
+        });
+
+        $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'Analyze issue #45', 'litellm/anthropic/claude-opus');
+
+        $this->assertSame('litellm/anthropic/claude-opus', $this->argvValue($calls[0], '--model'));
+        $this->assertSame('litellm/anthropic/claude-opus', $this->argvValue($calls[1], '--model'));
+    }
+
     /** @param array<mixed> $argv
      *
      * @return string|null value following the flag, or null when absent

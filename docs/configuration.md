@@ -18,6 +18,10 @@ type: open-source            # work | open-source | personal (required)
 repo:
   path: ~/dev/wallet-kit     # the main checkout (required)
   primary_branch: main       # (required)
+  primary_remote: upstream   # optional; git remote used for sync/base fetch.
+                              # Default "origin". Set when origin is your fork
+                              # and sync must integrate against the upstream
+                              # repo (e.g. primary_remote: upstream).
 worktrees_root: ~/dev/wallet-kit-worktrees
                              # optional; default ~/.pablo/worktrees/<repo-dir-name>/
 issue_tracker:
@@ -65,8 +69,12 @@ startup_script: ~/scripts/pablo-setup.sh
                              # detached subprocess, so it never blocks the pablo task:start
                              # or pablo task:state command that triggers it.
 default_model: openrouter/deepseek/deepseek-v4-flash-0731
-                             # optional; the agent model used for this project's tasks.
-                             # Falls back to the global default_model in ~/.pablo/config.yaml.
+                             # optional; the agent model used for this project's tasks,
+                             # passed to every launched agent as --model. Top of the
+                             # resolution chain: beats the per-type map
+                             # (default_model_by_type in ~/.pablo/config.yaml) and the
+                             # global default_model, which in turn beat the model baked
+                             # into the generated agent .md frontmatter.
 pr_description_locale: en   # optional; locale used when drafting PR descriptions for this
                               # project. Falls back to the global pr_description_locale in
                               # ~/.pablo/config.yaml.
@@ -86,7 +94,9 @@ the rest): `sync.strategy`, `sync.auto_apply`, `sync.interval_minutes`,
 defaults: `rebase`, `false`, `30`, `10`, `[]`, `[]`, `true`; `default_model`,
 `pr_description_locale` and `branch_prefix`
 have no built-in value — `default_model` and `pr_description_locale` must
-be set either per project or globally, otherwise loading the project
+be set either per project or globally (or, for `default_model`, via
+`default_model_by_type` for the project's type — see below), otherwise
+loading the project
 fails; `branch_prefix` is optional (unset everywhere = no prefix). New keys
 added later should follow the same pattern unless they have no sensible
 global default (like `issue_tracker`).
@@ -100,6 +110,26 @@ resolved at runtime (like `default_model`) and can also be set with the
 `PABLO_AGENT_BACKEND` env var. When it differs from `orca`, `pablo
 system:doctor`/`system:setup` also check the `openchamber` CLI. See
 [background-layer.md](background-layer.md#openchamber-backend-optional).
+
+### `default_model_by_type` (global only)
+
+A cross-project map in `~/.pablo/config.yaml` (not per-project, and not in
+the default-eligible set) that picks the agent model by project type, so
+e.g. expensive models only run on work projects:
+
+```yaml
+default_model_by_type:
+  work: anthropic/claude-opus-4
+  open-source: litellm/glm-5.3-flash
+  personal: openrouter/deepseek/deepseek-v4-flash-0731
+```
+
+Keys are checked against the `type` values (`work`, `open-source`,
+`personal`) when the config loads — an unknown key fails loudly. Resolution
+per project: its own `default_model` (highest), the map value for that
+project's type, the global `default_model`, and finally the model baked
+into the generated agent `.md` frontmatter (the pre-existing fallback). The
+result is passed to every agent launch as the backend's `--model` flag.
 
 ## Branch naming convention
 

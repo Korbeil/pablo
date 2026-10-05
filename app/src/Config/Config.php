@@ -110,6 +110,22 @@ final class Config
 
     /**
      * @param array<string, mixed> $data
+     */
+    private function optional(array $data, string $dotted): mixed
+    {
+        $node = $data;
+        foreach (explode('.', $dotted) as $part) {
+            if (!\is_array($node) || !\array_key_exists($part, $node)) {
+                return null;
+            }
+            $node = $node[$part];
+        }
+
+        return $node;
+    }
+
+    /**
+     * @param array<string, mixed> $data
      * @param array<string, mixed> $defaults
      */
     private function merged(array $data, array $defaults, string $section, string $key): mixed
@@ -149,6 +165,7 @@ final class Config
 
         $repoPath = $this->expandHome((string) $this->require($data, 'repo.path', $base));
         $primaryBranch = (string) $this->require($data, 'repo.primary_branch', $base);
+        $primaryRemote = (string) ($this->optional($data, 'repo.primary_remote') ?? 'origin');
 
         $provider = (string) $this->require($data, 'issue_tracker.provider', $base);
         if (!\in_array($provider, self::PROVIDERS, true)) {
@@ -176,10 +193,21 @@ final class Config
 
         $startup = $data['startup_script'] ?? null;
 
-        $defaultModel = $data['default_model'] ?? $defaults['default_model'] ?? null;
-        if (null === $defaultModel) {
-            throw new PabloError('no value for default_model — set it in the project config or ~/.pablo/config.yaml');
+        // Resolution: project default_model > default_model_by_type[<project
+        // type>] (global only) > global default_model. The resolved value is
+        // what internal:launch-agent passes to the agent backends as --model.
+        $byType = \is_array($defaults['default_model_by_type'] ?? null) ? $defaults['default_model_by_type'] : [];
+        foreach (array_keys($byType) as $typeKey) {
+            if (!\in_array((string) $typeKey, self::PROJECT_TYPES, true)) {
+                throw new PabloError(\sprintf('%s: default_model_by_type has unknown type %s (expected one of ["open-source", "personal", "work"])', $name, var_export((string) $typeKey, true)));
+            }
         }
+        $typeModel = isset($byType[$type]) && '' !== (string) $byType[$type] ? (string) $byType[$type] : null;
+        $defaultModel = $data['default_model'] ?? $typeModel ?? ($defaults['default_model'] ?? null);
+        if (null === $defaultModel || '' === (string) $defaultModel) {
+            throw new PabloError('no value for default_model — set it in the project config, default_model_by_type, or ~/.pablo/config.yaml');
+        }
+        $defaultModel = (string) $defaultModel;
         $prDescriptionLocale = $data['pr_description_locale'] ?? $defaults['pr_description_locale'] ?? null;
         if (null === $prDescriptionLocale) {
             throw new PabloError('no value for pr_description_locale — set it in the project config or ~/.pablo/config.yaml');
@@ -196,6 +224,7 @@ final class Config
             type: $type,
             repoPath: $repoPath,
             primaryBranch: $primaryBranch,
+            primaryRemote: $primaryRemote,
             worktreesRoot: $worktreesRoot,
             provider: $provider,
             identity: $identity,

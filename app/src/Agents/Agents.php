@@ -109,9 +109,10 @@ final class Agents extends AbstractAgentLauncher
         return false;
     }
 
-    public function doLaunchAgent(string $worktree, string $agent, string $prompt): string
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
         $command = 'opencode '.escapeshellarg($worktree)
+            .(null !== $model ? ' --model '.escapeshellarg($model) : '')
             ." --agent {$agent} --prompt ".escapeshellarg($prompt);
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
             if (!$this->waitForOrcaAdoption($worktree)) {
@@ -135,7 +136,7 @@ final class Agents extends AbstractAgentLauncher
         }
         $this->logOrcaFallback($worktree, $agent, $reason);
 
-        return $this->launchHeadless($worktree, $agent, $prompt);
+        return $this->launchHeadless($worktree, $agent, $prompt, $model);
     }
 
     public function doRunStartupScript(string $worktree, string $script): string

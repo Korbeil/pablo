@@ -15,6 +15,9 @@ final class FakeAgents implements AgentLauncherInterface
     /** @var list<string> prompts for each launch */
     public array $launchPrompts = [];
 
+    /** @var list<?string> models passed to each doLaunchAgent() call */
+    public array $launchModels = [];
+
     /** @var list<string> */
     public array $startupScript = [];
 
@@ -51,8 +54,10 @@ final class FakeAgents implements AgentLauncherInterface
         return 'term_2';
     }
 
-    public function doLaunchAgent(string $worktree, string $agent, string $prompt): string
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
+        $this->launchModels[] = $model;
+
         return 'term_1';
     }
 
@@ -117,7 +122,7 @@ final class FakeAgents implements AgentLauncherInterface
         ++$this->refreshCount;
     }
 
-    public function launchHeadless(string $worktree, string $agent, string $prompt): string
+    public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
         return 'pid:0';
     }

@@ -36,6 +36,7 @@ final class ProjectConfig
         public readonly ?string $confluenceSpace = null,
         public readonly ?string $startupScript = null,
         public readonly ?string $issueRepo = null,
+        public readonly string $primaryRemote = 'origin',
         public readonly bool $testingEnabled = true,
     ) {
     }
@@ -48,6 +49,7 @@ final class ProjectConfig
             'type' => $this->type,
             'repo_path' => $this->repoPath,
             'primary_branch' => $this->primaryBranch,
+            'primary_remote' => $this->primaryRemote,
             'worktrees_root' => $this->worktreesRoot,
             'provider' => $this->provider,
             'identity' => $this->identity,

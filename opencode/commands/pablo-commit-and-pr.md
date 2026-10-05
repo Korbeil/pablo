@@ -109,6 +109,15 @@ Existing PR for this branch:
   `git push --force-with-lease -u origin <branch>` for every push — this
   is safe (refuses if the remote has diverged) and works for first pushes
   too.
+- **No GitHub writes without explicit approval.** Never comment on,
+  reply to, or update the title/description of an existing PR on GitHub
+  (no `gh pr comment`, `gh pr edit`, `gh pr review`, no `gh api`
+  mutations). If a PR already exists: just push; do not edit the
+  existing PR. If the user asks for a description update: draft the new
+  body (in the configured locale) inside the four-backtick fenced block
+  and require the user's explicit confirmation of *that text* before
+  running any GitHub write command. Creating the draft PR itself is the
+  only GitHub write allowed.
 - The PR description is **always written in the project's configured PR
   description locale** — read `pr_description_locale` from the "PABLO task
   check" JSON above (either `en` or `fr`). Write the whole body in that
@@ -211,7 +220,9 @@ Existing PR for this branch:
      `gh pr create --draft --title "<title>" --body-file <file>`
      (title follows the same convention as the commit message, mention
      the issue key if the branch has one).
-   - If a PR already exists: just push; do not edit the existing PR.
+   - If a PR already exists: just push; do not edit the existing PR
+     (only with the user's explicit, requested approval — see Hard
+     rules).
 
 5. **State switch** — final step, only after the push (and PR creation if
    any) succeeded: run `pablo task:state draft` (pass `--worktree <wt>` if

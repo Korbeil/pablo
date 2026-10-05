@@ -29,7 +29,7 @@ interface GitRepoInterface
 
     public function userEmail(?string $cwd = null): ?string;
 
-    public function createWorktree(string $repo, string $worktreesRoot, string $branch, string $base): string;
+    public function createWorktree(string $repo, string $worktreesRoot, string $branch, string $base, string $remote = 'origin'): string;
 
     public function removeWorktree(string $repo, string $path, string $branch): void;
 
@@ -68,5 +68,6 @@ interface GitRepoInterface
         bool $apply,
         ?callable $push = null,
         ?string $base = null,
+        string $remote = 'origin',
     ): SyncReport;
 }
