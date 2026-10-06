@@ -139,6 +139,11 @@ of the fix plan above. Before starting step N, mark it `in_progress`; the
 moment it is done, mark it `completed` and the next step `in_progress` —
 never touch the next step with a stale todo list. If you deviate from the
 plan, update the todos first to match.
+
+Never `git commit` and never `git push` — not even once the last step is
+done: leave the changes in the working tree and report completion;
+committing and pushing is owned by the user or the
+`/pablo-commit-and-pr` command.
 ```
 
 ## Rules

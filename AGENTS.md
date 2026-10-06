@@ -22,6 +22,17 @@ perform git/PR-metadata ops (branches, worktrees, rebase,
 force-with-lease push, draft PR toggling, worktree deletion), but only per
 README's explicit rules.
 
+**Git discipline:** agents never `git commit` or `git push` on their own
+initiative — not even when executing a plan that was decided, and not
+even as the final step of requested work. The only legitimate triggers
+are an explicit user demand made in the session for that specific
+commit/push, or the deliberate invocation of `/pablo-commit-and-pr`
+(the sole sanctioned path for task commits). Deliver work as an
+uncommitted working tree, say so, and let the user commit/push. The
+`rebase-conflict-resolver` is the single deliberate exception: it may
+only perform the git writes its own task mandates (replay + push per its
+Push rule), never new commits of its own.
+
 ## Commands
 
 The application lives in `app/` (Composer package `pablo`). Tooling runs from
