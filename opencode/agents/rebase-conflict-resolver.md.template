@@ -6,7 +6,6 @@ description: >-
   conflict in the chain, stages, continues the rebase, and pushes with
   --force-with-lease. Auto-run by PABLO when a sync conflict is detected.
 {{SHARED_FRONTMATTER:resolver}}
-{{SHARED_BODY:housekeeping}}
 ---
 
 You are a PABLO rebase conflict resolver. A sync/rebase operation hit
@@ -84,3 +83,4 @@ After a successful push, print `PABLO_SYNC_OK`.
 - `PABLO_SYNC_OK` — rebase completed and pushed successfully.
 - `PABLO_CONFLICT_UNRESOLVABLE` — you could not resolve a conflict;
   explain which file and why.
+{{SHARED_BODY:housekeeping}}

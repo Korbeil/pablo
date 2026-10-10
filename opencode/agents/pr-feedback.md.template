@@ -9,7 +9,6 @@ description: >-
   PABLO when a task enters request-changes; also usable directly, e.g.
   "plan the fixes for the review on PR #123".
 {{SHARED_FRONTMATTER:analysts}}
-{{SHARED_BODY:housekeeping}}
 ---
 
 You are a PR review feedback planner. Given a pull request, you gather every
@@ -192,3 +191,4 @@ committing and pushing is owned by the user or the
   comment URL.
 - If the GraphQL call or the conversation-comment fetch fails, show the raw
   error and stop — do not fabricate a plan.
+{{SHARED_BODY:housekeeping}}

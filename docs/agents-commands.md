@@ -2,7 +2,7 @@
 
 Following the conventions of the user's other OpenCode agents (flat
 `*.md` files, YAML frontmatter with `description` / `mode` / `model` /
-`temperature` / `permission` maps, `` !cmd `` context injection and
+`permissions` rules, `` !cmd `` context injection and
 `$ARGUMENTS` in commands):
 
 ## Agents (model-driven analysis flows)
@@ -81,19 +81,20 @@ gitignored, and `bin/install.sh` runs generation before symlinking
 whenever the enabled provider set changes: `pablo project:new` regenerates
 when the set differs after its write, and `pablo project:remove` always
 regenerates since removing/downgrading a tracker must stop teaching it). Each template keeps only
-its unique `description`; the shared `mode`/`model`/`temperature`/
-`permission` block is spliced in at a `{{SHARED_FRONTMATTER:<profile>}}`
+its unique `description`; the shared `mode`/`model`/
+`permissions` block is spliced in at a `{{SHARED_FRONTMATTER:<profile>}}`
 placeholder from a frontmatter profile under `opencode/agents/shared/`:
 
-- `analysts.frontmatter.md` — the strictly read-only permission map
+- `analysts.frontmatter.md` — the strictly read-only permission rules
   shared by `task-analyst`, `task-feedback`, `ci-analyst` and
   `pr-feedback`;
-- `resolver.frontmatter.md` — the resolver's write-capable map (same
-  `"github*": deny`, but edit/write and every git mutation allowed).
+- `resolver.frontmatter.md` — the resolver's write-capable rules (same
+  `gh`/`acli` write denies, but edit and every git mutation allowed).
 
 Bodies can share a markdown section the same way via a
 `{{SHARED_BODY:<profile>}}` placeholder spliced from
-`shared/<profile>.body.md` — `housekeeping.body.md` is the one profile
+`shared/<profile>.body.md` (spliced at the end of the agent body, after
+the closing `---`) — `housekeeping.body.md` is the one profile
 in use, teaching every agent two things: all session prose (analyses,
 plans, explanations) is written in English regardless of the source
 material's language, and nothing is ever posted or edited on GitHub

@@ -156,15 +156,18 @@ YAML);
 
         $analyst = file_get_contents($this->agentsDir.'/ci-analyst.md');
         \assert(false !== $analyst);
-        $this->assertStringContainsString('webfetch: allow', $analyst);
-        $this->assertStringContainsString('"github*": deny', $analyst);
+        $this->assertStringContainsString('action: webfetch', $analyst);
+        $this->assertStringContainsString('resource: "git commit*"', $analyst);
         $this->assertStringNotContainsString('"gh run rerun*"', $analyst);
 
         $resolver = file_get_contents($this->agentsDir.'/rebase-conflict-resolver.md');
         \assert(false !== $resolver);
-        $this->assertStringContainsString('"github*": deny', $resolver);
-        $this->assertStringNotContainsString('"github*": allow', $resolver);
-        $this->assertStringContainsString('"git rebase*": allow', $resolver);
+        $this->assertStringContainsString('resource: "gh pr comment*"', $resolver);
+        $this->assertStringContainsString(<<<'EOF'
+  - action: edit
+    resource: "*"
+    effect: allow
+EOF, $resolver);
     }
 
     public function testInjectsSharedBodyHousekeepingProfile(): void

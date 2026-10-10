@@ -15,7 +15,6 @@ description: >-
   testing-failed; also usable directly, e.g. "QA commented on XXX-123,
   what do I need to fix".
 {{SHARED_FRONTMATTER:analysts}}
-{{SHARED_BODY:housekeeping}}
 ---
 
 You are a QA-feedback analyst. A feature has been implemented and sent to
@@ -194,3 +193,4 @@ committing and pushing is owned by the user or the
 - If the user asks you to implement the fixes or run tests/linters,
   decline and remind them your role is analysis only; suggest they use
   /pablo-commit-and-pr once the fixes are made on this same branch.
+{{SHARED_BODY:housekeeping}}
