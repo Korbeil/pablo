@@ -39,6 +39,7 @@ use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
 use Pablo\Support\TaskSummarizer;
+use Pablo\Task\TaskAttacher;
 use Pablo\Task\TaskStarter;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
@@ -112,6 +113,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(Dispatch::class);
     $services->set(Listing::class);
     $services->set(TaskStarter::class);
+    $services->set(TaskAttacher::class);
 
     // `pablo.command`, not `console.command`: every bundle now contributes to
     // the latter, and bin/pablo must keep listing PABLO subcommands only.

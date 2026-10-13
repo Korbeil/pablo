@@ -42,6 +42,12 @@ All PABLO operations are invoked via the `pablo` CLI directly.
 Key subcommands:
 
 - `pablo task:start` — start a task from an issue URL or a prompt
+- `pablo task:attach <state>` — run inside an existing git worktree (a task
+  PABLO did not create) to adopt it as a task with a task record, starting
+  at `<state>`; no branches, worktrees, agents or PR flips are ever
+  triggered. Requires the attached branch not to be the project's primary
+  one and no existing task record — and a project whose `repo.path` matches
+  the worktree's main checkout (or `--project <name>`).
 - `pablo task:list` — active worktrees + states listing
 - `pablo sync:run` — worktree sync (dry-run by default)
 - `pablo task:state` — manually force the current task's state

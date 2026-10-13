@@ -63,6 +63,7 @@ Then, day to day:
 ```
 pablo task:start https://acme.atlassian.net/browse/XXX-123          # start a task from an issue
 pablo task:start --project wallet-kit "fix callback verification"   # ...or from a prompt
+pablo task:attach draft      # adopt an existing worktree as a task (run inside it)
 pablo task:list             # see all active tasks and their state
 /pablo-commit-and-pr         # commit, push, open a draft PR
 pablo task:waiting           # pause/resume a task

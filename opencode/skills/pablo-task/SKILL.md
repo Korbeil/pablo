@@ -29,6 +29,13 @@ Create a task:
   pablo task:start --project <name> "short task prompt"
   ```
 
+- Adopt an existing worktree (run inside it; PABLO creates nothing, no
+  agents launch):
+
+  ```
+  pablo task:attach <state>          # e.g. draft
+  ```
+
 That is all: the CLI creates the worktree and branch, tracks state under
 `~/.pablo/`, and auto-launches the task-analyst agent. Never edit code,
 state files or run `/pablo-commit-and-pr` yourself to create/advance a task —

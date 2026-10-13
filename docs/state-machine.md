@@ -143,6 +143,25 @@ on vacation — force the task past it. Forcing `needs-testing` is refused
 when `testing.enabled: false` (the guard lives in `enterState()`, so
 every path — automatic, command, restore — is covered).
 
+### `pablo task:attach` (adopt a foreign worktree)
+
+`pablo task:attach <state>`, run inside a git worktree PABLO did not
+create. It writes a starter task record for the worktree's current branch
+starting at `<state>` and is a **pure record write**: `enterState(trigger:
+false)` — no launch-style on-enter actions (analyst, CI analyst, PR
+flips), no agent launch, no display-name registration, as the work and
+whatever agent runs on it pre-date PABLO. The single exception is
+`waiting`, whose on-enter (saving the previous state) always runs so the
+pause stays restorable. The starting state has no real predecessor;
+installs that care about the analytics timeline see the state as entered
+at attach time.
+
+Guards: must be inside a git worktree (not the main checkout), the branch
+must not be the project's primary one, no task record may exist for it,
+and a project must match the worktree's main checkout (`--project <name>`
+overrides). Use `pablo task:state` afterwards to force the task around —
+including `--no-trigger` bookkeeping.
+
 ### Post-draft transitions (automatic, polled)
 
 - `draft` → `ci-red` on CI failure; `draft`/`ci-red` → `ready-to-review`

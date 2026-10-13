@@ -54,6 +54,9 @@ final class FakeGit implements GitRepoInterface
     /** When set, git() throws PabloError with this message. */
     public ?string $gitThrows = null;
 
+    /** @var callable(list<string>): string|null per-args dispatch for git() */
+    public $gitHandler;
+
     public function resolveOriginUrl(string $repo): ?string
     {
         if (\is_callable($this->originUrl)) {
@@ -68,6 +71,9 @@ final class FakeGit implements GitRepoInterface
         $this->gitCalls[] = [$cwd, $args];
         if (null !== $this->gitThrows) {
             throw new PabloError($this->gitThrows);
+        }
+        if (\is_callable($this->gitHandler)) {
+            return ($this->gitHandler)($args);
         }
 
         return $this->gitOutput;
