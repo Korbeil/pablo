@@ -136,7 +136,14 @@ CLI instead of Orca:
 # launch (src/Agents/OpenChamber.php):
 openchamber session create --dir <worktree> --title "pablo:<agent>"
 openchamber session send --session <id> --dir <worktree> \
-     --prompt "<prompt>" --agent <agent>        # fire-and-forget
+     --prompt "<prompt>" --agent <agent>        # result checked: on failure
+                                                # the zombie session's pidfile
+                                                # is dropped, the reason is
+                                                # logged to
+                                                # ~/.pablo/agents/logs/openchamber-fallback.log
+                                                # and the launch falls back to
+                                                # the headless `opencode run`
+                                                # path with the same model
 # completion:
 openchamber session messages --session <id> --dir <worktree> --wait
 # activity:

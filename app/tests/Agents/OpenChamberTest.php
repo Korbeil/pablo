@@ -101,9 +101,39 @@ final class OpenChamberTest extends TestCase
         mkdir($this->agentsDir, 0o777, true);
 
         $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'hi');
-        // Falls back to the shared headless path -> pid handle.
+        // Falls back to the shared headless path -> pid handle, and the
+        // failure is logged for diagnosis.
+        $log = (string) file_get_contents($this->agentsDir.'/logs/openchamber-fallback.log');
 
         $this->assertStringStartsWith('pid:', $handle);
+        $this->assertStringContainsString('session create failed', $log);
+        $this->assertStringContainsString('no daemon', $log);
+    }
+
+    public function testLaunchFallsBackToHeadlessWhenSendFails(): void
+    {
+        // A failed `session send` (e.g. an unknown model id) must not leave the
+        // created session tracked: the watcher would report the empty zombie
+        // finished within seconds and the display would park it as waiting.
+        mkdir($this->agentsDir, 0o777, true);
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+            if (\in_array('create', $argv, true)) {
+                return $this->ocOk(['sessionId' => 'ses_abc', 'directory' => $this->tmp, 'title' => 'pablo:task-analyst']);
+            }
+
+            return $this->ocErr(['error' => ['message' => "Unknown model 'claude-code/claude-opus-5-5' for {$this->tmp}"]]);
+        });
+
+        $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'hi', 'claude-code/claude-opus-5-5');
+        $log = (string) file_get_contents($this->agentsDir.'/logs/openchamber-fallback.log');
+
+        $this->assertStringStartsWith('pid:', $handle);
+        $this->assertCount(2, $calls);
+        $this->assertFileDoesNotExist($this->agentsDir.'/openchamber-ses_abc.json');
+        $this->assertStringContainsString('session send failed (ses_abc)', $log);
+        $this->assertStringContainsString('Unknown model', $log);
     }
 
     public function testLaunchPinsModelFromAgentFrontmatter(): void

@@ -17,10 +17,13 @@ use Pablo\Support\ProcessRunnerInterface;
  * and no display-name concept. A launch creates a session in the task worktree
  * and dispatches a prompt to it; activity is read back via `session list`.
  *
- * Launch flow (both fire-and-forget, the detached watcher absorbs the async
- * land):
+ * Launch flow (fire-and-forget, the detached watcher absorbs the async land):
  *   openchamber session create --dir <wt> --title pablo:<agent>
  *   openchamber session send --session <id> --dir <wt> --prompt <p> --agent <a>
+ *
+ * A failed create or send (bad model id, daemon hiccup) is logged to
+ * logs/openchamber-fallback.log and falls back to the shared headless
+ * `opencode run` path instead of leaving an empty zombie session.
  *
  * Status mapping (OpenChamber `sessionStatus.type`):
  *   busy/retry -> running; idle -> waiting (display) / excluded (active).
@@ -42,20 +45,59 @@ final class OpenChamber extends AbstractAgentLauncher
 
     private readonly string $agentFilesDir;
 
+    /**
+     * One openchamber CLI call, returning the decoded payload plus the failure
+     * reason so callers can log why they fell back. Every caller has a
+     * fallback path, so the short timeout only guards against a wedged daemon.
+     *
+     * @param list<string> $argv
+     *
+     * @return array{payload: array<string, mixed>|null, reason: string|null}
+     */
+    private function call(array $argv): array
+    {
+        try {
+            $out = $this->runner->run(['openchamber', ...$argv, '--json'], check: false, timeout: self::SESSION_TIMEOUT_S);
+            $data = json_decode($out, true);
+        } catch (\Throwable $e) {
+            return ['payload' => null, 'reason' => $e::class.': '.$e->getMessage()];
+        }
+        if (!\is_array($data)) {
+            return ['payload' => null, 'reason' => 'non-JSON response: '.var_export($out, true)];
+        }
+        if (($data['status'] ?? null) !== 'ok') {
+            return ['payload' => null, 'reason' => 'status:'.var_export($data['status'] ?? null, true).' error:'.var_export($data['error'] ?? null, true)];
+        }
+
+        return ['payload' => $data, 'reason' => null];
+    }
+
     /** @param list<string> $argv
      *
      * @return array<string, mixed>|null decoded JSON result, or null on CLI error
      */
-    private function openchamber(array $argv, bool $check = false): ?array
+    private function openchamber(array $argv): ?array
     {
-        try {
-            $out = $this->runner->run(['openchamber', ...$argv, '--json'], check: $check, timeout: self::SESSION_TIMEOUT_S);
-            $data = json_decode($out, true);
-        } catch (\Throwable) {
-            return null;
-        }
+        return $this->call($argv)['payload'];
+    }
 
-        return \is_array($data) && ($data['status'] ?? null) === 'ok' ? $data : null;
+    /**
+     * Append a launch fallback to logs/openchamber-fallback.log, the same way
+     * the Orca backend logs its headless fallbacks. Without this a failed
+     * `session send` (e.g. an unknown model id) would leave an empty zombie
+     * session and no trace of why the agent never ran.
+     */
+    private function logFallback(string $worktree, string $agent, string $reason): void
+    {
+        $logs = $this->agentsDir().'/logs';
+        if (!is_dir($logs)) {
+            @mkdir($logs, 0o777, true);
+        }
+        file_put_contents(
+            $logs.'/openchamber-fallback.log',
+            $this->time->utcnow()." worktree={$worktree} agent={$agent} reason={$reason}\n",
+            \FILE_APPEND,
+        );
     }
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
@@ -70,9 +112,11 @@ final class OpenChamber extends AbstractAgentLauncher
             $create[] = '--model';
             $create[] = $model;
         }
-        $created = $this->openchamber($create);
-        $sessionId = $created['sessionId'] ?? null;
+        $created = $this->call($create);
+        $sessionId = $created['payload']['sessionId'] ?? null;
         if (!\is_string($sessionId) || '' === $sessionId) {
+            $this->logFallback($worktree, $agent, 'session create failed: '.($created['reason'] ?? 'unknown'));
+
             return $this->launchHeadless($worktree, $agent, $prompt, $model);
         }
         $this->writeSessionPidfile($sessionId, $worktree, $agent);
@@ -84,7 +128,18 @@ final class OpenChamber extends AbstractAgentLauncher
             $send[] = '--model';
             $send[] = $model;
         }
-        $this->openchamber($send);
+        $sent = $this->call($send);
+        if (null === $sent['payload']) {
+            // A failed send leaves the created session as an empty zombie: the
+            // watcher would report it finished within seconds and the display
+            // would park it as waiting forever. Drop the pidfile, log why, and
+            // fall back to headless with the same model — so a bad model id
+            // stays loud in the headless run's own log instead of vanishing.
+            $this->logFallback($worktree, $agent, 'session send failed ('.$sessionId.'): '.($sent['reason'] ?? 'unknown'));
+            $this->cleanupSessionFile($sessionId);
+
+            return $this->launchHeadless($worktree, $agent, $prompt, $model);
+        }
 
         return $sessionId;
     }
