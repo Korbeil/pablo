@@ -29,11 +29,10 @@ permission:
     "*": ask
 ---
 
-PABLO's version of commit-and-pr (the original `/commit-and-pr` still
-exists, untouched, for non-PABLO work). Create a git commit for the
-current changes, push the branch, create the GitHub PR **as a draft** if
-one doesn't exist (with a description in the project's configured PR
-locale), then switch the PABLO task state to `draft`.
+PABLO's commit-and-pr (the original `/commit-and-pr` stays untouched for
+non-PABLO work): commit the current changes, push, create the GitHub PR
+**as a draft** if none exists (description in the project's configured
+locale), then switch the PABLO task to `draft`.
 
 ## Context (auto-injected)
 
@@ -46,11 +45,11 @@ Current branch:
 Status:
 !`git status --short`
 
-Staged diff:
-!`git diff --staged`
+Staged changes:
+!`git diff --staged --stat`
 
-Unstaged diff:
-!`git diff`
+Unstaged changes:
+!`git diff --stat`
 
 Recent commit style:
 !`git log --oneline -10`
@@ -58,7 +57,7 @@ Recent commit style:
 Unpushed commits:
 !`git log --oneline @{upstream}..HEAD 2>/dev/null || git log --oneline -5`
 
-Branch diff vs base (for the PR description — adjust base branch if wrong):
+Branch diff vs base (adjust base branch if wrong):
 !`git diff origin/main...HEAD --stat 2>/dev/null || git diff origin/master...HEAD --stat 2>/dev/null || echo "(base branch not found: main/master)"`
 
 PR template:
@@ -67,176 +66,94 @@ PR template:
 Existing PR for this branch:
 !`gh pr list --head "$(git branch --show-current)" --state all --json number,title,state,isDraft 2>/dev/null || echo "[]"`
 
+The context only carries diff stats: read actual diffs (`git diff
+[--staged] -- <path>`, `git diff <base>...HEAD`) only when you need them
+for a commit message or the PR description.
+
 ## Hard rules
 
-- **Never touch the Git identity.** Never run `git config` for the
-  `user.name`/`user.email` keys (any scope: local, global, system), never
-  pass `-c user.name=…`/`-c user.email=…`, never export
-  `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL`/`GIT_COMMITTER_NAME`/
-  `GIT_COMMITTER_EMAIL`. Commits are always created with whatever identity
-  git resolves from the user's own configuration. If a commit or rebase
-  fails with "Please tell me who you are" or "unable to auto-detect email
-  address": STOP and report the exact error verbatim — tell the user to
-  configure their own identity (e.g. `git config --global user.name`
-  / `user.email`) and rerun the command afterwards. Do NOT invent a name,
-  an email, or any placeholder identity to unblock yourself.
-- **Resolve the worktree, then guard.** The PABLO task check resolves the
-  task from the current working directory. It succeeds only when run inside
-  the task worktree (e.g. `~/.pablo/worktrees/<project>/<branch>`). If the
-  agent isn't running inside the worktree (common with OpenChamber agents),
-  the check fails with "not a PABLO task worktree" — do NOT stop: first
-  resolve the task worktree (see step 1), then re-run the guard with
-  `pablo task:precommit-check --worktree <path> --json`. If `"allowed":
-  false`, STOP: `/pablo-commit-and-pr` is only valid from `in-progress`,
-  `ci-red`, `request-changes`, and `testing-failed` — report the task's
-  current state. If the worktree genuinely cannot be resolved, tell the
-  user this command only works inside a PABLO task worktree and that the
-  original `/commit-and-pr` exists for everything else.
-- **No changes, no action.** If there is nothing to commit AND
-  `$ARGUMENTS` does not contain `--force`, stop early with a clear
-  message: no push, no PR creation, no state change. With `--force`, skip
-  only the commit step and continue the rest of the flow (push any
-  unpushed commits, create the draft PR if missing, switch the state) —
-  for when the user already committed manually.
-- **Amend by default.** If the branch already has task-owned commits (use
-  the "Unpushed commits" context above — if it shows commits that belong
-  to this branch, not the base): use `git commit --amend --no-edit`
-  (never change the existing commit message). If this is the very first
-  `/pablo-commit-and-pr` for this task (no prior commits on the branch):
-  create a new commit with a message following conventions as described
-  below.
-- **Push is always `--force-with-lease`.** Use
-  `git push --force-with-lease -u origin <branch>` for every push — this
-  is safe (refuses if the remote has diverged) and works for first pushes
-  too.
-- **No GitHub writes without explicit approval.** Never comment on,
-  reply to, or update the title/description of an existing PR on GitHub
-  (no `gh pr comment`, `gh pr edit`, `gh pr review`, no `gh api`
-  mutations). If a PR already exists: just push; do not edit the
-  existing PR. If the user asks for a description update: draft the new
-  body (in the configured locale) inside the four-backtick fenced block
-  and require the user's explicit confirmation of *that text* before
-  running any GitHub write command. Creating the draft PR itself is the
-  only GitHub write allowed.
-- The PR description is **always written in the project's configured PR
-  description locale** — read `pr_description_locale` from the "PABLO task
-  check" JSON above (either `en` or `fr`). Write the whole body in that
-  locale, even if the code and commits are in another language.
-- The PR description is **always printed inside a fenced code block**
-  using **four backticks** as the outer fence (templates often contain
-  triple-backtick blocks that would break a triple-backtick fence).
-- The PR is always created as a **draft** (`--draft`). Never mark it
-  ready — PABLO's poller does that when CI is green.
+- **Never touch the Git identity**: no `git config user.*` (any scope), no
+  `-c user.name/email`, no `GIT_AUTHOR_*`/`GIT_COMMITTER_*`. If git fails
+  with "Please tell me who you are" / "unable to auto-detect email
+  address", STOP, report the error verbatim, and tell the user to
+  configure their own identity. Never invent one.
+- **Guard first** (step 1). If `"allowed": false`, STOP: this command is
+  only valid from `in-progress`, `ci-red`, `request-changes` and
+  `testing-failed` — report the current state.
+- **No changes, no action.** Nothing to commit and no `--force` in
+  `$ARGUMENTS` → stop: no push, no PR, no state change. With `--force`,
+  skip only the commit step.
+- **Push is always** `git push --force-with-lease -u origin <branch>`.
+  If rejected, report and stop.
+- **Only GitHub write allowed: creating the draft PR.** Never comment on,
+  review, or edit an existing PR (no `gh pr comment/edit/review`, no
+  `gh api` mutations). If the user asks for a description update, draft
+  the body and get explicit confirmation of *that text* first.
+- The PR is always `--draft`; never mark it ready (PABLO's poller does).
 
 ## Steps
 
-1. **Resolve the task worktree** (if not already inside one)
-   - First run `pablo task:precommit-check --json`. If it succeeds (returns
-     JSON with the task's `project`, `branch`, `state`, `allowed`,
-     `pr_description_locale`), you are already inside the task worktree —
-     use that cwd for everything and skip to step 2.
-   - If it errors with "not a PABLO task worktree" because the cwd isn't the
-     worktree, resolve the worktree path from the current OpenChamber
-     session:
-     - Use the `openchamber` tool (`session.status` with no `sessionId`
-       returns the current session's `directory`, or `session.list`) to read
-       the directory of the session you're running in.
-     - If that directory is a PABLO task worktree, use it as the worktree.
-     - Otherwise list active tasks (`pablo task:list`) and, if the session
-       or user context clearly identifies one task, use its worktree.
-   - Once you have a worktree path `<wt>`: `cd <wt>` and re-run the guard
-     with `pablo task:precommit-check --worktree <wt> --json`. Run **all**
-     subsequent `git`/`gh`/`pablo task:state` commands from inside `<wt>`
-     (pass `--worktree <wt>` to the `pablo task:*` calls), so the branch,
-     status, diff and push all operate on the right worktree.
-   - If `"allowed": false`, stop and report the task's current state (see
-     Hard rules). If the worktree genuinely cannot be resolved, stop and
-     point the user to `/commit-and-pr`.
+1. **Resolve the worktree and guard.** `pablo task:precommit-check --json`
+   succeeds inside the task worktree (JSON with `project`, `branch`,
+   `state`, `allowed`, `pr_description_locale`). If it fails with "not a
+   PABLO task worktree" (common with OpenChamber), find the worktree: the
+   `openchamber` tool's `session.status` (no `sessionId`) gives the
+   session's `directory`; otherwise `pablo task:list` when the context
+   clearly identifies one task. Then `cd <wt>`, re-run
+   `pablo task:precommit-check --worktree <wt> --json`, and run every
+   later git/gh/pablo command from `<wt>` (pass `--worktree <wt>` to
+   `pablo task:*`). If no worktree can be resolved, say this command only
+   works in a PABLO task worktree and point to `/commit-and-pr`.
 
-2. **Commit** (skipped with `--force`)
-   - Determine if this branch already has task-owned commits — check the
-     "Unpushed commits" context above. If it shows commits that belong to
-     this task (not the base branch), the branch has existing commits.
-   - If files are already staged, use those. Otherwise stage the files
-     relevant to the work — do NOT blindly `git add -A` if unrelated
-     files are lying around (local config, `.env`, debug scripts); leave
-     them out and mention them.
-   - **Existing commits on this branch:** `git commit --amend --no-edit`
-     (do not change the existing commit message).
-   - **First commit for this task (no prior commits on this branch):**
-     write the commit message following the conventions visible in the
-     git log above (language, prefixes, ticket refs like `ABC-123`). If
-     no convention is detectable, use Conventional Commits in English:
-     `type(scope): summary`, subject ≤ 72 chars. Then `git commit -m
-     "<message>"`.
+2. **Commit** (skipped with `--force`).
+   - Use already-staged files; otherwise stage the files relevant to the
+     work — never blindly `git add -A`; leave out and mention unrelated
+     files (local config, `.env`, debug scripts).
+   - Task-owned commits already on the branch ("Unpushed commits" shows
+     commits of this task, not the base): `git commit --amend --no-edit`.
+   - First commit of the task: message following the conventions in the
+     log (language, prefixes, ticket refs like `ABC-123`); if none,
+     Conventional Commits in English, subject ≤ 72 chars.
 
-3. **PR description**
-   - Cover the **whole branch** vs the base branch, not just this
-     commit. Run `git diff <base>...HEAD` for the full diff if the stat
-     above isn't enough.
-   - If a PR template exists (see above): follow its structure exactly —
-      keep every heading, section order, and checklists. Fill each section
-      in the configured PR locale (`pr_description_locale` from the "PABLO
-      task check" JSON) based on the actual diff. Check (`[x]`) only
-      checklist items that are genuinely true; leave the rest unchecked.
-      Remove HTML comments (`<!-- ... -->`) from the final output.
-    - If no template exists, use the following structure (headings in the
-      configured locale — English shown here, translate to French if
-      `pr_description_locale` is `fr`):
+3. **PR description** (only when a PR must be created), in the
+   `pr_description_locale` from the task check (`en` or `fr`), covering
+   the whole branch vs base.
+   - With a template: keep every heading, order and checklist; check
+     (`[x]`) only items that are genuinely true; remove HTML comments.
+   - Without one (headings translated to French when locale is `fr`):
 
-      ```markdown
-      ## Description
+     ```markdown
+     ## Description
 
-      <1–3 sentences: what changes for the user and why>
+     <1–3 sentences: what changes for the user and why>
 
-      ## Changes
+     ## Changes
 
-      - <max 4 bullets — user-visible behavior only>
+     - <max 4 bullets — user-visible behavior only>
 
-      ## How to test
+     ## How to test
 
-      1. <1–3 steps to observe the new behavior>
-      ```
+     1. <1–3 steps to observe the new behavior>
+     ```
 
-    - **Concise.** Description = 1–3 sentences, Changes = max 4 bullets,
-      How to test = 1–3 steps. No filler ("This PR aims to..." → prefer
-      "Adds...", "Fixes...", "Refactors..."), written in the configured
-      locale.
-    - **Functionality-first.** Describe what changes for the user, not how
-      the code is built — no file paths, class names, or implementation
-      details unless strictly needed to understand.
-    - Base every claim on the actual diff — never invent tests,
-      migrations, or impacts that aren't in the code.
-    - Flag breaking changes in one short line inside the Description if
-      present.
+   - Concise, functionality-first ("Adds…", "Fixes…"), no file paths or
+     class names unless needed, nothing that isn't in the diff; flag
+     breaking changes in one line of the Description.
 
-4. **Push and PR**
-   - `git push --force-with-lease -u origin <branch>` (always use
-     `--force-with-lease` — safe for first pushes and rejects only if the
-     remote truly diverged; if the push is rejected, report it and stop).
-   - If the "Existing PR" context above is empty: create the draft PR with
-      the description (in the configured locale) as body — write the body
-      to `.pablo-pr-body.md` (a dotfile in the worktree root) and run
-     `gh pr create --draft --title "<title>" --body-file <file>`
-     (title follows the same convention as the commit message, mention
-     the issue key if the branch has one).
-   - If a PR already exists: just push; do not edit the existing PR
-     (only with the user's explicit, requested approval — see Hard
-     rules).
+4. **Push and PR.** Push (see Hard rules). No existing PR: write the body
+   to `.pablo-pr-body.md` in the worktree root and run
+   `gh pr create --draft --title "<title>" --body-file .pablo-pr-body.md`
+   (title follows the commit convention, with the issue key if the branch
+   has one). Existing PR: just push.
 
-5. **State switch** — final step, only after the push (and PR creation if
-   any) succeeded: run `pablo task:state draft` (pass `--worktree <wt>` if
-   you resolved the worktree in step 1). This is what moves the PABLO
-   task back into the automatic draft → CI → review cycle. (A raw
-   `git push` without this command never changes PABLO state — there is
-   no push detection.)
+5. **State switch**, only after push (and PR creation) succeeded:
+   `pablo task:state draft` (with `--worktree <wt>` if resolved in step
+   1). A raw `git push` never changes PABLO state.
 
-6. **Output**
-   - The PR title on its own line, then the full description (in the
-      configured locale) inside the four-backtick fenced block (so the
-      user can copy it or tweak the PR afterwards).
-   - One short confirmation: what was committed (or that the commit was
-     skipped via `--force`), the push result, the PR URL (new or
-     existing), and that the task is now 📝 draft.
+6. **Output**: when a PR was created, its title on its own line, then the
+   description in a fenced block using **four backticks** (templates
+   contain triple-backtick blocks); then one short confirmation — what was committed (or
+   skipped via `--force`), the push result, the PR URL, and that the task
+   is now 📝 draft.
 
 User request: $ARGUMENTS

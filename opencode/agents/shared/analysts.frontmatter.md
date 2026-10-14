@@ -1,6 +1,9 @@
 mode: primary
 model: litellm/glm-5.3-flash
 permissions:
+  - action: skill
+    resource: "*"
+    effect: deny
   - action: edit
     resource: "*"
     effect: deny

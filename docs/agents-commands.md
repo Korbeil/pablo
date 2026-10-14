@@ -101,12 +101,16 @@ Bodies can share a markdown section the same way via a
 `{{SHARED_BODY:<profile>}}` placeholder spliced from
 `shared/<profile>.body.md` (spliced at the end of the agent body, after
 the closing `---`) — `housekeeping.body.md` is the one profile
-in use, teaching every agent two things: all session prose (analyses,
-plans, explanations) is written in English regardless of the source
-material's language, and nothing is ever posted or edited on GitHub
-(no PR/review/issue comments, no PR title/body edits) without the
+in use, teaching every agent: token-efficient tool use (batched calls,
+bounded logs/diffs/JSON, targeted reads, narrow MCP queries, a ~15-step
+budget — every tool result is re-read on each later step); all session
+prose (analyses, plans, explanations) is written in English regardless of
+the source material's language; nothing is ever posted or edited on
+GitHub (no PR/review/issue comments, no PR title/body edits) without the
 user's explicit in-session approval — proposed text is drafted, the
-user posts it. Per-agent texts destined for third parties keep their
+user posts it; and no commit/push outside an explicit demand or
+`/pablo-commit-and-pr`. Both frontmatter profiles also deny the `skill`
+action, which keeps the skill catalog out of every agent step. Per-agent texts destined for third parties keep their
 own language rules on top (e.g. `task-feedback`'s ready-to-post draft
 reply follows the language QA used).
 
