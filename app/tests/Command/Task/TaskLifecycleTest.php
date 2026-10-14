@@ -303,7 +303,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->store->save($task);
 
         $analytics = new FakeAnalytics();
-        $tester = $this->runCommand(new \Pablo\Command\Internal\InternalLaunchAgentCommand($analytics, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
+        $tester = $this->runCommand(new \Pablo\Command\Internal\InternalLaunchAgentCommand($analytics, $this->time, new \Pablo\Agents\LaunchContext($this->runner, $this->repoSlug), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--worktree' => $this->wt,

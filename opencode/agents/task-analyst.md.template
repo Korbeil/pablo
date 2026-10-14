@@ -5,6 +5,7 @@ description: >-
   concrete, ordered action plan grounded in the codebase. Strictly
   read-only. Auto-run by PABLO when a task enters in-progress; also usable
   directly, e.g. "what do I need to do for XXX-123".
+steps: 30
 {{SHARED_FRONTMATTER:analysts}}
 ---
 

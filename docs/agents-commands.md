@@ -36,6 +36,34 @@ Following the conventions of the user's other OpenCode agents (flat
   [background-layer.md](background-layer.md)). All other agents above
   remain strictly read-only.
 
+**Pre-fetched launch context.** Every tool step re-reads the agent's whole
+context, so steps are what tokens are spent on. When `internal:launch-agent`
+(the detached launch subprocess — the poller never waits on it) starts an
+analyst, `Agents\LaunchContext` appends a bounded
+"Pre-fetched context (PABLO)" section (≤ 24k chars) to the prompt, built
+from read-only CLI calls:
+
+- `task-analyst` / `task-feedback`: the issue's title, metadata,
+  description and latest 15 comments (`gh issue view`, `acli jira workitem
+  view` with Jira's ADF flattened to text, `linear issue view`);
+- `ci-analyst`: the failing checks (minus `ci.ignore_checks`) and, for up
+  to 3 GitHub Actions jobs, their error lines plus a short log tail cut
+  before the runner's post-job cleanup (CircleCI logs stay agent-fetched);
+- `pr-feedback`: unresolved threads, non-empty review bodies and
+  conversation comments.
+
+It is best-effort — any failure launches with the plain prompt and the
+agent fetches by itself as its prompt describes — and skipped for the Orca
+backend, whose prompt travels inside a terminal command line. The augmented
+prompt is the one fingerprinted for usage attribution; analytics still
+never store its content.
+
+**Step caps.** The analyst templates set OpenCode's `steps:` (30 for
+`task-analyst`/`ci-analyst`, 25 for `pr-feedback`/`task-feedback`): on the
+last step OpenCode removes tools and forces a text answer. A new user
+message resets the allowance. The resolver is uncapped — it must never
+stop mid-rebase.
+
 ## Commands
 
 All PABLO operations are invoked via the `pablo` CLI directly.

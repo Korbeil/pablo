@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Command\Internal;
 
 use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\LaunchContext;
 use Pablo\Command\Internal\InternalLaunchAgentCommand;
 use Pablo\Tests\Command\CommandTestBed;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -52,7 +53,7 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
         // runner — the bed's default factory carries a real ProcessRunner.
         $factory = new AgentLauncherFactory($this->globalConfig, $this->runner);
 
-        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, $this->store, $this->projectsLoader, $factory, $this->agents);
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->store, $this->projectsLoader, $factory, $this->agents);
         $tester = new CommandTester($command);
         $tester->execute([
             '--backend' => 'openchamber',
@@ -70,6 +71,39 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
         $this->assertSame('openrouter/test/model', $create[$modelKey + 1]);
     }
 
+    public function testAppendsPrefetchedContextToTheSentPrompt(): void
+    {
+        $this->writeProjects();
+        $this->git->originUrl = static fn (): string => 'git@github.com:acme/wallet-kit.git';
+        $calls = [];
+        $this->runner->onRun = static function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+            if (['gh', 'issue', 'view'] === \array_slice($argv, 0, 3)) {
+                return (string) json_encode(['title' => 'Fix wallet sync', 'state' => 'OPEN', 'labels' => [], 'body' => 'Sync drops the last entry.', 'comments' => []]);
+            }
+            if (\in_array('create', $argv, true)) {
+                return (string) json_encode(['status' => 'ok', 'sessionId' => 'ses_x']);
+            }
+
+            return (string) json_encode(['status' => 'ok']);
+        };
+        $factory = new AgentLauncherFactory($this->globalConfig, $this->runner);
+
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->store, $this->projectsLoader, $factory, $this->agents);
+        (new CommandTester($command))->execute([
+            '--backend' => 'openchamber',
+            '--worktree' => $this->wt,
+            '--agent' => 'task-analyst',
+            '--prompt' => 'Analyze issue #45',
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+        ]);
+
+        $sent = implode("\n", array_merge(...array_values(array_filter($calls, static fn (array $argv): bool => \in_array('--prompt', $argv, true)))));
+        $this->assertStringContainsString("Analyze issue #45\n\n---\n## Pre-fetched context (PABLO)", $sent);
+        $this->assertStringContainsString('Sync drops the last entry.', $sent);
+    }
+
     public function testUnknownProjectFallsBackToNullModel(): void
     {
         $calls = [];
@@ -83,7 +117,7 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
         };
         $factory = new AgentLauncherFactory($this->globalConfig, $this->runner);
 
-        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, $this->store, $this->projectsLoader, $factory, $this->agents);
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->store, $this->projectsLoader, $factory, $this->agents);
         $tester = new CommandTester($command);
         $tester->execute([
             '--backend' => 'openchamber',

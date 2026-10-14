@@ -5,6 +5,7 @@ description: >-
   actionable fix plan. Read-only: never edits code, pushes, comments or
   resolves threads. Auto-run by PABLO when a task enters request-changes;
   also usable directly, e.g. "plan the fixes for the review on PR #123".
+steps: 25
 {{SHARED_FRONTMATTER:analysts}}
 ---
 

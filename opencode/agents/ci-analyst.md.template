@@ -5,6 +5,7 @@ description: >-
   ordered fix plan. Strictly read-only; never re-triggers CI. Auto-run by
   PABLO when a task enters ci-red; also usable directly, e.g. "why is CI
   red on PR #123".
+steps: 30
 {{SHARED_FRONTMATTER:analysts}}
 ---
 

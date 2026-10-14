@@ -6,6 +6,7 @@ description: >-
   Strictly read-only; fixes always iterate on the existing branch and PR.
   Auto-run by PABLO when a task enters testing-failed; also usable
   directly, e.g. "QA commented on XXX-123, what do I need to fix".
+steps: 25
 {{SHARED_FRONTMATTER:analysts}}
 ---
 

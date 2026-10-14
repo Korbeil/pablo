@@ -6,6 +6,7 @@ namespace Pablo\Command\Internal;
 
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Agents\LaunchContext;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\OpenCodeUsage;
 use Pablo\Command\Command;
@@ -31,6 +32,7 @@ final class InternalLaunchAgentCommand extends Command
     public function __construct(
         private readonly AnalyticsInterface $analytics,
         private readonly Time $time,
+        private readonly LaunchContext $launchContext,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -60,6 +62,10 @@ final class InternalLaunchAgentCommand extends Command
         $project = (string) $input->getOption('project');
         $branch = (string) $input->getOption('branch');
         $runId = bin2hex(random_bytes(8));
+        // Done here, in the detached subprocess, so the poller never waits on
+        // these fetches. The augmented prompt is the one actually sent, hence
+        // the one fingerprinted below for usage attribution.
+        $prompt = $this->withLaunchContext($backend, $agent, $project, $branch, $prompt);
         // Record the attempt before launching: a failed/hanging launch must
         // still count as an agent run started.
         $this->analytics->agentRunStarted($project, $branch, $worktree, $agent, $backend, $runId, $this->time->utcnow(), $prompt);
@@ -77,6 +83,30 @@ final class InternalLaunchAgentCommand extends Command
         $agents->refreshAgentDisplayCache($project, $branch, $worktree);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Append the pre-fetched context (see LaunchContext). Skipped for Orca,
+     * whose prompt travels inside a terminal command line rather than as an
+     * argv entry. Best-effort: any failure launches with the plain prompt.
+     */
+    private function withLaunchContext(string $backend, string $agent, string $project, string $branch, string $prompt): string
+    {
+        if ('orca' === $backend) {
+            return $prompt;
+        }
+        try {
+            $agentEnum = Agent::tryByName($agent);
+            $cfg = $this->projectsLoader->loadProjects()[$project] ?? null;
+            $task = $this->store()->get($project, $branch);
+            if (null === $agentEnum || null === $cfg || null === $task) {
+                return $prompt;
+            }
+
+            return $this->launchContext->augment($agentEnum, $task, $cfg, $prompt);
+        } catch (\Throwable) {
+            return $prompt;
+        }
     }
 
     private function modelFor(string $project): ?string

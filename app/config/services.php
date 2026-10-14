@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\LaunchContext;
 use Pablo\Analytics\AnalyticsAggregator;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\AnalyticsReader;
@@ -94,6 +95,9 @@ return static function (ContainerConfigurator $container): void {
     // Generated-agent templates and the doctor's staleness check.
     $services->set(AgentTemplates::class);
     $services->set(AgentStaleness::class);
+
+    // Bounded context pre-fetched into auto-launched agent prompts.
+    $services->set(LaunchContext::class);
 
     // Agent backends are selected per call (env > global config > orca), so
     // commands get the factory; a default-behaviour launcher is exposed as

@@ -3,17 +3,24 @@
 Every tool result stays in your context and is re-read on every later
 step, so cost grows with steps × context size:
 
-- Batch independent calls into one step (parallel tool calls).
-- Search before reading; read only the relevant line ranges of large
-  files — never whole lockfiles, baselines, generated or vendored files.
+- A "Pre-fetched context (PABLO)" section in your prompt is already
+  fetched: start from it and never re-fetch what it contains.
+- Explore in waves, each wave one step of parallel tool calls: (1) every
+  search the context suggests (grep/glob/symbol lookups); (2) every
+  targeted read those hits call for; then at most one or two follow-up
+  steps before writing the deliverable.
+- Never re-read a file or range you already have.
+- Read only the relevant line ranges of large files — never whole
+  lockfiles, baselines, generated or vendored files.
 - Bound noisy output: logs through `grep`/`tail -n 200`, diffs with
   `--stat`/`--name-only` first, JSON narrowed with `--jq`/`jq`.
 - Prefer symbol navigation (Serena `find_symbol`/references, when
   available) over repeated grep + full-file reads.
 - MCP queries (e.g. Datadog logs/traces): short time window, explicit
   filters, small limits, only the fields you need.
-- Aim for ~15 tool steps. Stop investigating once the deliverable is
-  grounded; don't re-verify what you already established.
+- Aim for ~15 tool steps (analysts have a hard step cap whose last step
+  is forced to text). Stop investigating once the deliverable is grounded;
+  don't re-verify what you already established.
 
 ## Language
 
