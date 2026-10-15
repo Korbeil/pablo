@@ -18,14 +18,15 @@ final class TaskSummarizerTest extends TestCase
 
         $this->assertSame('fix webhook retry handling with backoff', $summarizer->summarize('/repo', 'do the webhooks'));
 
-        [$argv, $check, $timeout] = $runner->calls[0];
+        [$argv, $check, $timeout, $cwd] = $runner->calls[0];
         $this->assertSame('opencode', $argv[0]);
         $this->assertSame('run', $argv[1]);
         $this->assertSame('opencode/big-pickle', $argv[3]);
-        $this->assertStringEndsWith('/repo', $argv[5]);
+        $this->assertNotContains('--dir', $argv);
         $this->assertStringContainsString('do the webhooks', (string) end($argv));
         $this->assertFalse($check);
         $this->assertSame(60.0, $timeout);
+        $this->assertSame('/repo', $cwd);
 
         [$delArgv] = $runner->calls[1];
         $this->assertSame(['opencode', 'session', 'delete', 'ses_test'], $delArgv);

@@ -30,19 +30,27 @@ final class TaskSummarizer
     }
 
     /** @return list<string> argv for the summarizing opencode call */
-    public static function argv(string $repoPath, string $prompt): array
+    public static function argv(string $prompt): array
     {
-        $instruction = 'Summarize the following task in at most '.self::MAX_WORDS.' words. '
-            .'Reply with the summary only: plain text, no quotes, no list, no code block, nothing else.'
-            ."\n\nTask:\n".$prompt;
+        // The hard wording (label semantics + explicit "output nothing except
+        // the summary, then stop") is deliberate: big-pickle occasionally
+        // appends a conversational follow-up ("I'm ready to help…") to softer
+        // phrasings, which would end up in the branch name.
+        $instruction = 'You label tasks with a short branch name. Reply with only the summary of the task: '
+            .'at most '.self::MAX_WORDS.' words, plain lowercase text, no quotes, no list, no code block. '
+            .'Output nothing except the summary. Do not continue the conversation, do not ask questions, '
+            ."do not offer help.\n\nTask:\n".$prompt;
 
-        return ['opencode', 'run', '-m', self::MODEL, '--dir', $repoPath, '--format', 'json', $instruction];
+        return ['opencode', 'run', '-m', self::MODEL, '--format', 'json', $instruction];
     }
 
     public function summarize(string $repoPath, string $prompt): ?string
     {
+        // OpenCode v2 removed `run --dir`; running from $repoPath's working
+        // directory attaches the one-shot session to that project instead of
+        // to whatever project the pablo process itself sits in.
         try {
-            $out = $this->runner->run(self::argv($repoPath, $prompt), check: false, timeout: self::TIMEOUT_S);
+            $out = $this->runner->run(self::argv($prompt), check: false, timeout: self::TIMEOUT_S, cwd: $repoPath);
         } catch (\Throwable) {
             return null;
         }

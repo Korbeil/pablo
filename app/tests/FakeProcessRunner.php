@@ -23,7 +23,7 @@ final class FakeProcessRunner implements ProcessRunnerInterface
      */
     public $onRun;
 
-    /** @var list<array{0: list<string>, 1: bool, 2: ?float}> every run() invocation */
+    /** @var list<array{0: list<string>, 1: bool, 2: ?float, 3: ?string}> every run() invocation */
     public array $calls = [];
 
     /** @var array<int, string> canned stdout per runParallel() group, by index */
@@ -42,9 +42,9 @@ final class FakeProcessRunner implements ProcessRunnerInterface
      */
     public $onProbe;
 
-    public function run(array $argv, bool $check = true, ?float $timeout = null): string
+    public function run(array $argv, bool $check = true, ?float $timeout = null, ?string $cwd = null): string
     {
-        $this->calls[] = [$argv, $check, $timeout];
+        $this->calls[] = [$argv, $check, $timeout, $cwd];
         if ([] !== $this->outputs) {
             return (string) array_shift($this->outputs);
         }
@@ -65,7 +65,7 @@ final class FakeProcessRunner implements ProcessRunnerInterface
         return array_values($results);
     }
 
-    public function probe(array $argv, ?float $timeout = null): \Pablo\Support\ProbeResult
+    public function probe(array $argv, ?float $timeout = null, ?string $cwd = null): \Pablo\Support\ProbeResult
     {
         $this->probeCalls[] = $argv;
         if ([] !== $this->probes) {

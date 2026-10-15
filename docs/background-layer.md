@@ -121,7 +121,7 @@ Activity mapping: an agent whose `state` is `working`/`running` counts as
 🏃 running; anything else (idle / awaiting input) counts as 💭 waiting on
 feedback. **Fallback:** when Orca is unreachable or doesn't know the
 worktree's repo (see [installation.md](installation.md#orca-visibility-verified-2026-07-26)),
-PABLO runs `opencode run --agent <agent> --dir <worktree>` headless,
+PABLO runs `opencode run --agent <agent>` headless from the worktree
 tracked via pidfiles in `~/.pablo/agents/` (headless runs always count as
 running — they have no idle signal).
 

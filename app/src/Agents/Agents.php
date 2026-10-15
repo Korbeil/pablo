@@ -111,9 +111,11 @@ final class Agents extends AbstractAgentLauncher
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
-        $command = 'opencode '.escapeshellarg($worktree)
+        // OpenCode v2 removed the TUI's positional directory + --prompt
+        // flags; run the headless run command inside the worktree instead.
+        $command = 'cd '.escapeshellarg($worktree).'; opencode run'
             .(null !== $model ? ' --model '.escapeshellarg($model) : '')
-            ." --agent {$agent} --prompt ".escapeshellarg($prompt);
+            ." --agent {$agent} ".escapeshellarg($prompt);
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
             if (!$this->waitForOrcaAdoption($worktree)) {
                 return new OrcaCall(null, 'orca adoption timeout for '.$worktree);

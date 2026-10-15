@@ -12,11 +12,13 @@ namespace Pablo\Support;
 interface ProcessRunnerInterface
 {
     /**
-     * Run one command and return stdout.
+     * Run one command and return stdout. $cwd runs it from that directory
+     * instead of the process's own working directory (OpenCode v2 resolved a
+     * session's project from the working directory, with no --dir flag).
      *
      * @param list<string> $argv
      */
-    public function run(array $argv, bool $check = true, ?float $timeout = null): string;
+    public function run(array $argv, bool $check = true, ?float $timeout = null, ?string $cwd = null): string;
 
     /**
      * Run commands concurrently and return each stdout, in the same order.
@@ -28,9 +30,9 @@ interface ProcessRunnerInterface
     public function runParallel(array $commandGroups, bool $check = true, ?float $timeout = null): array;
 
     /**
-     * Run one command tolerating failure.
+     * Run one command tolerating failure. $cwd matches run()'s.
      *
      * @param list<string> $argv
      */
-    public function probe(array $argv, ?float $timeout = null): ProbeResult;
+    public function probe(array $argv, ?float $timeout = null, ?string $cwd = null): ProbeResult;
 }

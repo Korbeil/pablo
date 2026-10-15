@@ -210,27 +210,38 @@ final class Sync
     }
 
     /**
-     * Returns the most recent opencode session id for the agent on $worktree,
-     * or null. The worktree path is single-quote-escaped before interpolation
-     * into the SQL string (the port fixes Python's unescaped bug).
+     * Returns the most recent opencode session id for the $worktree, or null.
+     * OpenCode v2 removed the `db` subcommand (this used to query the sqlite
+     * store directly, filtered by agent); `session list` only exposes a
+     * directory — the worktree's newest session is a right-enough hint for
+     * the "fix agent running" display, since the resolver runs right after
+     * the conflict and nothing else is concurrent there.
      */
     private function findRecentSession(string $worktree, string $agent): ?string
     {
-        try {
-            $escaped = str_replace("'", "''", $worktree);
-            $result = $this->runner->run([
-                'opencode', 'db',
-                "SELECT id FROM session WHERE directory = '{$escaped}'"
-                ." AND agent = '{$agent}'"
-                .' ORDER BY time_created DESC LIMIT 1',
-                '--format', 'json',
-            ], check: false, timeout: 5);
-            $rows = json_decode($result, true);
-            if (\is_array($rows) && [] !== $rows && isset($rows[0]['id'])) {
-                return (string) $rows[0]['id'];
+        $probe = $this->runner->probe([
+            'opencode', 'session', 'list', '--format', 'json', '--max-count', '50',
+        ], timeout: 5, cwd: $worktree);
+        if (0 !== $probe->exitCode) {
+            return null;
+        }
+        $rows = json_decode($probe->output, true);
+        if (!\is_array($rows)) {
+            return null;
+        }
+        $wanted = rtrim($worktree, '/');
+        usort($rows, static fn (array $a, array $b) => (int) ($b['created'] ?? 0) <=> (int) ($a['created'] ?? 0));
+        foreach ($rows as $row) {
+            if (!\is_array($row)) {
+                continue;
             }
-        } catch (\Throwable) {
-            // ignore
+            if (rtrim((string) ($row['directory'] ?? ''), '/') !== $wanted) {
+                continue;
+            }
+            $id = (string) ($row['id'] ?? '');
+            if ('' !== $id) {
+                return $id;
+            }
         }
 
         return null;

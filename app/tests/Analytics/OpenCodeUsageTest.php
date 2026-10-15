@@ -150,7 +150,7 @@ final class OpenCodeUsageTest extends TestCase
             ) {
             }
 
-            public function run(array $argv, bool $check = true, ?float $timeout = null): string
+            public function run(array $argv, bool $check = true, ?float $timeout = null, ?string $cwd = null): string
             {
                 throw new \LogicException('not expected');
             }
@@ -160,18 +160,18 @@ final class OpenCodeUsageTest extends TestCase
                 throw new \LogicException('not expected');
             }
 
-            public function probe(array $argv, ?float $timeout = null): ProbeResult
+            public function probe(array $argv, ?float $timeout = null, ?string $cwd = null): ProbeResult
             {
                 if ('openchamber' === ($argv[0] ?? '')) {
                     return null === $this->onOpenchamberList
                         ? new ProbeResult(127, 'openchamber: not found')
                         : ($this->onOpenchamberList)();
                 }
-                if ('session' === ($argv[1] ?? '')) {
+                if ('session' === ($argv[1] ?? '') && 'list' === ($argv[2] ?? '')) {
                     return ($this->onList)();
                 }
-                if ('export' === ($argv[1] ?? '')) {
-                    return ($this->onExport)((string) ($argv[2] ?? ''));
+                if ('session' === ($argv[1] ?? '') && 'export' === ($argv[2] ?? '')) {
+                    return ($this->onExport)((string) ($argv[3] ?? ''));
                 }
 
                 return new ProbeResult(0, '');

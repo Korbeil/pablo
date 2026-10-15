@@ -152,7 +152,8 @@ in `src/Domain/`) so `pablo task:list` renders instantly;
 
 **Agent execution**: via the Orca CLI (`orca terminal create` /
 `orca terminal wait` / `orca worktree ps`), same path as the user's other
-Orca agents. Falls back to headless `opencode run --dir <worktree>` for
+Orca agents. Falls back to headless `opencode run` executed with the worktree
+as the command's working directory for
 repos not registered in Orca. An optional `OpenChamber` backend
 (`agent_backend=openchamber` in `~/.pablo/config.yaml` or
 `PABLO_AGENT_BACKEND`) replaces Orca with the directory-based `openchamber`

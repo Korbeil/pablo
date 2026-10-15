@@ -400,11 +400,12 @@ YAML);
         $task = $this->store->get('wallet-kit', 'wk-fix-webhook-callback-verification');
         $this->assertNotNull($task);
         $this->assertSame('fix webhook callback verification retries', $task->summary);
-        [$argv] = $this->summarizerRunner->calls[0];
+        [$argv, , , $cwd] = $this->summarizerRunner->calls[0];
         $this->assertSame('opencode', $argv[0]);
         $this->assertSame('opencode/big-pickle', $argv[3]);
         $this->assertStringContainsString('fix callback verification quickly now', (string) end($argv));
-        $this->assertStringEndsWith($this->tmp.'/repo', $argv[5]);
+        $this->assertNotContains('--dir', $argv);
+        $this->assertSame($this->tmp.'/repo', $cwd);
 
         $delete = $this->summarizerRunner->calls[1][0];
         $this->assertSame(['opencode', 'session', 'delete', 'ses_s'], $delete);

@@ -91,9 +91,10 @@ final class AgentsTest extends TestCase
         $key = array_search('--command', $argv, true);
         $this->assertIsInt($key);
         $command = $argv[$key + 1];
-        $this->assertStringStartsWith('opencode ', $command);
+        $this->assertStringStartsWith('cd ', $command);
+        $this->assertStringContainsString('opencode run', $command);
         $this->assertStringContainsString('--agent task-analyst', $command);
-        $this->assertStringContainsString('--prompt', $command);
+        $this->assertStringNotContainsString('--prompt', $command);
         $this->assertStringContainsString('Analyze issue #45', $command);
         $this->assertStringNotContainsString('--model', $command);
     }

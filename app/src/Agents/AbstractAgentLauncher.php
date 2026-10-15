@@ -233,10 +233,13 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     {
         $log = $this->logFor($agent);
         $out = [];
+        // OpenCode v2 removed `run --dir`; the session attaches to the
+        // working directory instead, so the detached subshell cd's into the
+        // worktree before exec'ing opencode.
         exec(
-            $this->detach('opencode run'.(null !== $model ? ' --model '.escapeshellarg($model) : '')
-                .' --agent '.escapeshellarg($agent)
-                .' --dir '.escapeshellarg($worktree).' '.escapeshellarg($prompt)
+            $this->detach('cd '.escapeshellarg($worktree).'; exec opencode run'
+                .(null !== $model ? ' --model '.escapeshellarg($model) : '')
+                .' --agent '.escapeshellarg($agent).' '.escapeshellarg($prompt)
                 .' >>'.escapeshellarg($log).' 2>&1'),
             $out,
         );

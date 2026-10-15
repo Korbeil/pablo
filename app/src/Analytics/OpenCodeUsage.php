@@ -179,7 +179,7 @@ final class OpenCodeUsage
     {
         $probe = $this->runner->probe([
             'opencode', 'session', 'list', '--format', 'json', '--max-count', (string) self::SESSION_MAX_COUNT,
-        ]);
+        ], cwd: $worktree);
         if (0 !== $probe->exitCode) {
             return [];
         }
@@ -218,7 +218,9 @@ final class OpenCodeUsage
     /** @return array<string, mixed>|null */
     private function exportSession(string $sessionId): ?array
     {
-        $probe = $this->runner->probe(['opencode', 'export', $sessionId]);
+        // OpenCode v2 renamed the export to a session subcommand; its payload
+        // keeps the same `messages[].info.{role,tokens,…}` shape.
+        $probe = $this->runner->probe(['opencode', 'session', 'export', $sessionId]);
         if (0 !== $probe->exitCode) {
             return null;
         }

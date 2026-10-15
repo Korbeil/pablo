@@ -37,9 +37,9 @@ final class ProcessRunner implements ProcessRunnerInterface
         return ['DBUS_SESSION_BUS_ADDRESS' => 'unix:path='.sys_get_temp_dir().'/pablo-nokeyring'];
     }
 
-    public function run(array $argv, bool $check = true, ?float $timeout = null): string
+    public function run(array $argv, bool $check = true, ?float $timeout = null, ?string $cwd = null): string
     {
-        $process = new Process($argv, env: self::envFor($argv));
+        $process = new Process($argv, cwd: $cwd, env: self::envFor($argv));
         if (null !== $timeout) {
             $process->setTimeout($timeout);
         }
@@ -111,9 +111,9 @@ final class ProcessRunner implements ProcessRunnerInterface
         return array_values($results);
     }
 
-    public function probe(array $argv, ?float $timeout = null): ProbeResult
+    public function probe(array $argv, ?float $timeout = null, ?string $cwd = null): ProbeResult
     {
-        $process = new Process($argv, env: self::envFor($argv));
+        $process = new Process($argv, cwd: $cwd, env: self::envFor($argv));
         if (null !== $timeout) {
             $process->setTimeout($timeout);
         }
