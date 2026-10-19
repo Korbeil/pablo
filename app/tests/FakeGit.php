@@ -6,6 +6,7 @@ namespace Pablo\Tests;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Provider\Git\GitRepoInterface;
+use Pablo\Provider\Git\MainUpdateReport;
 use Pablo\Provider\Git\SyncReport;
 use Pablo\Support\PabloError;
 
@@ -41,6 +42,12 @@ final class FakeGit implements GitRepoInterface
 
     /** @var SyncReport|null canned sync result */
     public ?SyncReport $syncReport = null;
+
+    /** @var MainUpdateReport|null canned updatePrimary result */
+    public ?MainUpdateReport $mainUpdateReport = null;
+
+    /** @var list<array{0: string, 1: string, 2: string}> recorded (repo, branch, remote) updatePrimary calls */
+    public array $primaryUpdates = [];
 
     /** @var list<array<string, mixed>> every syncWorktree() invocation */
     public array $syncCalls = [];
@@ -164,6 +171,13 @@ final class FakeGit implements GitRepoInterface
 
     public function pushWithLease(string $worktree, string $branch): void
     {
+    }
+
+    public function updatePrimary(string $repo, string $branch, string $remote = 'origin'): MainUpdateReport
+    {
+        $this->primaryUpdates[] = [$repo, $branch, $remote];
+
+        return $this->mainUpdateReport ?? new MainUpdateReport($repo, $branch, 'up-to-date');
     }
 
     public function syncWorktree(

@@ -78,6 +78,9 @@ Key subcommands:
   the worktree's main checkout (or `--project <name>`).
 - `pablo task:list` — active worktrees + states listing
 - `pablo sync:run` — worktree sync (dry-run by default)
+- `pablo sync:main [project]` — update each project's primary checkout to
+  its remote primary branch now (same rules as the background job; naming
+  a project runs it even when `main_update.enabled` is false)
 - `pablo task:state` — manually force the current task's state
 - `pablo task:waiting` — pause/resume toggle
 - `pablo task:relaunch` — re-fire the current state's agent/startup launchers

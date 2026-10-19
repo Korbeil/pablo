@@ -46,7 +46,7 @@ final class GlobalConfig
     {
         $path ??= $this->configPath();
         if (!is_file($path)) {
-            return ['sync' => [], 'state_polling' => [], 'review' => [], 'ci' => [], 'testing' => ['enabled' => true], 'branch_prefix' => null];
+            return ['sync' => [], 'state_polling' => [], 'main_update' => [], 'review' => [], 'ci' => [], 'testing' => ['enabled' => true], 'branch_prefix' => null];
         }
         try {
             $data = Yaml::parseFile($path);
@@ -65,6 +65,7 @@ final class GlobalConfig
         return [
             'sync' => \is_array($data['sync'] ?? null) ? $data['sync'] : [],
             'state_polling' => \is_array($data['state_polling'] ?? null) ? $data['state_polling'] : [],
+            'main_update' => \is_array($data['main_update'] ?? null) ? $data['main_update'] : [],
             'review' => \is_array($data['review'] ?? null) ? $data['review'] : [],
             'ci' => \is_array($data['ci'] ?? null) ? $data['ci'] : [],
             'testing' => \is_array($data['testing'] ?? null) ? $data['testing'] : ['enabled' => true],

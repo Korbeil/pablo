@@ -17,7 +17,10 @@ deliberate exception to the read-only rule — and never mutates issue
 trackers (Jira / GitHub Issues / Linear stay strictly read-only). It
 *does* perform git and PR-metadata operations — creating branches and
 worktrees, rebasing, force-pushing (with lease only), creating draft PRs,
-toggling PRs draft/ready, deleting worktrees — but only per the explicit
+toggling PRs draft/ready, deleting worktrees, fast-forwarding each
+project's clean primary checkout onto its remote primary branch (checkout +
+`reset --hard`, see [docs/background-layer.md](docs/background-layer.md#primary-checkout-update))
+— but only per the explicit
 rules documented below, never on its own judgement.
 
 ## Quick start

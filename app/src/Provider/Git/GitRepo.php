@@ -220,6 +220,54 @@ final class GitRepo implements GitRepoInterface
         $this->git($worktree, ['push', '--force-with-lease', 'origin', $branch]);
     }
 
+    public function updatePrimary(string $repo, string $branch, string $remote = 'origin'): MainUpdateReport
+    {
+        if (!is_dir($repo) || 'true' !== $this->git($repo, ['rev-parse', '--is-inside-work-tree'], check: false)) {
+            return new MainUpdateReport($repo, $branch, 'missing', detail: 'not a git checkout');
+        }
+        $gitDir = $this->git($repo, ['rev-parse', '--absolute-git-dir']);
+        foreach (['rebase-merge', 'rebase-apply', 'MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'BISECT_LOG'] as $marker) {
+            if (file_exists("{$gitDir}/{$marker}")) {
+                return new MainUpdateReport($repo, $branch, 'busy', detail: "operation in progress ({$marker})");
+            }
+        }
+        $current = $this->git($repo, ['branch', '--show-current']);
+        $from = '' !== $current ? $current : 'detached HEAD';
+        if ('' !== $this->git($repo, ['status', '--porcelain'])) {
+            return new MainUpdateReport($repo, $branch, 'dirty', $from, detail: 'uncommitted changes; skipped');
+        }
+
+        $this->git($repo, ['fetch', '--prune', $remote]);
+        $remoteRef = "{$remote}/{$branch}";
+        if (!$this->refExists($repo, $remoteRef)) {
+            throw new PabloError("{$remoteRef} not found in {$repo}");
+        }
+
+        $hasLocal = $this->refExists($repo, "refs/heads/{$branch}");
+        $oldSha = $hasLocal ? $this->git($repo, ['rev-parse', "refs/heads/{$branch}"]) : '';
+        if ($hasLocal) {
+            $ahead = (int) $this->git($repo, ['rev-list', '--count', "{$remoteRef}..refs/heads/{$branch}"]);
+            if ($ahead > 0) {
+                return new MainUpdateReport($repo, $branch, 'ahead', $from, $oldSha, detail: "local {$branch} is {$ahead} commit(s) ahead of {$remoteRef}; skipped");
+            }
+        }
+
+        if ($current !== $branch) {
+            $here = realpath($repo);
+            foreach ($this->listWorktrees($repo) as $ref) {
+                if ($ref->branch === $branch && realpath($ref->path) !== $here) {
+                    return new MainUpdateReport($repo, $branch, 'checked-out-elsewhere', $from, $oldSha, detail: "{$branch} is checked out in {$ref->path}");
+                }
+            }
+            $this->git($repo, $hasLocal ? ['checkout', '-q', $branch] : ['checkout', '-q', '-b', $branch, $remoteRef]);
+        }
+
+        $this->git($repo, ['reset', '-q', '--hard', $remoteRef]);
+        $newSha = $this->git($repo, ['rev-parse', 'HEAD']);
+
+        return new MainUpdateReport($repo, $branch, $oldSha === $newSha ? 'up-to-date' : 'updated', $from, $oldSha, $newSha);
+    }
+
     /**
      * Rebase/merge $upstream into the worktree; report on conflict,
      * aborting the operation on failure.

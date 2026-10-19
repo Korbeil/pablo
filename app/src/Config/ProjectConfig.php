@@ -38,6 +38,8 @@ final class ProjectConfig
         public readonly ?string $issueRepo = null,
         public readonly string $primaryRemote = 'origin',
         public readonly bool $testingEnabled = true,
+        public readonly bool $mainUpdateEnabled = true,
+        public readonly int $mainUpdateInterval = 60,
     ) {
     }
 
@@ -59,6 +61,8 @@ final class ProjectConfig
             'sync_auto_apply' => $this->syncAutoApply,
             'sync_interval' => $this->syncInterval,
             'poll_interval' => $this->pollInterval,
+            'main_update_enabled' => $this->mainUpdateEnabled,
+            'main_update_interval' => $this->mainUpdateInterval,
             'failure_signal' => $this->failureSignal,
             'testing_enabled' => $this->testingEnabled,
             'bot_whitelist' => $this->botWhitelist,

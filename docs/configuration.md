@@ -46,6 +46,13 @@ sync:
   interval_minutes: 30       # cadence of the cron-driven sync for this project
 state_polling:
   interval_minutes: 10       # cadence of the cron-driven state polling
+main_update:
+  enabled: true              # false → never touch the primary checkout (repo.path)
+  interval_minutes: 60       # cadence of the cron-driven primary checkout update:
+                             # fetch, checkout primary_branch if a clean checkout sits
+                             # elsewhere, reset --hard onto the remote; dirty or
+                             # ahead-of-remote checkouts are skipped. See
+                             # background-layer.md#primary-checkout-update
 testing:
   enabled: true              # false → no QA/testing flow: review approval settles the
                               # task in ✅ approved until merge auto-closes it;
@@ -88,10 +95,11 @@ branch_prefix: pablo/        # optional; raw prefix prepended to every branch na
 **Default-eligible keys** (fall back per key to `~/.pablo/config.yaml`
 when a project omits them — a project can override just one and inherit
 the rest): `sync.strategy`, `sync.auto_apply`, `sync.interval_minutes`,
-`state_polling.interval_minutes`, `review.bot_whitelist`,
+`state_polling.interval_minutes`, `main_update.enabled`,
+`main_update.interval_minutes`, `review.bot_whitelist`,
 `ci.ignore_checks`, `testing.enabled`, `default_model`,
 `pr_description_locale`, `branch_prefix`. Shipped
-defaults: `rebase`, `false`, `30`, `10`, `[]`, `[]`, `true`; `default_model`,
+defaults: `rebase`, `false`, `30`, `10`, `true`, `60`, `[]`, `[]`, `true`; `default_model`,
 `pr_description_locale` and `branch_prefix`
 have no built-in value — `default_model` and `pr_description_locale` must
 be set either per project or globally (or, for `default_model`, via

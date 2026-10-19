@@ -8,6 +8,7 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Config\ProjectConfig;
 use Pablo\Doctor\Doctor;
 use Pablo\Poller\Poller;
+use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Git\Sync;
 use Pablo\Store\Store;
 
@@ -48,6 +49,7 @@ final class Dispatch
         private readonly Poller $poller,
         private readonly AgentLauncherFactory $agentLaunchers,
         private readonly Stamps $stamps,
+        private readonly GitRepoInterface $git,
     ) {
     }
 
@@ -131,12 +133,19 @@ final class Dispatch
         }
     }
 
+    public function runMainUpdate(ProjectConfig $cfg, Store $store): void
+    {
+        $report = $this->git->updatePrimary($cfg->repoPath, $cfg->primaryBranch, $cfg->primaryRemote);
+        echo "[{$cfg->name}] main: {$report->render()}\n";
+    }
+
     /** @return array<string, callable(ProjectConfig, Store): void> */
     public function defaultRunners(): array
     {
         return [
             'sync' => $this->runSync(...),
             'poll' => $this->runPoll(...),
+            'main' => $this->runMainUpdate(...),
         ];
     }
 
@@ -146,6 +155,7 @@ final class Dispatch
         return [
             'sync' => static fn (ProjectConfig $cfg) => $cfg->syncInterval,
             'poll' => static fn (ProjectConfig $cfg) => $cfg->pollInterval,
+            'main' => static fn (ProjectConfig $cfg) => $cfg->mainUpdateInterval,
         ];
     }
 
@@ -161,6 +171,9 @@ final class Dispatch
 
     private function isDue(ProjectConfig $cfg, string $job, float $now): bool
     {
+        if ('main' === $job && !$cfg->mainUpdateEnabled) {
+            return false;
+        }
         $last = $this->stamps->readStamp($cfg->name, $job);
         if (null === $last) {
             return true;

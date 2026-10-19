@@ -12,9 +12,9 @@ timer on Linux, launchd LaunchAgent on macOS — see
 
 - The dispatcher holds a global flock (a second invocation exits
   immediately), preflights the required CLIs then, for **each project ×
-  {sync, poll}** checks a last-run stamp in `~/.pablo/stamps/` against the
-  project's own `sync.interval_minutes` / `state_polling.interval_minutes`
-  and runs the jobs that are due. A hard preflight failure (`gh`/`opencode`)
+  {sync, poll, main}** checks a last-run stamp in `~/.pablo/stamps/` against the
+  project's own `sync.interval_minutes` / `state_polling.interval_minutes` /
+  `main_update.interval_minutes` and runs the jobs that are due. A hard preflight failure (`gh`/`opencode`)
   aborts loudly; a soft one (provider CLIs — `acli`, `acli-confluence`,
   `linear`, `orca`) only warns. A failed job's stamp is not written, so it
   retries on the next tick; one project's failure never blocks the others.
@@ -75,6 +75,30 @@ re-fires each of the state's detached launchers (including the
 `in-progress` startup script is included because it's verified safely
 re-runnable; any future project's non-idempotent startup script must be
 scoped out, not special-cased. Recover manually with `pablo task:relaunch`.
+
+## Primary checkout update
+
+Per project, on its own `main_update.interval_minutes` cadence (default
+60; plus `pablo sync:main` manually), the dispatcher brings the project's
+**primary checkout** (`repo.path` — not the task worktrees) up to date with
+`<primary_remote>/<primary_branch>`. Opt a project out with
+`main_update.enabled: false`. Checks run in order; the first match wins
+(`GitRepo::updatePrimary()`):
+
+| Situation | Outcome |
+|---|---|
+| `repo.path` missing / not a git checkout | ⚠️ `missing`, skipped |
+| rebase / merge / cherry-pick / revert / bisect in progress | ✋ `busy`, skipped |
+| any `git status --porcelain` output (tracked **or untracked**), on any branch | ✋ `dirty`, skipped |
+| `git fetch --prune <primary_remote>` fails, or the remote branch is missing | ❌ job fails, stamp not written, retried next tick |
+| local `<primary_branch>` has commits not on the remote | ✋ `ahead`, skipped — never discards local commits |
+| clean, on another branch or a detached HEAD, while `<primary_branch>` is checked out in another worktree | ⚠️ `checked-out-elsewhere`, skipped |
+| clean, on another branch or a detached HEAD | `git checkout <primary_branch>` (created from the remote if missing), then ↓ |
+| clean, on `<primary_branch>` | `git reset --hard <primary_remote>/<primary_branch>` → ✅ `updated` or `=` `up-to-date` |
+
+The not-ahead guard makes the `reset --hard` a pure fast-forward in
+practice. Task worktrees are unaffected: they branch from
+`<primary_remote>/<primary_branch>`, never from the local primary branch.
 
 ## Closing a task
 

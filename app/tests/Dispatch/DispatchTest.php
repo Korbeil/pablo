@@ -16,6 +16,7 @@ final class DispatchTest extends TestCase
     private string $stamps;
     private Dispatch $dispatch;
     private \Pablo\Tests\FakeProcessRunner $runner;
+    private \Pablo\Tests\FakeGit $git;
 
     /** @var list<array{0: string, 1: string}> */
     private array $ran;
@@ -32,7 +33,7 @@ final class DispatchTest extends TestCase
         $global = new \Pablo\Config\GlobalConfig();
         $doctor = new Doctor($this->runner, new \Pablo\Agents\AgentLauncherFactory($global), static fn (string $name): string => '/usr/bin/'.$name);
         $time = new \Pablo\Domain\Time();
-        $git = new \Pablo\Tests\FakeGit();
+        $git = $this->git = new \Pablo\Tests\FakeGit();
         $gh = new \Pablo\Tests\FakeGhPr();
         $repoSlug = new \Pablo\Support\RepoSlug($git);
         $providers = new \Pablo\Tests\StubProviders();
@@ -40,7 +41,7 @@ final class DispatchTest extends TestCase
         $sync = new \Pablo\Provider\Git\Sync($git, $gh, $repoSlug, $this->runner, $time);
         $poller = new \Pablo\Poller\Poller($gh, $git, $providers, $repoSlug, $sm, $time);
         $stamps = new \Pablo\Dispatch\Stamps();
-        $this->dispatch = new Dispatch($doctor, $sync, $poller, new \Pablo\Agents\AgentLauncherFactory($global), $stamps);
+        $this->dispatch = new Dispatch($doctor, $sync, $poller, new \Pablo\Agents\AgentLauncherFactory($global), $stamps, $git);
         $fh = fopen('/dev/null', 'w');
         \assert(false !== $fh);
         $this->dispatch->stderr = $fh;
@@ -235,6 +236,63 @@ final class DispatchTest extends TestCase
         ob_end_clean();
         $this->assertSame(1, $rc);
         $this->assertSame([], $this->ran);
+    }
+
+    public function testMainJobRunsOnItsOwnCadence(): void
+    {
+        $env = $this->env();
+        $env['runners']['main'] = function (ProjectConfig $c, Store $s): void { $this->ran[] = ['main', $c->name]; };
+        $this->runDispatch($env['projects'], $env['store'], $env['runners']);
+        $this->assertFileExists($this->stamps.'/a.main');
+
+        $this->ran = [];
+        $this->stampAge('a', 'main', 59 * 60);
+        $this->runDispatch($env['projects'], $env['store'], $env['runners']);
+        $this->assertSame([], $this->ran);
+
+        $this->stampAge('a', 'main', 61 * 60);
+        $this->runDispatch($env['projects'], $env['store'], $env['runners']);
+        $this->assertSame([['main', 'a']], $this->ran);
+    }
+
+    public function testMainJobSkipsDisabledProject(): void
+    {
+        $base = $this->cfg('a');
+        $disabled = new ProjectConfig(
+            name: 'a', type: 'work', repoPath: $base->repoPath,
+            primaryBranch: 'main', worktreesRoot: $base->worktreesRoot,
+            provider: 'github', identity: 'octocat', projectKey: 'PR',
+            syncStrategy: 'rebase', syncAutoApply: false,
+            syncInterval: 30, pollInterval: 10,
+            failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
+            mainUpdateEnabled: false,
+        );
+        $runners = ['main' => function (ProjectConfig $c, Store $s): void { $this->ran[] = ['main', $c->name]; }];
+        $this->runDispatch(['a' => $disabled, 'b' => $this->cfg('b')], new Store($this->tmp.'/state'), $runners);
+        $this->assertSame([['main', 'b']], $this->ran);
+    }
+
+    public function testRunMainUpdateUsesPrimaryRemoteAndBranch(): void
+    {
+        $base = $this->cfg('a');
+        $fork = new ProjectConfig(
+            name: 'a', type: 'work', repoPath: $base->repoPath,
+            primaryBranch: 'develop', worktreesRoot: $base->worktreesRoot,
+            provider: 'github', identity: 'octocat', projectKey: 'PR',
+            syncStrategy: 'rebase', syncAutoApply: false,
+            syncInterval: 30, pollInterval: 10,
+            failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
+            primaryRemote: 'upstream',
+        );
+        ob_start();
+        $this->dispatch->runMainUpdate($fork, new Store($this->tmp.'/state'));
+        $out = (string) ob_get_clean();
+        $this->assertSame([[$base->repoPath, 'develop', 'upstream']], $this->git->primaryUpdates);
+        $this->assertStringContainsString('[a] main: = up-to-date develop', $out);
     }
 
     public function testSameRepoSyncsEachProjectsTasks(): void

@@ -55,6 +55,16 @@ interface GitRepoInterface
     public function pushWithLease(string $worktree, string $branch): void;
 
     /**
+     * Bring the project's primary checkout up to date with $remote/$branch:
+     * fetch, check $branch out if another branch (or a detached HEAD) is
+     * checked out, then reset --hard onto the remote tip. Skips — never
+     * touches — a checkout with any git status output, an operation in
+     * progress, local $branch commits missing from the remote, or $branch
+     * checked out in another worktree. A failed fetch throws.
+     */
+    public function updatePrimary(string $repo, string $branch, string $remote = 'origin'): MainUpdateReport;
+
+    /**
      * Rebase/merge $upstream into the worktree; report on conflict,
      * aborting the operation on failure.
      *

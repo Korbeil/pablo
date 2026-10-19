@@ -75,7 +75,7 @@ final class EngineGraph
             new \Pablo\Analytics\OpenCodeUsage($this->runner),
         );
         $this->listing = new Listing($this->stamps, $this->gh, $this->git, $this->providers, $this->repoSlug, $this->stateMachine, $this->time);
-        $this->dispatch = new Dispatch($this->doctor, $this->sync, $this->poller, $this->agentLaunchers, $this->stamps);
+        $this->dispatch = new Dispatch($this->doctor, $this->sync, $this->poller, $this->agentLaunchers, $this->stamps, $this->git);
         $this->backup = new Backup($this->git, $this->runner, $this->time);
     }
 }

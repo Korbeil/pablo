@@ -19,8 +19,9 @@ deterministically — sync aborts cleanly and hands off to the auto-launched
 read-only rule — and never mutates issue trackers (Jira/GitHub Issues/
 Linear stay read-only). It does
 perform git/PR-metadata ops (branches, worktrees, rebase,
-force-with-lease push, draft PR toggling, worktree deletion), but only per
-README's explicit rules.
+force-with-lease push, draft PR toggling, worktree deletion, checkout +
+`reset --hard` of a *clean, not-ahead* primary checkout onto its remote
+primary branch), but only per README's explicit rules.
 
 **Git discipline:** agents never `git commit` or `git push` on their own
 initiative — not even when executing a plan that was decided, and not
@@ -128,7 +129,7 @@ via `StateMachine::enterState()`, never mutate `task.state` directly.
 directly — commands wrap `pablo` CLI calls; agents are read-only,
 auto-launched on certain state transitions) and background
 (`pablo system:dispatch`, run every 5 min by systemd/launchd; global flock, per
-project × {sync, poll} checks a stamp in `~/.pablo/stamps/` against that
+project × {sync, poll, main} checks a stamp in `~/.pablo/stamps/` against that
 project's own interval; one project's failure never blocks others).
 
 **State machine**: one task = one worktree (`pablo task:start`). Rough flow:
@@ -192,7 +193,8 @@ PHPUnit's own handlers on the second boot — hence snapshot-then-compare.
 `default.yaml` holds PABLO-wide defaults (skipped by the loader). Projects
 override per-key via `config.DEFAULT_ELIGIBLE`: `sync.strategy`,
 `sync.auto_apply`, `sync.interval_minutes`,
-`state_polling.interval_minutes`, `review.bot_whitelist`,
+`state_polling.interval_minutes`, `main_update.enabled`,
+`main_update.interval_minutes`, `review.bot_whitelist`,
 `ci.ignore_checks`. Types: `work`/`open-source`/`personal`. Providers:
 `github`/`jira`/`linear`.
 

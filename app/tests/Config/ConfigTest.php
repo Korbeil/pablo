@@ -252,6 +252,23 @@ YAML;
         $this->assertFalse($this->loader()->loadProjects($this->projectsDir)['mini']->testingEnabled);
     }
 
+    public function testMainUpdateDefaults(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
+        $this->assertTrue($cfg->mainUpdateEnabled);
+        $this->assertSame(60, $cfg->mainUpdateInterval);
+    }
+
+    public function testMainUpdateFallsBackToGlobalThenProjectWins(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."main_update:\n  interval_minutes: 15\n");
+        $this->writeGlobalConfig(self::DEFAULTS."\nmain_update:\n  enabled: false\n  interval_minutes: 120\n");
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
+        $this->assertFalse($cfg->mainUpdateEnabled);
+        $this->assertSame(15, $cfg->mainUpdateInterval);
+    }
+
     public function testDisabledTestingWithFailureSignalParsesFine(): void
     {
         // The signal is simply unreachable; no config error — forces nothing.

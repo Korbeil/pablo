@@ -238,6 +238,8 @@ final class Config
             pollInterval: (int) $pollInterval,
             failureSignal: $data['testing']['failure_signal'] ?? null,
             testingEnabled: (bool) ($data['testing']['enabled'] ?? $defaults['testing']['enabled'] ?? true),
+            mainUpdateEnabled: (bool) ($data['main_update']['enabled'] ?? $defaults['main_update']['enabled'] ?? true),
+            mainUpdateInterval: (int) ($data['main_update']['interval_minutes'] ?? $defaults['main_update']['interval_minutes'] ?? 60),
             botWhitelist: array_values((array) $this->merged($data, $defaults, 'review', 'bot_whitelist')),
             ciIgnoreChecks: array_values((array) $this->merged($data, $defaults, 'ci', 'ignore_checks')),
             startupScript: $startup ? $this->expandHome((string) $startup) : null,
