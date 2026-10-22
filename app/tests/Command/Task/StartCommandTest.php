@@ -99,6 +99,22 @@ final class FakeStartProvider implements Provider
     }
 }
 
+/**
+ * Registry keyed by configured provider name.
+ */
+final class FakeProviderRegistry implements ProviderRegistryInterface
+{
+    /** @param array<string, Provider> $byName */
+    public function __construct(private readonly array $byName)
+    {
+    }
+
+    public function get(string $name): Provider
+    {
+        return $this->byName[$name] ?? throw new \LogicException('no provider '.$name);
+    }
+}
+
 final class StartCommandTest extends TestCase
 {
     use UsesGlobalConfig;
@@ -192,23 +208,7 @@ YAML,
      */
     private function makeRegistry(array $byName): ProviderRegistryInterface
     {
-        return new class($byName) implements ProviderRegistryInterface {
-            /** @var array<string, Provider> */
-            private readonly array $byName;
-
-            /**
-             * @param array<string, Provider> $byName
-             */
-            public function __construct(array $byName)
-            {
-                $this->byName = $byName;
-            }
-
-            public function get(string $name): Provider
-            {
-                return $this->byName[$name] ?? throw new \LogicException('no provider '.$name);
-            }
-        };
+        return new FakeProviderRegistry($byName);
     }
 
     /** @param array<string, Provider> $byName */

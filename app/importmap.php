@@ -29,6 +29,6 @@ return [
     '@symfony/ux-live-component' => ['path' => '@symfony/ux-live-component/live_controller.js'],
     'bulma/css/bulma.min.css' => ['version' => '1.0.4', 'type' => 'css'],
     '@symfony/ux-chartjs' => ['path' => '@symfony/ux-chartjs/controller.js'],
-    'chart.js' => ['version' => '4.5.1'],
+    'chart.js' => ['version' => '4.6.1'],
     '@kurkle/color' => ['version' => '0.3.4'],
 ];
