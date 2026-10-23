@@ -14,7 +14,7 @@
         }
     },
     "require": {
-        "php": ">=8.4",
+        "php": ">=8.4.1",
         "ext-mbstring": "*",
         "symfony/asset": "^8.1",
         "symfony/asset-mapper": "^8.1",
@@ -35,7 +35,7 @@
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.0",
         "phpstan/phpstan-symfony": "^2.0",
-        "phpunit/phpunit": "^11.0",
+        "phpunit/phpunit": "^13.0",
         "symfony/browser-kit": "^8.1",
         "symfony/css-selector": "^8.1"
     },

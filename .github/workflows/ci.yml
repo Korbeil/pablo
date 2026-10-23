@@ -14,18 +14,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: setup
-        uses: castor-php/setup-castor@v0.1.0
+        uses: castor-php/setup-castor@v1
       - name: 'php-cs-fixer check'
         run: 'castor qa:cs:check'
   phpstan:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: cache-composer
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/composer
           key: composer-${{ github.sha }}
@@ -41,9 +41,9 @@ jobs:
         working-directory: app
         run: composer install --no-interaction --prefer-dist
       - name: setup
-        uses: castor-php/setup-castor@v0.1.0
+        uses: castor-php/setup-castor@v1
       - name: cache-castor
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .castor
           key: castor-${{ hashFiles('castor.composer.json', 'castor.composer.lock', 'castor.php') }}
@@ -56,9 +56,9 @@ jobs:
     name: tests
     steps:
       - name: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: cache-composer
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/composer
           key: composer-${{ runner.os }}-
@@ -75,6 +75,6 @@ jobs:
         working-directory: app
         run: composer install --no-interaction --prefer-dist
       - name: setup
-        uses: castor-php/setup-castor@v0.1.0
+        uses: castor-php/setup-castor@v1
       - name: tests
         run: castor qa:test

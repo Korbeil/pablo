@@ -609,11 +609,13 @@ final class PollerTest extends TestCase
         $store->save($task);
         $this->provider->issueStatus = '?';
         $this->poll($cfg, $store);
-        $this->assertSame('In Progress', $this->taskOrFail($store)->displayCache->trackerStatus);
+        $unresolved = $this->taskOrFail($store);
+        $this->assertSame('In Progress', $unresolved->displayCache->trackerStatus);
 
         $this->provider->issueStatus = '';
         $this->poll($cfg, $store);
-        $this->assertSame('In Progress', $this->taskOrFail($store)->displayCache->trackerStatus);
+        $empty = $this->taskOrFail($store);
+        $this->assertSame('In Progress', $empty->displayCache->trackerStatus);
     }
 
     public function testPollOverwritesCachedTrackerStatusWhenLookupSucceeds(): void
