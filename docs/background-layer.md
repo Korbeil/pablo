@@ -46,7 +46,13 @@ foreign, or stale worktrees are left alone.:
 
 1. fetch; **integrate the branch's own remote first** (a collaborator's
    push is never clobbered and won't trip the lease);
-2. rebase or merge onto `origin/<primary_branch>` per `sync.strategy`;
+2. rebase or merge onto `<primary_remote>/<primary_branch>` per
+   `sync.strategy` — or, when the repo is on GitHub and the branch has an
+   **open** PR targeting another branch (a stacked PR), onto
+   `<primary_remote>/<pr_base>` instead. This holds whatever the issue
+   tracker (Jira/Linear repos have GitHub PRs too); a merged/closed PR's base
+   is ignored, and a base missing from the remote falls back to the primary.
+   The conflict resolver is always told the exact target used;
 3. if history was rewritten and the branch exists remotely, push with
    **`--force-with-lease`** (never plain `--force`); a lease failure
    rolls the worktree back and retries next cycle.

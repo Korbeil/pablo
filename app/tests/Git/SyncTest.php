@@ -69,7 +69,7 @@ final class SyncTest extends TestCase
     {
     }
 
-    private function makeConfig(bool $autoApply): ProjectConfig
+    private function makeConfig(bool $autoApply, string $provider = 'github'): ProjectConfig
     {
         return new ProjectConfig(
             name: 'proj',
@@ -77,7 +77,7 @@ final class SyncTest extends TestCase
             repoPath: $this->clone,
             primaryBranch: 'main',
             worktreesRoot: $this->tmp.'/wtroot',
-            provider: 'github',
+            provider: $provider,
             identity: 'octocat',
             projectKey: 'PR',
             syncStrategy: 'rebase',
@@ -169,7 +169,8 @@ final class SyncTest extends TestCase
         $this->assertStringContainsString('README.md', $text);
     }
 
-    public function testSyncStackedBranchRebasesOntoPrBase(): void
+    /** pr-1 (pushed, with a feature commit) stacked on pr-parent; main advanced on its own. */
+    private function stackOnParent(string $prState = 'OPEN', string $base = 'pr-parent'): void
     {
         RepoHelper::commitFile($this->wt, 'feature.txt', "f\n", 'feature work');
         RepoHelper::git($this->wt, ['push', '-q', '-u', 'origin', 'pr-1']);
@@ -184,11 +185,15 @@ final class SyncTest extends TestCase
         RepoHelper::commitFile($this->other, 'main-only.txt', "m\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
 
-        $gh = $this->gh ?? new \Pablo\Tests\FakeGhPr();
-        $gh->prByBranch = [
-            'pr-1' => new PrInfo(1, 'Child', 'OPEN', false, 'u1', null, 'pr-parent'),
+        $this->gh = new \Pablo\Tests\FakeGhPr();
+        $this->gh->prByBranch = [
+            'pr-1' => new PrInfo(1, 'Child', $prState, false, 'u1', null, $base),
         ];
-        $this->gh = $gh;
+    }
+
+    public function testSyncStackedBranchRebasesOntoPrBase(): void
+    {
+        $this->stackOnParent();
 
         $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
         $report = $this->byBranch($reports)['pr-1'];
@@ -196,6 +201,60 @@ final class SyncTest extends TestCase
         $this->assertFileExists($this->wt.'/feature.txt');
         $this->assertFileExists($this->wt.'/parent.txt');
         $this->assertFileDoesNotExist($this->wt.'/main-only.txt');
+    }
+
+    public function testSyncStackedBranchHonoursPrBaseForNonGithubTracker(): void
+    {
+        // A Jira-tracked repo still has its PRs on GitHub: the PR base wins.
+        $this->stackOnParent();
+
+        $reports = $this->sync()->syncProject($this->makeConfig(false, 'jira'), $this->store, true);
+        $this->assertSame('synced', $this->byBranch($reports)['pr-1']->action);
+        $this->assertFileExists($this->wt.'/parent.txt');
+        $this->assertFileDoesNotExist($this->wt.'/main-only.txt');
+    }
+
+    public function testSyncIgnoresBaseOfClosedPr(): void
+    {
+        $this->stackOnParent('CLOSED');
+
+        $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
+        $this->assertSame('synced', $this->byBranch($reports)['pr-1']->action);
+        $this->assertFileExists($this->wt.'/main-only.txt');
+        $this->assertFileDoesNotExist($this->wt.'/parent.txt');
+    }
+
+    public function testStackedConflictReportCarriesPrBaseTarget(): void
+    {
+        $this->stackOnParent();
+        RepoHelper::git($this->other, ['checkout', '-q', 'pr-parent']);
+        RepoHelper::commitFile($this->other, 'feature.txt', "parent side\n", 'clash');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'pr-parent']);
+        RepoHelper::git($this->other, ['checkout', '-q', 'main']);
+
+        $report = $this->byBranch($this->sync()->syncProject($this->cfg, $this->store, true))['pr-1'];
+        $this->assertSame('conflict', $report->action);
+        $this->assertSame('origin/pr-parent', $report->target);
+        $prompt = $this->sync()->buildConflictAgentPrompt($report, $this->cfg);
+        $this->assertStringContainsString('git rebase origin/pr-parent', $prompt);
+    }
+
+    public function testConflictOnMissingStackedBaseTargetsPrimary(): void
+    {
+        // The PR still names a base that is gone from the remote (e.g. deleted
+        // after the parent merged): the engine falls back to main, and the
+        // resolver must be pointed at main too, not at the missing ref.
+        $this->stackOnParent('OPEN', 'pr-gone');
+        RepoHelper::commitFile($this->other, 'feature.txt', "main side\n", 'clash');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
+
+        $report = $this->byBranch($this->sync()->syncProject($this->cfg, $this->store, true))['pr-1'];
+        $this->assertSame('conflict', $report->action);
+        $this->assertSame('origin/main', $report->target);
+        $prompt = $this->sync()->buildConflictAgentPrompt($report, $this->cfg);
+        $this->assertStringContainsString('git rebase origin/main', $prompt);
+        $this->assertStringNotContainsString('pr-gone', $prompt);
+        $this->assertStringNotContainsString('stacked', $prompt);
     }
 
     public function testSyncNormalBranchStillRebasesOntoPrimary(): void
@@ -219,8 +278,9 @@ final class SyncTest extends TestCase
             branch: 'pr-1',
             action: 'conflict',
             conflictFiles: ['README.md'],
+            target: 'origin/pr-parent',
         );
-        $prompt = $this->sync()->buildConflictAgentPrompt($report, $this->cfg, 'pr-parent');
+        $prompt = $this->sync()->buildConflictAgentPrompt($report, $this->cfg);
         $this->assertStringContainsString('git rebase origin/pr-parent', $prompt);
         $this->assertStringNotContainsString('git rebase origin/main', $prompt);
         $this->assertStringContainsString('stacked', $prompt);
