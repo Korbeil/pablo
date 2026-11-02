@@ -4,22 +4,33 @@
 
 <h2>Prerequisites</h2>
 
-<p>PABLO drives tools you already use, through their own command-line clients. You need the ones in the first rows; the others depend on your projects.</p>
+<p>Start with the minimum below. Everything else depends on where your projects live, and you can add it later, when you add the project that needs it.</p>
+
+<h3>The minimum</h3>
+
+<ul>
+  <li><b>git</b>: every task is a branch and a worktree.</li>
+  <li><b><a href="https://opencode.ai">OpenCode</a></b>, set up with your usual model provider: it runs the agents.</li>
+  <li><b>An agent development environment</b>, <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a>: where agents run and where you chat with them. Optional in theory (without one, agents run headless in the background), but that's where you'll read their work. See <a href="#choose-an-agent-backend">Choose an agent backend</a>.</li>
+  <li><b>PHP 8.4.1+ and Composer</b>, to run PABLO itself.</li>
+</ul>
+
+<h3>Then, for your projects</h3>
+
+<p>PABLO talks to each service through its own command-line tool, logged in once on your machine. Install the ones your projects use:</p>
 
 <table>
-  <thead><tr><th>Tool</th><th>When you need it</th><th>Log in with</th></tr></thead>
+  <thead><tr><th>Your project uses…</th><th>You need</th><th>Log in once with</th></tr></thead>
   <tbody>
-    <tr><td>PHP 8.4.1+ and Composer</td><td>Always (PABLO itself)</td><td>—</td></tr>
-    <tr><td>git</td><td>Always (branches and worktrees)</td><td>—</td></tr>
-    <tr><td><a href="https://cli.github.com/"><code>gh</code></a></td><td>Always: pull requests, CI and reviews go through GitHub</td><td><code>gh auth login</code></td></tr>
-    <tr><td><a href="https://opencode.ai"><code>opencode</code></a></td><td>Always: it runs the agents</td><td>your usual OpenCode provider setup</td></tr>
-    <tr><td><a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a></td><td>Recommended: where agents run and where you chat with them. Without one, agents run headless.</td><td>—</td></tr>
-    <tr><td><a href="https://www.atlassian.com/software/cli"><code>acli</code></a></td><td>Projects on Jira (and Confluence pages)</td><td><code>acli auth login</code></td></tr>
-    <tr><td><a href="https://github.com/schpet/linear-cli"><code>linear</code></a></td><td>Projects on Linear</td><td>see its docs (checked with <code>linear auth status</code>)</td></tr>
+    <tr><td>GitHub pull requests (every project: PABLO follows PRs and CI on GitHub, whatever the issue tracker)</td><td><a href="https://cli.github.com/"><code>gh</code></a></td><td><code>gh auth login</code></td></tr>
+    <tr><td>Jira issues, or Confluence pages</td><td><a href="https://www.atlassian.com/software/cli"><code>acli</code></a></td><td><code>acli auth login</code> (one login covers both)</td></tr>
+    <tr><td>Linear issues</td><td><a href="https://github.com/schpet/linear-cli"><code>linear</code></a></td><td>see its docs (checked with <code>linear auth status</code>)</td></tr>
   </tbody>
 </table>
 
-<aside class="callout tip"><p>Don't worry about getting everything right up front: the installer finishes by running the doctor, which lists exactly what's missing and how to fix it.</p></aside>
+<p>GitHub Issues need nothing more than <code>gh</code>. More details on what each tool is used for in <a href="page:providers">Providers</a>.</p>
+
+<aside class="callout tip"><p>No need to get it all right up front: the installer finishes with <code>pablo system:doctor</code>, which checks exactly the tools your projects need and tells you how to install or log in to each one.</p></aside>
 
 <h2>Install</h2>
 
