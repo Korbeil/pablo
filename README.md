@@ -1,8 +1,12 @@
-# P.A.B.L.O.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-light.svg">
+    <img src="docs/assets/logo.svg" alt="PABLO" width="300">
+  </picture>
+</p>
 
-![PABLO](docs/assets/pablo.png)
-
-<i>Personal Assistant for Boring Logic & Operations</i>
+<p align="center"><i>Personal Assistant for Boring Logic & Operations</i><br>
+<a href="https://korbeil.github.io/pablo/"><b>korbeil.github.io/pablo</b></a></p>
 
 PABLO is an AI orchestrator for the projects the user works on. It is not
 a standalone CLI product: it plugs into an existing OpenCode/Orca agent
@@ -152,6 +156,7 @@ PABLO does in the background:
 pablo/
 ├── README.md                  ← you are here (short overview)
 ├── docs/                      ← one file per subject, source of truth for details
+├── site/                      ← the static website (GitHub Pages, .github/workflows/pages.yml)
 ├── app/                       ← the Symfony application (composer package `pablo`)
 │   ├── bin/pablo              ← the `pablo` CLI (PABLO subcommands only)
 │   ├── bin/console            ← framework maintenance CLI (cache:clear, lint:twig, …)
