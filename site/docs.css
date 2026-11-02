@@ -189,6 +189,7 @@
 }
 .prose .quick:hover { transform: translateY(-2px); border-color: var(--yellow-deep); color: var(--ink-soft); }
 .prose .quick b { display: block; font-family: var(--sans); font-size: 1.1rem; color: var(--ink); margin-bottom: .15em; }
+.prose .quick-wide { grid-column: 1 / -1; align-items: center; background: var(--yellow-soft); border-color: var(--yellow-deep); }
 .quick-num { flex: none; width: 1.9rem; height: 1.9rem; border-radius: 50%; background: var(--ink); color: var(--yellow); display: grid; place-items: center; font-family: var(--sans); font-weight: 700; padding-top: 3px; }
 .prose ul.wants { list-style: none; padding: 0; }
 .prose ul.wants li { padding-left: 1.5em; position: relative; }
