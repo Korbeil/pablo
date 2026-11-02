@@ -10,6 +10,7 @@ use Pablo\Domain\Time;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
+use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
 
@@ -63,8 +64,12 @@ final class Sync
 
     /**
      * The branch a task's PR is stacked on, if it differs from the primary.
-     * Only github-backed projects can report a PR base; everything else (and
-     * any branch without a distinct open PR base) syncs against the primary.
+     * PRs live on GitHub whatever the issue tracker (a Jira- or Linear-tracked
+     * repo still has GitHub PRs), so this keys off the repo being on GitHub,
+     * not `issue_tracker.provider`. A repo that is not on GitHub, and any
+     * branch without an open PR targeting a non-primary base, syncs against
+     * the primary. A gh failure propagates: falling back to the primary would
+     * silently rebase a stacked branch onto main and break the stack.
      *
      * @param list<string> $branches
      *
@@ -73,13 +78,22 @@ final class Sync
     private function resolveStackedBases(ProjectConfig $cfg, array $branches): array
     {
         $baseByBranch = [];
-        if ('github' !== $cfg->provider || [] === $branches) {
+        if ([] === $branches) {
             return $baseByBranch;
         }
-        $prs = $this->gh->prsForBranches($this->repoSlug->for($cfg), $branches);
+        try {
+            $slug = $this->repoSlug->for($cfg);
+        } catch (PabloError) {
+            return $baseByBranch; // not a GitHub repo: no PRs to stack on
+        }
+        $prs = $this->gh->prsForBranches($slug, $branches);
         foreach ($branches as $branch) {
             $pr = $prs[$branch] ?? null;
-            $base = null !== $pr && null !== $pr->baseRefName ? $pr->baseRefName : null;
+            if (null === $pr || 'OPEN' !== $pr->state) {
+                // A merged/closed PR's base is stale; only an open PR's counts.
+                continue;
+            }
+            $base = $pr->baseRefName;
             if (null !== $base && '' !== $base && $base !== $cfg->primaryBranch) {
                 $baseByBranch[$branch] = $base;
             }
@@ -136,7 +150,7 @@ final class Sync
         }
         foreach ($reports as $report) {
             if ('conflict' === $report->action && $effectiveApply && null !== $agents) {
-                $prompt = self::buildConflictAgentPrompt($report, $cfg, $stacked[$report->branch] ?? null);
+                $prompt = $this->buildConflictAgentPrompt($report, $cfg);
                 $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->defaultModel);
                 sleep(1);
                 $sessionId = $this->findRecentSession($report->worktree, 'rebase-conflict-resolver');
@@ -170,14 +184,17 @@ final class Sync
         file_put_contents($path, json_encode($log->toArray(), \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
     }
 
-    public function buildConflictAgentPrompt(SyncReport $report, ProjectConfig $cfg, ?string $stackedBase = null): string
+    /**
+     * The resolver must rebase onto the exact ref the engine used
+     * ($report->target): the PR's base when stacked, else the primary — and
+     * the primary too when a stacked base no longer exists on the remote.
+     */
+    public function buildConflictAgentPrompt(SyncReport $report, ProjectConfig $cfg): string
     {
         $remote = $cfg->primaryRemote;
-        $target = $remote.'/'.$cfg->primaryBranch;
-        $stacked = null !== $stackedBase && '' !== $stackedBase && $stackedBase !== $cfg->primaryBranch;
-        if ($stacked) {
-            $target = $remote.'/'.$stackedBase;
-        }
+        $primaryTarget = $remote.'/'.$cfg->primaryBranch;
+        $target = '' !== $report->target ? $report->target : $primaryTarget;
+        $stacked = $target !== $primaryTarget && $target !== $cfg->primaryBranch;
         $lines = [
             "PABLO sync hit rebase conflicts on branch `{$report->branch}`.",
             "Rebase onto `{$target}` using strategy `{$cfg->syncStrategy}` was aborted.",
@@ -193,7 +210,6 @@ final class Sync
             'Conflicting files from the original attempt:',
         ];
         if ($stacked) {
-            $primaryTarget = $remote.'/'.$cfg->primaryBranch;
             array_splice($lines, 3, 0, [
                 '',
                 "This branch's PR is stacked on `{$target}` (not `{$primaryTarget}`),",

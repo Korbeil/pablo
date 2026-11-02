@@ -382,16 +382,18 @@ final class GitRepo implements GitRepoInterface
             $conflict = $this->integrate($wt, $remoteBranch, $strategy);
             if (null !== $conflict) {
                 $conflict->branch = $branch;
+                $conflict->target = $target;
 
                 return $conflict;
             }
         }
 
-        // 2. Rebase/merge onto the primary branch.
+        // 2. Rebase/merge onto the target (primary branch, or the PR's base).
         $conflict = $this->integrate($wt, $target, $strategy);
         if (null !== $conflict) {
             $this->git($wt, ['reset', '--hard', $origHead], check: false);
             $conflict->branch = $branch;
+            $conflict->target = $target;
 
             return $conflict;
         }

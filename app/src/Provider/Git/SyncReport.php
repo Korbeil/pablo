@@ -16,6 +16,7 @@ final class SyncReport
         public array $conflictFiles = [],
         public string $detail = '',
         public string $agentHandle = '', // opencode session ID when conflict agent launched
+        public string $target = '', // ref the sync rebased/merged onto (e.g. origin/main); set on conflict
     ) {
     }
 
