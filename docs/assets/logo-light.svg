@@ -1,14 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 250 84" role="img" aria-label="PABLO">
   <title>PABLO</title>
-  <!-- mark -->
+  <!-- Half brain, half circuit: the thinking stays in the agents (and in you),
+       the wiring that decides when to run them is PABLO. -->
   <g transform="translate(0 2) scale(1.25)">
+    <clipPath id="pablo-d"><rect width="33" height="64"/></clipPath>
     <rect width="64" height="64" rx="15" fill="#3a3a38"/>
-    <circle cx="32" cy="27" r="9" fill="#e9ce37"/>
-    <path d="M13 26 Q32 56 51 26" fill="none" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round"/>
-    <circle cx="13" cy="26" r="5.5" fill="#ffffff"/>
-    <circle cx="51" cy="26" r="5.5" fill="#ffffff"/>
+    <g transform="translate(1.5 0)">
+    <path d="M20 45C13 45 10.5 38 14 33.5C10 28 14 20.5 20.5 21C21.5 14.5 29 12 33 16.5C37 12 45.5 14 46 21C52.5 20.5 56 28.5 51.5 33.5C55 38.5 51 46 44.5 45C42.5 50 35.5 51 32.5 47C29 51 22 50 20 45Z" clip-path="url(#pablo-d)" fill="#e9ce37"/>
+    <path d="M33 16.5V47M24.5 26Q29 28 27 34M20 38.5Q25 37 26.5 42" fill="none" stroke="#3a3a38" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M33 20H38L42 24M33 32H41L45 35M33 43H38L41 46" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="43.2" cy="25.2" r="3" fill="#ffffff"/><circle cx="46.6" cy="36.2" r="3" fill="#ffffff"/><circle cx="42.2" cy="47.2" r="3" fill="#ffffff"/>
   </g>
-  <!-- wordmark: geometric "pabl" + a sun for the "o" -->
+  </g>
+  <!-- wordmark: geometric "pabl" + a yellow node for the "o" -->
   <g transform="translate(92 0)" fill="none" stroke="#ffffff" stroke-width="7.5" stroke-linecap="round">
     <circle cx="15" cy="45" r="11.5"/><path d="M3.5 33.5V76"/>
     <circle cx="53" cy="45" r="11.5"/><path d="M64.5 33.5V56.5"/>
