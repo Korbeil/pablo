@@ -1,12 +1,138 @@
 /* PABLO dashboard. Bulma is loaded via importmap (see assets/app.js); this
-   file only adds the layout and density Bulma has no opinion about. */
+   file themes it after the PABLO website (site/): charcoal + yellow,
+   Josefin Sans, warm paper background, rounded cards and pill chips.
 
-:root {
-    --pablo-gap: 1.25rem;
+   Fonts are vendored in assets/fonts/ (SIL OFL, see the OFL-*.txt files
+   there) so the dashboard keeps working offline, like the rest of its
+   assets. */
+
+@font-face {
+    font-family: 'Josefin Sans';
+    font-style: normal;
+    font-weight: 100 700;
+    font-display: swap;
+    src: url('../fonts/josefin-sans-latin-wght-normal.woff2') format('woff2-variations');
 }
 
+@font-face {
+    font-family: 'JetBrains Mono';
+    font-style: normal;
+    font-weight: 100 800;
+    font-display: swap;
+    src: url('../fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+/* ------------------------------------------------------------- palette -- */
+
+/* Brand colours never change with the theme; the surface and tone
+   variables below are redefined for dark mode (both the explicit
+   html[data-theme=dark] the toggle sets and the OS preference when the
+   toggle is on "system" — the same two triggers Bulma itself honours). */
+:root {
+    --pablo-gap: 1.25rem;
+    --pablo-yellow: #e9ce37;
+    --pablo-yellow-deep: #c9ab12;
+    --pablo-ink: #2b2b2a;
+    --pablo-radius: 14px;
+    --pablo-sans: 'Josefin Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --pablo-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    /* Bulma knobs: fonts, warm greys, yellow primary, softer corners. */
+    --bulma-family-primary: var(--pablo-sans);
+    --bulma-family-secondary: var(--pablo-sans);
+    --bulma-family-code: var(--pablo-mono);
+    --bulma-scheme-h: 45deg;
+    --bulma-scheme-s: 12%;
+    --bulma-primary-h: 51deg;
+    --bulma-primary-s: 80%;
+    --bulma-primary-l: 56%;
+    --bulma-radius: 0.6rem;
+    --bulma-radius-medium: 0.75rem;
+    --bulma-radius-large: var(--pablo-radius);
+
+    --pablo-bg: #f7f5ee;
+    --pablo-card: #ffffff;
+    --pablo-card-2: #efeadb;
+    --pablo-line: #e2ddcc;
+    --pablo-text: #2b2b2a;
+    --pablo-muted: #6b685f;
+    --pablo-hover: #fbf8ef;
+    --pablo-link: #7a6508;
+
+    /* Soft chip tones: background / text. */
+    --pablo-green-bg: #dcefd9;   --pablo-green-fg: #2c6a2f;
+    --pablo-red-bg: #fbdcd9;     --pablo-red-fg: #a1302a;
+    --pablo-orange-bg: #fde3c4;  --pablo-orange-fg: #8a4b0b;
+    --pablo-yellow-bg: #f7e9a0;  --pablo-yellow-fg: #5e4f05;
+    --pablo-blue-bg: #dce8fb;    --pablo-blue-fg: #24508f;
+    --pablo-purple-bg: #e8e0fb;  --pablo-purple-fg: #553a9c;
+    --pablo-neutral-bg: #efeadb; --pablo-neutral-fg: #4a4843;
+    --pablo-muted-bg: #e2ddcc;   --pablo-muted-fg: #4a4843;
+}
+
+html[data-theme=dark] {
+    --pablo-bg: #1d1d1c;
+    --pablo-card: #272726;
+    --pablo-card-2: #323230;
+    --pablo-line: #3a3936;
+    --pablo-text: #ece9e0;
+    --pablo-muted: #a5a197;
+    --pablo-hover: #2f2f2d;
+    --pablo-link: var(--pablo-yellow);
+
+    --pablo-green-bg: rgb(76 175 80 / 18%);   --pablo-green-fg: #9bdc9d;
+    --pablo-red-bg: rgb(229 83 75 / 20%);     --pablo-red-fg: #ff9a92;
+    --pablo-orange-bg: rgb(240 150 50 / 18%); --pablo-orange-fg: #ffc27a;
+    --pablo-yellow-bg: rgb(233 206 55 / 18%); --pablo-yellow-fg: #e9ce37;
+    --pablo-blue-bg: rgb(110 170 255 / 16%);  --pablo-blue-fg: #a9cbff;
+    --pablo-purple-bg: rgb(160 130 255 / 18%); --pablo-purple-fg: #cdbdff;
+    --pablo-neutral-bg: rgb(255 255 255 / 8%); --pablo-neutral-fg: #d2cfc6;
+    --pablo-muted-bg: rgb(255 255 255 / 5%);  --pablo-muted-fg: #a5a197;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme=light]) {
+        --pablo-bg: #1d1d1c;
+        --pablo-card: #272726;
+        --pablo-card-2: #323230;
+        --pablo-line: #3a3936;
+        --pablo-text: #ece9e0;
+        --pablo-muted: #a5a197;
+        --pablo-hover: #2f2f2d;
+        --pablo-link: var(--pablo-yellow);
+
+        --pablo-green-bg: rgb(76 175 80 / 18%);   --pablo-green-fg: #9bdc9d;
+        --pablo-red-bg: rgb(229 83 75 / 20%);     --pablo-red-fg: #ff9a92;
+        --pablo-orange-bg: rgb(240 150 50 / 18%); --pablo-orange-fg: #ffc27a;
+        --pablo-yellow-bg: rgb(233 206 55 / 18%); --pablo-yellow-fg: #e9ce37;
+        --pablo-blue-bg: rgb(110 170 255 / 16%);  --pablo-blue-fg: #a9cbff;
+        --pablo-purple-bg: rgb(160 130 255 / 18%); --pablo-purple-fg: #cdbdff;
+        --pablo-neutral-bg: rgb(255 255 255 / 8%); --pablo-neutral-fg: #d2cfc6;
+        --pablo-muted-bg: rgb(255 255 255 / 5%);  --pablo-muted-fg: #a5a197;
+    }
+}
+
+/* ---------------------------------------------------------------- base -- */
+
 body {
-    background: var(--bulma-scheme-main-bis, #fafafa);
+    background: var(--pablo-bg);
+    color: var(--pablo-text);
+    font-family: var(--pablo-sans);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+}
+
+code,
+pre,
+.is-family-monospace {
+    font-family: var(--pablo-mono);
+}
+
+code {
+    background: var(--pablo-card-2);
+    color: var(--pablo-text);
+    border-radius: 0.35rem;
+    font-size: 0.85em;
 }
 
 .pablo-container {
@@ -15,13 +141,41 @@ body {
     padding: 0 var(--pablo-gap);
 }
 
+.pablo-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.pablo-card {
+    background: var(--pablo-card);
+    border: 1px solid var(--pablo-line);
+    border-radius: var(--pablo-radius);
+}
+
 /* ------------------------------------------------------------- header --- */
 
+/* Always charcoal, in both themes — the website's top bar. */
 .pablo-header {
-    border-bottom: 1px solid var(--bulma-border-weak, #ededed);
-    background: var(--bulma-scheme-main, #fff);
-    padding: 1.5rem 0;
-    margin-bottom: 2rem;
+    background: var(--pablo-ink);
+    color: #f2f0ea;
+    padding: 0.85rem 0;
+    margin-bottom: 2.25rem;
+    position: relative;
+}
+
+.pablo-header::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: 3px;
+    background: var(--pablo-yellow);
 }
 
 .pablo-header-inner {
@@ -36,58 +190,173 @@ body {
     display: flex;
     align-items: center;
     gap: 0.6rem;
+    flex-wrap: wrap;
 }
 
 .pablo-brand {
     display: flex;
     align-items: center;
     gap: 0.9rem;
+    color: inherit;
 }
 
 .pablo-logo {
-    height: 3rem;
+    height: 2.4rem;
     width: auto;
 }
 
-.pablo-title {
-    font-size: 1.75rem;
+.pablo-page-tag {
+    background: var(--pablo-yellow);
+    color: var(--pablo-ink);
+    font-size: 0.7rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    margin: 0;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.35em 0.85em 0.2em;
+    border-radius: 999px;
 }
 
-.pablo-tagline {
-    color: var(--bulma-text-weak, #7a7a7a);
-    font-size: 0.9rem;
-    margin: 0.15rem 0 0;
+/* -------------------------------------------------------------- buttons - */
+
+.button {
+    border-radius: 999px;
+    font-weight: 600;
+    padding-top: calc(0.5em + 2px);
+}
+
+.button.is-small {
+    border-radius: 999px;
+}
+
+.button.is-primary:not(.is-light),
+.button.is-primary:not(.is-light)[disabled] {
+    background-color: var(--pablo-yellow);
+    color: var(--pablo-ink);
+    border-color: transparent;
+    box-shadow: 0 3px 0 var(--pablo-yellow-deep);
+}
+
+.button.is-primary:not(.is-light):hover,
+.button.is-primary:not(.is-light):focus-visible {
+    background-color: #f0d84d;
+    color: var(--pablo-ink);
+}
+
+.button.is-primary:not(.is-light):active {
+    box-shadow: 0 1px 0 var(--pablo-yellow-deep);
+    transform: translateY(2px);
+}
+
+.button.is-primary.is-loading::after {
+    border-color: transparent transparent var(--pablo-ink) var(--pablo-ink) !important;
+}
+
+/* Ghost buttons on the charcoal header bar. */
+.button.pablo-header-btn {
+    background: transparent;
+    color: #f2f0ea;
+    border: 1px solid rgb(255 255 255 / 22%);
+}
+
+.button.pablo-header-btn:hover,
+.button.pablo-header-btn:focus-visible {
+    background: rgb(255 255 255 / 6%);
+    color: var(--pablo-yellow);
+    border-color: var(--pablo-yellow);
+}
+
+.button.pablo-header-btn.is-loading::after {
+    border-color: transparent transparent var(--pablo-yellow) var(--pablo-yellow) !important;
 }
 
 /* ------------------------------------------------------- project tabs -- */
 
-.pablo-tabs {
+/* Bulma's boxed tabs, reshaped into the website's pill switcher. */
+.tabs.pablo-tabs {
     margin-bottom: 1.75rem;
+}
+
+.tabs.pablo-tabs ul {
+    border: none;
+    gap: 0.4rem;
+}
+
+.tabs.is-boxed.pablo-tabs li a {
+    border: 1px solid var(--pablo-line);
+    border-radius: 999px;
+    background: var(--pablo-card);
+    color: var(--pablo-text);
+    padding: 0.4em 1.1em 0.25em;
+    margin: 0;
+    font-weight: 600;
+}
+
+.tabs.is-boxed.pablo-tabs li a:hover {
+    border-color: var(--pablo-yellow-deep);
+    background: var(--pablo-card);
+}
+
+.tabs.is-boxed.pablo-tabs li.is-active a,
+.tabs.is-boxed.pablo-tabs li.is-active a:hover {
+    background: var(--pablo-ink);
+    color: var(--pablo-yellow);
+    border-color: var(--pablo-ink);
+}
+
+html[data-theme=dark] .tabs.is-boxed.pablo-tabs li.is-active a {
+    background: var(--pablo-yellow);
+    color: var(--pablo-ink);
+    border-color: var(--pablo-yellow);
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme=light]) .tabs.is-boxed.pablo-tabs li.is-active a {
+        background: var(--pablo-yellow);
+        color: var(--pablo-ink);
+        border-color: var(--pablo-yellow);
+    }
+}
+
+/* Toggle tabs (new-task modal modes). */
+.tabs.is-toggle li a {
+    border-color: var(--pablo-line);
+}
+
+.tabs.is-toggle li.is-active a {
+    background: var(--pablo-ink);
+    border-color: var(--pablo-ink);
+    color: var(--pablo-yellow);
 }
 
 /* ------------------------------------------------------------ sections -- */
 
 .pablo-section {
-    margin-bottom: 2.5rem;
+    margin-bottom: 2.75rem;
 }
 
 .pablo-heading {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 1.05rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--bulma-text-weak, #7a7a7a);
-    margin-bottom: 0.85rem;
+    gap: 0.6rem;
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--pablo-text);
+    margin-bottom: 0.9rem;
+}
+
+/* The section icon sits in a small yellow tile, like the website's cards. */
+.pablo-heading > .pablo-icon:first-child {
+    width: 1.85rem;
+    height: 1.85rem;
+    padding: 0.38rem;
+    border-radius: 0.55rem;
+    background: var(--pablo-yellow);
+    color: var(--pablo-ink);
 }
 
 .pablo-empty {
-    color: var(--bulma-text-weak, #7a7a7a);
+    color: var(--pablo-muted);
     font-style: italic;
     padding: 0.75rem 0;
 }
@@ -140,10 +409,19 @@ html:not([data-theme]) .pablo-theme-icon-system {
     margin-right: 0;
 }
 
+/* The icon-only toggle is drawn as a circle. */
+.button.pablo-theme-toggle {
+    width: 2.5em;
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: calc(0.5em - 1px);
+}
+
 /* Buttons place the icon directly beside its label with no wrapper, so give
    it its own breathing room (Bulma only spaces its own .icon element). */
 .button .pablo-icon {
     margin-right: 0.45em;
+    margin-top: -0.15em;
 }
 
 /* Same breathing room inside toggle-tab anchors (new-task modal modes). */
@@ -155,11 +433,35 @@ html:not([data-theme]) .pablo-theme-icon-system {
     margin-right: 0.35em;
 }
 
+/* ---------------------------------------------------------------- chips -- */
+
+/* Every tag is a soft pill. Josefin Sans sits high on its baseline, so the
+   top padding is larger than the bottom one to centre the text. */
+.tag {
+    border-radius: 999px;
+    font-weight: 600;
+    padding-top: 0.2em;
+}
+
 .pablo-state {
     display: inline-flex;
     align-items: center;
     gap: 0.35rem;
 }
+
+.pablo-state .pablo-icon {
+    margin-top: -0.15em;
+}
+
+/* Colour modifiers → the website's soft tones, set explicitly on both
+   channels so neither depends on Bulma's light/dark variable plumbing.
+   The html prefix outranks Bulma's own `.tag.is-*` rules. */
+html .tag.is-success { background-color: var(--pablo-green-bg); color: var(--pablo-green-fg); }
+html .tag.is-danger { background-color: var(--pablo-red-bg); color: var(--pablo-red-fg); }
+html .tag.is-warning { background-color: var(--pablo-orange-bg); color: var(--pablo-orange-fg); }
+html .tag.is-primary { background-color: var(--pablo-yellow-bg); color: var(--pablo-yellow-fg); }
+html .tag.is-info { background-color: var(--pablo-blue-bg); color: var(--pablo-blue-fg); }
+html .tag.is-link { background-color: var(--pablo-purple-bg); color: var(--pablo-purple-fg); }
 
 /* Neutral chips.
  *
@@ -174,27 +476,49 @@ html:not([data-theme]) .pablo-theme-icon-system {
  *  - `is-grey` is not a Bulma class at all; it silently renders an
  *    unstyled tag.
  *
- * These two are explicit in both channels, so they are immune to the
- * colour scheme and to Bulma's variable plumbing. tests/Assets/BulmaClassTest
- * keeps the banned classes from creeping back.
+ * These two set both channels explicitly (per theme, from the palette
+ * above), so they never go through Bulma's variable plumbing.
+ * tests/Assets/BulmaClassTest keeps the banned classes from creeping back.
  */
 .tag.pablo-chip {
-    background-color: hsl(221deg 14% 91%);
-    color: #14161a;
+    background-color: var(--pablo-neutral-bg);
+    color: var(--pablo-neutral-fg);
 }
 
 .tag.pablo-chip-muted {
-    background-color: hsl(221deg 10% 84%);
-    color: #14161a;
+    background-color: var(--pablo-muted-bg);
+    color: var(--pablo-muted-fg);
+}
+
+/* Section counters: the website's charcoal pill with yellow text. */
+.tag.pablo-count {
+    background-color: var(--pablo-ink);
+    color: var(--pablo-yellow);
+    font-size: 0.8rem;
+    min-width: 1.9em;
+}
+
+.tag.pablo-count-hot {
+    background-color: #d9534f;
+    color: #fff;
+}
+
+html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
+    background-color: var(--pablo-yellow);
+    color: var(--pablo-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not([data-theme=light]) .tag.pablo-count:not(.pablo-count-hot) {
+        background-color: var(--pablo-yellow);
+        color: var(--pablo-ink);
+    }
 }
 
 /* --------------------------------------------------------------- poller - */
 
 .pablo-poll {
-    background: var(--bulma-scheme-main, #fff);
-    border: 1px solid var(--bulma-border-weak, #ededed);
-    border-radius: 6px;
-    padding: 0.85rem 1rem;
+    padding: 1rem 1.15rem;
 }
 
 .pablo-poll-head {
@@ -202,23 +526,35 @@ html:not([data-theme]) .pablo-theme-icon-system {
     align-items: baseline;
     justify-content: space-between;
     gap: 0.5rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.55rem;
 }
 
 .pablo-poll-name {
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .pablo-poll-remaining {
+    font-family: var(--pablo-mono);
     font-variant-numeric: tabular-nums;
     font-size: 0.85rem;
-    color: var(--bulma-text-weak, #7a7a7a);
+    color: var(--pablo-muted);
 }
 
 .pablo-poll .progress {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.55rem;
+    height: 0.6rem;
+    border-radius: 999px;
+    --bulma-progress-bar-background-color: var(--pablo-card-2);
     /* the countdown controller writes `value` every second */
     transition: none;
+}
+
+.pablo-poll .progress.is-primary {
+    --bulma-progress-value-background-color: var(--pablo-yellow);
+}
+
+.pablo-poll .progress.is-warning {
+    --bulma-progress-value-background-color: #f0a04b;
 }
 
 .pablo-poll-foot {
@@ -226,8 +562,8 @@ html:not([data-theme]) .pablo-theme-icon-system {
     align-items: center;
     gap: 0.3rem;
     flex-wrap: wrap;
-    font-size: 0.78rem;
-    color: var(--bulma-text-weak, #7a7a7a);
+    font-size: 0.8rem;
+    color: var(--pablo-muted);
 }
 
 /* One tick polls every due project, so the countdown is shared and each
@@ -244,18 +580,18 @@ html:not([data-theme]) .pablo-theme-icon-system {
     align-items: baseline;
     justify-content: space-between;
     gap: 0.5rem;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid var(--bulma-border-weak, #ededed);
-    font-size: 0.82rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--pablo-line);
+    font-size: 0.85rem;
 }
 
 .pablo-poll-recap-project {
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .pablo-poll-recap-time {
     font-variant-numeric: tabular-nums;
-    color: var(--bulma-text-weak, #7a7a7a);
+    color: var(--pablo-muted);
     white-space: nowrap;
 }
 
@@ -271,21 +607,57 @@ html:not([data-theme]) .pablo-theme-icon-system {
 
 /* --------------------------------------------------------------- tables - */
 
-.pablo-table {
-    background: var(--bulma-scheme-main, #fff);
-    font-size: 0.9rem;
+.table-container.pablo-card {
+    overflow-x: auto;
+}
+
+.table.pablo-table {
+    --bulma-table-row-hover-background-color: var(--pablo-hover);
+    background: transparent;
+    color: var(--pablo-text);
+    font-size: 0.95rem;
+    margin-bottom: 0;
 }
 
 .pablo-table th {
     font-size: 0.72rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--bulma-text-weak, #7a7a7a);
+    letter-spacing: 0.1em;
+    color: var(--pablo-muted) !important;
     white-space: nowrap;
+    padding-top: 0.9rem;
+    padding-bottom: 0.6rem;
+}
+
+.pablo-table th,
+.pablo-table td {
+    border-color: var(--pablo-line);
+}
+
+.pablo-table th:first-child,
+.pablo-table td:first-child {
+    padding-left: 1.15rem;
+}
+
+.pablo-table th:last-child,
+.pablo-table td:last-child {
+    padding-right: 1.15rem;
+}
+
+.pablo-table tbody tr:last-child td {
+    border-bottom: none;
 }
 
 .pablo-table td {
     vertical-align: middle;
+    padding-top: 0.7rem;
+    padding-bottom: 0.7rem;
+}
+
+.pablo-table td.has-text-grey,
+.pablo-table td .has-text-grey {
+    color: var(--pablo-muted) !important;
 }
 
 .pablo-nowrap {
@@ -303,13 +675,25 @@ html:not([data-theme]) .pablo-theme-icon-system {
     padding: 0;
     color: inherit;
     font-weight: 600;
+    font-size: 0.82rem;
 }
 
 .pablo-label {
-    color: var(--bulma-text-weak, #7a7a7a);
-    font-size: 0.83rem;
-    margin-top: 0.15rem;
+    color: var(--pablo-muted);
+    font-size: 0.88rem;
+    margin-top: 0.2rem;
     max-width: 60ch;
+}
+
+.pablo-label a {
+    color: var(--pablo-link);
+    font-weight: 700;
+}
+
+.pablo-label a:hover {
+    text-decoration: underline;
+    text-decoration-color: var(--pablo-yellow);
+    text-underline-offset: 0.18em;
 }
 
 /* ------------------------------------------------------------ sync logs - */
@@ -333,13 +717,13 @@ html:not([data-theme]) .pablo-theme-icon-system {
 }
 
 .pablo-log-project {
-    font-weight: 600;
+    font-weight: 700;
 }
 
 .pablo-log-time {
     margin-left: auto;
-    font-size: 0.78rem;
-    color: var(--bulma-text-weak, #7a7a7a);
+    font-size: 0.8rem;
+    color: var(--pablo-muted);
     display: inline-flex;
     align-items: center;
     gap: 0.25rem;
@@ -356,42 +740,84 @@ html:not([data-theme]) .pablo-theme-icon-system {
     align-items: center;
     gap: 0.5rem;
     flex-wrap: wrap;
-    font-size: 0.85rem;
+    font-size: 0.88rem;
 }
 
 .pablo-log-branch {
     background: none;
     padding: 0;
     color: inherit;
+    font-size: 0.82rem;
 }
 
 .pablo-log-counts,
 .pablo-log-detail {
-    color: var(--bulma-text-weak, #7a7a7a);
-    font-size: 0.8rem;
+    color: var(--pablo-muted);
+    font-size: 0.82rem;
 }
 
 .pablo-conflicts {
     flex-basis: 100%;
     margin: 0.15rem 0 0 1.5rem;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
     list-style: disc;
+}
+
+.pablo-conflicts code,
+.pablo-log-agent code {
+    overflow-wrap: anywhere;
 }
 
 .pablo-log-agent {
     flex-basis: 100%;
     margin-left: 1.5rem;
-    font-size: 0.78rem;
-    color: var(--bulma-text-weak, #7a7a7a);
+    font-size: 0.8rem;
+    color: var(--pablo-muted);
     display: flex;
     align-items: center;
     gap: 0.3rem;
 }
 
-/* ----------------------------------------------------------- slack modal - */
+/* --------------------------------------------------------------- modals - */
 
 .pablo-modal {
     width: min(860px, 92vw);
+    border-radius: var(--pablo-radius);
+}
+
+.modal-card-head,
+.modal-card-foot {
+    background: var(--pablo-card-2);
+    border-color: var(--pablo-line);
+}
+
+.modal-card-body {
+    background: var(--pablo-card);
+}
+
+.modal-card-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    color: var(--pablo-text);
+}
+
+.input,
+.textarea,
+.select select {
+    border-radius: 0.6rem;
+}
+
+.input:focus,
+.textarea:focus,
+.select select:focus {
+    border-color: var(--pablo-yellow-deep);
+    box-shadow: 0 0 0 3px rgb(233 206 55 / 30%);
+}
+
+.modal-card-body .help {
+    color: var(--pablo-muted);
 }
 
 .pablo-slack-block + .pablo-slack-block {
@@ -421,32 +847,32 @@ html:not([data-theme]) .pablo-theme-icon-system {
 
 .pablo-kpis {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
     gap: var(--pablo-gap);
-    margin: var(--pablo-gap) 0;
+    margin: var(--pablo-gap) 0 2rem;
 }
 
+/* The website's "big numbers": a yellow rule over a large figure. */
 .pablo-kpi {
-    background: var(--bulma-scheme-main, #fff);
-    border: 1px solid var(--bulma-border-weak, #ededed);
-    border-radius: 6px;
-    padding: 0.9rem 1rem;
+    border-top: 4px solid var(--pablo-yellow);
+    padding: 0.75rem 0.1rem 0;
     display: flex;
     flex-direction: column;
-    gap: 0.2rem;
+    gap: 0.3rem;
 }
 
 .pablo-kpi-value {
-    font-size: 1.5rem;
+    font-size: 2.1rem;
     font-weight: 700;
-    color: var(--bulma-text-strong, #1d1d1d);
+    line-height: 1;
+    color: var(--pablo-text);
 }
 
 .pablo-kpi-label {
     font-size: 0.8rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--bulma-text, #4a4a4a);
+    letter-spacing: 0.08em;
+    color: var(--pablo-muted);
 }
 
 .pablo-grid {
@@ -456,13 +882,14 @@ html:not([data-theme]) .pablo-theme-icon-system {
 }
 
 .pablo-chart-card {
-    background: var(--bulma-scheme-main, #fff);
-    border: 1px solid var(--bulma-border-weak, #ededed);
-    border-radius: 6px;
+    background: var(--pablo-card);
+    border: 1px solid var(--pablo-line);
+    border-radius: var(--pablo-radius);
     padding: 1.1rem 1.25rem 0.9rem;
 }
 
 .pablo-chart-card .pablo-heading {
+    font-size: 1.1rem;
     margin-bottom: 1.25rem;
 }
 

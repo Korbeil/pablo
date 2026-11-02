@@ -17,13 +17,14 @@ use Symfony\UX\Chartjs\Model\Chart;
  */
 final class AnalyticsCharts
 {
-    // Bulma-aligned palette.
-    private const BLUE = '#485fc7';
-    private const GREEN = '#48c78e';
-    private const INFO = '#3e8ed0';
-    private const PURPLE = '#8a4fd3';
-    private const YELLOW = '#ffd970';
-    private const RED = '#f14668';
+    // The PABLO website palette (site/style.css); readable on both the light
+    // and the dark dashboard theme.
+    private const BLUE = '#5b8def';
+    private const GREEN = '#4caf50';
+    private const INFO = '#4fb3c8';
+    private const PURPLE = '#9a7cf0';
+    private const YELLOW = '#e9ce37';
+    private const RED = '#e5534b';
 
     public function __construct()
     {
@@ -35,7 +36,7 @@ final class AnalyticsCharts
         return $this->bar(
             array_map(static fn (array $d) => substr((string) $d['date'], 5), $daily),
             [
-                self::dataset('Opened', array_map(static fn (array $d) => (int) $d['opened'], $daily), self::BLUE),
+                self::dataset('Opened', array_map(static fn (array $d) => (int) $d['opened'], $daily), self::YELLOW),
                 self::dataset('Closed', array_map(static fn (array $d) => (int) $d['closed'], $daily), self::GREEN),
             ],
         );

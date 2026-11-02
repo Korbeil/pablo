@@ -5,21 +5,19 @@
 {% block body %}
     <header class="pablo-header">
         <div class="pablo-container pablo-header-inner">
-            <div class="pablo-brand">
-                <img class="pablo-logo" src="{{ asset('images/pablo.png') }}" alt="PABLO logo">
-                <div>
-                    <h1 class="pablo-title">P.A.B.L.O.</h1>
-                    <p class="pablo-tagline">Personal Assistant for Boring Logic &amp; Operations</p>
-                </div>
-            </div>
+            <a class="pablo-brand" href="{{ path('dashboard') }}">
+                <img class="pablo-logo" src="{{ asset('images/logo-light.svg') }}" alt="PABLO" width="125" height="42">
+                <span class="pablo-page-tag">Dashboard</span>
+            </a>
+            <h1 class="pablo-visually-hidden">P.A.B.L.O. — Personal Assistant for Boring Logic &amp; Operations</h1>
             <div class="pablo-header-actions">
                 <twig:ThemeToggle />
-                <twig:NewTaskModal />
                 <twig:SlackModal />
-                <a class="button is-link is-light" href="{{ path('analytics') }}">
+                <a class="button pablo-header-btn" href="{{ path('analytics') }}">
                     {{ ux_icon('lucide:chart-column', {class: 'pablo-icon'}) }}
                     <span>Analytics</span>
                 </a>
+                <twig:NewTaskModal />
             </div>
         </div>
     </header>

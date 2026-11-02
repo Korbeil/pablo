@@ -5,18 +5,16 @@
 {% block body %}
     <header class="pablo-header">
         <div class="pablo-container pablo-header-inner">
-            <div class="pablo-brand">
-                <img class="pablo-logo" src="{{ asset('images/pablo.png') }}" alt="PABLO logo">
-                <div>
-                    <h1 class="pablo-title">P.A.B.L.O. analytics</h1>
-                    <p class="pablo-tagline">Task lifetimes, agent runs, tokens &amp; cost</p>
-                </div>
-            </div>
+            <a class="pablo-brand" href="{{ path('dashboard') }}">
+                <img class="pablo-logo" src="{{ asset('images/logo-light.svg') }}" alt="PABLO" width="125" height="42">
+                <span class="pablo-page-tag">Analytics</span>
+            </a>
+            <h1 class="pablo-visually-hidden">P.A.B.L.O. analytics — task lifetimes, agent runs, tokens &amp; cost</h1>
             <div class="pablo-header-actions">
                 <twig:ThemeToggle />
-                <a class="button is-light" href="{{ path('dashboard') }}">
+                <a class="button pablo-header-btn" href="{{ path('dashboard') }}">
                     {{ ux_icon('lucide:arrow-left', {class: 'pablo-icon'}) }}
-                    Task board
+                    <span>Task board</span>
                 </a>
             </div>
         </div>

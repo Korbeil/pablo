@@ -5,7 +5,7 @@
     {% if bar is null %}
         <p class="pablo-empty">No projects configured.</p>
     {% else %}
-        <div class="pablo-poll"
+        <div class="pablo-poll pablo-card"
              data-controller="countdown"
              data-countdown-start-value="{{ bar.lastRunAt ? bar.lastRunAt.timestamp : bar.now.timestamp }}"
              data-countdown-end-value="{{ bar.nextRunAt.timestamp }}">
@@ -14,7 +14,7 @@
                 <span class="pablo-poll-remaining" data-countdown-target="label">{{ bar.remainingLabel }}</span>
             </div>
 
-            <progress class="progress is-small {{ bar.secondsRemaining == 0 ? 'is-warning' : 'is-link' }}"
+            <progress class="progress is-small {{ bar.secondsRemaining == 0 ? 'is-warning' : 'is-primary' }}"
                       data-countdown-target="bar"
                       value="{{ bar.percentRemaining }}" max="100">{{ bar.percentRemaining }}%</progress>
 

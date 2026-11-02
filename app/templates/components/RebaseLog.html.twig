@@ -6,7 +6,7 @@
     {% else %}
         <div class="pablo-logs">
             {% for section in logs %}{% set log = section.log %}
-                <div class="box pablo-log">
+                <div class="pablo-card pablo-log">
                     <div class="pablo-log-head">
                         <span class="pablo-log-project">{{ log.project }}</span>
                         <span class="tag pablo-chip">{{ log.strategy }}</span>

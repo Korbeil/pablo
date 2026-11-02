@@ -46,7 +46,20 @@ PR links, degrades to an unlinked badge).
 **Works offline.** Bulma and the Stimulus/LiveComponent JS are vendored
 into `app/assets/vendor/` and committed; the Lucide icons are imported
 into `app/assets/icons/` and committed, with Iconify on-demand downloads
-disabled (`config/packages/ux_icons.php`).
+disabled (`config/packages/ux_icons.php`). The two web fonts (Josefin
+Sans, JetBrains Mono — SIL OFL, licences beside them) are committed in
+`app/assets/fonts/`, never loaded from a font CDN.
+
+**Looks like the website.** `app/assets/styles/app.css` themes Bulma after
+the PABLO website (`site/`): charcoal + yellow, Josefin Sans, the
+brain/circuit logo (`app/assets/images/logo-*.svg`, copies of
+`site/assets/`), pill chips. Brand colours are fixed; surfaces and chip
+tones are CSS variables redefined for dark mode, under the same two
+triggers Bulma honours (`html[data-theme=dark]` from the theme toggle,
+and `prefers-color-scheme: dark` when the toggle is on "system"). Chip
+colours keep coming from the Bulma modifiers `TaskView`/`RebaseLogView`
+return (`is-danger`, `is-success`, …); `app.css` maps each one to a soft
+tone on both channels.
 
 ## The page
 

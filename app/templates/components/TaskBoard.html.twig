@@ -17,7 +17,7 @@
             {{ ux_icon('lucide:message-circle', {class: 'pablo-icon'}) }}
             Waiting for feedback
             {% if this.attention|length %}
-                <span class="tag is-danger is-rounded">{{ this.attention|length }}</span>
+                <span class="tag pablo-count pablo-count-hot">{{ this.attention|length }}</span>
             {% endif %}
         </h2>
         <twig:TaskTable :tasks="this.attention" empty="Nothing is waiting on you right now 🎉" />
@@ -28,7 +28,7 @@
             {{ ux_icon('lucide:git-branch', {class: 'pablo-icon'}) }}
             Other tasks
             {% if this.rest|length %}
-                <span class="tag pablo-chip is-rounded">{{ this.rest|length }}</span>
+                <span class="tag pablo-count">{{ this.rest|length }}</span>
             {% endif %}
         </h2>
         <twig:TaskTable :tasks="this.rest" empty="No other active tasks." />
