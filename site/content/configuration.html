@@ -6,7 +6,7 @@
 
 <p><code>~/.pablo/config.yaml</code> is created by the installer from <a href="repo:examples/config.yaml"><code>examples/config.yaml</code></a>. It holds the keys every project inherits, plus a few that only exist globally.</p>
 
-<pre><code class="language-yaml">default_model: openrouter/deepseek/deepseek-v4-flash-0731
+<pre><code class="language-yaml">default_model: opencode-go/glm-5.3-flash
 pr_description_locale: en
 sync:
   strategy: rebase
@@ -51,7 +51,7 @@ ci:
 
 <dl>
   <dt><code>agent_backend</code></dt>
-  <dd><code>orca</code> (default) or <code>openchamber</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command too. See <a href="page:how-it-works#agent-backends">Agent backends</a>.</dd>
+  <dd><code>orca</code> (default) or <code>openchamber</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command instead of <code>orca</code>. A first install sets it for you when it finds OpenChamber but no Orca. See <a href="page:how-it-works#agent-backends">Agent backends</a>.</dd>
   <dt><code>default_model_by_type</code></dt>
   <dd>A model per project type; see below.</dd>
 </dl>
@@ -71,7 +71,7 @@ ci:
 default_model_by_type:
   work: anthropic/claude-opus-4
   open-source: litellm/glm-5.3-flash
-  personal: openrouter/deepseek/deepseek-v4-flash-0731
+  personal: opencode-go/glm-5.3-flash
 </code></pre>
 
 <p>Keys must be project types (<code>work</code>, <code>open-source</code>, <code>personal</code>); an unknown key is an error.</p>
@@ -127,7 +127,7 @@ ci:
 startup_script: ~/scripts/pablo-setup.sh
                               # optional: bash script run once per task, next to
                               # task-analyst, in its own terminal
-default_model: openrouter/deepseek/deepseek-v4-flash-0731
+default_model: opencode-go/glm-5.3-flash
 pr_description_locale: en
 branch_prefix: pablo/
 </code></pre>

@@ -118,6 +118,13 @@ YAML;
         $this->assertSame(['gh', 'opencode', 'orca'], $this->doctor()->requiredClis($projects));
     }
 
+    public function testOpenChamberBackendReplacesOrca(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nagent_backend: openchamber\n");
+        $projects = ['a' => $this->makeCfg('a', 'github')];
+        $this->assertSame(['gh', 'openchamber', 'opencode'], $this->doctor()->requiredClis($projects));
+    }
+
     public function testRequiredIncludesAcliForJiraProjects(): void
     {
         $projects = ['a' => $this->makeCfg('a', 'jira'), 'b' => $this->makeCfg('b', 'linear')];

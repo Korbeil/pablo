@@ -15,8 +15,8 @@ use Symfony\Component\Process\ExecutableFinder;
  * Derives the required CLI set from the configured projects. gh is always
  * required; acli (Jira) and a separate acli-confluence probe when a project
  * configures a Confluence space, only for jira projects; linear only when a
- * project uses that provider; orca/opencode always; openchamber only when the
- * global agent_backend selects it.
+ * project uses that provider; opencode always; orca or openchamber, whichever
+ * the global agent_backend selects (orca by default).
  */
 final class Doctor
 {
@@ -30,7 +30,7 @@ final class Doctor
         'openchamber' => [['openchamber', 'status'], 'install openchamber: https://github.com/openchamber/openchamber'],
     ];
 
-    private const ALWAYS_REQUIRED = ['gh', 'opencode', 'orca'];
+    private const ALWAYS_REQUIRED = ['gh', 'opencode'];
 
     /**
      * Wizard ordering: hard requirements first, then the per-provider
@@ -110,9 +110,8 @@ final class Doctor
         if ($needsConfluence) {
             $required['acli-confluence'] = true;
         }
-        if ('openchamber' === $this->agentLaunchers->resolveBackend()) {
-            $required['openchamber'] = true;
-        }
+        // Only the selected backend is required: an OpenChamber user need not install Orca.
+        $required['openchamber' === $this->agentLaunchers->resolveBackend() ? 'openchamber' : 'orca'] = true;
         $list = array_keys($required);
         sort($list);
 

@@ -12,6 +12,8 @@ use PHPUnit\Framework\TestCase;
 
 final class DispatchTest extends TestCase
 {
+    use \Pablo\Tests\UsesGlobalConfig;
+
     private string $tmp;
     private string $stamps;
     private Dispatch $dispatch;
@@ -27,6 +29,9 @@ final class DispatchTest extends TestCase
         mkdir($this->tmp, 0o777, true);
         $this->stamps = $this->tmp.'/stamps';
         putenv('PABLO_STAMPS_DIR='.$this->stamps);
+        // An empty global config: the developer's real ~/.pablo/config.yaml
+        // (e.g. agent_backend: openchamber) must not leak into the preflight.
+        $this->writeGlobalConfig("{}\n");
         $this->ran = [];
         $this->runner = new \Pablo\Tests\FakeProcessRunner();
         $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
@@ -50,6 +55,7 @@ final class DispatchTest extends TestCase
     protected function tearDown(): void
     {
         putenv('PABLO_STAMPS_DIR');
+        $this->unsetGlobalConfig();
     }
 
     private function cfg(string $name): ProjectConfig
