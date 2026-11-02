@@ -1,0 +1,35 @@
+name: Website
+
+on:
+  push:
+    branches: [ "main" ]
+    paths: [ "site/**", ".github/workflows/pages.yml" ]
+  workflow_dispatch: ~
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+      - name: configure-pages
+        uses: actions/configure-pages@v6
+      - name: upload
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - name: deploy
+        id: deployment
+        uses: actions/deploy-pages@v5
