@@ -1,0 +1,92 @@
+<h1>Commands</h1>
+
+<p>Every <code>pablo</code> command, grouped by what it acts on. Commands marked “in a worktree” act on the task of the current directory. Run <code>pablo help &lt;command&gt;</code> for the full usage of any of them.</p>
+
+<h2>Tasks</h2>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>task:start &lt;issue-url&gt;</code><br><code>task:start --project=&lt;name&gt; "&lt;prompt&gt;"</code></td><td>Start a task: branch, worktree, task-analyst. <a href="page:tasks#start-a-task">Guide</a></td></tr>
+    <tr><td><code>task:list [--live] [--refresh]</code></td><td>Active tasks, split into “waiting for feedback” and the rest. <code>--live</code> fetches fresh data, <code>--refresh</code> runs the poller first. <a href="page:tasks#see-your-tasks">Guide</a></td></tr>
+    <tr><td><code>task:waiting</code></td><td>In a worktree. Pause the task, or resume it. <a href="page:tasks#pause-a-task">Guide</a></td></tr>
+    <tr><td><code>task:state &lt;state&gt; [--no-trigger] [--worktree=&lt;path&gt;]</code></td><td>In a worktree. Force a state. <a href="page:tasks#force-a-state">Guide</a></td></tr>
+    <tr><td><code>task:attach &lt;state&gt; [--project=&lt;name&gt;]</code></td><td>In a worktree. Adopt a worktree PABLO didn't create. <a href="page:tasks#adopt-an-existing-worktree">Guide</a></td></tr>
+    <tr><td><code>task:relaunch [--only=&lt;agent&gt;]</code></td><td>In a worktree. Launch the current state's agents again. <a href="page:tasks#relaunch-an-agent">Guide</a></td></tr>
+    <tr><td><code>task:retrigger-ci</code></td><td>In a worktree. Re-run the GitHub Actions workflows of the branch; the pull request goes back to draft. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
+    <tr><td><code>task:skip-ci</code></td><td>In a worktree, from <code>ci-red</code>. Ignore failing checks until the next <code>/pablo-commit-and-pr</code>. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
+    <tr><td><code>task:close [&lt;branch&gt;] [--project=&lt;name&gt;] [--yes]</code></td><td>Close a task: delete its worktree and record. <a href="page:tasks#close-a-task">Guide</a></td></tr>
+    <tr><td><code>task:info current</code></td><td>In a worktree. Print the task record as JSON.</td></tr>
+    <tr><td><code>task:precommit-check [--json] [--worktree=&lt;path&gt;]</code></td><td>Whether <code>/pablo-commit-and-pr</code> is allowed here. Used by that command.</td></tr>
+  </tbody>
+</table>
+
+<h2>Projects</h2>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>project:new</code></td><td>Interactive wizard that writes a project file to <code>~/.pablo/projects/</code>. <a href="page:first-project">Guide</a></td></tr>
+    <tr><td><code>project:list</code></td><td>Configured projects and their settings.</td></tr>
+    <tr><td><code>project:remove &lt;name&gt;</code></td><td>Delete a project's file (refused while it has active tasks).</td></tr>
+  </tbody>
+</table>
+
+<h2>Sync</h2>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>sync:run [&lt;project&gt;] [--apply]</code></td><td>Sync task branches with the primary branch. Dry run unless <code>--apply</code> or <code>sync.auto_apply</code>. <a href="page:sync">Guide</a></td></tr>
+    <tr><td><code>sync:log [&lt;project&gt;]</code></td><td>What the last sync did.</td></tr>
+    <tr><td><code>sync:main [&lt;project&gt;]</code></td><td>Update primary checkouts now. Naming a project runs it even if <code>main_update.enabled</code> is false. <a href="page:sync#primary-checkout-update">Guide</a></td></tr>
+  </tbody>
+</table>
+
+<h2>System</h2>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>system:doctor</code></td><td>Check every required tool is installed and logged in, and that the agents are up to date. <a href="page:providers#the-doctor">Details</a></td></tr>
+    <tr><td><code>system:setup</code></td><td>The same checks as a wizard, one fix at a time.</td></tr>
+    <tr><td><code>system:generate-agents [--agents-dir=&lt;dir&gt;]</code></td><td>Regenerate the OpenCode agent files from their templates. <a href="page:agents#customise-the-agents">Details</a></td></tr>
+    <tr><td><code>system:dispatch</code></td><td>The background job: run every due poll, sync and main update. Called by the scheduler every 5 minutes.</td></tr>
+    <tr><td><code>system:poll [&lt;project&gt;]</code></td><td>Run the state poller once.</td></tr>
+    <tr><td><code>system:repair-merge-flags [--dry-run] [--project=&lt;name&gt;]</code></td><td>Fix old analytics events that recorded a merged pull request as not merged.</td></tr>
+  </tbody>
+</table>
+
+<h2>Backups, dashboard, analytics</h2>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>archive:backup [&lt;destination&gt;]</code></td><td>Write a backup of <code>~/.pablo/</code>. <a href="page:backups">Guide</a></td></tr>
+    <tr><td><code>archive:restore &lt;archive&gt; [--skip-worktrees] [--skip-orca] [--yes]</code></td><td>Restore a backup and recreate the worktrees.</td></tr>
+    <tr><td><code>web [--port=&lt;port&gt;] [--open]</code></td><td>Serve the dashboard on <code>127.0.0.1</code> (port 8321). <a href="page:dashboard">Guide</a></td></tr>
+    <tr><td><code>stats [--days=&lt;n&gt;] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--agent=&lt;agent&gt;] [--format=json]</code></td><td>Task lifetimes, agent runs, tokens and cost. <a href="page:analytics">Guide</a></td></tr>
+  </tbody>
+</table>
+
+<h2>OpenCode command</h2>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>/pablo-commit-and-pr [--force]</code></td><td>In an OpenCode session inside a task worktree: commit, push, open a draft pull request, move the task to <code>draft</code>. <a href="page:tasks#ship-your-work">Guide</a></td></tr>
+  </tbody>
+</table>
+
+<h2>Internal commands</h2>
+
+<p>Used by PABLO itself, in background processes; you shouldn't need to call them.</p>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td><code>internal:launch-agent</code></td><td>Launches one agent in a worktree, detached, so commands and the poller never wait for a backend.</td></tr>
+    <tr><td><code>internal:run-startup-script</code></td><td>Runs a project's startup script in a worktree, detached.</td></tr>
+    <tr><td><code>internal:watch-agent</code></td><td>Waits for an agent run to finish, records its usage, and does what comes next (for example putting the pull request back in draft).</td></tr>
+  </tbody>
+</table>

@@ -4,6 +4,8 @@ on:
   push:
     branches: [ "main" ]
     paths: [ "site/**", ".github/workflows/pages.yml" ]
+  pull_request:
+    paths: [ "site/**", ".github/workflows/pages.yml" ]
   workflow_dispatch: ~
 
 permissions:
@@ -12,26 +14,44 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   # Build and deploy are separate jobs so that "Re-run failed jobs" only
   # re-runs the deploy: re-running a job that uploads the artifact again
   # leaves two "github-pages" artifacts and deploy-pages refuses to pick one.
+  #
+  # The build also runs on pull requests: it fails on a broken internal link
+  # (page:… / #anchor), so a docs change is checked before it is merged.
   build:
     runs-on: ubuntu-latest
     steps:
       - name: checkout
         uses: actions/checkout@v7
+      - name: setup-php
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer
+          coverage: none
+      - name: install
+        run: composer install --no-interaction --no-progress --working-dir=site/build
+      - name: phpstan
+        run: site/build/vendor/bin/phpstan analyse --configuration=site/build/phpstan.neon --no-progress
+      - name: build
+        run: php site/build/build.php --base=/pablo/
       - name: configure-pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v6
       - name: upload
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
         with:
-          path: site
+          path: _site
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

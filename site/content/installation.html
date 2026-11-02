@@ -1,0 +1,125 @@
+<h1>Installation</h1>
+
+<p>Install PABLO with one script, then let <code>pablo system:doctor</code> tell you which tool is missing or logged out. It takes a few minutes on Linux or macOS.</p>
+
+<h2>Prerequisites</h2>
+
+<p>PABLO drives tools you already use, through their own command-line clients. You need the ones in the first rows; the others depend on your projects.</p>
+
+<table>
+  <thead><tr><th>Tool</th><th>When you need it</th><th>Log in with</th></tr></thead>
+  <tbody>
+    <tr><td>PHP 8.4.1+ and Composer</td><td>Always (PABLO itself)</td><td>—</td></tr>
+    <tr><td>git</td><td>Always (branches and worktrees)</td><td>—</td></tr>
+    <tr><td><a href="https://cli.github.com/"><code>gh</code></a></td><td>Always: pull requests, CI and reviews go through GitHub</td><td><code>gh auth login</code></td></tr>
+    <tr><td><a href="https://opencode.ai"><code>opencode</code></a></td><td>Always: it runs the agents</td><td>your usual OpenCode provider setup</td></tr>
+    <tr><td><a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a></td><td>Recommended: where agents run and where you chat with them. Without one, agents run headless.</td><td>—</td></tr>
+    <tr><td><a href="https://www.atlassian.com/software/cli"><code>acli</code></a></td><td>Projects on Jira (and Confluence pages)</td><td><code>acli auth login</code></td></tr>
+    <tr><td><a href="https://github.com/schpet/linear-cli"><code>linear</code></a></td><td>Projects on Linear</td><td>see its docs (checked with <code>linear auth status</code>)</td></tr>
+  </tbody>
+</table>
+
+<aside class="callout tip"><p>Don't worry about getting everything right up front: the installer finishes by running the doctor, which lists exactly what's missing and how to fix it.</p></aside>
+
+<h2>Install</h2>
+
+<pre><code class="language-bash">git clone https://github.com/Korbeil/pablo
+cd pablo
+./bin/install.sh              # add --with-web to also keep the dashboard running
+</code></pre>
+
+<p>The installer is safe to run again. It:</p>
+
+<ol>
+  <li>creates <code>~/.pablo/</code> and, if you don't have one yet, a default <a href="page:configuration#global-defaults">global config</a> in <code>~/.pablo/config.yaml</code>;</li>
+  <li>installs PHP dependencies and warms PABLO's cache;</li>
+  <li>generates the OpenCode agents;</li>
+  <li>writes the <code>pablo</code> command to <code>~/.local/bin/pablo</code> (make sure that directory is on your <code>PATH</code>);</li>
+  <li>links the agents, the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill into <code>~/.config/opencode/</code>;</li>
+  <li>starts the background scheduler, which runs PABLO every 5 minutes;</li>
+  <li>runs <code>pablo system:doctor</code>.</li>
+</ol>
+
+<aside class="callout note"><p>Your own OpenCode files are never touched. The installer only creates <em>new</em> symlinks, and refuses to replace any file in <code>~/.config/opencode/</code> that isn't already a link into the PABLO repository.</p></aside>
+
+<h2>Check your setup</h2>
+
+<pre><code class="language-bash">pablo system:doctor   # one line per check: ✅ ready, ❌ missing or logged out
+pablo system:setup    # the same checks as a wizard, one fix at a time
+</code></pre>
+
+<p><code>system:setup</code> stops at the first problem and prints the exact command to install or log in to the tool. Fix it, run <code>pablo system:setup</code> again, and it moves on to the next check. Tracker tools (<code>acli</code>, <code>linear</code>) are only checked once a project uses them.</p>
+
+<p>The doctor also checks that the agents installed in <code>~/.config/opencode/agents/</code> are up to date. If one is reported stale, run <code>pablo system:generate-agents</code>.</p>
+
+<h2>Choose an agent backend</h2>
+
+<p>The agent backend is where PABLO's agents run, and where you open them to read their analysis or keep chatting.</p>
+
+<dl>
+  <dt>Orca (default)</dt>
+  <dd>Agents run in Orca terminals. Orca only sees repositories registered with it, so register each project's repository once: <code>orca repo add &lt;path&gt;</code>.</dd>
+  <dt>OpenChamber</dt>
+  <dd>Set <code>agent_backend: openchamber</code> in <code>~/.pablo/config.yaml</code> (or export <code>PABLO_AGENT_BACKEND=openchamber</code>). OpenChamber works from directories, so there is nothing to register.</dd>
+  <dt>Headless</dt>
+  <dd>When the backend is unavailable, or doesn't know a repository, PABLO falls back to <code>opencode run</code> in the background, so agents still run. You read their output with <code>opencode -s &lt;session&gt;</code>.</dd>
+</dl>
+
+<p>More details in <a href="page:how-it-works#agent-backends">How it works</a>.</p>
+
+<h2>Keep the dashboard running</h2>
+
+<p>You can start the dashboard by hand with <code>pablo web</code>, or install it as a background service that restarts on its own:</p>
+
+<pre><code class="language-bash">./bin/install.sh --with-web
+</code></pre>
+
+<p>It serves <code>http://127.0.0.1:8321</code>. To stop it: <code>systemctl --user stop pablo-web.service</code> on Linux, <code>launchctl bootout gui/$UID/com.pablo.web</code> on macOS. See <a href="page:dashboard">Dashboard</a>.</p>
+
+<h2>Platform notes</h2>
+
+<p>PABLO itself is portable. Only the scheduler and the dashboard service differ:</p>
+
+<table>
+  <thead><tr><th></th><th>Linux</th><th>macOS</th></tr></thead>
+  <tbody>
+    <tr><td>Scheduler</td><td>systemd user timer <code>pablo-dispatch.timer</code></td><td>launchd agent <code>com.pablo.dispatch</code> (every 300 s)</td></tr>
+    <tr><td>Scheduler logs</td><td><code>journalctl --user -u pablo-dispatch.service</code></td><td><code>~/.pablo/logs/dispatch.log</code> (and <code>.err.log</code>)</td></tr>
+    <tr><td>Scheduler status</td><td><code>systemctl --user list-timers pablo-dispatch.timer</code></td><td><code>launchctl print gui/$UID/com.pablo.dispatch</code></td></tr>
+    <tr><td>Dashboard service</td><td><code>pablo-web.service</code>, restarts automatically</td><td><code>com.pablo.web</code>, kept alive</td></tr>
+    <tr><td>Dashboard logs</td><td><code>journalctl --user -u pablo-web.service</code></td><td><code>~/.pablo/logs/web.log</code> (and <code>.err.log</code>)</td></tr>
+    <tr><td>Dashboard status</td><td><code>systemctl --user status pablo-web.service</code></td><td><code>launchctl print gui/$UID/com.pablo.web</code></td></tr>
+  </tbody>
+</table>
+
+<p>On Linux the installer enables <em>lingering</em> for your user (<code>loginctl enable-linger</code>), so the scheduler also starts after a reboot without you logging in.</p>
+
+<h3>First install on macOS</h3>
+
+<ol>
+  <li>Install the prerequisites, including <code>acli auth login</code> if you use Jira or Confluence.</li>
+  <li>Run <code>./bin/install.sh</code> and look for “com.pablo.dispatch loaded”.</li>
+  <li>Run <code>pablo system:doctor</code>: everything should be ✅.</li>
+  <li>Watch one 5-minute run: <code>tail -f ~/.pablo/logs/dispatch.log</code>.</li>
+  <li>Try a round trip on a real project: <code>pablo task:start …</code>, then <code>pablo task:list</code>.</li>
+</ol>
+
+<h2>Update</h2>
+
+<pre><code class="language-bash">cd pablo
+git pull
+./bin/install.sh
+</code></pre>
+
+<p>Re-running the installer picks up new dependencies, new agents and new links. Your data in <code>~/.pablo/</code> is never touched.</p>
+
+<h2>Uninstall</h2>
+
+<pre><code class="language-bash">./bin/uninstall.sh
+</code></pre>
+
+<p>It removes what the installer created (the shim, the links, the scheduler and dashboard services) and keeps your data in <code>~/.pablo/</code>. Delete that folder yourself if you want a clean slate, or <a href="page:backups">back it up</a> first.</p>
+
+<h2>Next step</h2>
+
+<p><a href="page:first-project">Add your first project</a>.</p>

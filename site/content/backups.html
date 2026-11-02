@@ -1,0 +1,49 @@
+<h1>Backups &amp; restore</h1>
+
+<p>Everything PABLO knows lives in <code>~/.pablo/</code>. Back it up in one command, and restore it on another machine with your task worktrees recreated: you pick up exactly where you left off.</p>
+
+<h2>Back up</h2>
+
+<pre><code class="language-bash">pablo archive:backup                       # ~/.pablo-backups/pablo-backup-&lt;timestamp&gt;.tar.gz
+pablo archive:backup ~/Dropbox/pablo.tar.gz
+</code></pre>
+
+<p>The archive contains:</p>
+
+<ul>
+  <li>all task state, poller stamps, sync logs and analytics from <code>~/.pablo/</code>;</li>
+  <li>your project configurations (<code>~/.pablo/projects/*.yaml</code>);</li>
+  <li>a list of every task worktree: project, remote URL and branch;</li>
+  <li>the repositories registered in Orca, when Orca is reachable.</li>
+</ul>
+
+<p>It leaves out agent sessions and the worktree checkouts themselves: those are recreated from your remote branches.</p>
+
+<h2>Restore</h2>
+
+<pre><code class="language-bash">pablo archive:restore ~/Dropbox/pablo.tar.gz
+</code></pre>
+
+<p>Restore is interactive:</p>
+
+<ol>
+  <li>it puts the state and the project configurations back;</li>
+  <li>one repository at a time, it asks where the checkout should live, and clones it from its recorded remote if needed;</li>
+  <li>it recreates each task worktree from its remote branch and updates the task's path;</li>
+  <li>it registers each repository with Orca again, so agents can launch there.</li>
+</ol>
+
+<aside class="callout warning"><p>Branches with commits that were never pushed can't be recreated from the remote: they're skipped with a warning. Push before you back up.</p></aside>
+
+<p>Options:</p>
+
+<table>
+  <thead><tr><th>Option</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><code>--skip-worktrees</code></td><td>restore state only, don't touch worktrees</td></tr>
+    <tr><td><code>--skip-orca</code></td><td>don't register repositories with Orca</td></tr>
+    <tr><td><code>--yes</code></td><td>answer yes to every overwrite question</td></tr>
+  </tbody>
+</table>
+
+<p>Logins are not part of the backup: on the new machine, run <code>pablo system:doctor</code> and log in to each tool it lists.</p>

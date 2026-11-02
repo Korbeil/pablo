@@ -1,0 +1,77 @@
+<h1>Providers</h1>
+
+<p>PABLO talks to GitHub, Jira, Confluence and Linear through each service's own command-line tool. No API keys, no tokens in the configuration: every tool handles its own login, and when one isn't ready PABLO shows that tool's own message.</p>
+
+<h2>GitHub: <code>gh</code></h2>
+
+<p>Always required: pull requests and CI always go through GitHub, whatever the issue tracker. Log in once with <code>gh auth login</code>.</p>
+
+<table>
+  <thead><tr><th>Used for</th><th>Command</th></tr></thead>
+  <tbody>
+    <tr><td>Issues</td><td><code>gh issue view/list --json</code>, matched against the repository's remote</td></tr>
+    <tr><td>Finding the pull request</td><td><code>gh pr list --head &lt;branch&gt; --json number,title,state,isDraft,mergedAt,url</code></td></tr>
+    <tr><td>CI status</td><td><code>gh pr view &lt;n&gt; --json statusCheckRollup</code></td></tr>
+    <tr><td>Reviews and the “ready for review” time</td><td><code>gh api graphql</code> (reviews, and <code>READY_FOR_REVIEW_EVENT</code> timeline items)</td></tr>
+    <tr><td>Draft / ready</td><td><code>gh pr ready &lt;n&gt;</code>, <code>gh pr ready &lt;n&gt; --undo</code></td></tr>
+    <tr><td>QA labels</td><td><code>gh api repos/&lt;owner&gt;/&lt;repo&gt;/issues/&lt;pr&gt;/events --paginate</code> (<code>labeled</code> events)</td></tr>
+    <tr><td>Re-running CI</td><td><code>gh run list</code>, <code>gh run rerun</code></td></tr>
+    <tr><td>Login check</td><td><code>gh auth status</code></td></tr>
+  </tbody>
+</table>
+
+<h2>Jira: <code>acli</code></h2>
+
+<p>Atlassian's own CLI. Log in once with <code>acli auth login</code> (a browser login); the same login covers Jira and Confluence. Run it again if Atlassian ever revokes access.</p>
+
+<table>
+  <thead><tr><th>Used for</th><th>Command</th></tr></thead>
+  <tbody>
+    <tr><td>An issue</td><td><code>acli jira workitem view &lt;KEY&gt; --json --fields 'summary,status'</code></td></tr>
+    <tr><td>Your issues</td><td><code>acli jira workitem search --jql "project = &lt;KEY&gt; AND assignee = currentUser() ORDER BY updated DESC" --json --limit 50</code></td></tr>
+    <tr><td>Comments (QA feedback)</td><td><code>acli jira workitem comment list --key &lt;KEY&gt; --json</code></td></tr>
+    <tr><td>Login check</td><td><code>acli jira auth status</code></td></tr>
+  </tbody>
+</table>
+
+<aside class="callout note"><p><b>How the QA signal works on Jira.</b> <code>acli</code> doesn't expose an issue's history, so PABLO remembers the status it saw at each poll. The issue <em>entering</em> your <code>testing.failure_signal</code> status between two polls counts as one event. The precision is therefore your polling interval, and the baseline is set when the task enters <code>needs-testing</code>, so an old status never fires.</p></aside>
+
+<p>Every call has a 30-second timeout and shows <code>acli</code>'s own error text when it fails.</p>
+
+<h2>Confluence: <code>acli confluence</code></h2>
+
+<p>Same tool, same login. Agents use it to read documentation pages an issue links to.</p>
+
+<ul>
+  <li>A page: <code>acli confluence page view --id &lt;id&gt; --json --body-format storage</code>. The body is Confluence's XHTML, passed as is: agents read it fine.</li>
+  <li>Spaces: <code>acli confluence space list --json</code>. A project's optional <code>confluence.space</code> tells agents where to look.</li>
+  <li>Both page URL shapes are understood (<code>…/wiki/spaces/&lt;KEY&gt;/pages/&lt;id&gt;</code> and <code>…/wiki?pageId=&lt;id&gt;</code>), as well as a bare page id.</li>
+  <li>Login check: <code>acli confluence auth status</code>, separate from Jira's so the doctor can tell you which one isn't ready.</li>
+</ul>
+
+<h2>Linear: <code>linear</code></h2>
+
+<p>Using <a href="https://github.com/schpet/linear-cli">schpet/linear-cli</a>: <code>linear issue view &lt;KEY&gt; --json</code>, <code>linear issue list --assignee &lt;id&gt; --json</code>; the QA signal is a transition into your <code>testing.failure_signal</code> status in the issue's history; login check: <code>linear auth status</code>.</p>
+
+<aside class="callout warning"><p>The Linear provider hasn't been tested end to end yet. If a command fails, compare with <code>linear --help</code> and adjust <a href="repo:app/src/Provider/Tracker/Linear.php"><code>Linear.php</code></a>.</p></aside>
+
+<h2 id="the-doctor">The doctor</h2>
+
+<p><code>pablo system:doctor</code> checks that each required tool is <b>installed</b> (on your <code>PATH</code>) and <b>ready</b> (logged in, using the tool's own status command), one line per check, and exits with an error if anything fails. Which tools are required depends on your projects:</p>
+
+<table>
+  <thead><tr><th>Tool</th><th>Required when</th><th>In the background job</th></tr></thead>
+  <tbody>
+    <tr><td><code>gh</code></td><td>always</td><td>hard: a failure stops the run</td></tr>
+    <tr><td><code>opencode</code></td><td>always</td><td>hard</td></tr>
+    <tr><td><code>orca</code></td><td>always (it's the default backend)</td><td>soft: a warning</td></tr>
+    <tr><td><code>openchamber</code></td><td><code>agent_backend</code> is <code>openchamber</code></td><td>—</td></tr>
+    <tr><td><code>acli</code> (Jira)</td><td>a project uses Jira</td><td>soft</td></tr>
+    <tr><td><code>acli</code> (Confluence)</td><td>a project sets <code>confluence.space</code></td><td>soft</td></tr>
+    <tr><td><code>linear</code></td><td>a project uses Linear</td><td>soft</td></tr>
+  </tbody>
+</table>
+
+<p>In the background job, a soft failure only affects the projects using that tool; the others carry on. Each check is limited to 30 seconds, since <code>orca</code> can hang outside an interactive session.</p>
+
+<p>The doctor also compares each installed agent in <code>~/.config/opencode/agents/</code> with a fresh render: ✅ fresh, ⚠️ stale (run <code>pablo system:generate-agents</code>), ❌ missing, broken link, or a file PABLO doesn't manage.</p>

@@ -1,0 +1,127 @@
+<h1>Task states</h1>
+
+<p>Every task is in exactly one of ten states. You move a task with two commands; the background poller moves it the rest of the way by watching CI, reviews and QA. This page lists every state and every rule behind the transitions.</p>
+
+<h2>The map</h2>
+
+<figure class="sm-figure">
+<div class="sm-scroll"><svg class="sm-svg" viewBox="0 0 984 340" role="img" aria-label="PABLO's task state machine">
+  <defs>
+    <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9a968a"/></marker>
+    <marker id="arr-y" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#c9ab12"/></marker>
+  </defs>
+  <g class="edge">
+    <path d="M290 62 H316"/><path d="M470 62 H496"/><path d="M650 62 H676"/><path d="M810 62 H836"/>
+    <path d="M270 84 V196"/><path d="M372 200 V88"/><path d="M530 84 Q520 205 394 220"/><path d="M610 84 V196"/><path d="M908 84 V196"/>
+  </g>
+  <g class="edge edge-cmd">
+    <path d="M150 62 H174"/>
+    <path d="M250 222 H240 Q228 222 228 210 V90"/>
+    <path d="M590 244 V278 Q590 290 578 290 H222 Q210 290 210 278 V90"/>
+    <path d="M908 244 V308 Q908 320 896 320 H207 Q195 320 195 308 V90"/>
+  </g>
+  <g class="node start"><rect x="10" y="40" width="140" height="44" rx="22"/><text x="80" y="67">in-progress</text></g>
+  <g class="node"><rect x="180" y="40" width="110" height="44" rx="22"/><text x="235" y="67">draft</text></g>
+  <g class="node"><rect x="320" y="40" width="150" height="44" rx="22"/><text x="395" y="67">ready-to-review</text></g>
+  <g class="node"><rect x="500" y="40" width="150" height="44" rx="22"/><text x="575" y="67">waiting-review</text></g>
+  <g class="node"><rect x="680" y="40" width="130" height="44" rx="22"/><text x="745" y="67">approved</text></g>
+  <g class="node"><rect x="840" y="40" width="136" height="44" rx="22"/><text x="908" y="67">needs-testing</text></g>
+  <g class="node pause"><rect x="10" y="200" width="140" height="44" rx="22"/><text x="80" y="227">waiting</text></g>
+  <text class="sm-aside" x="80" y="266">pause from (almost) anywhere</text>
+  <g class="node hot"><rect x="250" y="200" width="140" height="44" rx="22"/><text x="320" y="227">ci-red</text></g>
+  <g class="node hot"><rect x="505" y="200" width="170" height="44" rx="22"/><text x="590" y="227">request-changes</text></g>
+  <g class="node hot"><rect x="836" y="200" width="144" height="44" rx="22"/><text x="908" y="227">testing-failed</text></g>
+  <text class="sm-aside cmd" x="560" y="310">/pablo-commit-and-pr</text>
+</svg></div>
+<figcaption>Thick yellow arrows are commands you type (<code>pablo task:start</code>, then <code>/pablo-commit-and-pr</code>). Thin arrows are detected by the poller. Yellow states bring work back to you, with an agent's analysis. A merge closes the task from any state.</figcaption>
+</figure>
+
+<p>There's no <code>todo</code> state on purpose: a ticket nobody has started has no task, it only exists in your tracker.</p>
+
+<h2>Every state</h2>
+
+<table>
+  <thead><tr><th>State</th><th>Entered when</th><th>On entering</th></tr></thead>
+  <tbody>
+    <tr><td>🔨 <code>in-progress</code></td><td><code>pablo task:start</code></td><td>launch <b>task-analyst</b> and the project's startup script (each only once per task)</td></tr>
+    <tr><td>⏸️ <code>waiting</code></td><td><code>pablo task:waiting</code></td><td>remember the previous state</td></tr>
+    <tr><td>📝 <code>draft</code></td><td><code>/pablo-commit-and-pr</code></td><td>—</td></tr>
+    <tr><td>🔴 <code>ci-red</code></td><td>poller: a check failed</td><td>launch <b>ci-analyst</b></td></tr>
+    <tr><td><code>ready-to-review</code></td><td>poller: CI is green</td><td>mark the pull request ready on GitHub, then move straight to <code>waiting-review</code></td></tr>
+    <tr><td>👀 <code>waiting-review</code></td><td>right after <code>ready-to-review</code></td><td>— (the task waits for reviewers)</td></tr>
+    <tr><td>✅ <code>approved</code></td><td>poller: the review is approved</td><td>move straight to <code>needs-testing</code>, unless the project has no QA step: then it stays here until merged</td></tr>
+    <tr><td>🧪 <code>needs-testing</code></td><td>right after <code>approved</code></td><td>record the time, as the baseline for QA signals</td></tr>
+    <tr><td>🔁 <code>request-changes</code></td><td>poller: changes requested or a comment review</td><td>launch <b>pr-feedback</b>; when it finishes, put the pull request back in draft</td></tr>
+    <tr><td>🚨 <code>testing-failed</code></td><td>poller: QA's failure signal</td><td>launch <b>task-feedback</b>; when it finishes, put the pull request back in draft</td></tr>
+  </tbody>
+</table>
+
+<p><code>ready-to-review</code> only lasts an instant; if you ever catch it in a listing it shows as 👀 waiting-review.</p>
+
+<h2>Into draft: <code>/pablo-commit-and-pr</code></h2>
+
+<p>The one and only way work enters (or re-enters) <code>draft</code>, allowed from <code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>, <code>waiting-review</code> and <code>approved</code>. It commits, pushes, opens the pull request as a draft if needed, then sets the state. A raw <code>git push</code> is never detected and never changes a state. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>.</p>
+
+<h2>What the poller watches</h2>
+
+<p>The poller only checks what makes sense for each state:</p>
+
+<table>
+  <thead><tr><th>State</th><th>Checks</th></tr></thead>
+  <tbody>
+    <tr><td><code>draft</code></td><td>CI red, CI green</td></tr>
+    <tr><td><code>ci-red</code></td><td>CI green</td></tr>
+    <tr><td><code>waiting-review</code></td><td>CI red, reviews</td></tr>
+    <tr><td><code>approved</code></td><td>CI red</td></tr>
+    <tr><td><code>needs-testing</code></td><td>QA failure signal</td></tr>
+    <tr><td>any state</td><td>merge (even <code>waiting</code>)</td></tr>
+  </tbody>
+</table>
+
+<h3>CI</h3>
+
+<ul>
+  <li><b>Red</b> moves <code>draft</code> (or <code>waiting-review</code>) to <code>ci-red</code>. <b>Green</b> moves <code>draft</code> or <code>ci-red</code> to review.</li>
+  <li><b>Pending is not a signal</b>: the task just stays where it is.</li>
+  <li><b>No checks at all counts as green</b>, otherwise a project without CI could never leave draft.</li>
+  <li>Checks whose name matches <a href="page:configuration#ci-ignore-checks"><code>ci.ignore_checks</code></a> are left out.</li>
+  <li>If CI turns red during review (after a sync push, for example), the task goes to <code>ci-red</code> and comes back the usual way. The pull request never left “ready” on GitHub, so reviews given before the blip still count.</li>
+</ul>
+
+<h3 id="reviews">Reviews</h3>
+
+<p>From <code>waiting-review</code>, the poller reads the pull request's reviews and decides between <code>approved</code> and <code>request-changes</code>:</p>
+
+<ul>
+  <li><b>Your own reviews never count.</b> Replying to a comment on your own pull request creates a review in your name; it shouldn't send you back to draft.</li>
+  <li><b>Bots are ignored</b>, unless listed in <a href="page:configuration#project-files"><code>review.bot_whitelist</code></a>.</li>
+  <li><b>Only reviews after GitHub's last “ready for review” event count.</b> An approval from a previous round doesn't leak into this one. (GitHub's summary verdict is not used: it has no timestamp.)</li>
+  <li><b>The latest review of each reviewer wins.</b></li>
+  <li><b>Any “changes requested” or plain comment review beats every approval.</b> If someone took the time to write, you read it before QA.</li>
+</ul>
+
+<h3>QA failure signal</h3>
+
+<p>From <code>needs-testing</code>, the task moves to <code>testing-failed</code> when the project's <code>testing.failure_signal</code> fires: a label added to the pull request (GitHub), or the issue reaching a status (Jira, Linear). It must be a <b>new</b> event, newer than both the task's entry into <code>needs-testing</code> and the last signal already handled. An old label never triggers, and a label that stays never triggers twice. PABLO never removes the label or touches the ticket.</p>
+
+<h3>Known gaps, on purpose</h3>
+
+<p>CI turning red during <code>needs-testing</code>, or during <code>approved</code> for projects without QA, doesn't move the task. A broken CI shows up at merge time anyway.</p>
+
+<h2>Projects without QA</h2>
+
+<p>With <code>testing.enabled: false</code>, an approved review leaves the task in ✅ <code>approved</code> until the merge closes it. Entering <code>needs-testing</code> is refused, including with <code>pablo task:state</code> or when resuming a paused task.</p>
+
+<h2>Pausing and manual moves</h2>
+
+<ul>
+  <li><b><code>pablo task:waiting</code></b> saves the state and pauses. Resuming restores the state and runs its usual actions (agents that only run once don't run again). Resuming into <code>needs-testing</code> keeps the original baseline, so QA signals that arrived during the pause are handled, not lost. Not allowed from <code>request-changes</code> or <code>testing-failed</code>.</li>
+  <li><b><code>pablo task:state &lt;state&gt;</code></b> forces a state and runs the same actions as the automatic transition; <code>--no-trigger</code> only records it (except for <code>waiting</code>, which always remembers the previous state).</li>
+  <li><b><code>pablo task:attach &lt;state&gt;</code></b> adopts an existing worktree: it only writes the record, launches nothing and flips nothing. Analytics see the state as entered at attach time.</li>
+</ul>
+
+<p>How to use them: <a href="page:tasks">Managing tasks</a>.</p>
+
+<h2>Launches that never start</h2>
+
+<p>Agent launches are fire-and-forget, so they never block a command. If no agent session appears for an agent-launching state (<code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>) within a short window, which happens when Orca hangs on a brand-new worktree, the poller fires the launches again, up to a few attempts, startup script included. In <code>in-progress</code> it also sets the Orca workspace name to the issue key. Then the normal checks run, so a <code>ci-red</code> task that turned green still moves on. You can always force it with <code>pablo task:relaunch</code>.</p>

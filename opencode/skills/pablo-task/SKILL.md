@@ -12,7 +12,7 @@ with "not a known project", first run:
 pablo project:new <name> --type <work|open-source|personal> --tracker <github|jira|linear>
 ```
 
-(or ask the user with which type/tracker; see `docs/configuration.md`).
+(or ask the user with which type/tracker; see https://korbeil.github.io/pablo/docs/configuration/).
 After registering a project, re-run `./bin/install.sh` so the provider agent templates regenerate.
 
 Create a task:
@@ -46,4 +46,4 @@ Verifying / managing:
 - `pablo task:list` — active tasks and states
 - `pablo task:close <branch>` — close (`--project <name>` if ambiguous)
 
-Full reference: `docs/agents-commands.md` and `docs/state-machine.md`.
+Full reference: https://korbeil.github.io/pablo/docs/tasks/ and https://korbeil.github.io/pablo/docs/states/.

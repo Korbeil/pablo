@@ -1,0 +1,23 @@
+{
+    "name": "pablo/site-build",
+    "description": "Builds the PABLO website: assembles site/content pages into the site layout, with a local search index.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4",
+        "ext-dom": "*",
+        "scrivo/highlight.php": "^9.18",
+        "symfony/yaml": "^7.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pablo\\Site\\": "src/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.1"
+    }
+}

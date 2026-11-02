@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Castor\Attribute\AsTask;
 
 use function Castor\context;
+use function Castor\io;
 use function Castor\PHPQa\php_cs_fixer;
 use function Castor\PHPQa\phpstan;
 use function Castor\PHPQa\twig_cs_fixer;
@@ -15,7 +16,7 @@ use function Castor\run;
  * (see castor.composer.json). Runs against the Symfony Console app in app/.
  */
 
-#[AsTask(name: 'cs-fixer', namespace: 'qa', description: 'Fix coding standards in app/{src,tests,config,public}')]
+#[AsTask(name: 'cs-fixer', namespace: 'qa', description: 'Fix coding standards in app/{src,tests,config,public} and the site builder')]
 function qa_cs_fixer(): void
 {
     // --path-mode intersection means only paths listed here are ever fixed,
@@ -25,6 +26,7 @@ function qa_cs_fixer(): void
         '--path-mode', 'intersection',
         __DIR__ . '/app/src', __DIR__ . '/app/tests',
         __DIR__ . '/app/config', __DIR__ . '/app/public',
+        __DIR__ . '/site/build/src', __DIR__ . '/site/build/build.php',
     ]);
 }
 
@@ -36,6 +38,7 @@ function qa_cs_check(): void
         '--path-mode', 'intersection', '--dry-run', '--diff',
         __DIR__ . '/app/src', __DIR__ . '/app/tests',
         __DIR__ . '/app/config', __DIR__ . '/app/public',
+        __DIR__ . '/site/build/src', __DIR__ . '/site/build/build.php',
     ]);
 }
 
@@ -87,6 +90,23 @@ function qa_test(): void
         ['composer', 'test'],
         context()->withWorkingDirectory(__DIR__ . '/app'),
     );
+}
+
+#[AsTask(name: 'build', namespace: 'site', description: 'Build the website (site/) into _site/')]
+function site_build(string $base = '/'): void
+{
+    if (!is_file(__DIR__ . '/site/build/vendor/autoload.php')) {
+        run(['composer', 'install', '--no-interaction'], context()->withWorkingDirectory(__DIR__ . '/site/build'));
+    }
+    run(['php', __DIR__ . '/site/build/build.php', '--base=' . $base]);
+}
+
+#[AsTask(name: 'serve', namespace: 'site', description: 'Build the website and preview it on http://127.0.0.1:8000')]
+function site_serve(int $port = 8000): void
+{
+    site_build();
+    io()->success("Serving _site/ on http://127.0.0.1:{$port} — Ctrl+C to stop");
+    run(['php', '-S', "127.0.0.1:{$port}", '-t', __DIR__ . '/_site'], context()->withTimeout(null));
 }
 
 #[AsTask(name: 'install', namespace: '', description: 'Install everything: app dependencies, php-qa tools, shim, agents/commands, scheduler')]

@@ -1,0 +1,119 @@
+<h1>Troubleshooting</h1>
+
+<p>Start with <code>pablo system:doctor</code>, then look at the logs. Below are the problems people actually run into, with the fix for each.</p>
+
+<h2>First checks</h2>
+
+<pre><code class="language-bash">pablo system:doctor     # is every tool installed and logged in?
+pablo task:list --live  # what GitHub and the tracker say right now
+pablo sync:log          # what the last sync did, per project
+</code></pre>
+
+<h3>Where the logs are</h3>
+
+<table>
+  <thead><tr><th>What</th><th>Linux</th><th>macOS</th></tr></thead>
+  <tbody>
+    <tr><td>Background runs (poll, sync)</td><td><code>journalctl --user -u pablo-dispatch.service -f</code></td><td><code>~/.pablo/logs/dispatch.log</code></td></tr>
+    <tr><td>Dashboard service</td><td><code>journalctl --user -u pablo-web.service</code></td><td><code>~/.pablo/logs/web.log</code></td></tr>
+    <tr><td>Headless agent runs</td><td colspan="2"><code>~/.pablo/agents/</code> (pid files and logs)</td></tr>
+    <tr><td>OpenChamber launch failures</td><td colspan="2"><code>~/.pablo/agents/logs/openchamber-fallback.log</code></td></tr>
+    <tr><td>Analytics write failures</td><td colspan="2"><code>~/.pablo/analytics/analytics-errors.log</code></td></tr>
+  </tbody>
+</table>
+
+<p>You can also run a background job by hand to see its output: <code>pablo system:poll [project]</code>, <code>pablo sync:run [project]</code>, <code>pablo sync:main [project]</code>.</p>
+
+<h2>Installation</h2>
+
+<h3>“Unable to write in the cache directory”</h3>
+
+<p>A <code>sudo pablo</code> left files owned by root in PABLO's cache. Remove them once: <code>sudo rm -rf app/var/cache</code> (from the PABLO repository). The installer detects this and tells you.</p>
+
+<h3><code>pablo: command not found</code></h3>
+
+<p>The installer writes the command to <code>~/.local/bin/pablo</code>. Add <code>~/.local/bin</code> to your <code>PATH</code>.</p>
+
+<h3>The doctor says an agent file is stale</h3>
+
+<p>Your agents in <code>~/.config/opencode/agents/</code> were generated from older templates or an older project list. Run <code>pablo system:generate-agents</code>. A ❌ instead means a missing file, a broken link, or a file PABLO doesn't manage in its place.</p>
+
+<h3>Loading a project fails about <code>default_model</code> or <code>pr_description_locale</code></h3>
+
+<p>Both must be set, either in the project or in <code>~/.pablo/config.yaml</code>. See <a href="page:first-project#1-set-your-global-defaults">global defaults</a>.</p>
+
+<h3>Nothing happens after a reboot (Linux)</h3>
+
+<p>User services only start at boot if your user “lingers”. The installer enables it; if it couldn't, run <code>loginctl enable-linger $USER</code>.</p>
+
+<h2>Agents</h2>
+
+<h3 id="an-agent-never-started">An agent never started</h3>
+
+<p>Orca can hang the first time it opens a brand-new worktree. PABLO notices when no agent session shows up in time and relaunches automatically, a limited number of times. To force it: <code>pablo task:relaunch</code> in the worktree (or <code>--only=&lt;agent&gt;</code>).</p>
+
+<h3>Agents run headless instead of in Orca</h3>
+
+<p>Orca only sees repositories registered with it. Run <code>orca repo add &lt;repo path&gt;</code> for the project. Until then, PABLO uses <code>opencode run</code> in the background; open those sessions with <code>opencode -s &lt;session&gt;</code>.</p>
+
+<h3>The agents use the wrong model</h3>
+
+<p>The model is chosen at launch: the project's <code>default_model</code>, then the one for its type, then the global one. See <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>.</p>
+
+<h2>States and pull requests</h2>
+
+<h3>The task stays in draft although CI looks done</h3>
+
+<p>A pending check keeps the task where it is. If one never finishes (a manual deployment gate, for instance), exclude it with <a href="page:configuration#ci-ignore-checks"><code>ci.ignore_checks</code></a>. For a one-off, <code>pablo task:skip-ci</code> moves a <code>ci-red</code> task on.</p>
+
+<h3>A review didn't move my task</h3>
+
+<p>Only some reviews count: not your own (replying to a comment creates a review in your name), not bots unless listed in <code>review.bot_whitelist</code>, and only those submitted after the pull request last became ready for review. A “changes requested” or a plain comment wins over approvals. Details in <a href="page:states#reviews">Task states</a>.</p>
+
+<h3>An old “changes requested” is blocking the task</h3>
+
+<p>Force the task past it: <code>pablo task:state waiting-review</code> or the state you want. See <a href="page:tasks#force-a-state">Force a state</a>.</p>
+
+<h3>The QA failure label or status didn't trigger <code>testing-failed</code></h3>
+
+<ul>
+  <li>The project needs a <code>testing.failure_signal</code>, and <code>testing.enabled</code> must not be <code>false</code>.</li>
+  <li>Only a <em>new</em> signal counts: a label added (GitHub) or a status reached (Jira, Linear) after the task entered <code>needs-testing</code>. A label that was already there doesn't.</li>
+  <li>On Jira, PABLO sees status changes between two polls, so it can take up to <code>state_polling.interval_minutes</code>.</li>
+</ul>
+
+<h3><code>/pablo-commit-and-pr</code> refuses to run</h3>
+
+<p>It only works inside a PABLO task worktree, from <code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>, <code>waiting-review</code> or <code>approved</code>. With nothing to commit it stops on purpose (use <code>--force</code> if you committed by hand). If git has no identity configured, it stops with git's own error: set <code>user.name</code> and <code>user.email</code>.</p>
+
+<h3>A merged task doesn't disappear</h3>
+
+<p>An agent is still running on its worktree: the task shows ✅ merged and closes on a later poll. To close it now: <code>pablo task:close &lt;branch&gt; --yes</code>.</p>
+
+<h2>Sync</h2>
+
+<h3>My branch wasn't rebased</h3>
+
+<ul>
+  <li>Sync only reports by default: set <code>sync.auto_apply: true</code> or run <code>pablo sync:run --apply</code>.</li>
+  <li>Branches with uncommitted changes are skipped (✋), and so are tasks busy with another PABLO operation (🔒, retried next time).</li>
+  <li>Check what happened with <code>pablo sync:log</code>.</li>
+</ul>
+
+<h3>My main checkout wasn't updated</h3>
+
+<p>PABLO only updates a primary checkout that is clean, has no local commits and isn't in the middle of a rebase or merge. <code>pablo sync:main</code> prints the reason for each project. See <a href="page:sync#primary-checkout-update">Primary checkout update</a>.</p>
+
+<h2>Dashboard</h2>
+
+<h3>A task shows empty columns</h3>
+
+<p>The dashboard and <code>pablo task:list</code> show what the poller last saved. A task the poller hasn't seen yet has nothing to show: run <code>pablo task:list --refresh</code>, or wait for the next poll.</p>
+
+<h3>The page doesn't load</h3>
+
+<p>Check the service (<code>systemctl --user status pablo-web.service</code>, or <code>launchctl print gui/$UID/com.pablo.web</code> on macOS) or start it by hand with <code>pablo web</code>. Remember it only listens on <code>127.0.0.1</code>.</p>
+
+<h2>Linear</h2>
+
+<p>The Linear provider was written against <a href="https://github.com/schpet/linear-cli">schpet/linear-cli</a> but hasn't been tested end to end yet. If a command fails, compare with <code>linear --help</code>; the calls live in <a href="repo:app/src/Provider/Tracker/Linear.php"><code>app/src/Provider/Tracker/Linear.php</code></a>.</p>

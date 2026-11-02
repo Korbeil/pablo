@@ -1,0 +1,99 @@
+<h1>Your first project</h1>
+
+<p>A project tells PABLO about one repository: where its main checkout lives, which branch is primary, and which issue tracker holds its tickets. Set your global defaults once, then add each project with a short wizard.</p>
+
+<h2>1. Set your global defaults</h2>
+
+<p>The installer created <code>~/.pablo/config.yaml</code>. Two settings must be filled in before any project can load: the AI model agents use, and the language of pull request descriptions.</p>
+
+<pre><code class="language-yaml"># ~/.pablo/config.yaml
+default_model: openrouter/deepseek/deepseek-v4-flash-0731   # any model id OpenCode accepts
+pr_description_locale: en
+
+sync:
+  strategy: rebase      # rebase | merge
+  auto_apply: false     # false: sync only reports what it would do
+  interval_minutes: 720 # every 12 hours
+state_polling:
+  interval_minutes: 10
+ci:
+  ignore_checks: ["approval"]
+</code></pre>
+
+<p>Every value here is a default that each project can override. The full list is in <a href="page:configuration#global-defaults">Configuration</a>, including <a href="page:configuration#choose-the-agent-model">a different model per project type</a>, so expensive models only run on work projects.</p>
+
+<aside class="callout tip"><p>Agents are analysis-only and don't need the most expensive model. A fast, cheap model at a low temperature does the job well.</p></aside>
+
+<h2>2. Add the project</h2>
+
+<p>Run the wizard from anywhere (it detects the repository if you run it inside one):</p>
+
+<pre><code class="language-bash">pablo project:new
+</code></pre>
+
+<p>It asks for the repository path, a project name, the project type (<code>work</code>, <code>open-source</code> or <code>personal</code>, used to filter tasks and pick models), the issue tracker and its details, whether you have a QA step, and an optional branch prefix. It shows the resulting YAML and writes it to <code>~/.pablo/projects/</code> once you confirm.</p>
+
+<h3>Or write it by hand</h3>
+
+<p>One YAML file per project in <code>~/.pablo/projects/</code>, any file name. The smallest useful configuration, for a GitHub project:</p>
+
+<pre><code class="language-yaml"># ~/.pablo/projects/wallet-kit.yaml
+name: wallet-kit
+type: open-source
+repo:
+  path: ~/dev/wallet-kit
+  primary_branch: main
+issue_tracker:
+  provider: github
+  identity: your-github-login
+  project_key: WK        # GitHub has no issue keys: this becomes the branch prefix (wk-45)
+</code></pre>
+
+<p>And a Jira project with a QA step and a CI gate to ignore:</p>
+
+<pre><code class="language-yaml"># ~/.pablo/projects/acme-pim.yaml
+name: acme-pim
+type: work
+repo:
+  path: ~/Sites/acme/pim
+  primary_branch: main
+issue_tracker:
+  provider: jira
+  identity: you@acme.example
+  project_key: PIM
+  site: acme.atlassian.net
+sync:
+  auto_apply: true
+testing:
+  failure_signal: "A FIX"      # the Jira status QA moves the ticket to when it fails
+ci:
+  ignore_checks: ["approval"]  # manual deploy gates that never finish
+</code></pre>
+
+<p>Every key is described in <a href="page:configuration#project-files">Configuration</a>. Both examples are in the repository: <a href="repo:examples/acme-pim.yaml"><code>examples/acme-pim.yaml</code></a> and <a href="repo:examples/config.yaml"><code>examples/config.yaml</code></a>.</p>
+
+<h2>3. Check it</h2>
+
+<pre><code class="language-bash">pablo project:list     # your projects and their settings
+pablo system:doctor    # now also checks the tracker's command-line tool
+</code></pre>
+
+<h2>4. Register the repository with your agent backend</h2>
+
+<p>With <b>Orca</b> (the default), register the repository once so PABLO's agents show up as Orca terminals:</p>
+
+<pre><code class="language-bash">orca repo add ~/dev/wallet-kit
+</code></pre>
+
+<p>With <b>OpenChamber</b> there's nothing to do. If you skip this step with Orca, agents still run, headless, in the background.</p>
+
+<h2>Remove a project</h2>
+
+<pre><code class="language-bash">pablo project:remove wallet-kit
+</code></pre>
+
+<p>It refuses while the project still has active tasks (close them first with <code>pablo task:close</code>). It deletes only the YAML file: worktrees and the rest of <code>~/.pablo/</code> stay. It also regenerates the agents, so a tracker no project uses any more stops being taught to them.</p>
+
+<h2>Next step</h2>
+
+<p><a href="page:first-task">Start your first task</a>.</p>

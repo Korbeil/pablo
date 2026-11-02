@@ -1,0 +1,11 @@
+parameters:
+    level: 8
+    # Analyse against the PHP version CI builds the site with (pages.yml),
+    # so a newer local PHP can't hide an API that 8.4 lacks.
+    phpVersion: 80400
+    paths:
+        - src
+        - build.php
+    tmpDir: vendor/.phpstan
+    bootstrapFiles:
+        - vendor/autoload.php

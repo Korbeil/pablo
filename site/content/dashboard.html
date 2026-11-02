@@ -1,0 +1,58 @@
+<h1>Dashboard</h1>
+
+<p>A local web page with the same picture as <code>pablo task:list</code>: what needs you, everything else, when the next poll happens and what the last sync did. It also has paste-ready Slack messages and token and cost analytics.</p>
+
+<figure class="shot"><img src="asset:assets/dashboard.png" alt="The PABLO dashboard listing tasks by state" width="996" height="792" loading="lazy"></figure>
+
+<h2>Open it</h2>
+
+<pre><code class="language-bash">pablo web                      # http://127.0.0.1:8321
+pablo web --port 9000 --open   # another port, and open the browser
+</code></pre>
+
+<p>It runs on PHP's built-in web server: no Docker, nothing else to install. To keep it running in the background, even after a reboot, install it as a service with <code>./bin/install.sh --with-web</code> (see <a href="page:installation#keep-the-dashboard-running">Installation</a>).</p>
+
+<h2>What you see</h2>
+
+<dl>
+  <dt>Project filters</dt>
+  <dd>All, Work, Open-source, Personal: the project types from your configuration.</dd>
+  <dt>Waiting for feedback</dt>
+  <dd>Tasks that need you right now: in <code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code> or <code>testing-failed</code>, with an agent waiting for you and none still working. Tasks waiting on reviewers (<code>waiting-review</code>), on QA (<code>needs-testing</code>) or on a merge (<code>approved</code>) never appear here: it isn't your move. When it's empty: “Nothing is waiting on you right now 🎉”.</dd>
+  <dt>Other tasks</dt>
+  <dd>Everything else, with the tracker status, the pull request and how long the task has been in its state.</dd>
+  <dt>Poller</dt>
+  <dd>A countdown to the next poll, and when each project was last polled.</dd>
+  <dt>Last sync</dt>
+  <dd>One card per project with what the last <a href="page:sync">sync</a> did to each branch: up to date, synced, conflict (with the files), and the command to open the conflict resolver's session if one was launched.</dd>
+</dl>
+
+<p>The task tables refresh every 30 seconds and the countdown every second, without reloading the page. Use the button in the header to switch between light, dark and your system's theme.</p>
+
+<h2 id="start-a-task-from-the-browser">Start a task from the browser</h2>
+
+<p><b>New task</b> opens a form with two modes:</p>
+
+<ul>
+  <li><b>Issue link</b>: paste an issue URL or a key such as <code>PIM-123</code>. No need to pick a project; PABLO finds it.</li>
+  <li><b>Prompt</b>: pick a project and describe the work. The branch name comes from an AI summary of the prompt, so the button can spin for a little while.</li>
+</ul>
+
+<p>It does exactly what <code>pablo task:start</code> does: worktree, task, task-analyst.</p>
+
+<h2>Slack messages</h2>
+
+<p><b>Slack messages</b> builds two ready-to-paste lists: your pull requests waiting for review, and the ones waiting for QA, each with a copy button. They're fetched from GitHub when you click, not when the page loads; <b>Refresh</b> fetches again.</p>
+
+<h2>Analytics</h2>
+
+<p>The <b>Analytics</b> page charts the numbers <code>pablo stats</code> prints: tasks opened and closed per day, tokens and cache hit rate per agent, runtime, cost, and how long tasks sit in each state. Filter by period (7, 30, 90 days, all time) and by project type. See <a href="page:analytics">Analytics</a>.</p>
+
+<h2>Guarantees</h2>
+
+<ul>
+  <li><b>Read-only.</b> Loading or refreshing the page never changes a task, a worktree, a pull request or a ticket. The only button that changes something is <b>Start task</b> in the New task form.</li>
+  <li><b>Local only.</b> It always listens on <code>127.0.0.1</code> and that can't be changed: the page has no login and shows branch names, issue titles and pull request links.</li>
+  <li><b>Fast and quiet.</b> The tables are built from what the background poller already saved, so a page load never calls GitHub or your tracker. Only the Slack messages and New task forms do, when you use them.</li>
+  <li><b>Works offline.</b> Fonts, icons and scripts are all bundled; nothing is loaded from the internet.</li>
+</ul>

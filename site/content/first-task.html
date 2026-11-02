@@ -1,0 +1,82 @@
+<h1>Your first task</h1>
+
+<p>Follow one task from an issue link to a merged pull request. You make the decisions and write the code with your usual agent; PABLO handles everything in between.</p>
+
+<h2>Step by step</h2>
+
+<ol class="walkthrough">
+  <li>
+    <h3>Start the task</h3>
+    <pre><code class="language-bash">pablo task:start https://acme.atlassian.net/browse/PIM-123
+</code></pre>
+    <p>PABLO matches the link to one of your projects, creates the branch <code>pim-123</code> and a worktree from the latest primary branch, and launches the <b>task-analyst</b> agent. It reads the ticket, its parent, linked pull requests and the relevant code, then writes a summary and an action plan. If the project has a startup script, it runs at the same time.</p>
+    <p>No issue? Start from a sentence instead: <code>pablo task:start --project wallet-kit "fix callback verification"</code>.</p>
+  </li>
+  <li>
+    <h3>Check on it</h3>
+    <pre><code class="language-bash">pablo task:list
+</code></pre>
+    <p>The task shows up as 🔨 <code>in-progress</code>. The agents column shows 🏃 while the analyst works and 💭 when it's done and waiting for you. Prefer a browser? <code>pablo web</code>.</p>
+  </li>
+  <li>
+    <h3>Read the plan, refine it</h3>
+    <p>Open the analyst's session in Orca or OpenChamber. Read the plan, ask questions, push back. This is where you invest: the better the plan, the shorter the review later.</p>
+  </li>
+  <li>
+    <h3>Write the code</h3>
+    <p>Work in the task's worktree, with your own build agent or by hand. PABLO never writes code for you.</p>
+  </li>
+  <li>
+    <h3>Open the pull request</h3>
+    <p>In an OpenCode session inside the worktree, run:</p>
+    <pre><code class="language-text">/pablo-commit-and-pr
+</code></pre>
+    <p>It commits, pushes, opens the pull request <b>as a draft</b> with a written description, and hands the task back to PABLO in the <code>draft</code> state.</p>
+  </li>
+  <li>
+    <h3>Let PABLO follow it</h3>
+    <p>From now on the background poller checks the pull request every few minutes:</p>
+    <ul>
+      <li>CI fails → 🔴 <code>ci-red</code>, and <b>ci-analyst</b> diagnoses the failure;</li>
+      <li>CI passes → the pull request leaves draft and the task waits for reviews;</li>
+      <li>a reviewer asks for changes → 🔁 <code>request-changes</code>, and <b>pr-feedback</b> turns the comments into a checklist;</li>
+      <li>approved → 🧪 <code>needs-testing</code>, waiting on QA;</li>
+      <li>QA flags a problem → 🚨 <code>testing-failed</code>, and <b>task-feedback</b> triages it.</li>
+    </ul>
+    <p>Each time you've fixed something, run <code>/pablo-commit-and-pr</code> again: the task goes back to <code>draft</code> and the loop continues.</p>
+  </li>
+  <li>
+    <h3>Merge</h3>
+    <p>Merge the pull request on GitHub as usual. PABLO notices, deletes the task and removes its worktree.</p>
+  </li>
+</ol>
+
+<h2>A real example</h2>
+
+<p>What a task's life looks like, alternating between you and PABLO:</p>
+
+<table>
+  <thead><tr><th>Who</th><th>What happens</th></tr></thead>
+  <tbody>
+    <tr><td>You</td><td><code>pablo task:start https://acme.atlassian.net/browse/PIM-123</code></td></tr>
+    <tr><td>PABLO</td><td>Creates the branch and worktree, launches task-analyst.</td></tr>
+    <tr><td>You</td><td>Read the plan in Orca, discuss it with the agent, write the code.</td></tr>
+    <tr><td>You</td><td><code>/pablo-commit-and-pr</code>: the pull request opens as a draft.</td></tr>
+    <tr><td>PABLO</td><td>CI turns red at 11 pm. Within 10 minutes, ci-analyst is running in the worktree.</td></tr>
+    <tr><td>You</td><td>Next morning the diagnosis is waiting. Fix, then <code>/pablo-commit-and-pr</code> again.</td></tr>
+    <tr><td>PABLO</td><td>CI is green: the pull request leaves draft (<code>ready-to-review</code>).</td></tr>
+    <tr><td>Reviewer</td><td>Approves.</td></tr>
+    <tr><td>PABLO</td><td>Moves the task to <code>needs-testing</code>.</td></tr>
+    <tr><td>QA</td><td>Tests and signs off.</td></tr>
+    <tr><td>You</td><td>Merge the pull request.</td></tr>
+    <tr><td>PABLO</td><td>Closes the task and removes the worktree.</td></tr>
+  </tbody>
+</table>
+
+<h2>Where to go next</h2>
+
+<ul>
+  <li><a href="page:tasks">Managing tasks</a>: everything you can do with a task (pause it, force a state, adopt an existing branch…).</li>
+  <li><a href="page:states">Task states</a>: exactly what moves a task from one state to the next.</li>
+  <li><a href="page:dashboard">Dashboard</a>: the same picture in your browser.</li>
+</ul>

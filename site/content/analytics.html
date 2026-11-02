@@ -1,0 +1,70 @@
+<h1>Analytics</h1>
+
+<p>PABLO keeps a local log of task lifetimes and agent runs, including tokens and cost, and summarises it with <code>pablo stats</code> or the dashboard's Analytics page. Nothing leaves your machine, and prompts are never stored.</p>
+
+<h2>Use it</h2>
+
+<pre><code class="language-bash">pablo stats                               # last 30 days, all projects
+pablo stats --days 7 --project wallet-kit
+pablo stats --type open-source            # work | open-source | personal
+pablo stats --agent ci-analyst            # filter the agents table
+pablo stats --format json                 # for scripts
+</code></pre>
+
+<p>The same numbers are charted on the dashboard's <a href="page:dashboard#analytics">Analytics page</a>.</p>
+
+<h2>What it tells you</h2>
+
+<dl>
+  <dt>Task lifetimes</dt>
+  <dd>Time from start to close (average, median, 90th percentile) and merge rate, per project.</dd>
+  <dt>Agent runs</dt>
+  <dd>Runs per agent, average runtime, tokens with their <b>cache hit rate</b>, accumulated cost, and how long the result waited for you before the task moved on.</dd>
+  <dt>State dwell times</dt>
+  <dd>Average time spent in each state, and how many times tasks entered it. A high count for <code>ci-red</code> or <code>request-changes</code> means rework loops.</dd>
+</dl>
+
+<p>The cache hit rate is <code>cache_read / (input + cache_read + cache_write)</code>, per run. If you're on a subscription plan, cost can legitimately stay at zero while token counts are real.</p>
+
+<h2>What is recorded</h2>
+
+<p>Five kinds of events, one JSON line each:</p>
+
+<table>
+  <thead><tr><th>Event</th><th>When</th><th>Main fields</th></tr></thead>
+  <tbody>
+    <tr><td><code>task_opened</code></td><td>a task is created</td><td>initial state, issue (or none), prompt length, worktree</td></tr>
+    <tr><td><code>state_entered</code></td><td>a task changes state</td><td>from, to</td></tr>
+    <tr><td><code>agent_run_started</code></td><td>an agent is launched</td><td>run id, agent, backend, worktree</td></tr>
+    <tr><td><code>agent_run_finished</code></td><td>the run is over</td><td>duration, tokens (input, output, reasoning, cache read, cache write, total), cost, models, session</td></tr>
+    <tr><td><code>task_closed</code></td><td>a task is closed (merge or <code>task:close</code>)</td><td>lifetime, final state, merged or not, pull request, attempts per agent</td></tr>
+  </tbody>
+</table>
+
+<p>Each finished run is counted exactly once, even if the component that normally reports it crashed: the poller catches anything left unreported, and duplicates are ignored both when writing and when reading.</p>
+
+<h2>Privacy</h2>
+
+<p>No prompt text is ever stored: only its length and a short, non-reversible fingerprint (16 hex characters of a SHA-256), used to match a run to the right OpenCode session. Everything lives in <code>~/.pablo/analytics/</code>.</p>
+
+<h2>Where tokens and cost come from</h2>
+
+<p>PABLO reads usage from OpenCode once a run is over:</p>
+
+<ul>
+  <li><b>Orca and headless runs</b>: from OpenCode's local storage. When the run's fingerprint matches a session's first message, the match is <code>exact</code>; otherwise every session created in that worktree since the launch is counted (<code>window</code>).</li>
+  <li><b>OpenChamber runs</b>: from OpenChamber's own session list for the worktree (<code>window</code>), because those sessions live in OpenChamber's server.</li>
+  <li>Nothing found: usage is empty (<code>none</code>), and the timing is still recorded.</li>
+</ul>
+
+<h2>Files</h2>
+
+<pre><code class="language-text">~/.pablo/analytics/
+├── &lt;project&gt;/
+│   └── YYYY-MM.jsonl      # one event per line, one file per month
+└── analytics-errors.log   # write failures; normally empty
+</code></pre>
+
+<p>Recording is best-effort: a failure goes to <code>analytics-errors.log</code> and never breaks a task operation. Set <code>PABLO_ANALYTICS_DIR</code> to store the log elsewhere.</p>
+
+<aside class="callout tip"><p>Closed tasks recorded by an older version may say “not merged” for pull requests that were merged. <code>pablo system:repair-merge-flags</code> fixes them (add <code>--dry-run</code> to preview).</p></aside>

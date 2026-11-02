@@ -1,0 +1,83 @@
+<h1>Agents</h1>
+
+<p>PABLO ships five OpenCode agents. Four read and analyse, and never touch your code; the fifth resolves rebase conflicts. Each one is launched by a specific state, with the right link and the right worktree, so you read results instead of writing prompts.</p>
+
+<h2>The agents</h2>
+
+<table>
+  <thead><tr><th>Agent</th><th>Launched on</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><b>task-analyst</b></td><td><code>in-progress</code>, once per task</td><td>Reads the issue (GitHub, Jira or Linear), its parents, linked pull requests and the relevant code, and writes a summary and a grounded action plan. For a prompt task, it applies the same method to your prompt.</td></tr>
+    <tr><td><b>ci-analyst</b></td><td><code>ci-red</code></td><td>Fetches the failing checks and their logs, ties each failure to the responsible code, and proposes a fix plan. It never changes the pull request.</td></tr>
+    <tr><td><b>pr-feedback</b></td><td><code>request-changes</code></td><td>Reads unresolved review threads, review bodies and comments, and turns them into a fix plan grouped by topic. When it finishes, the pull request goes back to draft.</td></tr>
+    <tr><td><b>task-feedback</b></td><td><code>testing-failed</code></td><td>Compares QA's feedback with what the pull request really ships, classifies each point, and drafts a reply in the language QA used. When it finishes, the pull request goes back to draft.</td></tr>
+    <tr><td><b>rebase-conflict-resolver</b></td><td>a sync rebase hits a conflict</td><td>Replays the rebase, resolves every conflict and pushes with <code>--force-with-lease</code>. See below.</td></tr>
+  </tbody>
+</table>
+
+<p>Open an agent's session in Orca or OpenChamber to read its result and keep the conversation going: ask questions, push back, refine the plan.</p>
+
+<h2 id="the-rebase-conflict-resolver">The rebase-conflict resolver</h2>
+
+<p>The single deliberate exception to the read-only rule. When an applied <a href="page:sync">sync</a> hits conflicts, git aborts cleanly and PABLO launches this agent headless. It may edit files and run git, because that's its job, but it is denied anything that acts as you in front of other people: no <code>gh pr merge</code>, <code>review</code>, <code>comment</code>, <code>edit</code>, <code>ready</code> or <code>close</code>, no issue commands, no Jira commands. If a conflict needs a human, it stops and pushes nothing. It has no step limit, so it never stops halfway through a rebase.</p>
+
+<p>Everything it does lands in your pull request, which you review before merging. The dashboard's “Last sync” card shows the command to open its session.</p>
+
+<h2>Read-only, enforced</h2>
+
+<p>The analysis agents can't edit files and can only run read-only commands, by <em>permission</em> rules in their OpenCode frontmatter, not just by instructions in their prompt. Even if a ticket says “just fix it quickly”, they can't.</p>
+
+<pre><code class="language-yaml">permissions:
+  - { action: edit,  resource: "*",          effect: deny }   # edit, write, patch
+  - { action: shell, resource: "*",          effect: deny }   # nothing runs by default…
+  - { action: shell, resource: "git *",      effect: allow }  # …except git
+  - { action: shell, resource: "git push *", effect: deny }   # …but never a push
+</code></pre>
+
+<p>Every agent also follows shared house rules: use tools sparingly (batched calls, bounded logs and diffs), write in English, never post or edit anything on GitHub without your explicit approval in the session (they draft the text, you post it), and never commit or push.</p>
+
+<h2>Context fetched up front</h2>
+
+<p>Every step an agent takes re-reads its whole context, so steps are what cost tokens. Before launching an analyst, PABLO fetches the obvious context with read-only commands and appends it to the prompt (up to about 24,000 characters):</p>
+
+<ul>
+  <li><b>task-analyst, task-feedback</b>: the issue's title, details, description and latest 15 comments;</li>
+  <li><b>ci-analyst</b>: the failing checks (minus ignored ones) and, for up to 3 GitHub Actions jobs, their error lines and the end of their logs;</li>
+  <li><b>pr-feedback</b>: unresolved threads, review bodies and comments.</li>
+</ul>
+
+<p>It's best-effort: if fetching fails, the agent fetches by itself. It's skipped with Orca, where the prompt travels on a command line.</p>
+
+<h2>Step limits</h2>
+
+<p>Analysts have a step budget (30 for task-analyst and ci-analyst, 25 for pr-feedback and task-feedback). On the last step OpenCode removes their tools and forces a written answer. Sending them a new message resets the budget.</p>
+
+<h2 id="which-model">Which model</h2>
+
+<p>The model is picked at launch time, from your configuration: the project's <code>default_model</code>, else the one for the project's type in <code>default_model_by_type</code>, else the global <code>default_model</code>. See <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>.</p>
+
+<h2>The OpenCode command</h2>
+
+<p><b><code>/pablo-commit-and-pr</code></b> commits, pushes, opens a draft pull request and moves the task to <code>draft</code>. It's the only part of PABLO that runs as an OpenCode command, because writing a good commit message and pull request description is where an agent beats plain code. It never changes your git identity. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>.</p>
+
+<aside class="callout note"><p>It's called <code>/pablo-commit-and-pr</code> rather than <code>/commit-and-pr</code> so it can live next to a personal <code>/commit-and-pr</code> command you may already have.</p></aside>
+
+<h2>The skill</h2>
+
+<p>The <b><code>pablo-task</code></b> skill teaches your other OpenCode agents one thing: how to create a PABLO task (<code>pablo task:start</code> with an issue link, or <code>--project</code> and a prompt). The installer links it into <code>~/.config/opencode/skill/</code>.</p>
+
+<h2 id="customise-the-agents">Customise the agents</h2>
+
+<p>The agent files are generated, not written by hand. Edit the sources in the repository, then regenerate:</p>
+
+<pre><code class="language-bash">pablo system:generate-agents
+</code></pre>
+
+<ul>
+  <li><code>opencode/agents/*.md.template</code>: one per agent, with its own description and prompt;</li>
+  <li><code>opencode/agents/shared/analysts.frontmatter.md</code>: the read-only permissions shared by the four analysts;</li>
+  <li><code>opencode/agents/shared/resolver.frontmatter.md</code>: the resolver's permissions;</li>
+  <li><code>opencode/agents/shared/housekeeping.body.md</code>: the house rules appended to every agent.</li>
+</ul>
+
+<p>Templates pull these in with <code>{{SHARED_FRONTMATTER:&lt;profile&gt;}}</code> and <code>{{SHARED_BODY:&lt;profile&gt;}}</code>, and the task agents get tracker-specific instructions through <code>{{ISSUE_TRACKER_SECTION}}</code> and <code>{{ISSUE_TRACKER_NAMES}}</code>, filled in for the trackers your projects use. Generation runs on install, and again when <code>pablo project:new</code> or <code>pablo project:remove</code> changes the set of trackers. Never edit the generated <code>.md</code> files: they're overwritten.</p>

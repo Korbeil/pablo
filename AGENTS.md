@@ -9,8 +9,12 @@ Console application, Composer package `pablo`) plus OpenCode agents/commands,
 and a background scheduler (systemd on Linux, launchd on macOS). Not a
 standalone product.
 
-**`README.md` + `docs/*.md` are the source of truth for behavior** — read
-the relevant doc before non-trivial changes.
+**The documentation website is the source of truth for behavior** — its
+pages live in `site/content/*.html` (published at
+https://korbeil.github.io/pablo/docs/); read the relevant page before
+non-trivial changes, and update it in the same change when behaviour
+moves. There is no other documentation in the repo: `README.md` only
+links to the website, and there is no `docs/` folder.
 
 **Philosophy:** PABLO agents are read-only and analysis-first. PABLO never
 writes/modifies application code, never resolves merge conflicts
@@ -21,7 +25,8 @@ Linear stay read-only). It does
 perform git/PR-metadata ops (branches, worktrees, rebase,
 force-with-lease push, draft PR toggling, worktree deletion, checkout +
 `reset --hard` of a *clean, not-ahead* primary checkout onto its remote
-primary branch), but only per README's explicit rules.
+primary branch), but only per the explicit rules in `site/content/how-it-works.html`
+("What PABLO may change").
 
 **Git discipline:** agents never `git commit` or `git push` on their own
 initiative — not even when executing a plan that was decided, and not
@@ -46,6 +51,8 @@ castor qa:phpstan --generate-baseline       # regenerate phpstan-baseline.neon
 castor qa:cs-fixer                          # php-cs-fixer (@Symfony + @Symfony:risky)
 castor qa:cs:check                          # same as cs-fixer but --dry-run (CI)
 castor qa:twig-cs-fixer                     # twig-cs-fixer (app/templates)
+castor site:build                           # build the website into _site/ (fails on a broken page: link)
+castor site:serve                           # build + preview it on http://127.0.0.1:8000
 (cd app && composer test)                   # same as castor qa:test
 (cd app && composer exec phpunit tests/StateMachineTest.php)  # one file
 pablo --help                                # engine subcommands
@@ -103,11 +110,11 @@ selected via `agent_backend`/`PABLO_AGENT_BACKEND`) · `src/Listing/` (terminal 
 `src/Analytics/` (append-only JSONL analytics under `~/.pablo/analytics/`:
 task lifetimes, state transitions, agent runs with token/cost usage
 harvested from the local OpenCode CLI; best-effort, never throws into task
-flows, never persists prompt content — see `docs/analytics.md`) ·
+flows, never persists prompt content — see `site/content/analytics.html`) ·
 `src/Doctor/` (preflight checks) · `src/Dispatch/` (cron entry point) ·
 `src/Support/` (`PabloError`, `Proc`, `Naming`, `RepoSlug`).
 
-**Dashboard** (`pablo web`, see `docs/dashboard.md`): `src/Dashboard/`
+**Dashboard** (`pablo web`, see `site/content/dashboard.html`): `src/Dashboard/`
 (`Dashboard` — the cache-only data service, `TaskView`, `PollSchedule`,
 `RebaseLogView`) · `src/Controller/` (the single `GET /`) ·
 `src/Twig/Components/` (UX Twig/Live components) · `templates/` ·
@@ -139,7 +146,7 @@ project's own interval; one project's failure never blocks others).
 `request-changes` → maybe `testing-failed`. `/pablo-commit-and-pr` is the
 only way back into `draft` (see `COMMIT_ALLOWED_FROM`). Full transition
 rules (review precedence, failure-signal baselines) live in
-`docs/state-machine.md` — several encode deliberately non-obvious edge
+`site/content/states.html` — several encode deliberately non-obvious edge
 cases, read before touching transition logic.
 
 **Task storage**: always under `~/.pablo/`, never in a project
@@ -203,3 +210,17 @@ override per-key via `config.DEFAULT_ELIGIBLE`: `sync.strategy`,
 The command is `/pablo-commit-and-pr`, not `/commit-and-pr` — the spec's
 name — because the user's own pre-existing `/commit-and-pr` command must
 keep working untouched. Don't rename it to match the spec.
+
+## Website & documentation
+
+`site/` is the GitHub Pages website (deployed by `.github/workflows/pages.yml`,
+which also builds it on pull requests). `site/index.html` + `style.css` +
+`assets/` are the hand-written home page; each documentation page is an HTML
+fragment `site/content/<slug>.html` (an `<h1>`, then a first `<p>` used as
+its summary) listed in `site/content/nav.yaml`. `site/build/` (its own
+Composer project, PHP 8.4 `Dom\HTMLDocument`) wraps pages in the layout,
+adds heading anchors + the "On this page" column, highlights code, resolves
+`page:<slug>#<id>` / `repo:<path>` / `asset:<path>` links — a broken one
+fails the build — and writes `search-index.json` for the local search
+(`site/search.js`). Example configs used by `bin/install.sh` live in
+`examples/`.

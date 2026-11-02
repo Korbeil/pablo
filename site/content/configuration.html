@@ -1,0 +1,171 @@
+<h1>Configuration</h1>
+
+<p>PABLO reads two kinds of YAML files: one global <code>~/.pablo/config.yaml</code> with your defaults, and one file per project in <code>~/.pablo/projects/</code>. A project can override any default, key by key.</p>
+
+<h2 id="global-defaults">Global defaults</h2>
+
+<p><code>~/.pablo/config.yaml</code> is created by the installer from <a href="repo:examples/config.yaml"><code>examples/config.yaml</code></a>. It holds the keys every project inherits, plus a few that only exist globally.</p>
+
+<pre><code class="language-yaml">default_model: openrouter/deepseek/deepseek-v4-flash-0731
+pr_description_locale: en
+sync:
+  strategy: rebase
+  auto_apply: false
+  interval_minutes: 720
+state_polling:
+  interval_minutes: 10
+review:
+  bot_whitelist: []
+ci:
+  ignore_checks: ["approval"]
+# agent_backend: openchamber        # global only, default orca
+# default_model_by_type:            # global only
+#   work: anthropic/claude-opus-4
+</code></pre>
+
+<h3>Keys a project inherits</h3>
+
+<p>When a project omits one of these keys, the global value applies; when the global file omits it too, the built-in default does.</p>
+
+<table>
+  <thead><tr><th>Key</th><th>Built-in default</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>default_model</code></td><td><b>required</b> somewhere</td><td>Model for agents (see <a href="#choose-the-agent-model">below</a>)</td></tr>
+    <tr><td><code>pr_description_locale</code></td><td><b>required</b> somewhere</td><td>Language of the pull request descriptions <code>/pablo-commit-and-pr</code> writes</td></tr>
+    <tr><td><code>branch_prefix</code></td><td>none</td><td>Prefix added to every branch name, verbatim (write the slash yourself, e.g. <code>pablo/</code>)</td></tr>
+    <tr><td><code>sync.strategy</code></td><td><code>rebase</code></td><td><code>rebase</code> or <code>merge</code></td></tr>
+    <tr><td><code>sync.auto_apply</code></td><td><code>false</code></td><td><code>false</code>: sync only reports</td></tr>
+    <tr><td><code>sync.interval_minutes</code></td><td><code>30</code></td><td>How often branches are synced</td></tr>
+    <tr><td><code>state_polling.interval_minutes</code></td><td><code>10</code></td><td>How often pull requests are checked</td></tr>
+    <tr><td><code>main_update.enabled</code></td><td><code>true</code></td><td>Keep the main checkout up to date</td></tr>
+    <tr><td><code>main_update.interval_minutes</code></td><td><code>60</code></td><td>How often</td></tr>
+    <tr><td><code>testing.enabled</code></td><td><code>true</code></td><td>Whether the project has a QA step</td></tr>
+    <tr><td><code>review.bot_whitelist</code></td><td><code>[]</code></td><td>Bot accounts whose reviews count</td></tr>
+    <tr><td><code>ci.ignore_checks</code></td><td><code>[]</code></td><td>Checks to leave out of CI</td></tr>
+  </tbody>
+</table>
+
+<p>If <code>default_model</code> or <code>pr_description_locale</code> isn't set anywhere (and, for the model, no <code>default_model_by_type</code> entry matches), loading the project fails with an error.</p>
+
+<h3>Global-only keys</h3>
+
+<dl>
+  <dt><code>agent_backend</code></dt>
+  <dd><code>orca</code> (default) or <code>openchamber</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command too. See <a href="page:how-it-works#agent-backends">Agent backends</a>.</dd>
+  <dt><code>default_model_by_type</code></dt>
+  <dd>A model per project type; see below.</dd>
+</dl>
+
+<h2 id="choose-the-agent-model">Choose the agent model</h2>
+
+<p>The model is resolved when an agent is launched, and passed to the backend as <code>--model</code>. The first one found wins:</p>
+
+<ol>
+  <li>the project's own <code>default_model</code>;</li>
+  <li>the entry for the project's type in <code>default_model_by_type</code>;</li>
+  <li>the global <code>default_model</code>;</li>
+  <li>as a last resort, the model written in the generated agent file.</li>
+</ol>
+
+<pre><code class="language-yaml"># ~/.pablo/config.yaml — expensive models only on work projects
+default_model_by_type:
+  work: anthropic/claude-opus-4
+  open-source: litellm/glm-5.3-flash
+  personal: openrouter/deepseek/deepseek-v4-flash-0731
+</code></pre>
+
+<p>Keys must be project types (<code>work</code>, <code>open-source</code>, <code>personal</code>); an unknown key is an error.</p>
+
+<h2 id="project-files">Project files</h2>
+
+<p>One YAML file per project in <code>~/.pablo/projects/</code>, any file name. Create one with <code>pablo project:new</code> or by hand. Every key:</p>
+
+<pre><code class="language-yaml">name: wallet-kit              # required, unique
+type: open-source             # required: work | open-source | personal
+
+repo:
+  path: ~/dev/wallet-kit      # required: the main checkout
+  primary_branch: main        # required
+  primary_remote: upstream    # optional, default "origin": the remote sync and new
+                              # branches use, e.g. when origin is your fork
+
+worktrees_root: ~/dev/wallet-kit-worktrees
+                              # optional, default ~/.pablo/worktrees/&lt;repo folder name&gt;/
+
+issue_tracker:
+  provider: github            # required: github | jira | linear
+  identity: your-login        # required: whose issues are "assigned to me"
+                              # (informational for Jira, which uses your acli login)
+  project_key: WK             # required. Jira/Linear: the issue key prefix.
+                              # GitHub: the branch prefix (GitHub has no keys)
+  site: acme.atlassian.net    # Jira only, optional: the Atlassian site for links
+  repo: acme/upstream         # GitHub only, optional: where issues and pull requests
+                              # live, when you work on a fork
+
+confluence:
+  space: PIM                  # Jira only, optional: where agents look for docs
+
+sync:
+  strategy: rebase            # rebase | merge
+  auto_apply: false
+  interval_minutes: 30
+state_polling:
+  interval_minutes: 10
+main_update:
+  enabled: true
+  interval_minutes: 60
+
+testing:
+  enabled: true               # false: no QA step, approval is final
+  failure_signal: qa-failed   # GitHub: a pull request label. Jira/Linear: an issue status.
+                              # Without it, testing-failed never triggers by itself.
+review:
+  bot_whitelist: ["copilot-pull-request-reviewer[bot]"]
+ci:
+  ignore_checks: ["approval"]
+
+startup_script: ~/scripts/pablo-setup.sh
+                              # optional: bash script run once per task, next to
+                              # task-analyst, in its own terminal
+default_model: openrouter/deepseek/deepseek-v4-flash-0731
+pr_description_locale: en
+branch_prefix: pablo/
+</code></pre>
+
+<h3 id="ci-ignore-checks"><code>ci.ignore_checks</code></h3>
+
+<p>A list of words. Any check whose name, workflow or context <em>contains</em> one of them is left out when PABLO decides whether CI is red or green. Use it for checks that never finish on their own, such as CircleCI manual approval gates, which stay pending (or “action required”) forever and would otherwise keep the task in <code>draft</code>. It's deliberately simple: a substring match.</p>
+
+<h3>Startup script</h3>
+
+<p><code>startup_script</code> runs once per task when it starts, in parallel with task-analyst, in its own terminal that stays open as a shell afterwards, so you can see its output. Use it to install dependencies or prepare the worktree. It's launched in the background and never blocks <code>pablo task:start</code>. It may run again if PABLO relaunches a launch that never started, so keep it safe to re-run.</p>
+
+<h2 id="branch-names">Branch names</h2>
+
+<p>Branches PABLO creates follow a fixed pattern, lowercased:</p>
+
+<pre><code class="language-text">[branch_prefix][project-key]-[issue-id]
+</code></pre>
+
+<ul>
+  <li><b>Jira and Linear</b>: the issue's key, so <code>PIM-123</code> becomes <code>pim-123</code>.</li>
+  <li><b>GitHub</b>: the project's <code>issue_tracker.project_key</code> and the issue number: <code>project_key: WK</code> and issue #45 give <code>wk-45</code>.</li>
+  <li><b>Prompt tasks</b>: the project key and a short slug of the prompt, such as <code>wk-fix-callback-verification</code>. If the prompt mentions a Jira or Linear key from one of your projects, that issue's name is used instead.</li>
+  <li>No title is added: the name is only those parts.</li>
+  <li><b>Duplicates</b>: if the name is already taken, PABLO tries <code>-2</code>, <code>-3</code>, … until one is free. It never reuses or overwrites a branch.</li>
+</ul>
+
+<p>With <code>branch_prefix: pablo/</code>, the issue above gives <code>pablo/pim-123</code>.</p>
+
+<h2>Environment variables</h2>
+
+<table>
+  <thead><tr><th>Variable</th><th>Default</th><th>Effect</th></tr></thead>
+  <tbody>
+    <tr><td><code>PABLO_AGENT_BACKEND</code></td><td>—</td><td>Overrides <code>agent_backend</code></td></tr>
+    <tr><td><code>PABLO_STATE_DIR</code>, <code>PABLO_PROJECTS_DIR</code>, <code>PABLO_STAMPS_DIR</code>, <code>PABLO_LOGS_DIR</code>, <code>PABLO_AGENTS_DIR</code>, <code>PABLO_ANALYTICS_DIR</code></td><td>under <code>~/.pablo/</code></td><td>Move a part of PABLO's data elsewhere</td></tr>
+    <tr><td><code>PABLO_CONFIG</code></td><td><code>~/.pablo/config.yaml</code></td><td>Where the installer writes the global config</td></tr>
+    <tr><td><code>PABLO_ENV</code></td><td><code>dev</code></td><td>Symfony environment. Leave it: in <code>prod</code> the cache is never refreshed, so a <code>git pull</code> would keep running old code</td></tr>
+    <tr><td><code>PABLO_SECRET</code></td><td>a fixed local string</td><td>Signs dashboard requests; irrelevant for a local-only dashboard</td></tr>
+  </tbody>
+</table>

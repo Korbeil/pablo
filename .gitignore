@@ -27,3 +27,7 @@ app/config/reference.php
 
 # A `gh` invocation that inherits no HOME writes its state next to the cwd.
 app/.local/
+
+# Website build (site/build): its Composer deps and the generated site.
+/site/build/vendor/
+/_site/

@@ -1,0 +1,117 @@
+<h1>Development</h1>
+
+<p>How the PABLO repository is organised, how the engine is built, and how to run the quality checks before sending a change. The engine is a Symfony application in <code>app/</code>; quality tools run through Castor.</p>
+
+<h2>Repository layout</h2>
+
+<pre><code class="language-text">pablo/
+├── app/                  # the Symfony application (Composer package "pablo")
+│   ├── bin/pablo         # the pablo command (PABLO commands only)
+│   ├── bin/console       # framework maintenance: cache:clear, lint:twig, debug:router…
+│   ├── public/index.php  # the dashboard's front controller (pablo web)
+│   ├── config/           # bundles, services, routes, packages/
+│   ├── src/              # the engine
+│   ├── templates/        # Twig: dashboard pages and components
+│   ├── assets/           # dashboard JS, CSS, fonts, icons, vendored libraries
+│   └── tests/            # PHPUnit, mirroring src/
+├── bin/install.sh        # installer (and uninstall.sh)
+├── examples/             # example global and project configuration
+├── opencode/             # agent templates, the OpenCode command, the skill
+├── systemd/, launchd/    # scheduler and dashboard service definitions
+├── site/                 # this website
+└── castor.php            # quality tasks
+</code></pre>
+
+<p>Nothing is ever written outside the repository except the links the installer creates and the data in <code>~/.pablo/</code>.</p>
+
+<h2>Engine modules</h2>
+
+<p>Namespaces mirror folders (<code>Pablo\</code> is <code>app/src/</code>).</p>
+
+<table>
+  <thead><tr><th>Folder</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td><code>App/</code></td><td>the kernel and the console application</td></tr>
+    <tr><td><code>Command/</code></td><td>one Symfony Console command per subcommand, by topic: <code>Task/</code>, <code>Sync/</code>, <code>Report/</code>, <code>System/</code>, <code>Internal/</code></td></tr>
+    <tr><td><code>Config/</code></td><td>loading project YAML and merging defaults key by key</td></tr>
+    <tr><td><code>Domain/</code></td><td><code>Task</code> and <code>Issue</code> records, the <code>State</code> and <code>Agent</code> enums, <code>Time</code>, value objects such as <code>DisplayCache</code>, <code>PrBadge</code>, <code>AgentActivity</code></td></tr>
+    <tr><td><code>StateMachine/</code></td><td>the data-driven state machine and its single entry handler</td></tr>
+    <tr><td><code>Store/</code></td><td>the state store and per-task locks</td></tr>
+    <tr><td><code>Poller/</code></td><td>state polling and merge auto-close</td></tr>
+    <tr><td><code>Provider/</code></td><td>external tools: <code>Gh/</code> (pull requests, CI, reviews), <code>Git/</code> (worktrees, sync), <code>Confluence/</code>, <code>Tracker/</code> (GitHub, Jira, Linear)</td></tr>
+    <tr><td><code>Agents/</code></td><td>agent launchers (Orca, OpenChamber, headless) behind one interface, chosen by <code>agent_backend</code></td></tr>
+    <tr><td><code>Analytics/</code></td><td>the JSONL event log, reader and aggregator</td></tr>
+    <tr><td><code>Listing/</code></td><td>the terminal tables</td></tr>
+    <tr><td><code>Dashboard/</code>, <code>Controller/</code>, <code>Twig/Components/</code></td><td>the dashboard</td></tr>
+    <tr><td><code>Doctor/</code>, <code>Dispatch/</code>, <code>Backup/</code>, <code>Support/</code></td><td>preflight checks, the background job, backups, helpers</td></tr>
+  </tbody>
+</table>
+
+<h2>Architecture notes</h2>
+
+<ul>
+  <li><b>One kernel, three entry points.</b> <code>bin/pablo</code>, <code>bin/console</code> and <code>public/index.php</code> share one FrameworkBundle kernel, whose container is cached in <code>app/var/cache/&lt;env&gt;</code>. <code>PABLO_ENV</code> defaults to <code>dev</code> so the cache is revalidated after a <code>git pull</code>.</li>
+  <li><b>Never resolve a <code>PABLO_*</code> variable (or <code>HOME</code>) when the container is compiled</b>: the value would be frozen into the cache. <code>Store</code> and <code>Agents</code> resolve their paths in their constructors for this reason.</li>
+  <li><b><code>pablo --help</code> lists PABLO commands only</b>: the console application collects the <code>pablo.command</code> tag, not <code>console.command</code>.</li>
+  <li><b>Add a state</b>: a case in <code>Domain/State.php</code> and a row in <code>StateMachine::states()</code>. Always change state through <code>StateMachine::enterState()</code>, never by setting the field.</li>
+  <li><b>Add an issue tracker</b>: implement <code>ProviderInterface</code> and register it in <code>ProviderRegistry</code>.</li>
+  <li><b>Terminal and dashboard can't drift</b>: both render the same value objects (<code>PrBadge</code>, <code>AgentActivity</code>) and use the same rules (<code>Listing::isWaitingForFeedback()</code>, <code>Listing::stateRank()</code>).</li>
+  <li><b>The dashboard never calls external tools while rendering</b>: it reads the poller's <code>DisplayCache</code>. Analytics come from <code>AnalyticsAggregator</code>, shared with <code>pablo stats</code>.</li>
+  <li><b>Portability</b>: the engine runs on Linux and macOS. <code>tests/PortabilityTest.php</code> fails if <code>src/</code> mentions <code>systemctl</code>, <code>journalctl</code>, <code>/etc/</code>, <code>/proc/</code> or <code>/opt/</code>.</li>
+</ul>
+
+<h2>Quality checks</h2>
+
+<p>Run from the repository root, with the global <a href="https://castor.jolicode.com/">Castor</a> binary. The PHP tools are downloaded on first use.</p>
+
+<pre><code class="language-bash">castor qa:test                          # PHPUnit
+castor qa:phpstan                       # static analysis, level 8
+castor qa:cs-fixer                      # fix coding style (@Symfony + @Symfony:risky)
+castor qa:cs:check                      # check only (what CI runs)
+castor qa:twig-cs-fixer                 # Twig templates
+(cd app &amp;&amp; composer exec phpunit tests/StateMachineTest.php)   # one test file
+php app/bin/console lint:twig app/templates
+</code></pre>
+
+<p>PHPStan runs at level 8 over <code>src</code>, <code>tests</code>, <code>config</code> and <code>public</code>. Raise the level by fixing what it reports, never by ignoring errors or adding them to the baseline. php-cs-fixer runs with <code>--path-mode intersection</code>: a new top-level folder has to be added to both <code>castor.php</code> and <code>app/.php-cs-fixer.php</code>.</p>
+
+<p>CI (<code>.github/workflows/ci.yml</code>) runs the tests, PHPStan and the coding-style check on every push to <code>main</code> and every pull request.</p>
+
+<h2>Tests</h2>
+
+<ul>
+  <li>Tests mirror the source tree: <code>app/src/Store/Store.php</code> is tested by <code>app/tests/Store/StoreTest.php</code>.</li>
+  <li>The engine uses dependency injection everywhere. Collaborators that touch the outside world sit behind interfaces (<code>GhPrInterface</code>, <code>GitRepoInterface</code>, <code>ProcessRunnerInterface</code>, <code>ProviderRegistryInterface</code>, <code>AnalyticsInterface</code>, <code>AgentLauncherInterface</code>), with fakes beside the tests: <code>FakeAgents</code>, <code>FakeGit</code>, <code>FakeGhPr</code>, <code>FakeProcessRunner</code>, <code>StubProviders</code>, <code>FakeAnalytics</code>.</li>
+  <li><code>FakeAgents</code> is injected wherever a real agent launcher could be reached, so a test can never start a real <code>opencode run</code> (a real, paid model call).</li>
+  <li><code>tests/Command/CommandTestBed.php</code> wires the fake graph for command tests; <code>tests/EngineGraph.php</code> does the same for the poller, listing and dispatcher.</li>
+  <li>A test that boots the kernel must use the <code>RestoresErrorHandlers</code> trait around the boot, or PHPUnit flags it as risky.</li>
+</ul>
+
+<h2>Dashboard assets</h2>
+
+<p>AssetMapper and an importmap: no Node, no build step, nothing fetched at runtime.</p>
+
+<pre><code class="language-bash">php app/bin/console importmap:install            # after changing app/importmap.php
+php app/bin/console ux:icons:import lucide:name  # add an icon, then commit it
+</code></pre>
+
+<ul>
+  <li><code>app/assets/vendor/</code> must stay committed: the installer never runs <code>importmap:install</code>, so a missing file means a dashboard without JavaScript. (The root <code>.gitignore</code> only ignores <code>/app/vendor/</code> for that reason.)</li>
+  <li>Icons are Lucide icons committed in <code>app/assets/icons/</code>, with online downloads disabled.</li>
+  <li>The fonts (Josefin Sans, JetBrains Mono, SIL Open Font License) are committed in <code>app/assets/fonts/</code>.</li>
+  <li><code>app/assets/styles/app.css</code> themes Bulma after this website. Colour classes returned by <code>TaskView</code> and <code>RebaseLogView</code> (<code>is-danger</code>, <code>is-success</code>…) are mapped to soft tones in both themes; never use a bare <code>tag is-light</code> or <code>is-grey</code> (a test guards it).</li>
+</ul>
+
+<h2>This website</h2>
+
+<p>The site lives in <code>site/</code>: the home page and assets as plain files, and one HTML fragment per documentation page in <code>site/content/</code>, listed in <code>site/content/nav.yaml</code>. A small PHP builder in <code>site/build/</code> wraps each page in the layout, adds heading anchors and the “On this page” column, highlights code, checks every internal link, and writes the search index.</p>
+
+<pre><code class="language-bash">castor site:build   # build into _site/
+castor site:serve   # build and preview on http://127.0.0.1:8000
+</code></pre>
+
+<p>Inside a page, link to another page with <code>href="page:states#reviews"</code> (a typo fails the build), to a repository file with <code>href="repo:app/src/Poller/Poller.php"</code>, and to a site asset with <code>asset:assets/dashboard.png</code>. Callouts are <code>&lt;aside class="callout note|tip|warning"&gt;</code>. Pushing to <code>main</code> deploys the site with GitHub Pages.</p>
+
+<h2>Git discipline</h2>
+
+<p>PABLO's own agents never commit or push on their own initiative; the only sanctioned paths are an explicit request from you, or <code>/pablo-commit-and-pr</code>. Contributions follow the same spirit: changes are delivered as a working tree or a pull request, and you decide when they land.</p>

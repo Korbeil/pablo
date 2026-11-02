@@ -1,0 +1,135 @@
+<h1>Managing tasks</h1>
+
+<p>A task is one branch, one git worktree and one state, tracked by PABLO until the pull request is merged. This page covers everything you can do with one, from starting it to closing it.</p>
+
+<h2 id="start-a-task">Start a task</h2>
+
+<h3 id="from-an-issue">From an issue</h3>
+
+<pre><code class="language-bash">pablo task:start https://github.com/acme/wallet-kit/issues/45
+pablo task:start https://acme.atlassian.net/browse/PIM-123
+</code></pre>
+
+<p>PABLO matches the link against every project's issue tracker (and, for GitHub issues, against each repository's remote). If nothing matches, it stops with an error rather than guessing. You can also start a task from the <a href="page:dashboard#start-a-task-from-the-browser">dashboard</a>, which accepts an issue key such as <code>PIM-123</code> too.</p>
+
+<p>What happens next:</p>
+
+<ul>
+  <li>a branch named after the issue, such as <code>pim-123</code> (see <a href="page:configuration#branch-names">branch names</a>), and a worktree created from the <em>remote</em> primary branch;</li>
+  <li>the <b>task-analyst</b> agent, launched once for this task;</li>
+  <li>the project's <a href="page:configuration#project-files">startup script</a>, if it has one, in parallel;</li>
+  <li>the task enters 🔨 <code>in-progress</code>.</li>
+</ul>
+
+<p>Starting the same issue twice reuses the existing task instead of creating a second one.</p>
+
+<h3 id="from-a-prompt">From a prompt</h3>
+
+<pre><code class="language-bash">pablo task:start --project wallet-kit "fix callback verification"
+</code></pre>
+
+<p>For work without a ticket. The branch name comes from a short AI summary of your prompt (for example <code>wk-fix-callback-verification</code>), and task-analyst works from the prompt instead of an issue.</p>
+
+<p>If your prompt mentions a Jira or Linear key belonging to one of your projects (“fix the export per PIM-123”), PABLO treats it like the issue link and names the branch <code>pim-123</code>.</p>
+
+<h2 id="see-your-tasks">See your tasks</h2>
+
+<pre><code class="language-bash">pablo task:list            # instant, from the poller's cache
+pablo task:list --live     # fetch fresh data from GitHub and your tracker
+pablo task:list --refresh  # run the poller first, then list
+</code></pre>
+
+<p>The list is split in two tables:</p>
+
+<ol>
+  <li><b>💭 Waiting for feedback</b>: tasks that need you right now. A task lands here when it is in <code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code> or <code>testing-failed</code>, an agent finished and is waiting for you (💭), and no agent is still working (🏃).</li>
+  <li><b>Other tasks</b>: everything else, including tasks an agent is still working on. Tasks waiting on reviewers or QA live here: it's someone else's turn.</li>
+</ol>
+
+<p>Columns: branch and project, PABLO state, the linked issue and its title (or the prompt summary), the tracker's own status, the pull request (📬 open, 📪 draft, ✅ merged), and agent activity such as <code>🏃 1 · 💭 1</code>. Rows are sorted by state, most urgent first:</p>
+
+<p class="states-legend">🚨 testing-failed · 🧪 needs-testing · ✅ approved · 🔁 request-changes · 👀 waiting-review · 🔴 ci-red · 📝 draft · ⏸️ waiting · 🔨 in-progress</p>
+
+<p>The <a href="page:dashboard">dashboard</a> shows the same two tables, built from the same rules, so the terminal and the browser never disagree.</p>
+
+<h2 id="ship-your-work">Ship your work</h2>
+
+<p>When the work is ready, run this in an OpenCode session inside the task's worktree:</p>
+
+<pre><code class="language-text">/pablo-commit-and-pr
+</code></pre>
+
+<p>It commits your changes, pushes the branch, opens the pull request <b>as a draft</b> (with a description written in your project's <code>pr_description_locale</code>) if there isn't one yet, and moves the task to 📝 <code>draft</code>. From there the poller takes over.</p>
+
+<ul>
+  <li>It's the <b>only</b> way back into <code>draft</code>. A plain <code>git push</code> never changes a task's state.</li>
+  <li>It works from <code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>, <code>waiting-review</code> and <code>approved</code>, and refuses outside a PABLO worktree.</li>
+  <li>With nothing to commit, it stops and does nothing. If you committed by hand, use <code>/pablo-commit-and-pr --force</code>: it skips the commit and runs the rest.</li>
+  <li>It never changes your git identity: commits use whatever <code>user.name</code> and <code>user.email</code> git finds in your own configuration, and it stops with git's error if there are none.</li>
+</ul>
+
+<h2 id="pause-a-task">Pause a task</h2>
+
+<pre><code class="language-bash">pablo task:waiting   # run inside the task's worktree; run it again to resume
+</code></pre>
+
+<p>The first call saves the current state and switches to ⏸️ <code>waiting</code>; the second restores it. While paused, the poller only watches for a merge, and worktree sync keeps running. Events that happened during the pause (a QA label, for example) are handled after you resume, not lost.</p>
+
+<p>You can't pause from <code>request-changes</code> or <code>testing-failed</code>: those states are already waiting for you.</p>
+
+<h2 id="force-a-state">Force a state</h2>
+
+<pre><code class="language-bash">pablo task:state waiting-review               # runs the state's usual actions
+pablo task:state needs-testing --no-trigger   # only records the new state
+</code></pre>
+
+<p>An escape hatch for when reality and PABLO disagree. Typical case: a reviewer's old “changes requested” blocks the task while they're on holiday; force it past. Forcing a state runs exactly what the automatic transition would (launching an agent, flipping the pull request…); <code>--no-trigger</code> skips that, except for <code>waiting</code>, which always saves the state to come back to.</p>
+
+<p>Forcing <code>needs-testing</code> is refused when the project has no QA step (<code>testing.enabled: false</code>).</p>
+
+<h2 id="adopt-an-existing-worktree">Adopt an existing worktree</h2>
+
+<pre><code class="language-bash">cd ~/dev/wallet-kit-worktrees/my-branch
+pablo task:attach draft
+</code></pre>
+
+<p>Turns a worktree you created yourself into a PABLO task, starting in the state you choose. It only writes the task record: no branch, no worktree, no agent, no pull request change. Requirements: run it inside a worktree (not the main checkout), on a branch that isn't the primary one and isn't already a task, in a repository that belongs to a project (or pass <code>--project &lt;name&gt;</code>).</p>
+
+<h2 id="relaunch-an-agent">Relaunch an agent</h2>
+
+<pre><code class="language-bash">pablo task:relaunch                       # everything the current state launches
+pablo task:relaunch --only=task-analyst   # just one of them
+</code></pre>
+
+<p>Fires the current state's agents again (and the startup script in <code>in-progress</code>). Accepted <code>--only</code> values: <code>task-analyst</code>, <code>startup-script</code>, <code>ci-analyst</code>, <code>pr-feedback</code>, <code>task-feedback</code>. PABLO already retries launches that never started on its own; this is for when you want to force it. See <a href="page:troubleshooting#an-agent-never-started">Troubleshooting</a>.</p>
+
+<h2 id="help-with-ci">Help with CI</h2>
+
+<dl>
+  <dt><code>pablo task:retrigger-ci</code></dt>
+  <dd>Re-runs the latest GitHub Actions run of each workflow on the task's branch, and puts the pull request back in draft while they run.</dd>
+  <dt><code>pablo task:skip-ci</code></dt>
+  <dd>From <code>ci-red</code> only: ignores the failing checks and moves the task on to review. CI is ignored until the next <code>/pablo-commit-and-pr</code>.</dd>
+</dl>
+
+<p>A check that <em>never</em> finishes (a manual deployment gate, for example) is better excluded for good with <a href="page:configuration#ci-ignore-checks"><code>ci.ignore_checks</code></a>.</p>
+
+<h2 id="close-a-task">Close a task</h2>
+
+<p><b>Automatically, on merge.</b> When the pull request is merged, the poller deletes the worktree and the task. It never merges or closes pull requests itself. If an agent is still running on the worktree, closing waits: the task shows ✅ merged until the agents finish, and closes on a later poll. Merges are detected even for paused tasks.</p>
+
+<p><b>By hand</b>, to abandon or clean up a task:</p>
+
+<pre><code class="language-bash">pablo task:close                              # the task of the current worktree
+pablo task:close pim-123                      # any task, from anywhere
+pablo task:close pim-123 --project acme-pim   # when several projects have that branch
+</code></pre>
+
+<p>It refuses while agents are active (add <code>--yes</code> to close anyway), works even if the worktree folder is already gone, and moves you to the project's main checkout before deleting the worktree, so your shell isn't left in a deleted folder.</p>
+
+<h2 id="inspect-a-task">Inspect a task</h2>
+
+<pre><code class="language-bash">pablo task:info current   # the current worktree's task record, as JSON
+</code></pre>
+
+<p>Useful for scripts and for checking exactly what PABLO knows: state, issue, pull request number, timestamps. The fields are described in <a href="page:storage#task-records">Storage</a>.</p>

@@ -1,6 +1,6 @@
 # Example project config — copy this template into your ~/.pablo/projects/
 # dir and adapt it. Real projects are per-machine and live outside the repo;
-# this file is just a neutral reference. See docs/configuration.md for the
+# this file is just a neutral reference. See https://korbeil.github.io/pablo/docs/configuration/ for the
 # full schema.
 name: acme-pim
 type: work

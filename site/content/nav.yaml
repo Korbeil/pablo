@@ -1,0 +1,12 @@
+# Sidebar of the documentation, in reading order. Each slug is a page:
+# site/content/<slug>.html. The docs home is site/content/index.html.
+- section: Getting started
+  pages: [introduction, installation, first-project, first-task]
+- section: Guides
+  pages: [tasks, dashboard, analytics, backups, troubleshooting]
+- section: Concepts
+  pages: [how-it-works, states, agents, sync]
+- section: Reference
+  pages: [cli, configuration, providers, storage]
+- section: Contributing
+  pages: [development]

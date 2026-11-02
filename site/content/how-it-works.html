@@ -1,0 +1,105 @@
+<h1>How it works</h1>
+
+<p>PABLO has two layers: the commands you run, and a background job that runs every 5 minutes, checks each project and does whatever is due. Agents run through your agent backend, and everything else is plain, deterministic code.</p>
+
+<h2>Two layers</h2>
+
+<dl>
+  <dt>Interactive</dt>
+  <dd>What you run: the <a href="page:cli"><code>pablo</code> commands</a>, the <code>/pablo-commit-and-pr</code> OpenCode command, and the agent sessions you open in Orca or OpenChamber.</dd>
+  <dt>Background</dt>
+  <dd>A scheduler (systemd user timer on Linux, launchd agent on macOS) runs <code>pablo system:dispatch</code> every 5 minutes.</dd>
+</dl>
+
+<h2>The background job</h2>
+
+<p>On each run, the dispatcher:</p>
+
+<ol>
+  <li>takes a global lock, so two runs never overlap (a second one exits immediately);</li>
+  <li>checks the tools it needs. A problem with <code>gh</code> or <code>opencode</code> stops the run; a problem with a tracker tool or the agent backend only produces a warning, and only the projects using that tool are affected;</li>
+  <li>for each project, runs the jobs whose interval has elapsed since their last success.</li>
+</ol>
+
+<table>
+  <thead><tr><th>Job</th><th>What it does</th><th>Interval setting</th><th>Default</th></tr></thead>
+  <tbody>
+    <tr><td>poll</td><td>checks every task's pull request and moves it through the <a href="page:states">state machine</a></td><td><code>state_polling.interval_minutes</code></td><td>10 min</td></tr>
+    <tr><td>sync</td><td>rebases or merges task branches onto the primary branch (<a href="page:sync">details</a>)</td><td><code>sync.interval_minutes</code></td><td>30 min (the installed <code>config.yaml</code> sets 720, every 12 h)</td></tr>
+    <tr><td>main</td><td>fast-forwards the project's primary checkout (<a href="page:sync#primary-checkout-update">details</a>)</td><td><code>main_update.interval_minutes</code></td><td>60 min</td></tr>
+  </tbody>
+</table>
+
+<p>A job's “last run” time is only saved when it succeeds, so a failure is retried on the next run. One project failing never blocks the others. Adding or removing a project changes nothing in the scheduler: each project's cadence lives in its YAML file.</p>
+
+<p>Because the dispatcher wakes up every 5 minutes, a job runs at the first wake-up <em>after</em> its interval has elapsed, not at the exact minute.</p>
+
+<h2 id="agent-backends">Agent backends</h2>
+
+<p>PABLO doesn't run agents itself. It hands them to an agent backend, exactly the way you would, and asks it which agents are busy.</p>
+
+<h3>Orca (default)</h3>
+
+<pre><code class="language-bash"># launch
+orca terminal create --worktree path:&lt;worktree&gt; --title "pablo:&lt;agent&gt;" \
+     --command "opencode &lt;worktree&gt; --agent &lt;agent&gt; --prompt '&lt;prompt&gt;'" --json
+# wait for the end of a run
+orca terminal wait --terminal &lt;handle&gt; --for exit --timeout-ms 3600000 --json
+# who is working
+orca worktree ps --limit 200 --json
+</code></pre>
+
+<p>An agent that is <code>working</code> or <code>running</code> counts as 🏃 busy; anything else (idle, waiting for input) counts as 💭 waiting for you. Orca only knows repositories registered with <code>orca repo add</code>.</p>
+
+<h3>OpenChamber</h3>
+
+<p>Select it with <code>agent_backend: openchamber</code> in <code>~/.pablo/config.yaml</code> or <code>PABLO_AGENT_BACKEND=openchamber</code>.</p>
+
+<pre><code class="language-bash">openchamber session create --dir &lt;worktree&gt; --title "pablo:&lt;agent&gt;"
+openchamber session send --session &lt;id&gt; --dir &lt;worktree&gt; --prompt "&lt;prompt&gt;" --agent &lt;agent&gt;
+openchamber session messages --session &lt;id&gt; --dir &lt;worktree&gt; --wait
+openchamber session list --dir &lt;worktree&gt; --with-status
+</code></pre>
+
+<p>OpenChamber works from directories: no repository to register, no waiting for a workspace to appear. <code>busy</code> and <code>retry</code> count as 🏃, <code>idle</code> as 💭. If sending the prompt fails, PABLO logs the reason to <code>~/.pablo/agents/logs/openchamber-fallback.log</code> and falls back to a headless run with the same model.</p>
+
+<h3>Headless fallback</h3>
+
+<p>When Orca is unreachable or doesn't know the repository, PABLO runs <code>opencode run --agent &lt;agent&gt;</code> in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
+
+<h2 id="what-pablo-may-change">What PABLO may change</h2>
+
+<p>Agents propose; you decide. PABLO's own code only performs these operations, each under strict rules:</p>
+
+<table>
+  <thead><tr><th>Operation</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td>Create a branch and a worktree</td><td><code>pablo task:start</code></td></tr>
+    <tr><td>Commit, push, open a draft pull request</td><td>only through <code>/pablo-commit-and-pr</code>, which you run</td></tr>
+    <tr><td>Switch a pull request between draft and ready</td><td>CI turns green (ready); changes requested or QA failure (back to draft); <code>task:retrigger-ci</code> (draft)</td></tr>
+    <tr><td>Rebase or merge, then push with <code>--force-with-lease</code></td><td>sync, only with <code>auto_apply</code> or <code>--apply</code>; never on a dirty worktree; never plain <code>--force</code></td></tr>
+    <tr><td>Resolve a rebase conflict</td><td>never in code: the <a href="page:agents#the-rebase-conflict-resolver">conflict resolver agent</a> does it</td></tr>
+    <tr><td>Delete a worktree</td><td>when the pull request is merged, or <code>pablo task:close</code></td></tr>
+    <tr><td><code>checkout</code> + <code>reset --hard</code> the primary checkout</td><td>only when it is clean and has no local commits (<a href="page:sync#primary-checkout-update">rules</a>)</td></tr>
+  </tbody>
+</table>
+
+<p>It never merges or closes a pull request, never comments or reviews, and never changes a ticket.</p>
+
+<h2>Design decisions</h2>
+
+<h3>Command-line tools, no tokens</h3>
+
+<p>PABLO talks to every service through its own command-line tool, already logged in on your machine. There's no API key in its configuration and none should be added. When a tool isn't ready, PABLO shows that tool's own error. See <a href="page:providers">Providers</a>.</p>
+
+<h3>One timer for all projects</h3>
+
+<p>A single 5-minute dispatcher reads each project's intervals from its YAML file, instead of one scheduler unit per project. Adding a project is just adding a file.</p>
+
+<h3>A state machine, not an agent framework</h3>
+
+<p>The states are the ones a pull request goes through in a real team. Each state, its display and what runs on entering it live in one table in <a href="repo:app/src/StateMachine/StateMachine.php"><code>StateMachine.php</code></a>; what the poller checks for each state lives in one table in <a href="repo:app/src/Poller/Poller.php"><code>Poller.php</code></a>. The same entry handler is used by the poller, the commands and manual overrides, so the behaviour never diverges.</p>
+
+<h3>Why not OpenClaw?</h3>
+
+<p>OpenClaw's scheduled “heartbeat” would map well onto the background job, but it was ruled out: it's much heavier than needed (a persistent self-hosted gateway with messaging integrations versus a timer calling a few tools); its skills run with full privileges and no sandbox; and skills from its community registry have no integrity verification, a known supply-chain risk. On top of a working OpenCode setup, that wasn't worth it.</p>

@@ -46,7 +46,7 @@ fi
 
 if [ ! -f "$PABLO_CONFIG_FILE" ]; then
     mkdir -p "$(dirname "$PABLO_CONFIG_FILE")"
-    cp "$REPO_DIR/docs/examples/config.yaml" "$PABLO_CONFIG_FILE"
+    cp "$REPO_DIR/examples/config.yaml" "$PABLO_CONFIG_FILE"
     info "wrote default $PABLO_CONFIG_FILE (edit it to set your default agent model, PR locale, sync strategy, ...)"
 else
     info "keeping existing $PABLO_CONFIG_FILE"

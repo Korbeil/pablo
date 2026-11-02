@@ -1,0 +1,69 @@
+<h1>What is PABLO?</h1>
+
+<p>PABLO (<i>Personal Assistant for Boring Logic &amp; Operations</i>) watches your task branches and pull requests, and launches the right AI agent, in the right worktree, when something needs your attention. It does the noticing and the waiting, so you don't have to.</p>
+
+<h2>The problem it solves</h2>
+
+<p>AI agents made the <em>analysis</em> part of development fast: reading a ticket, digging into a failing CI job, turning review comments into a checklist. But with five or six pull requests open across a few projects, someone still has to keep checking:</p>
+
+<ul>
+  <li>Is CI green? Did it turn red?</li>
+  <li>Has anyone reviewed it? Did they ask for changes?</li>
+  <li>Has QA picked it up? Did they find a bug?</li>
+  <li>…and when something happens: open the right worktree, pick the right agent, write the prompt, launch it.</li>
+</ul>
+
+<p>None of it is hard, but every item is a context switch. PABLO turns that loop into a background job. Every few minutes it asks one question for each of your tasks: <b>given the state of this pull request, is there something an agent should do, and which one?</b> If there is, it launches that agent for you.</p>
+
+<h2>What PABLO does</h2>
+
+<ul>
+  <li><b>One task, one worktree.</b> <code>pablo task:start &lt;issue&gt;</code> creates a branch and a git worktree, then launches an agent that reads the ticket and writes an action plan.</li>
+  <li><b>Follows the pull request.</b> It notices when CI fails, when CI turns green, when reviewers approve or ask for changes, and when QA flags a problem, and moves the task through a small <a href="page:states">state machine</a>.</li>
+  <li><b>Launches the right agent.</b> Each state that needs you comes with an analysis already waiting: a CI diagnosis, a review checklist, a QA triage. See <a href="page:agents">Agents</a>.</li>
+  <li><b>Keeps branches fresh.</b> It rebases task branches onto the primary branch, and keeps your main checkout up to date. See <a href="page:sync">Sync &amp; rebase</a>.</li>
+  <li><b>Cleans up.</b> When the pull request is merged, the task, its worktree and its state disappear.</li>
+  <li><b>Shows you what needs you</b> in the terminal (<code>pablo task:list</code>) or in a local <a href="page:dashboard">dashboard</a>.</li>
+</ul>
+
+<h2>What PABLO never does</h2>
+
+<p>PABLO is deliberately conservative. Agents propose, you decide.</p>
+
+<ul>
+  <li><b>It never writes your code.</b> Its analysis agents are read-only <em>by permission</em>, not just by instruction. The one exception is the <a href="page:agents#the-rebase-conflict-resolver">rebase-conflict resolver</a>, and even it can't act on your behalf on GitHub.</li>
+  <li><b>It never commits or pushes on its own.</b> Your work goes into a pull request only when you run <code>/pablo-commit-and-pr</code>.</li>
+  <li><b>It never changes your issue tracker.</b> Jira, GitHub Issues and Linear are only ever read.</li>
+  <li><b>It never stores tokens.</b> It talks to the command-line tools you're already logged into (<code>gh</code>, <code>acli</code>, <code>linear</code>, <code>opencode</code>).</li>
+</ul>
+
+<p>What it <em>does</em> do with git and GitHub is limited and explicit: create branches and worktrees, rebase and push with <code>--force-with-lease</code>, open draft pull requests, switch a pull request between draft and ready, delete a merged task's worktree, and fast-forward a <em>clean</em> primary checkout. The rules for each are in <a href="page:how-it-works#what-pablo-may-change">How it works</a>.</p>
+
+<h2>How the pieces fit</h2>
+
+<p>PABLO is not a standalone app. It plugs into an existing <a href="https://opencode.ai">OpenCode</a> setup:</p>
+
+<ul>
+  <li>the <b><code>pablo</code> command</b>, a small PHP application (Symfony Console);</li>
+  <li>a <b>background scheduler</b> (systemd on Linux, launchd on macOS) that runs PABLO every 5 minutes;</li>
+  <li>a few <b>OpenCode agents</b>, one <b>OpenCode command</b> (<code>/pablo-commit-and-pr</code>) and one <b>skill</b>;</li>
+  <li>an <b>agent backend</b> where agents run and where you chat with them: <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a>, with a headless fallback when neither is available;</li>
+  <li>an optional <b>read-only dashboard</b> on <code>http://127.0.0.1:8321</code>.</li>
+</ul>
+
+<h2>Is it for me?</h2>
+
+<p>PABLO fits if you:</p>
+
+<ul>
+  <li>use OpenCode, or want to;</li>
+  <li>work with GitHub pull requests (PABLO always uses GitHub for PRs and CI), with issues in GitHub, Jira or Linear;</li>
+  <li>run Linux or macOS;</li>
+  <li>juggle several tasks at once and want agents to start the analysis for you.</li>
+</ul>
+
+<p>It is a personal, single-user tool that runs on your machine. It has no server, no account and no telemetry: <a href="page:analytics">analytics</a> stay on your disk.</p>
+
+<h2>Next steps</h2>
+
+<p><a href="page:installation">Install PABLO</a>, then <a href="page:first-project">add your first project</a> and <a href="page:first-task">start a task</a>.</p>

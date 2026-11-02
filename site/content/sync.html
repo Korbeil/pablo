@@ -1,0 +1,61 @@
+<h1>Sync &amp; rebase</h1>
+
+<p>PABLO keeps two things up to date for every project: your task branches, rebased onto the primary branch, and the project's main checkout, fast-forwarded to the remote. Both are cautious: they report by default, skip anything with local changes, and never resolve a conflict in code.</p>
+
+<h2>Task branches</h2>
+
+<p>On each project's <code>sync.interval_minutes</code> (or when you run <code>pablo sync:run</code>), PABLO lists the repository's worktrees and syncs <b>only those that belong to an active task</b>. Other worktrees are left alone. For each one:</p>
+
+<ol>
+  <li><b>fetch</b>, and bring in the branch's own remote first, so a collaborator's push is never overwritten;</li>
+  <li><b>rebase or merge</b> (per <code>sync.strategy</code>) onto <code>&lt;primary_remote&gt;/&lt;primary_branch&gt;</code>. For a <b>stacked pull request</b>, an open pull request targeting another branch, it uses that base branch instead, whatever the tracker. A merged or closed pull request's base is ignored, and a base that no longer exists falls back to the primary branch;</li>
+  <li>if the history changed and the branch exists on the remote, <b>push with <code>--force-with-lease</code></b>, never plain <code>--force</code>. If the lease fails (someone pushed in the meantime), the worktree is rolled back and sync tries again next time.</li>
+</ol>
+
+<h3>Report first, apply when you're ready</h3>
+
+<p>By default sync is a <b>dry run</b>: it reports what it would do. It applies changes only with <code>sync.auto_apply: true</code> in the project (or the global config), or when you run <code>pablo sync:run --apply</code>. Turn <code>auto_apply</code> on for the projects where you know the shape of the work.</p>
+
+<pre><code class="language-bash">pablo sync:run               # every project, dry run
+pablo sync:run acme-pim --apply
+pablo sync:log               # what the last sync did, per project
+</code></pre>
+
+<h3>Skipped on purpose</h3>
+
+<ul>
+  <li>✋ <b>Dirty worktrees</b>, with uncommitted changes, are never rebased.</li>
+  <li>🔒 <b>Busy tasks</b>: sync and the poller never work on the same task at the same time. A locked task is skipped and retried next time.</li>
+</ul>
+
+<h3>Conflicts</h3>
+
+<p>PABLO's code never resolves a conflict. When an applied sync hits one, it aborts the rebase cleanly, records the worktree, the branch, the conflicting files and a summary of the hunks, then launches the <a href="page:agents#the-rebase-conflict-resolver"><b>rebase-conflict-resolver</b></a> agent headless. The agent replays the rebase onto the exact target sync used, resolves the conflicts and pushes with <code>--force-with-lease</code>; if it can't resolve something safely, it stops without pushing.</p>
+
+<p>The last sync of each project is shown by <code>pablo sync:log</code> and on the <a href="page:dashboard">dashboard</a>, including the command to open the resolver's session. Each sync replaces the previous log: there's no history, only what the last one did.</p>
+
+<h2 id="primary-checkout-update">Primary checkout update</h2>
+
+<p>On each project's <code>main_update.interval_minutes</code> (default 60, or when you run <code>pablo sync:main</code>), PABLO brings the project's <b>main checkout</b> (<code>repo.path</code>, not the task worktrees) up to date with <code>&lt;primary_remote&gt;/&lt;primary_branch&gt;</code>. Turn it off for a project with <code>main_update.enabled: false</code>.</p>
+
+<p>The checks run in this order; the first one that matches decides:</p>
+
+<table>
+  <thead><tr><th>Situation</th><th>Outcome</th></tr></thead>
+  <tbody>
+    <tr><td><code>repo.path</code> is missing or isn't a git checkout</td><td>⚠️ <code>missing</code>, skipped</td></tr>
+    <tr><td>a rebase, merge, cherry-pick, revert or bisect is in progress</td><td>✋ <code>busy</code>, skipped</td></tr>
+    <tr><td>any change in <code>git status</code>, tracked or untracked, on any branch</td><td>✋ <code>dirty</code>, skipped</td></tr>
+    <tr><td><code>git fetch</code> fails, or the remote branch doesn't exist</td><td>❌ the job fails and is retried next time</td></tr>
+    <tr><td>the local primary branch has commits that aren't on the remote</td><td>✋ <code>ahead</code>, skipped: local commits are never thrown away</td></tr>
+    <tr><td>clean, on another branch, while the primary branch is checked out in another worktree</td><td>⚠️ <code>checked-out-elsewhere</code>, skipped</td></tr>
+    <tr><td>clean, on another branch or a detached HEAD</td><td><code>git checkout &lt;primary_branch&gt;</code> (created from the remote if needed), then the next row</td></tr>
+    <tr><td>clean, on the primary branch</td><td><code>git reset --hard &lt;primary_remote&gt;/&lt;primary_branch&gt;</code>: ✅ <code>updated</code> or <code>up-to-date</code></td></tr>
+  </tbody>
+</table>
+
+<p>Because a branch with local commits is never touched, the <code>reset --hard</code> is in practice a fast-forward. Task worktrees aren't affected: they always start from the <em>remote</em> primary branch, never from your local one.</p>
+
+<pre><code class="language-bash">pablo sync:main             # every project with main_update enabled
+pablo sync:main acme-pim    # this one, even if main_update is disabled
+</code></pre>
