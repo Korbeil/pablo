@@ -36,7 +36,7 @@ review:
   bot_whitelist: []
 ci:
   ignore_checks: []
-default_model: openrouter/deepseek/deepseek-v4-flash-0731
+default_model: opencode-go/glm-5.3-flash
 pr_description_locale: en
 YAML;
 
@@ -135,7 +135,7 @@ YAML;
         $this->assertSame(10, $cfg->pollInterval);
         $this->assertSame([], $cfg->botWhitelist);
         $this->assertSame([], $cfg->ciIgnoreChecks);
-        $this->assertSame('openrouter/deepseek/deepseek-v4-flash-0731', $cfg->defaultModel);
+        $this->assertSame('opencode-go/glm-5.3-flash', $cfg->defaultModel);
         $this->assertSame('en', $cfg->prDescriptionLocale);
     }
 
@@ -332,7 +332,7 @@ YAML;
         $this->assertSame(10, $cfg->pollInterval);
         $this->assertSame([], $cfg->botWhitelist);
         $this->assertSame([], $cfg->ciIgnoreChecks);
-        $this->assertSame('openrouter/deepseek/deepseek-v4-flash-0731', $cfg->defaultModel);
+        $this->assertSame('opencode-go/glm-5.3-flash', $cfg->defaultModel);
         $this->assertSame('en', $cfg->prDescriptionLocale);
     }
 
@@ -395,7 +395,7 @@ YAML);
         $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  work: litellm/anthropic/claude-opus\n");
         $this->write('wallet-kit.yaml', self::FULL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
-        $this->assertSame('openrouter/deepseek/deepseek-v4-flash-0731', $cfg->defaultModel);
+        $this->assertSame('opencode-go/glm-5.3-flash', $cfg->defaultModel);
     }
 
     public function testTypeMapUnknownTypeRejected(): void
@@ -427,7 +427,7 @@ YAML);
         $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  open-source: \"\"\n");
         $this->write('wallet-kit.yaml', self::FULL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
-        $this->assertSame('openrouter/deepseek/deepseek-v4-flash-0731', $cfg->defaultModel);
+        $this->assertSame('opencode-go/glm-5.3-flash', $cfg->defaultModel);
     }
 
     public function testMissingDefaultModelAndLocaleThrows(): void

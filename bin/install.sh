@@ -13,16 +13,20 @@ OS="$(uname -s)"
 info() { printf '➜ %s\n' "$*"; }
 die() { printf '❌ %s\n' "$*" >&2; exit 1; }
 
-# Install the web dashboard as a background service only when explicitly
-# requested: ./bin/install.sh --with-web
-WITH_WEB=false
+# The web dashboard is installed as a background service by default; opt out
+# with: ./bin/install.sh --without-web (which also removes a previously
+# installed dashboard service).
+WITH_WEB=true
 for arg in "$@"; do
     case "$arg" in
+    --without-web)
+        WITH_WEB=false
+        ;;
     --with-web)
-        WITH_WEB=true
+        info "--with-web is now the default (opt out with --without-web)"
         ;;
     *)
-        die "unknown option: $arg (supported: --with-web)"
+        die "unknown option: $arg (supported: --without-web)"
         ;;
     esac
 done
@@ -48,6 +52,14 @@ if [ ! -f "$PABLO_CONFIG_FILE" ]; then
     mkdir -p "$(dirname "$PABLO_CONFIG_FILE")"
     cp "$REPO_DIR/examples/config.yaml" "$PABLO_CONFIG_FILE"
     info "wrote default $PABLO_CONFIG_FILE (edit it to set your default agent model, PR locale, sync strategy, ...)"
+    # Pick the agent backend the user actually has: Orca is the default, so
+    # only switch when OpenChamber is installed and Orca is not.
+    if ! command -v orca >/dev/null 2>&1 && command -v openchamber >/dev/null 2>&1; then
+        printf '\nagent_backend: openchamber\n' >> "$PABLO_CONFIG_FILE"
+        info "OpenChamber found (and no Orca): set agent_backend: openchamber"
+    elif ! command -v orca >/dev/null 2>&1; then
+        info "⚠ neither Orca nor OpenChamber found: agents will run headless until you install one"
+    fi
 else
     info "keeping existing $PABLO_CONFIG_FILE"
 fi
@@ -86,6 +98,41 @@ exec php '$PABLO_BIN' "\$@"
 SHIM
 chmod +x "$BIN_DIR/pablo"
 info "wrote $BIN_DIR/pablo shim -> php $PABLO_BIN"
+
+# 2b. ~/.local/bin on PATH ---------------------------------------------------
+# Only when it isn't already there. The block we append is wrapped in markers
+# so a re-install never duplicates it and uninstall.sh removes it. fish gets
+# its own conf.d file instead, so no existing file is edited.
+PATH_MARK_BEGIN='# >>> pablo >>>'
+PATH_MARK_END='# <<< pablo <<<'
+PATH_RC=""
+case ":$PATH:" in
+*":$BIN_DIR:"*) ;;
+*)
+    case "$(basename "${SHELL:-}")" in
+    zsh) PATH_RC="${ZDOTDIR:-$HOME}/.zshrc" ;;
+    bash)
+        if [ "$OS" = Darwin ]; then PATH_RC="$HOME/.bash_profile"; else PATH_RC="$HOME/.bashrc"; fi
+        ;;
+    fish) PATH_RC="$HOME/.config/fish/conf.d/pablo.fish" ;;
+    esac
+    if [ -z "$PATH_RC" ]; then
+        info "⚠ $BIN_DIR is not on your PATH: add it in your shell config (export PATH=\"$BIN_DIR:\$PATH\")"
+    elif [ -f "$PATH_RC" ] && grep -qF "$PATH_MARK_BEGIN" "$PATH_RC"; then
+        info "$PATH_RC already puts $BIN_DIR on PATH"
+    else
+        mkdir -p "$(dirname "$PATH_RC")"
+        if [[ "$PATH_RC" == *.fish ]]; then
+            printf '%s\n# Added by the PABLO installer (removed by bin/uninstall.sh).\ncontains %s $PATH; or set -gx PATH %s $PATH\n%s\n' \
+                "$PATH_MARK_BEGIN" "$BIN_DIR" "$BIN_DIR" "$PATH_MARK_END" > "$PATH_RC"
+        else
+            printf '\n%s\n# Added by the PABLO installer (removed by bin/uninstall.sh).\ncase ":$PATH:" in *":%s:"*) ;; *) export PATH="%s:$PATH" ;; esac\n%s\n' \
+                "$PATH_MARK_BEGIN" "$BIN_DIR" "$BIN_DIR" "$PATH_MARK_END" >> "$PATH_RC"
+        fi
+        info "added $BIN_DIR to PATH in $PATH_RC"
+    fi
+    ;;
+esac
 
 # 3. OpenCode agents + commands ---------------------------------------------
 link_into() { # link_into <src-file> <dest-dir>
@@ -138,6 +185,11 @@ Linux)
         systemctl --user daemon-reload
         systemctl --user enable --now pablo-web.service
         info "pablo-web.service enabled (dashboard on http://127.0.0.1:8321; logs: journalctl --user -u pablo-web.service)"
+    elif [ -L "$SYSTEMD_DIR/pablo-web.service" ]; then
+        systemctl --user disable --now pablo-web.service 2>/dev/null || true
+        rm "$SYSTEMD_DIR/pablo-web.service"
+        systemctl --user daemon-reload
+        info "--without-web: removed pablo-web.service"
     fi
     ;;
 Darwin)
@@ -164,6 +216,13 @@ Darwin)
         launchctl bootout "gui/$(id -u)/com.pablo.web" 2>/dev/null || true
         launchctl bootstrap "gui/$(id -u)" "$WEB_PLIST"
         info "com.pablo.web loaded (dashboard on http://127.0.0.1:8321; logs: $LOG_DIR/web.log)"
+    else
+        WEB_PLIST="$AGENTS_DIR/com.pablo.web.plist"
+        if [ -f "$WEB_PLIST" ] && grep -q "marker: com.pablo.web" "$WEB_PLIST"; then
+            launchctl bootout "gui/$(id -u)/com.pablo.web" 2>/dev/null || true
+            rm "$WEB_PLIST"
+            info "--without-web: removed com.pablo.web"
+        fi
     fi
     ;;
 *)
@@ -174,6 +233,21 @@ esac
 # 5. Preflight ---------------------------------------------------------------
 info "running pablo system:doctor (a failure here is a warning at install time —"
 info "projects may not be configured yet):"
-"$BIN_DIR/pablo" system:doctor || true
+DOCTOR_OK=true
+"$BIN_DIR/pablo" system:doctor || DOCTOR_OK=false
 
-info "done. Register your projects with: pablo project:new"
+echo
+info "PABLO is installed. Next steps:"
+if [ -n "$PATH_RC" ]; then
+    echo "   0. open a new terminal (or run: source $PATH_RC) so the pablo command is found"
+fi
+if ! $DOCTOR_OK; then
+    echo "   •  some checks failed: pablo system:setup walks you through each fix"
+fi
+echo "   1. pablo project:new               # run it inside your repository"
+echo "   2. pablo task:start <issue-url>    # or: pablo task:start --project <name> \"what to do\""
+if $WITH_WEB; then
+    echo "   3. watch it on http://127.0.0.1:8321"
+else
+    echo "   3. pablo task:list (or pablo web for the dashboard)"
+fi

@@ -4,10 +4,10 @@
 
 <h2>1. Set your global defaults</h2>
 
-<p>The installer created <code>~/.pablo/config.yaml</code>. Two settings must be filled in before any project can load: the AI model agents use, and the language of pull request descriptions.</p>
+<p>The installer created <code>~/.pablo/config.yaml</code> with working defaults. Two settings are required before any project can load, and both come pre-filled: the AI model agents use (GLM 5.3 Flash through <a href="https://opencode.ai">OpenCode Go</a>), and the language of pull request descriptions. Change the model if you use another provider.</p>
 
 <pre><code class="language-yaml"># ~/.pablo/config.yaml
-default_model: openrouter/deepseek/deepseek-v4-flash-0731   # any model id OpenCode accepts
+default_model: opencode-go/glm-5.3-flash   # any model id OpenCode accepts
 pr_description_locale: en
 
 sync:

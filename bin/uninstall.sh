@@ -59,4 +59,20 @@ done
 
 remove_if_ours "$BIN_DIR/pablo"
 
+# The PATH block install.sh may have appended (between its markers).
+for rc in "$HOME/.bashrc" "$HOME/.bash_profile" "${ZDOTDIR:-$HOME}/.zshrc"; do
+    if [ -f "$rc" ] && grep -qF '# >>> pablo >>>' "$rc"; then
+        tmp="$(mktemp)"
+        awk '/^# >>> pablo >>>$/{skip=1; next} /^# <<< pablo <<<$/{skip=0; next} !skip' "$rc" > "$tmp"
+        cat "$tmp" > "$rc" # cat, not mv: keeps the file's permissions and any symlink
+        rm "$tmp"
+        info "removed the PABLO PATH block from $rc"
+    fi
+done
+FISH_RC="$HOME/.config/fish/conf.d/pablo.fish"
+if [ -f "$FISH_RC" ] && grep -qF '# >>> pablo >>>' "$FISH_RC"; then
+    rm "$FISH_RC"
+    info "removed $FISH_RC"
+fi
+
 info "done. ~/.pablo (state, stamps, worktrees, logs) was left in place."
