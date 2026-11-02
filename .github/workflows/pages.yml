@@ -16,11 +16,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Build and deploy are separate jobs so that "Re-run failed jobs" only
+  # re-runs the deploy: re-running a job that uploads the artifact again
+  # leaves two "github-pages" artifacts and deploy-pages refuses to pick one.
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: checkout
         uses: actions/checkout@v7
@@ -30,6 +30,32 @@ jobs:
         uses: actions/upload-pages-artifact@v5
         with:
           path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy-1.outputs.page_url || steps.deploy-2.outputs.page_url || steps.deploy-3.outputs.page_url }}
+    steps:
+      # The Pages API intermittently answers 500 on deployment creation;
+      # retry twice with a growing pause before giving up.
       - name: deploy
-        id: deployment
+        id: deploy-1
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - name: wait before retry
+        if: steps.deploy-1.outcome == 'failure'
+        run: sleep 30
+      - name: deploy (retry 1)
+        id: deploy-2
+        if: steps.deploy-1.outcome == 'failure'
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - name: wait before retry
+        if: steps.deploy-1.outcome == 'failure' && steps.deploy-2.outcome == 'failure'
+        run: sleep 60
+      - name: deploy (retry 2)
+        id: deploy-3
+        if: steps.deploy-1.outcome == 'failure' && steps.deploy-2.outcome == 'failure'
         uses: actions/deploy-pages@v5
