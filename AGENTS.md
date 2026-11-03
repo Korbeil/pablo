@@ -164,11 +164,15 @@ Orca agents. Falls back to a headless run executed with the worktree
 as the command's working directory for
 repos not registered in Orca. *What* runs is the agent **runtime**
 (`src/Agents/Runtime/`, `agent_runtime` / `PABLO_AGENT_RUNTIME`, resolved per
-call by `AgentRuntimeResolver`): `opencode run` (default) or `claude -p`
+call by `AgentRuntimeResolver`): `opencode run` (default), `claude -p`
 (Claude Code: agents passed with `--agents ~/.pablo/claude/agents.json`,
 permissions translated from the same templates by `ClaudeCodeAgents`, every
-shell deny doubled in its `rtk`-prefixed form). OpenChamber + Claude Code is
-refused (factory, doctor, dispatch). An optional `OpenChamber` backend
+shell deny doubled in its `rtk`-prefixed form) or `copilot -p` (GitHub
+Copilot CLI: `pablo-<agent>.agent.md` files rendered by `CopilotAgents` into
+the git-ignored `copilot/` and linked into `~/.copilot/agents`, policy
+repeated as `--available-tools`/`--allow-tool`/`--deny-tool` flags, session
+handles recorded as `copilot:<uuid>`). OpenChamber + anything but OpenCode
+is refused (factory, doctor, dispatch). An optional `OpenChamber` backend
 (`agent_backend=openchamber` in `~/.pablo/config.yaml` or
 `PABLO_AGENT_BACKEND`) replaces Orca with the directory-based `openchamber`
 CLI — no repo registration, adoption wait, or display-name step.

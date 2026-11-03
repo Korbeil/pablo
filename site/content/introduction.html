@@ -34,19 +34,19 @@
   <li><b>It never writes your code.</b> Its analysis agents are read-only <em>by permission</em>, not just by instruction. The one exception is the <a href="page:agents#the-rebase-conflict-resolver">rebase-conflict resolver</a>, and even it can't act on your behalf on GitHub.</li>
   <li><b>It never commits or pushes on its own.</b> Your work goes into a pull request only when you run <code>/pablo-commit-and-pr</code>.</li>
   <li><b>It never changes your issue tracker.</b> Jira, GitHub Issues and Linear are only ever read.</li>
-  <li><b>It never stores tokens.</b> It talks to the command-line tools you're already logged into (<code>gh</code>, <code>acli</code>, <code>linear</code>, <code>opencode</code> or <code>claude</code>).</li>
+  <li><b>It never stores tokens.</b> It talks to the command-line tools you're already logged into (<code>gh</code>, <code>acli</code>, <code>linear</code>, <code>opencode</code>, <code>claude</code> or <code>copilot</code>).</li>
 </ul>
 
 <p>What it <em>does</em> do with git and GitHub is limited and explicit: create branches and worktrees, rebase and push with <code>--force-with-lease</code>, open draft pull requests, switch a pull request between draft and ready, delete a merged task's worktree, and fast-forward a <em>clean</em> primary checkout. The rules for each are in <a href="page:how-it-works#what-pablo-may-change">How it works</a>.</p>
 
 <h2>How the pieces fit</h2>
 
-<p>PABLO is not a standalone app. It plugs into an existing <a href="https://opencode.ai">OpenCode</a> or <a href="https://code.claude.com/docs">Claude Code</a> setup:</p>
+<p>PABLO is not a standalone app. It plugs into an existing <a href="https://opencode.ai">OpenCode</a> <a href="https://code.claude.com/docs">Claude Code</a> or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> setup:</p>
 
 <ul>
   <li>the <b><code>pablo</code> command</b>, a small PHP application (Symfony Console);</li>
   <li>a <b>background scheduler</b> (systemd on Linux, launchd on macOS) that runs PABLO every 5 minutes;</li>
-  <li>five <b>agents</b>, one <b>command</b> (<code>/pablo-commit-and-pr</code>) and one <b>skill</b>, run by OpenCode or Claude Code (<a href="page:configuration#claude-code"><code>agent_runtime</code></a>);</li>
+  <li>five <b>agents</b>, one <b>command</b> (<code>/pablo-commit-and-pr</code>) and one <b>skill</b>, run by OpenCode, Claude Code or Copilot CLI (<a href="page:configuration#claude-code"><code>agent_runtime</code></a>);</li>
   <li>an <b>agent backend</b> where agents run and where you chat with them: <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a> (OpenCode only), with a headless fallback when neither is available;</li>
   <li>a <b>read-only dashboard</b> on <code>http://127.0.0.1:8321</code>, installed as a service by default.</li>
 </ul>
@@ -56,7 +56,7 @@
 <p>PABLO fits if you:</p>
 
 <ul>
-  <li>use OpenCode or Claude Code, or want to;</li>
+  <li>use OpenCode, Claude Code or GitHub Copilot CLI, or want to;</li>
   <li>work with GitHub pull requests (PABLO always uses GitHub for PRs and CI), with issues in GitHub, Jira or Linear;</li>
   <li>run Linux or macOS;</li>
   <li>juggle several tasks at once and want agents to start the analysis for you.</li>

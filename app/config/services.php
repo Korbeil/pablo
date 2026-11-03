@@ -12,6 +12,7 @@ use Pablo\Analytics\AnalyticsAggregator;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Analytics\ClaudeCodeUsage;
+use Pablo\Analytics\CopilotUsage;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Analytics\OpenCodeUsage;
 use Pablo\Analytics\UsageHarvesterInterface;
@@ -89,6 +90,7 @@ return static function (ContainerConfigurator $container): void {
     // Run usage comes from the selected runtime's own storage (resolved per call).
     $services->set(OpenCodeUsage::class);
     $services->set(ClaudeCodeUsage::class);
+    $services->set(CopilotUsage::class);
     $services->set(AgentUsage::class);
     $services->alias(UsageHarvesterInterface::class, AgentUsage::class);
     $services->alias(AnalyticsInterface::class, JsonlAnalytics::class);
@@ -114,7 +116,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(AgentLauncherFactory::class);
     // Lazy: every command is constructed up front to build the CLI, and
     // create() refuses an incompatible backend/runtime pair (OpenChamber +
-    // Claude Code) — `pablo system:doctor` must still run to report it.
+    // anything but OpenCode) — `pablo system:doctor` must still run to report it.
     $services->set(AgentLauncherInterface::class)
         ->factory([service(AgentLauncherFactory::class), 'create'])
         ->lazy()

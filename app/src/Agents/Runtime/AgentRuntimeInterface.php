@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime;
 
 /**
- * The agent CLI that actually runs PABLO's agents: OpenCode (`opencode run`)
- * or Claude Code (`claude -p`). Orthogonal to the agent *backend* (Orca,
+ * The agent CLI that actually runs PABLO's agents: OpenCode (`opencode run`),
+ * Claude Code (`claude -p`) or GitHub Copilot CLI (`copilot -p`). Orthogonal to the agent *backend* (Orca,
  * OpenChamber, headless), which only decides where that command runs.
  *
  * Selected globally (`agent_runtime` in ~/.pablo/config.yaml, overridable by
@@ -17,10 +17,11 @@ interface AgentRuntimeInterface
 {
     public const OPENCODE = 'opencode';
     public const CLAUDE_CODE = 'claude-code';
+    public const COPILOT = 'copilot';
 
-    public const NAMES = [self::OPENCODE, self::CLAUDE_CODE];
+    public const NAMES = [self::OPENCODE, self::CLAUDE_CODE, self::COPILOT];
 
-    /** 'opencode' | 'claude-code' */
+    /** 'opencode' | 'claude-code' | 'copilot' */
     public function name(): string;
 
     /** The CLI binary the runtime needs on PATH. */
@@ -30,8 +31,8 @@ interface AgentRuntimeInterface
     public function defaultModel(): string;
 
     /**
-     * A session id PABLO assigns up front (Claude Code accepts --session-id),
-     * or null when the runtime picks its own (OpenCode).
+     * A session id PABLO assigns up front (Claude Code and Copilot accept
+     * --session-id), or null when the runtime picks its own (OpenCode).
      */
     public function newSessionId(): ?string;
 
@@ -46,7 +47,8 @@ interface AgentRuntimeInterface
 
     /**
      * Where the generated agent definitions are read from by the runtime:
-     * ~/.config/opencode/agents (symlinks) or ~/.pablo/claude.
+     * ~/.config/opencode/agents (symlinks), ~/.pablo/claude, or
+     * ~/.copilot/agents (symlinks).
      */
     public function installDir(): string;
 

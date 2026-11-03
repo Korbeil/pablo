@@ -294,6 +294,26 @@ final class SyncTest extends TestCase
         $this->assertStringContainsString('fix agent running — claude --resume '.$session, Sync::renderReports([$report]));
     }
 
+    public function testCopilotResolverHandleIsPrefixed(): void
+    {
+        RepoHelper::commitFile($this->wt, 'feature.txt', "branch side\n", 'branch work');
+        RepoHelper::commitFile($this->other, 'feature.txt', "main side\n", 'clash');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
+        $agents = new \Pablo\Tests\FakeAgents();
+
+        putenv('PABLO_AGENT_RUNTIME=copilot');
+        try {
+            $report = $this->byBranch($this->sync()->syncProject($this->cfg, $this->store, true, $agents))['pr-1'];
+        } finally {
+            putenv('PABLO_AGENT_RUNTIME');
+        }
+
+        $session = (string) $agents->headless[0]['session'];
+        $this->assertTrue(\Pablo\Agents\Runtime\SessionRef::isClaudeSession($session), 'a bare UUID goes to the CLI');
+        $this->assertSame('copilot:'.$session, $report->agentHandle);
+        $this->assertStringContainsString('fix agent running — copilot --resume='.$session, Sync::renderReports([$report]));
+    }
+
     public function testConflictPromptUsesStackedBase(): void
     {
         $report = new \Pablo\Provider\Git\SyncReport(

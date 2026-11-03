@@ -1,6 +1,6 @@
 <h1>Agents</h1>
 
-<p>PABLO ships five agents, run by OpenCode or by Claude Code (see <a href="page:configuration#claude-code"><code>agent_runtime</code></a>). Four read and analyse, and never touch your code; the fifth resolves rebase conflicts. Each one is launched by a specific state, with the right link and the right worktree, so you read results instead of writing prompts.</p>
+<p>PABLO ships five agents, run by OpenCode, Claude Code or GitHub Copilot CLI (see <a href="page:configuration#claude-code"><code>agent_runtime</code></a>). Four read and analyse, and never touch your code; the fifth resolves rebase conflicts. Each one is launched by a specific state, with the right link and the right worktree, so you read results instead of writing prompts.</p>
 
 <h2>The agents</h2>
 
@@ -15,17 +15,17 @@
   </tbody>
 </table>
 
-<p>Open an agent's session in Orca or OpenChamber to read its result and keep the conversation going: ask questions, push back, refine the plan. A headless Claude Code run reopens with <code>claude --resume &lt;session id&gt;</code> in the worktree.</p>
+<p>Open an agent's session in Orca or OpenChamber to read its result and keep the conversation going: ask questions, push back, refine the plan. A headless Claude Code run reopens with <code>claude --resume &lt;session id&gt;</code> in the worktree, a Copilot one with <code>copilot --resume=&lt;session id&gt;</code>.</p>
 
 <h2 id="the-rebase-conflict-resolver">The rebase-conflict resolver</h2>
 
 <p>The single deliberate exception to the read-only rule. When an applied <a href="page:sync">sync</a> hits conflicts, git aborts cleanly and PABLO launches this agent headless. It may edit files and run git, because that's its job, but it is denied anything that acts as you in front of other people: no <code>gh pr merge</code>, <code>review</code>, <code>comment</code>, <code>edit</code>, <code>ready</code> or <code>close</code>, no issue commands, no Jira commands. If a conflict needs a human, it stops and pushes nothing. It has no step limit, so it never stops halfway through a rebase.</p>
 
-<p>Everything it does lands in your pull request, which you review before merging. The dashboard's “Last sync” card shows the command to open its session: <code>opencode -s &lt;id&gt;</code>, or <code>claude --resume &lt;id&gt;</code> under Claude Code.</p>
+<p>Everything it does lands in your pull request, which you review before merging. The dashboard's “Last sync” card shows the command to open its session: <code>opencode -s &lt;id&gt;</code>, <code>claude --resume &lt;id&gt;</code> under Claude Code, or <code>copilot --resume=&lt;id&gt;</code> under Copilot (its handle is recorded as <code>copilot:&lt;uuid&gt;</code>, so it can't be mistaken for a Claude Code session).</p>
 
 <h2>Read-only, enforced</h2>
 
-<p>The analysis agents can't edit files and can only run read-only commands, by <em>permission</em> rules in their OpenCode frontmatter, not just by instructions in their prompt. Even if a ticket says “just fix it quickly”, they can't. Under Claude Code the same rules are translated and enforced by Claude Code itself (<a href="#claude-code">below</a>).</p>
+<p>The analysis agents can't edit files and can only run read-only commands, by <em>permission</em> rules in their OpenCode frontmatter, not just by instructions in their prompt. Even if a ticket says “just fix it quickly”, they can't. Under Claude Code the same rules are translated and enforced by Claude Code itself (<a href="#claude-code">below</a>), and under Copilot by Copilot CLI (<a href="#copilot">below</a>).</p>
 
 <pre><code class="language-yaml">permissions:
   - { action: edit,  resource: "*",          effect: deny }   # edit, write, patch
@@ -52,7 +52,7 @@
 
 <p>Analysts have a step budget (30 for task-analyst and ci-analyst, 25 for pr-feedback and task-feedback). On the last step OpenCode removes their tools and forces a written answer. Sending them a new message resets the budget.</p>
 
-<p>Claude Code has no per-agent step limit, so there the budget becomes an instruction at the end of the agent's prompt: write the deliverable at the latest on the last step. It is followed, not enforced; the watcher's one-hour timeout stays the hard backstop.</p>
+<p>Claude Code and Copilot CLI have no per-agent step limit, so there the budget becomes an instruction at the end of the agent's prompt: write the deliverable at the latest on the last step. It is followed, not enforced; the watcher's one-hour timeout stays the hard backstop.</p>
 
 <h2 id="which-model">Which model</h2>
 
@@ -60,17 +60,17 @@
 
 <h2>The commit command</h2>
 
-<p><b><code>/pablo-commit-and-pr</code></b> commits, pushes, opens a draft pull request and moves the task to <code>draft</code>. It's the only part of PABLO that runs as an agent command (OpenCode or Claude Code), because writing a good commit message and pull request description is where an agent beats plain code. It never changes your git identity. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>.</p>
+<p><b><code>/pablo-commit-and-pr</code></b> commits, pushes, opens a draft pull request and moves the task to <code>draft</code>. It's the only part of PABLO that runs as an agent command (OpenCode, Claude Code, or a skill under Copilot), because writing a good commit message and pull request description is where an agent beats plain code. It never changes your git identity. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>.</p>
 
 <aside class="callout note"><p>It's called <code>/pablo-commit-and-pr</code> rather than <code>/commit-and-pr</code> so it can live next to a personal <code>/commit-and-pr</code> command you may already have.</p></aside>
 
 <h2>The skill</h2>
 
-<p>The <b><code>pablo-task</code></b> skill teaches your other agents one thing: how to create a PABLO task (<code>pablo task:start</code> with an issue link, or <code>--project</code> and a prompt). The installer links it into <code>~/.config/opencode/skill/</code>, or into <code>~/.claude/skills/</code> under Claude Code.</p>
+<p>The <b><code>pablo-task</code></b> skill teaches your other agents one thing: how to create a PABLO task (<code>pablo task:start</code> with an issue link, or <code>--project</code> and a prompt). The installer links it into <code>~/.config/opencode/skill/</code>, into <code>~/.claude/skills/</code> under Claude Code, or into <code>~/.copilot/skills/</code> under Copilot.</p>
 
 <h2 id="claude-code">Under Claude Code</h2>
 
-<p>With <code>agent_runtime: claude-code</code>, the same templates are translated rather than rewritten, so both runtimes always run the same prompts and the same guardrails.</p>
+<p>With <code>agent_runtime: claude-code</code>, the same templates are translated rather than rewritten, so the runtimes always run the same prompts and the same guardrails.</p>
 
 <ul>
   <li><b>Where the agents live.</b> <code>pablo system:generate-agents</code> writes all five into <code>~/.pablo/claude/agents.json</code>, which every launch passes with <code>--agents</code>. They are deliberately not installed in <code>~/.claude/agents</code>, so they never show up in your own sessions.</li>
@@ -97,6 +97,40 @@
 
 <p>The commit command is rendered into <code>claude/commands/</code> (git-ignored) and linked into <code>~/.claude/commands/</code>. Its body, the <code>!`…`</code> context injection and <code>$ARGUMENTS</code> work as in OpenCode, and its allowed commands become <code>allowed-tools</code> (raw and <code>rtk</code> forms again). One limit: a Claude Code command can't deny a tool, so “no edits” is an instruction in its hard rules rather than a permission.</p>
 
+<h2 id="copilot">Under GitHub Copilot CLI</h2>
+
+<p>With <code>agent_runtime: copilot</code>, the same templates are translated once more, so all three runtimes run the same prompts and the same guardrails.</p>
+
+<ul>
+  <li><b>Where the agents live.</b> <code>pablo system:generate-agents</code> renders <code>copilot/agents/pablo-&lt;agent&gt;.agent.md</code> (git-ignored) for the five agents, and the installer links them into <code>~/.copilot/agents/</code>. Unlike Claude Code, they're deliberately visible, with a <code>pablo-</code> prefix, so you can pick them in your own Copilot sessions too.</li>
+  <li><b>What an agent file holds.</b> <code>name</code>, <code>description</code> and <code>tools</code> (Copilot aliases: <code>read</code>, <code>search</code>, <code>execute</code>, <code>web</code>, <code>edit</code>), and no <code>model:</code> line: in Copilot an agent file's model would override <code>--model</code>.</li>
+  <li><b>How they launch.</b> <code>copilot --agent pablo-&lt;agent&gt; --model &lt;default_model&gt; --session-id &lt;uuid&gt; --no-ask-user --no-auto-update --no-color --disable-builtin-mcps --available-tools … --allow-tool … --deny-tool … -p '&lt;prompt&gt;'</code>. <code>--available-tools</code> lists exactly the built-in tools the agent may use (the analysts: <code>view</code>, <code>grep</code>, <code>glob</code>, <code>web_fetch</code>, <code>bash</code>; the resolver: <code>view</code>, <code>bash</code>, <code>edit</code>, <code>create</code>), which also hides your MCP tools; <code>--disable-builtin-mcps</code> turns off Copilot's built-in MCP servers. Your own custom instructions (<code>AGENTS.md</code>…) and hooks still load.</li>
+</ul>
+
+<p>The permissions map as follows:</p>
+
+<table>
+  <thead><tr><th>OpenCode rule</th><th>Copilot CLI</th></tr></thead>
+  <tbody>
+    <tr><td><code>read *</code> allowed</td><td>tool <code>view</code>, <code>--allow-tool read</code></td></tr>
+    <tr><td><code>grep</code>, <code>glob</code></td><td>tools <code>grep</code>, <code>glob</code></td></tr>
+    <tr><td><code>webfetch</code></td><td>tool <code>web_fetch</code>, <code>--allow-all-urls</code></td></tr>
+    <tr><td><code>shell *</code> allowed</td><td>tool <code>bash</code>, <code>--allow-tool shell</code></td></tr>
+    <tr><td><code>edit *</code> allowed</td><td>tools <code>edit</code>, <code>create</code>, <code>--allow-tool write</code></td></tr>
+    <tr><td><code>edit *</code> denied</td><td><code>--deny-tool write</code></td></tr>
+    <tr><td><code>skill</code> denied</td><td><code>skill</code> left out of the available tools</td></tr>
+    <tr><td><code>shell "git push*"</code> denied</td><td><code>--deny-tool 'shell(git push)'</code> and <code>'shell(git push:*)'</code>, plus <code>shell(rtk git push)</code> and <code>shell(rtk git push:*)</code></td></tr>
+  </tbody>
+</table>
+
+<p>Copilot matches a command prefix, so leading and trailing <code>*</code> are dropped: <code>*acli jira workitem edit*</code> becomes <code>acli jira workitem edit</code>. A pattern with a <code>*</code> in the middle can't be translated, and generation fails. In Copilot a deny always wins over an allow. The command patterns only exist on PABLO's launches: when you run a <code>pablo-*</code> agent by hand, only the visible tools from its agent file apply.</p>
+
+<p>The step budget works as under Claude Code: no per-agent limit, so it becomes an instruction at the end of the prompt.</p>
+
+<p>Copilot has no <code>!`…`</code> context injection, so the commit command becomes a skill, <code>copilot/skills/pablo-commit-and-pr/SKILL.md</code>, linked into <code>~/.copilot/skills/</code>. Its context section tells the agent to run those commands first, and <code>disable-model-invocation: true</code> keeps the model from running it on its own: only you typing <code>/pablo-commit-and-pr</code> does. The “no code edits” rule is restated in its hard rules, and <code>--force</code> still works as part of your request.</p>
+
+<aside class="callout note"><p>This runtime was built from Copilot CLI's documentation, without the CLI at hand: loading agents from <code>~/.copilot/agents</code> during <code>-p</code>, compound commands (<code>a &amp;&amp; b</code>) against prefix denies, and skill argument passing are not verified live yet.</p></aside>
+
 <h2 id="customise-the-agents">Customise the agents</h2>
 
 <p>The agent files are generated, not written by hand. Edit the sources in the repository, then regenerate:</p>
@@ -111,4 +145,4 @@
   <li><code>opencode/agents/shared/housekeeping.body.md</code>: the house rules appended to every agent.</li>
 </ul>
 
-<p>The same sources produce the Claude Code <code>agents.json</code> and command when <code>agent_runtime</code> is <code>claude-code</code>. Templates pull these in with <code>{{SHARED_FRONTMATTER:&lt;profile&gt;}}</code> and <code>{{SHARED_BODY:&lt;profile&gt;}}</code>, and the task agents get tracker-specific instructions through <code>{{ISSUE_TRACKER_SECTION}}</code> and <code>{{ISSUE_TRACKER_NAMES}}</code>, filled in for the trackers your projects use. Generation runs on install, and again when <code>pablo project:new</code> or <code>pablo project:remove</code> changes the set of trackers. Never edit the generated <code>.md</code> files: they're overwritten.</p>
+<p>The same sources produce the Claude Code <code>agents.json</code> and command when <code>agent_runtime</code> is <code>claude-code</code>, and the Copilot agent files and skill in <code>copilot/</code> when it is <code>copilot</code>. Templates pull these in with <code>{{SHARED_FRONTMATTER:&lt;profile&gt;}}</code> and <code>{{SHARED_BODY:&lt;profile&gt;}}</code>, and the task agents get tracker-specific instructions through <code>{{ISSUE_TRACKER_SECTION}}</code> and <code>{{ISSUE_TRACKER_NAMES}}</code>, filled in for the trackers your projects use. Generation runs on install, and again when <code>pablo project:new</code> or <code>pablo project:remove</code> changes the set of trackers. Never edit the generated <code>.md</code> files: they're overwritten.</p>

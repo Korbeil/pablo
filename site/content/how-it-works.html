@@ -6,7 +6,7 @@
 
 <dl>
   <dt>Interactive</dt>
-  <dd>What you run: the <a href="page:cli"><code>pablo</code> commands</a>, the <code>/pablo-commit-and-pr</code> command (OpenCode or Claude Code), and the agent sessions you open in Orca or OpenChamber.</dd>
+  <dd>What you run: the <a href="page:cli"><code>pablo</code> commands</a>, the <code>/pablo-commit-and-pr</code> command (OpenCode, Claude Code or Copilot), and the agent sessions you open in Orca or OpenChamber.</dd>
   <dt>Background</dt>
   <dd>A scheduler (systemd user timer on Linux, launchd agent on macOS) runs <code>pablo system:dispatch</code> every 5 minutes.</dd>
 </dl>
@@ -17,7 +17,7 @@
 
 <ol>
   <li>takes a global lock, so two runs never overlap (a second one exits immediately);</li>
-  <li>checks the tools it needs. A problem with <code>gh</code>, with the agent runtime's command (<code>opencode</code> or <code>claude</code>), or an impossible agent setup (OpenChamber with Claude Code) stops the run; a problem with a tracker tool or the agent backend only produces a warning, and only the projects using that tool are affected;</li>
+  <li>checks the tools it needs. A problem with <code>gh</code>, with the agent runtime's command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), or an impossible agent setup (OpenChamber with Claude Code or Copilot) stops the run; a problem with a tracker tool or the agent backend only produces a warning, and only the projects using that tool are affected;</li>
   <li>for each project, runs the jobs whose interval has elapsed since their last success.</li>
 </ol>
 
@@ -38,7 +38,7 @@
 
 <p>PABLO doesn't run agents itself. It hands them to an agent backend, exactly the way you would, and asks it which agents are busy.</p>
 
-<p>The backend decides <em>where</em> an agent runs; the <a href="page:configuration#claude-code">agent runtime</a> (<code>agent_runtime</code>) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code. Orca and the headless fallback run either; OpenChamber only runs OpenCode.</p>
+<p>The backend decides <em>where</em> an agent runs; the <a href="page:configuration#claude-code">agent runtime</a> (<code>agent_runtime</code>) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code, or <code>copilot --agent pablo-&lt;agent&gt; --session-id &lt;uuid&gt; … -p '&lt;prompt&gt;'</code> with <a href="page:configuration#copilot">Copilot</a>. Orca and the headless fallback run either; OpenChamber only runs OpenCode.</p>
 
 <h3>Orca (default)</h3>
 
@@ -51,7 +51,7 @@ orca terminal wait --terminal &lt;handle&gt; --for exit --timeout-ms 3600000 --j
 orca worktree ps --limit 200 --json
 </code></pre>
 
-<p>An agent that is <code>working</code> or <code>running</code> counts as 🏃 busy; anything else (idle, waiting for input) counts as 💭 waiting for you. Orca only knows repositories registered with <code>orca repo add</code>. Under Claude Code the terminal runs <code>claude -p</code> instead, and Orca follows it through the hooks it installs in your Claude Code settings, as it does for your own sessions.</p>
+<p>An agent that is <code>working</code> or <code>running</code> counts as 🏃 busy; anything else (idle, waiting for input) counts as 💭 waiting for you. Orca only knows repositories registered with <code>orca repo add</code>. Under Claude Code the terminal runs <code>claude -p</code> instead (<code>copilot -p</code> under Copilot), and Orca follows it through the hooks it installs in your Claude Code settings, as it does for your own sessions.</p>
 
 <h3>OpenChamber</h3>
 
@@ -67,7 +67,7 @@ openchamber session list --dir &lt;worktree&gt; --with-status
 
 <h3>Headless fallback</h3>
 
-<p>When Orca is unreachable or doesn't know the repository, PABLO runs the runtime's command (<code>opencode run --agent &lt;agent&gt;</code> or <code>claude -p … --agent &lt;agent&gt;</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
+<p>When Orca is unreachable or doesn't know the repository, PABLO runs the runtime's command (<code>opencode run --agent &lt;agent&gt;</code> <code>claude -p … --agent &lt;agent&gt;</code> or <code>copilot --agent pablo-&lt;agent&gt; … -p</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
 
 <h2 id="what-pablo-may-change">What PABLO may change</h2>
 

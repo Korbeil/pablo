@@ -17,7 +17,7 @@ use Symfony\Component\Process\ExecutableFinder;
  * required; acli (Jira) and a separate acli-confluence probe when a project
  * configures a Confluence space, only for jira projects; linear only when a
  * project uses that provider; the selected agent runtime's CLI (opencode or
- * claude, per agent_runtime); orca or openchamber, whichever the global
+ * claude or copilot, per agent_runtime); orca or openchamber, whichever the global
  * agent_backend selects (orca by default).
  */
 final class Doctor
@@ -30,6 +30,9 @@ final class Doctor
         'orca' => [['orca', 'status'], 'start the Orca app, or run: orca open'],
         'opencode' => [['opencode', '--version'], 'install opencode: https://opencode.ai'],
         'claude' => [['claude', 'auth', 'status', '--text'], 'run: claude auth login'],
+        // Copilot has no non-interactive login check: --version only proves
+        // the install; `copilot login` is documented as the next step.
+        'copilot' => [['copilot', '--version'], 'reinstall: npm install -g @github/copilot, then run: copilot login'],
         'openchamber' => [['openchamber', 'status'], 'install openchamber: https://github.com/openchamber/openchamber'],
     ];
 
@@ -39,7 +42,7 @@ final class Doctor
      * Wizard ordering: hard requirements first, then the per-provider
      * trackers (only included when a project uses them).
      */
-    public const CLI_ORDER = ['gh', 'orca', 'opencode', 'claude', 'openchamber', 'acli', 'acli-confluence', 'linear'];
+    public const CLI_ORDER = ['gh', 'orca', 'opencode', 'claude', 'copilot', 'openchamber', 'acli', 'acli-confluence', 'linear'];
 
     /** @var array<string, array<string, string>> platform => install command */
     private const INSTALL_COMMANDS = [
@@ -54,6 +57,10 @@ final class Doctor
         'claude' => [
             'Darwin' => 'curl -fsSL https://claude.ai/install.sh | bash',
             'Linux' => 'curl -fsSL https://claude.ai/install.sh | bash',
+        ],
+        'copilot' => [
+            'Darwin' => 'npm install -g @github/copilot',
+            'Linux' => 'npm install -g @github/copilot',
         ],
         'openchamber' => [
             'Darwin' => 'curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash',
@@ -77,6 +84,7 @@ final class Doctor
         'gh' => 'https://cli.github.com',
         'opencode' => 'https://opencode.ai',
         'claude' => 'https://code.claude.com/docs',
+        'copilot' => 'https://docs.github.com/en/copilot/how-tos/copilot-cli',
         'openchamber' => 'https://github.com/openchamber/openchamber',
         'acli' => 'https://developer.atlassian.com/cloud/acli/',
         'acli-confluence' => 'https://developer.atlassian.com/cloud/acli/',
@@ -119,7 +127,7 @@ final class Doctor
             $required['acli-confluence'] = true;
         }
         // Only the selected backend and runtime are required: an OpenChamber
-        // user need not install Orca, a Claude Code user need not install OpenCode.
+        // user need not install Orca, a Claude Code or Copilot user need not install OpenCode.
         $required['openchamber' === $this->agentLaunchers->resolveBackend() ? 'openchamber' : 'orca'] = true;
         $required[$this->runtimeBinary()] = true;
         $list = array_keys($required);
@@ -144,7 +152,7 @@ final class Doctor
     /**
      * Global agent settings that cannot work at all: an unknown
      * agent_runtime, or a backend that cannot run the runtime (OpenChamber +
-     * Claude Code). Always a hard failure — for the doctor and the dispatcher.
+     * anything but OpenCode). Always a hard failure — for the doctor and the dispatcher.
      *
      * @return list<string>
      */

@@ -67,6 +67,28 @@ final class GitConfigTripwireTest extends TestCase
         $this->assertSame([], $violations, "Git identity writes found:\n".implode("\n", $violations));
     }
 
+    /** Same check for the Copilot renders (agent files and the commit skill). */
+    public function testCopilotRendersContainNoIdentityWrites(): void
+    {
+        $templates = new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $copilot = new \Pablo\Agents\Runtime\CopilotAgents($templates);
+        $renders = $copilot->renderAgentFiles($templates->repoAgentsDir(), \Pablo\Config\Config::PROVIDERS);
+        foreach (glob(\Pablo\Agents\AgentTemplates::commandsDirFor($templates->repoAgentsDir()).'/*.md') ?: [] as $source) {
+            $renders['copilot/skills/'.basename($source, '.md')] = $copilot->renderSkill($source);
+        }
+
+        $violations = [];
+        foreach ($renders as $label => $content) {
+            foreach (self::FORBIDDEN_MARKDOWN as $rule => $regex) {
+                if (preg_match($regex, $content, $m)) {
+                    $violations[] = "{$label} ({$rule}): {$m[0]}";
+                }
+            }
+        }
+
+        $this->assertSame([], $violations, "Git identity writes found:\n".implode("\n", $violations));
+    }
+
     public function testSrcContainsNoIdentityConfigWrites(): void
     {
         $this->assertNoMatches(self::FORBIDDEN_PHP, $this->phpFiles());

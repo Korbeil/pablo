@@ -229,6 +229,14 @@ final class DispatchTest extends TestCase
         $this->assertStringContainsString('OpenChamber only works with OpenCode', $errors[0]);
     }
 
+    public function testPreflightRefusesOpenChamberWithCopilot(): void
+    {
+        $this->writeGlobalConfig("agent_runtime: copilot\nagent_backend: openchamber\n");
+        $errors = $this->dispatch->preflightErrors([]);
+        $this->assertNotSame([], $errors);
+        $this->assertStringContainsString('agent_runtime copilot cannot run on agent_backend openchamber', $errors[0]);
+    }
+
     public function testPreflightMissingClaudeIsHard(): void
     {
         $this->writeGlobalConfig("agent_runtime: claude-code\n");

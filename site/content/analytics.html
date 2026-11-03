@@ -45,7 +45,7 @@ pablo stats --format json                 # for scripts
 
 <h2>Privacy</h2>
 
-<p>No prompt text is ever stored: only its length and a short, non-reversible fingerprint (16 hex characters of a SHA-256), used to match a run to the right OpenCode or Claude Code session. Everything lives in <code>~/.pablo/analytics/</code>.</p>
+<p>No prompt text is ever stored: only its length and a short, non-reversible fingerprint (16 hex characters of a SHA-256), used to match a run to the right OpenCode, Claude Code or Copilot session. Everything lives in <code>~/.pablo/analytics/</code>.</p>
 
 <h2>Where tokens and cost come from</h2>
 
@@ -64,6 +64,16 @@ pablo stats --format json                 # for scripts
   <li><b>Matching</b> works as with OpenCode: the transcript whose first message matches the fingerprint is <code>exact</code>, otherwise the worktree's transcripts since the launch are counted (<code>window</code>).</li>
   <li><b>Cost is not measured</b> and is recorded as 0: with a Pro or Max subscription a run has no price of its own.</li>
 </ul>
+
+<p>With <a href="page:configuration#copilot">GitHub Copilot CLI</a>:</p>
+
+<ul>
+  <li><b>Tokens</b> come from <code>~/.copilot/session-state/&lt;session id&gt;/events.jsonl</code> (under <code>COPILOT_HOME</code> when set): the per-model <code>usage</code> of the latest <code>session.shutdown</code> (or <code>session.usage_checkpoint</code>) event, giving input (minus cached), output, cache read and cache write.</li>
+  <li><b>Matching</b>: the session whose prompt matches the fingerprint; otherwise only sessions whose recorded working directory is the worktree.</li>
+  <li><b>Cost is recorded as 0</b>: a Copilot plan bills credits, not a price per run.</li>
+</ul>
+
+<aside class="callout note"><p>GitHub doesn't document that event format, so harvesting Copilot usage is best-effort.</p></aside>
 
 <h2>Files</h2>
 

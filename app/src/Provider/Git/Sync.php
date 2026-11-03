@@ -154,15 +154,16 @@ final class Sync
         foreach ($reports as $report) {
             if ('conflict' === $report->action && $effectiveApply && null !== $agents) {
                 $prompt = $this->buildConflictAgentPrompt($report, $cfg);
-                // Claude Code takes a PABLO-assigned session id; OpenCode
-                // picks its own, found back from its session list.
-                $sessionId = $this->runtimes->resolve()->newSessionId();
+                // Claude Code and Copilot take a PABLO-assigned session id;
+                // OpenCode picks its own, found back from its session list.
+                $runtime = $this->runtimes->resolve();
+                $sessionId = $runtime->newSessionId();
                 $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->defaultModel, $sessionId);
                 if (null === $sessionId) {
                     sleep(1);
                     $sessionId = $this->findRecentSession($report->worktree, 'rebase-conflict-resolver');
                 }
-                $report->agentHandle = $sessionId ?? 'launched';
+                $report->agentHandle = null !== $sessionId ? SessionRef::handle($runtime->name(), $sessionId) : 'launched';
             }
         }
         $this->saveLastLog($cfg->name, $cfg->syncStrategy, $reports);
