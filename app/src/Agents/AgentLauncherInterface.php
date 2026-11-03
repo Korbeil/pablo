@@ -67,7 +67,11 @@ interface AgentLauncherInterface
 
     public function refreshAgentDisplayCache(string $project, string $branch, string $worktree): void;
 
-    public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null): string;
+    /**
+     * $sessionId: a session id assigned up front (Claude Code); null lets the
+     * runtime pick one (a new one for Claude Code, OpenCode's own otherwise).
+     */
+    public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string;
 
     public function hasAnyOrcaAgent(string $worktree): bool;
 }

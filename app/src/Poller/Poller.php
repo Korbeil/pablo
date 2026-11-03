@@ -6,9 +6,10 @@ namespace Pablo\Poller;
 
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AgentRunRecord;
+use Pablo\Analytics\AgentUsage;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\NullAnalytics;
-use Pablo\Analytics\OpenCodeUsage;
+use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\AgentActivity;
 use Pablo\Domain\AgentLaunch;
@@ -24,7 +25,6 @@ use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
 use Pablo\Support\PabloError;
-use Pablo\Support\ProcessRunner;
 use Pablo\Support\RepoSlug;
 
 /**
@@ -53,7 +53,7 @@ final class Poller
         private readonly StateMachine $stateMachine,
         private readonly Time $time,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
-        private readonly OpenCodeUsage $usage = new OpenCodeUsage(new ProcessRunner()),
+        private readonly UsageHarvesterInterface $usage = new AgentUsage(),
     ) {
     }
 

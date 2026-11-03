@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Pablo\Provider\Git;
 
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Agents\Runtime\AgentRuntimeResolver;
+use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Time;
 use Pablo\Provider\Gh\GhPrInterface;
@@ -41,6 +43,7 @@ final class Sync
         private readonly RepoSlug $repoSlug,
         private readonly ProcessRunnerInterface $runner,
         private readonly Time $time,
+        private readonly AgentRuntimeResolver $runtimes = new AgentRuntimeResolver(),
     ) {
     }
 
@@ -151,9 +154,14 @@ final class Sync
         foreach ($reports as $report) {
             if ('conflict' === $report->action && $effectiveApply && null !== $agents) {
                 $prompt = $this->buildConflictAgentPrompt($report, $cfg);
-                $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->defaultModel);
-                sleep(1);
-                $sessionId = $this->findRecentSession($report->worktree, 'rebase-conflict-resolver');
+                // Claude Code takes a PABLO-assigned session id; OpenCode
+                // picks its own, found back from its session list.
+                $sessionId = $this->runtimes->resolve()->newSessionId();
+                $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->defaultModel, $sessionId);
+                if (null === $sessionId) {
+                    sleep(1);
+                    $sessionId = $this->findRecentSession($report->worktree, 'rebase-conflict-resolver');
+                }
                 $report->agentHandle = $sessionId ?? 'launched';
             }
         }
@@ -296,7 +304,7 @@ final class Sync
             if ('conflict' === $report->action) {
                 $lines[] = '   conflicting files: '.implode(', ', $report->conflictFiles);
                 if ('' !== $report->agentHandle) {
-                    $lines[] = '   fix agent running — opencode -s '.$report->agentHandle;
+                    $lines[] = '   fix agent running — '.SessionRef::command($report->agentHandle);
                 }
             }
         }

@@ -17,7 +17,8 @@ use Pablo\Store\Store;
  *
  * One timer, every 5 minutes; per-project cadence lives in the configs and is
  * enforced here via last-run stamps. A global flock prevents overlapping
- * runs; a hard preflight failure (gh/opencode) aborts the whole run fast and
+ * runs; a hard preflight failure (gh, the agent runtime's CLI, an impossible
+ * backend/runtime pair) aborts the whole run fast and
  * loud, while a soft one (provider CLIs) only warns.
  */
 final class Dispatch
@@ -25,7 +26,8 @@ final class Dispatch
     /**
      * Provider CLIs that are soft requirements: a failure here warns but does
      * not abort the run — only the affected project's sync/poll degrades (the
-     * per-project failure path already handles that). gh/opencode stay hard.
+     * per-project failure path already handles that). gh and the runtime CLI
+     * (opencode or claude) stay hard.
      */
     private const SOFT_CLIS = ['orca', 'openchamber', 'acli', 'acli-confluence', 'linear'];
 
@@ -60,13 +62,15 @@ final class Dispatch
      */
     public function preflightErrors(array $projects): array
     {
-        $errors = [];
+        // An impossible agent setup (OpenChamber + Claude Code) would only
+        // fail every launch: stop here, loud, before touching any project.
+        $errors = $this->doctor->configErrors();
         foreach ($this->doctor->checkAll($projects) as $result) {
             if ($result->ok()) {
                 continue;
             }
             // Provider CLIs are soft requirements: warn and continue. orca's
-            // agent runner falls back to headless opencode; a dead acli/linear
+            // agent runner falls back to a headless run; a dead acli/linear
             // only degrades the projects that use that provider (they fail
             // per-project at runtime), it never blocks the whole run.
             if (\in_array($result->cli, self::SOFT_CLIS, true)) {

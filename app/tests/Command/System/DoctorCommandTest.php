@@ -110,6 +110,22 @@ YAML;
         }
     }
 
+    public function testOpenChamberWithClaudeCodeFailsWithAClearMessage(): void
+    {
+        $this->writeGlobalConfig(str_replace('openrouter/test/model', 'sonnet', self::DEFAULTS)."\nagent_runtime: claude-code\nagent_backend: openchamber\n");
+
+        $tester = new CommandTester($this->command());
+        $tester->execute([]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $display = $tester->getDisplay();
+        $this->assertStringContainsString('❌ config', $display);
+        $this->assertStringContainsString('OpenChamber only works with OpenCode', $display);
+        // The rest of the checks still run, on the Claude Code runtime.
+        $this->assertStringContainsString('claude', $display);
+        $this->assertStringContainsString('agents.json', $display);
+    }
+
     public function testStaleAgentWarnsSoftlyAndDoesNotFail(): void
     {
         $this->installFreshAgents();

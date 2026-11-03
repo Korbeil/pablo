@@ -1,0 +1,124 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Pablo\Agents\Runtime;
+
+/**
+ * Claude Code: `claude -p` with PABLO's agents passed at launch through
+ * `--agents ~/.pablo/claude/agents.json` (never installed under
+ * ~/.claude/agents, so they stay out of the user's interactive sessions).
+ *
+ * Every launch repeats the agent's permissions as CLI flags — the only place
+ * shell patterns can be expressed — runs with the user's own settings and
+ * hooks (Orca, RTK) but without their MCP servers (--strict-mcp-config), and
+ * gets a PABLO-assigned session id so analytics and `claude --resume` find it.
+ */
+final class ClaudeCodeRuntime implements AgentRuntimeInterface
+{
+    /** @param string|null $dir override of ~/.pablo/claude (tests) */
+    public function __construct(
+        private readonly ClaudeCodeAgents $agents,
+        private readonly ?string $dir = null,
+    ) {
+    }
+
+    /**
+     * ~/.pablo/claude, or PABLO_CLAUDE_DIR; resolved per call, never at
+     * container compile time.
+     */
+    public static function defaultDir(): string
+    {
+        $override = getenv('PABLO_CLAUDE_DIR');
+        if (false !== $override && '' !== $override) {
+            return $override;
+        }
+
+        return (getenv('HOME') ?: '~').'/.pablo/claude';
+    }
+
+    /**
+     * The user's Claude Code directory (CLAUDE_CONFIG_DIR, else ~/.claude):
+     * transcripts, and where install.sh links the command and the skill.
+     */
+    public static function userConfigDir(): string
+    {
+        $env = getenv('CLAUDE_CONFIG_DIR');
+        if (false !== $env && '' !== $env) {
+            return $env;
+        }
+
+        return (getenv('HOME') ?: '~').'/.claude';
+    }
+
+    public function name(): string
+    {
+        return self::CLAUDE_CODE;
+    }
+
+    public function binary(): string
+    {
+        return 'claude';
+    }
+
+    public function defaultModel(): string
+    {
+        return 'sonnet';
+    }
+
+    public function newSessionId(): string
+    {
+        $bytes = random_bytes(16);
+        $bytes[6] = \chr((\ord($bytes[6]) & 0x0F) | 0x40);
+        $bytes[8] = \chr((\ord($bytes[8]) & 0x3F) | 0x80);
+
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+    }
+
+    public function agentsFile(): string
+    {
+        return $this->installDir().'/agents.json';
+    }
+
+    public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string
+    {
+        $argv = ['claude', '-p', '--agents', $this->agentsFile(), '--agent', $agent];
+        if (null !== $model) {
+            $argv[] = '--model';
+            $argv[] = $model;
+        }
+        if (null !== $sessionId) {
+            $argv[] = '--session-id';
+            $argv[] = $sessionId;
+        }
+        $argv[] = '--strict-mcp-config';
+        $argv = [...$argv, ...$this->agents->profile($agent)->cliArgs()];
+        // `--`: the variadic tool flags would otherwise swallow the prompt.
+        $argv[] = '--';
+        $argv[] = $prompt;
+
+        return implode(' ', array_map(OpenCodeRuntime::word(...), $argv));
+    }
+
+    public function sessionRef(string $handle): string
+    {
+        return SessionRef::command($handle);
+    }
+
+    public function installDir(): string
+    {
+        return $this->dir ?? self::defaultDir();
+    }
+
+    public function modelError(string $model): ?string
+    {
+        if (str_contains($model, '/')) {
+            return \sprintf(
+                "'%s' looks like an OpenCode provider/model id; agent_runtime claude-code takes a Claude model alias (sonnet, opus, haiku) or a full model id such as claude-sonnet-5-5",
+                $model,
+            );
+        }
+
+        return null;
+    }
+}

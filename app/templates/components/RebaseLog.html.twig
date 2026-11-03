@@ -53,7 +53,7 @@
                                         <div class="pablo-log-agent">
                                             {{ ux_icon('lucide:activity', {class: 'pablo-icon pablo-icon-dim'}) }}
                                             fix agent running —
-                                            <code>opencode -s {{ r.report.agentHandle }}</code>
+                                            <code>{{ r.agentSessionRef }}</code>
                                         </div>
                                     {% endif %}
                                 </li>

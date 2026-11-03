@@ -7,6 +7,14 @@
 <dict>
     <key>Label</key>
     <string>com.pablo.dispatch</string>
+    <!-- launchd's default PATH (/usr/bin:/bin:/usr/sbin:/sbin) misses the
+         agent CLIs: claude and the pablo shim live in ~/.local/bin, opencode
+         in ~/.opencode/bin, gh/acli in Homebrew. -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>@HOME@/.local/bin:@HOME@/.opencode/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
     <key>ProgramArguments</key>
     <array>
         <string>@PABLO_BIN@</string>

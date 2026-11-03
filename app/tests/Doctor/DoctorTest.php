@@ -125,6 +125,41 @@ YAML;
         $this->assertSame(['gh', 'openchamber', 'opencode'], $this->doctor()->requiredClis($projects));
     }
 
+    public function testClaudeCodeRuntimeReplacesOpenCode(): void
+    {
+        $this->writeGlobalConfig(str_replace('openrouter/test/model', 'sonnet', self::DEFAULTS)."\nagent_runtime: claude-code\n");
+        $projects = ['a' => $this->makeCfg('a', 'github')];
+        $doctor = $this->doctor();
+        $this->assertSame(['claude', 'gh', 'orca'], $doctor->requiredClis($projects));
+        $this->assertSame([], $doctor->configErrors());
+        $this->assertSame('curl -fsSL https://claude.ai/install.sh | bash', $doctor->installCommand('claude'));
+
+        $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, "Login method: Claude Team account\n");
+        $results = $doctor->checkIds(['claude']);
+        $this->assertTrue($results[0]->ok());
+        $this->assertSame('Login method: Claude Team account', $results[0]->detail);
+        $this->assertSame([['claude', 'auth', 'status', '--text']], $this->runner()->probeCalls);
+    }
+
+    public function testOpenChamberWithClaudeCodeIsAConfigError(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nagent_runtime: claude-code\nagent_backend: openchamber\n");
+        $errors = $this->doctor()->configErrors();
+        $this->assertCount(1, $errors);
+        $this->assertStringContainsString('OpenChamber only works with OpenCode', $errors[0]);
+        $this->assertStringContainsString('agent_backend: orca', $errors[0]);
+        $this->assertStringContainsString('❌ config', $this->doctor()->renderConfigErrors($errors));
+    }
+
+    public function testUnknownRuntimeIsAConfigError(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nagent_runtime: codex\n");
+        $doctor = $this->doctor();
+        $this->assertStringContainsString("unknown agent_runtime 'codex'", $doctor->configErrors()[0]);
+        // The CLI checks still run (on OpenCode) so the rest stays reported.
+        $this->assertContains('opencode', $doctor->requiredClis([]));
+    }
+
     public function testRequiredIncludesAcliForJiraProjects(): void
     {
         $projects = ['a' => $this->makeCfg('a', 'jira'), 'b' => $this->makeCfg('b', 'linear')];

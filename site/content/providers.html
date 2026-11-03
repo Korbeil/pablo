@@ -63,7 +63,8 @@
   <thead><tr><th>Tool</th><th>Required when</th><th>In the background job</th></tr></thead>
   <tbody>
     <tr><td><code>gh</code></td><td>always</td><td>hard: a failure stops the run</td></tr>
-    <tr><td><code>opencode</code></td><td>always</td><td>hard</td></tr>
+    <tr><td><code>opencode</code></td><td><code>agent_runtime</code> is <code>opencode</code> (the default); checked with <code>opencode --version</code></td><td>hard</td></tr>
+    <tr><td><code>claude</code></td><td><code>agent_runtime</code> is <code>claude-code</code>; checked with <code>claude auth status</code></td><td>hard</td></tr>
     <tr><td><code>orca</code></td><td><code>agent_backend</code> is <code>orca</code> (the default)</td><td>soft: a warning</td></tr>
     <tr><td><code>openchamber</code></td><td><code>agent_backend</code> is <code>openchamber</code></td><td>soft</td></tr>
     <tr><td><code>acli</code> (Jira)</td><td>a project uses Jira</td><td>soft</td></tr>
@@ -74,4 +75,6 @@
 
 <p>In the background job, a soft failure only affects the projects using that tool; the others carry on. Each check is limited to 30 seconds, since <code>orca</code> can hang outside an interactive session.</p>
 
-<p>The doctor also compares each installed agent in <code>~/.config/opencode/agents/</code> with a fresh render: ✅ fresh, ⚠️ stale (run <code>pablo system:generate-agents</code>), ❌ missing, broken link, or a file PABLO doesn't manage.</p>
+<p>Before the tools, the doctor checks that the agent settings can work at all: an unknown <code>agent_runtime</code>, or <code>agent_backend: openchamber</code> with <code>agent_runtime: claude-code</code>, is a ❌ <code>config</code> line, and the background job refuses to run with it.</p>
+
+<p>The doctor also compares each installed agent in <code>~/.config/opencode/agents/</code> (or, under Claude Code, <code>~/.pablo/claude/agents.json</code>, the command and the skill in <code>~/.claude/</code>) with a fresh render: ✅ fresh, ⚠️ stale (run <code>pablo system:generate-agents</code>), ❌ missing, broken link, or a file PABLO doesn't manage.</p>

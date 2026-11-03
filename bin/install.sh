@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # PABLO installer (Linux + macOS). Idempotent. Creates ONLY new
 # symlinks/units — it refuses to touch any pre-existing file in
-# ~/.config/opencode that isn't already a symlink into this repository
-# (spec: originals stay untouched).
+# ~/.config/opencode (OpenCode runtime) or ~/.claude (Claude Code runtime)
+# that isn't already a symlink into this repository (spec: originals stay
+# untouched).
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 OPENCODE_DIR="${HOME}/.config/opencode"
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
 BIN_DIR="${HOME}/.local/bin"
 OS="$(uname -s)"
 
@@ -52,9 +54,19 @@ if [ ! -f "$PABLO_CONFIG_FILE" ]; then
     mkdir -p "$(dirname "$PABLO_CONFIG_FILE")"
     cp "$REPO_DIR/examples/config.yaml" "$PABLO_CONFIG_FILE"
     info "wrote default $PABLO_CONFIG_FILE (edit it to set your default agent model, PR locale, sync strategy, ...)"
+    # Pick the agent runtime the user actually has: OpenCode is the default,
+    # so only switch when Claude Code is installed and OpenCode is not (the
+    # example's OpenCode model id then becomes a Claude Code alias).
+    if ! command -v opencode >/dev/null 2>&1 && command -v claude >/dev/null 2>&1; then
+        sed -e 's|^default_model:.*$|default_model: sonnet|' "$PABLO_CONFIG_FILE" > "$PABLO_CONFIG_FILE.tmp"
+        mv "$PABLO_CONFIG_FILE.tmp" "$PABLO_CONFIG_FILE"
+        printf '\nagent_runtime: claude-code\n' >> "$PABLO_CONFIG_FILE"
+        info "Claude Code found (and no OpenCode): set agent_runtime: claude-code, default_model: sonnet"
+    fi
     # Pick the agent backend the user actually has: Orca is the default, so
-    # only switch when OpenChamber is installed and Orca is not.
-    if ! command -v orca >/dev/null 2>&1 && command -v openchamber >/dev/null 2>&1; then
+    # only switch when OpenChamber is installed and Orca is not — and never
+    # under Claude Code, which OpenChamber cannot run.
+    if ! command -v orca >/dev/null 2>&1 && command -v openchamber >/dev/null 2>&1 && command -v opencode >/dev/null 2>&1; then
         printf '\nagent_backend: openchamber\n' >> "$PABLO_CONFIG_FILE"
         info "OpenChamber found (and no Orca): set agent_backend: openchamber"
     elif ! command -v orca >/dev/null 2>&1; then
@@ -63,6 +75,18 @@ if [ ! -f "$PABLO_CONFIG_FILE" ]; then
 else
     info "keeping existing $PABLO_CONFIG_FILE"
 fi
+
+# The agent runtime decides what gets generated and linked below:
+# PABLO_AGENT_RUNTIME, else agent_runtime in the global config, else opencode.
+RUNTIME="${PABLO_AGENT_RUNTIME:-}"
+if [ -z "$RUNTIME" ] && [ -f "$PABLO_CONFIG_FILE" ]; then
+    RUNTIME="$(sed -n 's/^agent_runtime:[[:space:]]*["'"'"']\{0,1\}\([a-z-]*\).*$/\1/p' "$PABLO_CONFIG_FILE" | head -n 1)"
+fi
+RUNTIME="${RUNTIME:-opencode}"
+case "$RUNTIME" in
+opencode | claude-code) info "agent runtime: $RUNTIME" ;;
+*) die "unknown agent_runtime '$RUNTIME' (expected opencode or claude-code)" ;;
+esac
 
 # 1. PHP dependencies --------------------------------------------------------
 info "composer install (no-dev)"
@@ -85,8 +109,8 @@ info "warming the container cache"
 php "$REPO_DIR/app/bin/console" cache:clear --env="${PABLO_ENV:-dev}" --no-interaction >/dev/null
 
 # 1c. Agent templates --------------------------------------------------------
-info "generating opencode agent templates from project configs"
-php "$REPO_DIR/app/bin/pablo" system:generate-agents --no-interaction 2>/dev/null || true
+info "generating the $RUNTIME agent definitions from project configs"
+php "$REPO_DIR/app/bin/pablo" system:generate-agents --runtime "$RUNTIME" --no-interaction 2>/dev/null || true
 
 # 2. pablo on PATH -----------------------------------------------------------
 PABLO_BIN="$REPO_DIR/app/bin/pablo"
@@ -134,7 +158,7 @@ case ":$PATH:" in
     ;;
 esac
 
-# 3. OpenCode agents + commands ---------------------------------------------
+# 3. Agents, commands and skills (per runtime) ------------------------------
 link_into() { # link_into <src-file> <dest-dir>
     local src="$1" dest_dir="$2"
     local dest="$dest_dir/$(basename "$src")"
@@ -146,20 +170,37 @@ link_into() { # link_into <src-file> <dest-dir>
     info "linked $dest"
 }
 
-for f in "$REPO_DIR"/opencode/agents/*.md; do
-    link_into "$f" "$OPENCODE_DIR/agents"
-done
-for f in "$REPO_DIR"/opencode/commands/*.md; do
-    link_into "$f" "$OPENCODE_DIR/commands"
-done
-for d in "$REPO_DIR"/opencode/skills/*/; do
-    name="$(basename "$d")"
-    [ -e "$OPENCODE_DIR/skill/$name" ] && [ ! -L "$OPENCODE_DIR/skill/$name" ] &&
-        die "$OPENCODE_DIR/skill/$name exists and is not a symlink — refusing to overwrite"
-    mkdir -p "$OPENCODE_DIR/skill"
-    ln -sfn "$REPO_DIR/opencode/skills/$name" "$OPENCODE_DIR/skill/$name"
-    info "linked $OPENCODE_DIR/skill/$name"
-done
+link_skills_into() { # link_skills_into <dest-dir>
+    local dest_dir="$1" d name
+    for d in "$REPO_DIR"/opencode/skills/*/; do
+        name="$(basename "$d")"
+        [ -e "$dest_dir/$name" ] && [ ! -L "$dest_dir/$name" ] &&
+            die "$dest_dir/$name exists and is not a symlink — refusing to overwrite"
+        mkdir -p "$dest_dir"
+        ln -sfn "$REPO_DIR/opencode/skills/$name" "$dest_dir/$name"
+        info "linked $dest_dir/$name"
+    done
+}
+
+if [ "$RUNTIME" = claude-code ]; then
+    # Only the command and the skill go under ~/.claude. The agents stay out
+    # of ~/.claude/agents on purpose (they would show up in your interactive
+    # sessions): PABLO passes ~/.pablo/claude/agents.json with --agents.
+    [ -f "$PABLO_DIR/claude/agents.json" ] ||
+        die "$PABLO_DIR/claude/agents.json was not generated — run: php $REPO_DIR/app/bin/pablo system:generate-agents --runtime claude-code"
+    for f in "$REPO_DIR"/claude/commands/*.md; do
+        link_into "$f" "$CLAUDE_DIR/commands"
+    done
+    link_skills_into "$CLAUDE_DIR/skills"
+else
+    for f in "$REPO_DIR"/opencode/agents/*.md; do
+        link_into "$f" "$OPENCODE_DIR/agents"
+    done
+    for f in "$REPO_DIR"/opencode/commands/*.md; do
+        link_into "$f" "$OPENCODE_DIR/commands"
+    done
+    link_skills_into "$OPENCODE_DIR/skill"
+fi
 
 # 4. Background dispatcher (per-platform) ------------------------------------
 case "$OS" in
@@ -200,7 +241,7 @@ Darwin)
         die "$PLIST exists and was not written by PABLO — refusing to overwrite"
     fi
     mkdir -p "$LOG_DIR" "$AGENTS_DIR"
-    sed -e "s|@PABLO_BIN@|$BIN_DIR/pablo|g" -e "s|@LOG_DIR@|$LOG_DIR|g" \
+    sed -e "s|@PABLO_BIN@|$BIN_DIR/pablo|g" -e "s|@LOG_DIR@|$LOG_DIR|g" -e "s|@HOME@|$HOME|g" \
         "$REPO_DIR/launchd/com.pablo.dispatch.plist.template" > "$PLIST"
     # bootout first so a re-install picks up the fresh plist (idempotent)
     launchctl bootout "gui/$(id -u)/com.pablo.dispatch" 2>/dev/null || true
@@ -211,7 +252,7 @@ Darwin)
         if [ -e "$WEB_PLIST" ] && ! grep -q "marker: com.pablo.web" "$WEB_PLIST"; then
             die "$WEB_PLIST exists and was not written by PABLO — refusing to overwrite"
         fi
-        sed -e "s|@PABLO_BIN@|$BIN_DIR/pablo|g" -e "s|@LOG_DIR@|$LOG_DIR|g" \
+        sed -e "s|@PABLO_BIN@|$BIN_DIR/pablo|g" -e "s|@LOG_DIR@|$LOG_DIR|g" -e "s|@HOME@|$HOME|g" \
             "$REPO_DIR/launchd/com.pablo.web.plist.template" > "$WEB_PLIST"
         launchctl bootout "gui/$(id -u)/com.pablo.web" 2>/dev/null || true
         launchctl bootstrap "gui/$(id -u)" "$WEB_PLIST"

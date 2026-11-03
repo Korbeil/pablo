@@ -221,6 +221,27 @@ final class DispatchTest extends TestCase
         $this->assertStringNotContainsString('linear', $out);
     }
 
+    public function testPreflightRefusesOpenChamberWithClaudeCode(): void
+    {
+        $this->writeGlobalConfig("agent_runtime: claude-code\nagent_backend: openchamber\n");
+        $errors = $this->dispatch->preflightErrors([]);
+        $this->assertNotSame([], $errors);
+        $this->assertStringContainsString('OpenChamber only works with OpenCode', $errors[0]);
+    }
+
+    public function testPreflightMissingClaudeIsHard(): void
+    {
+        $this->writeGlobalConfig("agent_runtime: claude-code\n");
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => 'claude' === $argv[0]
+            ? new \Pablo\Support\ProbeResult(1, 'Not logged in')
+            : new \Pablo\Support\ProbeResult(0, 'ok');
+        ob_start();
+        $errors = $this->dispatch->preflightErrors([]);
+        ob_end_clean();
+        $this->assertCount(1, $errors);
+        $this->assertStringStartsWith('claude: Not logged in', $errors[0]);
+    }
+
     public function testPreflightGhFailureIsHard(): void
     {
         $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => 'gh' === $argv[0]

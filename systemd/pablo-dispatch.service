@@ -13,6 +13,8 @@ Type=oneshot
 # every pass silently blanks agent status from the dashboard cache. The
 # pnpm shim is a shell wrapper that then needs `node`, which lives in the
 # nvm install dir; add it too so the shim's `command -v node` resolves.
+# %h/.local/bin also holds `claude` (agent_runtime: claude-code) and the
+# pablo shim itself; %h/.opencode/bin holds `opencode`.
 Environment=PATH=%h/.config/orca/linux-orca-cli-shim:%h/.opencode/bin:%h/.local/bin:%h/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:%h/.local/share/pnpm/bin:%h/.nvm/versions/node/v24.19.0/bin
 # acli (the Jira CLI) requires DBUS_SESSION_BUS_ADDRESS: without it the JVM
 # blocks waiting for a session bus and every acli call times out after 30s,

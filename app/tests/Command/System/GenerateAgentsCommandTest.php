@@ -79,6 +79,44 @@ YAML);
         $this->assertSectionHas('task-feedback', ['GitHub', 'Jira', 'Linear', 'Confluence']);
     }
 
+    public function testClaudeCodeRuntimeWritesAgentsJsonAndCommand(): void
+    {
+        $this->writeProject('gh-project', 'github');
+        $this->copyAllTemplates();
+        mkdir($this->tmp.'/commands');
+        copy(\dirname(__DIR__, 4).'/opencode/commands/pablo-commit-and-pr.md', $this->tmp.'/commands/pablo-commit-and-pr.md');
+
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $tester = new CommandTester($command);
+        $tester->execute([
+            '--agents-dir' => $this->agentsDir,
+            '--runtime' => 'claude-code',
+            '--claude-dir' => $this->tmp.'/pablo-claude',
+            '--claude-commands-dir' => $this->tmp.'/claude-commands',
+        ]);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $agents = json_decode((string) file_get_contents($this->tmp.'/pablo-claude/agents.json'), true);
+        $this->assertIsArray($agents);
+        $this->assertSame(self::TEMPLATE_NAMES, array_keys($agents));
+        $this->assertStringContainsString('GitHub', $agents['task-analyst']['prompt']);
+        $this->assertStringNotContainsString('Linear', $agents['task-analyst']['prompt']);
+        $this->assertStringContainsString('allowed-tools:', (string) file_get_contents($this->tmp.'/claude-commands/pablo-commit-and-pr.md'));
+        $this->assertStringContainsString('agents.json (Claude Code)', $tester->getDisplay());
+    }
+
+    public function testOpenCodeRuntimeWritesNoClaudeFiles(): void
+    {
+        $this->copyAllTemplates();
+
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $tester = new CommandTester($command);
+        $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'opencode', '--claude-dir' => $this->tmp.'/pablo-claude']);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertFileDoesNotExist($this->tmp.'/pablo-claude/agents.json');
+    }
+
     public function testGeneratesWithJiraOnly(): void
     {
         $this->writeProject('jira-project', 'jira');

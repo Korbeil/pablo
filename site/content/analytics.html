@@ -45,16 +45,24 @@ pablo stats --format json                 # for scripts
 
 <h2>Privacy</h2>
 
-<p>No prompt text is ever stored: only its length and a short, non-reversible fingerprint (16 hex characters of a SHA-256), used to match a run to the right OpenCode session. Everything lives in <code>~/.pablo/analytics/</code>.</p>
+<p>No prompt text is ever stored: only its length and a short, non-reversible fingerprint (16 hex characters of a SHA-256), used to match a run to the right OpenCode or Claude Code session. Everything lives in <code>~/.pablo/analytics/</code>.</p>
 
 <h2>Where tokens and cost come from</h2>
 
-<p>PABLO reads usage from OpenCode once a run is over:</p>
+<p>PABLO reads usage from the agent runtime once a run is over. With OpenCode:</p>
 
 <ul>
   <li><b>Orca and headless runs</b>: from OpenCode's local storage. When the run's fingerprint matches a session's first message, the match is <code>exact</code>; otherwise every session created in that worktree since the launch is counted (<code>window</code>).</li>
   <li><b>OpenChamber runs</b>: from OpenChamber's own session list for the worktree (<code>window</code>), because those sessions live in OpenChamber's server.</li>
   <li>Nothing found: usage is empty (<code>none</code>), and the timing is still recorded.</li>
+</ul>
+
+<p>With <a href="page:configuration#claude-code">Claude Code</a>:</p>
+
+<ul>
+  <li><b>Tokens</b> come from the run's transcript, <code>~/.claude/projects/&lt;worktree&gt;/&lt;session id&gt;.jsonl</code> (under <code>CLAUDE_CONFIG_DIR</code> when set): input, output, cache read and cache write, summed over the assistant messages, each counted once. Thinking tokens are part of output, so reasoning stays at 0. The models are recorded too.</li>
+  <li><b>Matching</b> works as with OpenCode: the transcript whose first message matches the fingerprint is <code>exact</code>, otherwise the worktree's transcripts since the launch are counted (<code>window</code>).</li>
+  <li><b>Cost is not measured</b> and is recorded as 0: with a Pro or Max subscription a run has no price of its own.</li>
 </ul>
 
 <h2>Files</h2>

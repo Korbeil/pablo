@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Dashboard;
 
+use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Provider\Git\SyncReport;
 
 /**
@@ -19,5 +20,11 @@ final readonly class RebaseLogRow
         public string $label,
         public string $emoji,
     ) {
+    }
+
+    /** `opencode -s <id>` or `claude --resume <id>` for the conflict-fix agent. */
+    public function agentSessionRef(): string
+    {
+        return SessionRef::command($this->report->agentHandle);
     }
 }

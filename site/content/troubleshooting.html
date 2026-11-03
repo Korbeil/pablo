@@ -36,11 +36,19 @@ pablo sync:log          # what the last sync did, per project
 
 <h3>The doctor says an agent file is stale</h3>
 
-<p>Your agents in <code>~/.config/opencode/agents/</code> were generated from older templates or an older project list. Run <code>pablo system:generate-agents</code>. A ❌ instead means a missing file, a broken link, or a file PABLO doesn't manage in its place.</p>
+<p>Your agents (in <code>~/.config/opencode/agents/</code>, or <code>~/.pablo/claude/agents.json</code> under Claude Code) were generated from older templates or an older project list. Run <code>pablo system:generate-agents</code>. A ❌ instead means a missing file, a broken link, or a file PABLO doesn't manage in its place.</p>
 
 <h3>Loading a project fails about <code>default_model</code> or <code>pr_description_locale</code></h3>
 
 <p>Both must be set, either in the project or in <code>~/.pablo/config.yaml</code>. See <a href="page:first-project#1-set-your-global-defaults">global defaults</a>.</p>
+
+<h3>The doctor says OpenChamber only works with OpenCode</h3>
+
+<p>You set <code>agent_runtime: claude-code</code> with <code>agent_backend: openchamber</code>. OpenChamber drives its own OpenCode server and can't run Claude Code, so nothing would launch; the background job refuses to run. Set <code>agent_backend: orca</code> (or remove it), or go back to <code>agent_runtime: opencode</code>.</p>
+
+<h3>Loading a project fails: <code>default_model</code> looks like an OpenCode provider/model id</h3>
+
+<p>Under <code>agent_runtime: claude-code</code>, models are Claude aliases (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or full model ids, not <code>provider/model</code>. Fix <code>default_model</code> and <code>default_model_by_type</code> in <code>~/.pablo/config.yaml</code> and in the project files. See <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>.</p>
 
 <h3>Nothing happens after a reboot (Linux)</h3>
 
@@ -54,7 +62,7 @@ pablo sync:log          # what the last sync did, per project
 
 <h3>Agents run headless instead of in Orca</h3>
 
-<p>Orca only sees repositories registered with it. Run <code>orca repo add &lt;repo path&gt;</code> for the project. Until then, PABLO uses <code>opencode run</code> in the background; open those sessions with <code>opencode -s &lt;session&gt;</code>.</p>
+<p>Orca only sees repositories registered with it. Run <code>orca repo add &lt;repo path&gt;</code> for the project. Until then, PABLO runs the agents in the background; open those sessions with <code>opencode -s &lt;session&gt;</code>, or <code>claude --resume &lt;session&gt;</code> in the worktree under Claude Code (the session id is in the pid file in <code>~/.pablo/agents/</code>).</p>
 
 <h3>The agents use the wrong model</h3>
 

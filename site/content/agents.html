@@ -1,6 +1,6 @@
 <h1>Agents</h1>
 
-<p>PABLO ships five OpenCode agents. Four read and analyse, and never touch your code; the fifth resolves rebase conflicts. Each one is launched by a specific state, with the right link and the right worktree, so you read results instead of writing prompts.</p>
+<p>PABLO ships five agents, run by OpenCode or by Claude Code (see <a href="page:configuration#claude-code"><code>agent_runtime</code></a>). Four read and analyse, and never touch your code; the fifth resolves rebase conflicts. Each one is launched by a specific state, with the right link and the right worktree, so you read results instead of writing prompts.</p>
 
 <h2>The agents</h2>
 
@@ -15,17 +15,17 @@
   </tbody>
 </table>
 
-<p>Open an agent's session in Orca or OpenChamber to read its result and keep the conversation going: ask questions, push back, refine the plan.</p>
+<p>Open an agent's session in Orca or OpenChamber to read its result and keep the conversation going: ask questions, push back, refine the plan. A headless Claude Code run reopens with <code>claude --resume &lt;session id&gt;</code> in the worktree.</p>
 
 <h2 id="the-rebase-conflict-resolver">The rebase-conflict resolver</h2>
 
 <p>The single deliberate exception to the read-only rule. When an applied <a href="page:sync">sync</a> hits conflicts, git aborts cleanly and PABLO launches this agent headless. It may edit files and run git, because that's its job, but it is denied anything that acts as you in front of other people: no <code>gh pr merge</code>, <code>review</code>, <code>comment</code>, <code>edit</code>, <code>ready</code> or <code>close</code>, no issue commands, no Jira commands. If a conflict needs a human, it stops and pushes nothing. It has no step limit, so it never stops halfway through a rebase.</p>
 
-<p>Everything it does lands in your pull request, which you review before merging. The dashboard's “Last sync” card shows the command to open its session.</p>
+<p>Everything it does lands in your pull request, which you review before merging. The dashboard's “Last sync” card shows the command to open its session: <code>opencode -s &lt;id&gt;</code>, or <code>claude --resume &lt;id&gt;</code> under Claude Code.</p>
 
 <h2>Read-only, enforced</h2>
 
-<p>The analysis agents can't edit files and can only run read-only commands, by <em>permission</em> rules in their OpenCode frontmatter, not just by instructions in their prompt. Even if a ticket says “just fix it quickly”, they can't.</p>
+<p>The analysis agents can't edit files and can only run read-only commands, by <em>permission</em> rules in their OpenCode frontmatter, not just by instructions in their prompt. Even if a ticket says “just fix it quickly”, they can't. Under Claude Code the same rules are translated and enforced by Claude Code itself (<a href="#claude-code">below</a>).</p>
 
 <pre><code class="language-yaml">permissions:
   - { action: edit,  resource: "*",          effect: deny }   # edit, write, patch
@@ -52,19 +52,50 @@
 
 <p>Analysts have a step budget (30 for task-analyst and ci-analyst, 25 for pr-feedback and task-feedback). On the last step OpenCode removes their tools and forces a written answer. Sending them a new message resets the budget.</p>
 
+<p>Claude Code has no per-agent step limit, so there the budget becomes an instruction at the end of the agent's prompt: write the deliverable at the latest on the last step. It is followed, not enforced; the watcher's one-hour timeout stays the hard backstop.</p>
+
 <h2 id="which-model">Which model</h2>
 
 <p>The model is picked at launch time, from your configuration: the project's <code>default_model</code>, else the one for the project's type in <code>default_model_by_type</code>, else the global <code>default_model</code>. See <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>.</p>
 
-<h2>The OpenCode command</h2>
+<h2>The commit command</h2>
 
-<p><b><code>/pablo-commit-and-pr</code></b> commits, pushes, opens a draft pull request and moves the task to <code>draft</code>. It's the only part of PABLO that runs as an OpenCode command, because writing a good commit message and pull request description is where an agent beats plain code. It never changes your git identity. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>.</p>
+<p><b><code>/pablo-commit-and-pr</code></b> commits, pushes, opens a draft pull request and moves the task to <code>draft</code>. It's the only part of PABLO that runs as an agent command (OpenCode or Claude Code), because writing a good commit message and pull request description is where an agent beats plain code. It never changes your git identity. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>.</p>
 
 <aside class="callout note"><p>It's called <code>/pablo-commit-and-pr</code> rather than <code>/commit-and-pr</code> so it can live next to a personal <code>/commit-and-pr</code> command you may already have.</p></aside>
 
 <h2>The skill</h2>
 
-<p>The <b><code>pablo-task</code></b> skill teaches your other OpenCode agents one thing: how to create a PABLO task (<code>pablo task:start</code> with an issue link, or <code>--project</code> and a prompt). The installer links it into <code>~/.config/opencode/skill/</code>.</p>
+<p>The <b><code>pablo-task</code></b> skill teaches your other agents one thing: how to create a PABLO task (<code>pablo task:start</code> with an issue link, or <code>--project</code> and a prompt). The installer links it into <code>~/.config/opencode/skill/</code>, or into <code>~/.claude/skills/</code> under Claude Code.</p>
+
+<h2 id="claude-code">Under Claude Code</h2>
+
+<p>With <code>agent_runtime: claude-code</code>, the same templates are translated rather than rewritten, so both runtimes always run the same prompts and the same guardrails.</p>
+
+<ul>
+  <li><b>Where the agents live.</b> <code>pablo system:generate-agents</code> writes all five into <code>~/.pablo/claude/agents.json</code>, which every launch passes with <code>--agents</code>. They are deliberately not installed in <code>~/.claude/agents</code>, so they never show up in your own sessions.</li>
+  <li><b>How they launch.</b> <code>claude -p --agents … --agent &lt;name&gt; --model &lt;default_model&gt; --session-id &lt;id&gt; --strict-mcp-config</code>, plus the permission flags below.</li>
+  <li><b>No permission prompts.</b> The analysts run with <code>--permission-mode dontAsk</code> (anything not allowed is denied), the resolver with <code>acceptEdits</code>.</li>
+</ul>
+
+<p>The permissions map as follows:</p>
+
+<table>
+  <thead><tr><th>OpenCode rule</th><th>Claude Code</th></tr></thead>
+  <tbody>
+    <tr><td><code>read</code>, <code>grep</code>, <code>glob</code>, <code>webfetch</code></td><td>the <code>Read</code>, <code>Grep</code>, <code>Glob</code>, <code>WebFetch</code> tools</td></tr>
+    <tr><td><code>edit *</code></td><td><code>Edit</code>, <code>Write</code> and <code>NotebookEdit</code></td></tr>
+    <tr><td><code>skill *</code></td><td><code>Skill</code></td></tr>
+    <tr><td><code>shell *</code> allowed</td><td><code>Bash</code></td></tr>
+    <tr><td><code>shell "git commit*"</code> denied</td><td><code>Bash(git commit*)</code> and <code>Bash(rtk git commit*)</code> in <code>--disallowedTools</code></td></tr>
+  </tbody>
+</table>
+
+<p>Whole tools are allowed or denied both in the agent definition and on the command line. Command patterns only go on the command line: in an agent definition, a <code>Bash(…)</code> entry removes the whole Bash tool. Claude Code matches <code>*</code> anywhere, so patterns such as <code>*acli jira workitem edit*</code> keep their meaning.</p>
+
+<aside class="callout note"><p><b>Why every command pattern is denied twice.</b> If you use <a href="https://github.com/rtk-ai/rtk">RTK</a>, its Claude Code hook rewrites <code>git push</code> into <code>rtk git push</code> <em>before</em> permissions are checked, which slips past a plain <code>Bash(git push*)</code> rule. Each denied pattern is therefore emitted raw and with the <code>rtk</code> prefix; a test checks that no OpenCode deny is missing either form.</p></aside>
+
+<p>The commit command is rendered into <code>claude/commands/</code> (git-ignored) and linked into <code>~/.claude/commands/</code>. Its body, the <code>!`…`</code> context injection and <code>$ARGUMENTS</code> work as in OpenCode, and its allowed commands become <code>allowed-tools</code> (raw and <code>rtk</code> forms again). One limit: a Claude Code command can't deny a tool, so “no edits” is an instruction in its hard rules rather than a permission.</p>
 
 <h2 id="customise-the-agents">Customise the agents</h2>
 
@@ -80,4 +111,4 @@
   <li><code>opencode/agents/shared/housekeeping.body.md</code>: the house rules appended to every agent.</li>
 </ul>
 
-<p>Templates pull these in with <code>{{SHARED_FRONTMATTER:&lt;profile&gt;}}</code> and <code>{{SHARED_BODY:&lt;profile&gt;}}</code>, and the task agents get tracker-specific instructions through <code>{{ISSUE_TRACKER_SECTION}}</code> and <code>{{ISSUE_TRACKER_NAMES}}</code>, filled in for the trackers your projects use. Generation runs on install, and again when <code>pablo project:new</code> or <code>pablo project:remove</code> changes the set of trackers. Never edit the generated <code>.md</code> files: they're overwritten.</p>
+<p>The same sources produce the Claude Code <code>agents.json</code> and command when <code>agent_runtime</code> is <code>claude-code</code>. Templates pull these in with <code>{{SHARED_FRONTMATTER:&lt;profile&gt;}}</code> and <code>{{SHARED_BODY:&lt;profile&gt;}}</code>, and the task agents get tracker-specific instructions through <code>{{ISSUE_TRACKER_SECTION}}</code> and <code>{{ISSUE_TRACKER_NAMES}}</code>, filled in for the trackers your projects use. Generation runs on install, and again when <code>pablo project:new</code> or <code>pablo project:remove</code> changes the set of trackers. Never edit the generated <code>.md</code> files: they're overwritten.</p>

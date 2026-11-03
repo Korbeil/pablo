@@ -18,6 +18,7 @@ review:
   bot_whitelist: []
 ci:
   ignore_checks: ["approval"]
+# agent_runtime: claude-code        # global only, default opencode
 # agent_backend: openchamber        # global only, default orca
 # default_model_by_type:            # global only
 #   work: anthropic/claude-opus-4
@@ -50,8 +51,10 @@ ci:
 <h3>Global-only keys</h3>
 
 <dl>
+  <dt><code>agent_runtime</code></dt>
+  <dd><code>opencode</code> (default) or <code>claude-code</code>: the program that runs the agents. Also settable with the <code>PABLO_AGENT_RUNTIME</code> environment variable. It changes the command the doctor requires (<code>opencode</code> or <code>claude</code>), what the installer generates and links, and which model ids <code>default_model</code> accepts. A first install sets <code>claude-code</code> for you when it finds Claude Code but no OpenCode. See <a href="#claude-code">Run the agents with Claude Code</a>.</dd>
   <dt><code>agent_backend</code></dt>
-  <dd><code>orca</code> (default) or <code>openchamber</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command instead of <code>orca</code>. A first install sets it for you when it finds OpenChamber but no Orca. See <a href="page:how-it-works#agent-backends">Agent backends</a>.</dd>
+  <dd><code>orca</code> (default) or <code>openchamber</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command instead of <code>orca</code>. A first install sets it for you when it finds OpenChamber but no Orca. OpenChamber only runs OpenCode: with <code>agent_runtime: claude-code</code> it is refused. See <a href="page:how-it-works#agent-backends">Agent backends</a>.</dd>
   <dt><code>default_model_by_type</code></dt>
   <dd>A model per project type; see below.</dd>
 </dl>
@@ -75,6 +78,30 @@ default_model_by_type:
 </code></pre>
 
 <p>Keys must be project types (<code>work</code>, <code>open-source</code>, <code>personal</code>); an unknown key is an error.</p>
+
+<p>The format depends on <code>agent_runtime</code>. OpenCode takes a <code>provider/model</code> id, as above. Claude Code takes an alias (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or a full model id such as <code>claude-sonnet-5-5</code>; a <code>provider/model</code> id is refused with an error when the project loads. Under Claude Code the generated agents carry no model, so step 4 never applies.</p>
+
+<h2 id="claude-code">Run the agents with Claude Code</h2>
+
+<p>PABLO runs its agents with OpenCode by default. To use Claude Code instead, set it in <code>~/.pablo/config.yaml</code>, then regenerate and relink:</p>
+
+<pre><code class="language-yaml">agent_runtime: claude-code
+default_model: sonnet
+</code></pre>
+
+<pre><code class="language-bash">./bin/install.sh            # generates ~/.pablo/claude/agents.json and links the command
+pablo system:doctor         # checks claude and the generated files
+</code></pre>
+
+<ul>
+  <li><b>Global only.</b> Every project uses the same runtime; there is no per-project setting.</li>
+  <li><b>Orca or headless.</b> Agents run as <code>claude -p</code>, in an Orca terminal or headless, exactly where OpenCode would run. <b>OpenChamber is not supported</b>: it drives its own OpenCode server. <code>pablo system:doctor</code> reports the combination as an error and the dispatcher refuses to run with it; switch to <code>agent_backend: orca</code> or back to <code>agent_runtime: opencode</code>.</li>
+  <li><b>Your account and quota.</b> Agents run with your own Claude Code login. With a Pro or Max subscription they share its usage limits with your interactive sessions, so keep an eye on them with busy projects.</li>
+  <li><b>Your settings, not your MCP servers.</b> Agents load your Claude Code settings and hooks (Orca's, RTK's) but none of your MCP servers (<code>--strict-mcp-config</code>).</li>
+  <li><b>Sessions you can resume.</b> Each run gets a session id chosen by PABLO; <code>claude --resume &lt;id&gt;</code> in the worktree reopens it.</li>
+</ul>
+
+<p>How the agent permissions translate is on <a href="page:agents#claude-code">Agents</a>; what gets installed where is on <a href="page:installation#claude-code">Installation</a>.</p>
 
 <h2 id="project-files">Project files</h2>
 
@@ -162,7 +189,10 @@ branch_prefix: pablo/
 <table>
   <thead><tr><th>Variable</th><th>Default</th><th>Effect</th></tr></thead>
   <tbody>
+    <tr><td><code>PABLO_AGENT_RUNTIME</code></td><td>—</td><td>Overrides <code>agent_runtime</code></td></tr>
     <tr><td><code>PABLO_AGENT_BACKEND</code></td><td>—</td><td>Overrides <code>agent_backend</code></td></tr>
+    <tr><td><code>PABLO_CLAUDE_DIR</code></td><td><code>~/.pablo/claude</code></td><td>Where the Claude Code <code>agents.json</code> is generated and read</td></tr>
+    <tr><td><code>CLAUDE_CONFIG_DIR</code></td><td><code>~/.claude</code></td><td>Claude Code's own directory: where the command and skill are linked, and where run transcripts are read for analytics</td></tr>
     <tr><td><code>PABLO_STATE_DIR</code>, <code>PABLO_PROJECTS_DIR</code>, <code>PABLO_STAMPS_DIR</code>, <code>PABLO_LOGS_DIR</code>, <code>PABLO_AGENTS_DIR</code>, <code>PABLO_ANALYTICS_DIR</code></td><td>under <code>~/.pablo/</code></td><td>Move a part of PABLO's data elsewhere</td></tr>
     <tr><td><code>PABLO_CONFIG</code></td><td><code>~/.pablo/config.yaml</code></td><td>Where the installer writes the global config</td></tr>
     <tr><td><code>PABLO_ENV</code></td><td><code>dev</code></td><td>Symfony environment. Leave it: in <code>prod</code> the cache is never refreshed, so a <code>git pull</code> would keep running old code</td></tr>

@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace Pablo\Support;
 
+use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\Runtime\AgentRuntimeResolver;
+
 /**
  * Produces a very short task summary for prompt-started tasks by asking a
- * small free LLM (`opencode/big-pickle`) instead of truncating the prompt.
+ * small LLM instead of truncating the prompt: the free `opencode/big-pickle`
+ * under OpenCode, `haiku` under Claude Code (one throwaway `claude -p`, no
+ * tools, no MCP servers, nothing persisted).
  *
  * Best-effort: any failure (missing CLI, timeout, empty/odd output) yields
  * null so the caller can fall back to plain word truncation. Runs through
@@ -18,6 +23,9 @@ final class TaskSummarizer
     /** Free opencode model used for the one-shot summary. */
     public const MODEL = 'opencode/big-pickle';
 
+    /** Claude Code model used for the one-shot summary. */
+    public const CLAUDE_MODEL = 'haiku';
+
     /** Hard cap on words in the returned summary. */
     public const MAX_WORDS = 7;
 
@@ -25,27 +33,61 @@ final class TaskSummarizer
 
     private const DELETE_TIMEOUT_S = 15.0;
 
-    public function __construct(private readonly ProcessRunnerInterface $runner)
-    {
+    public function __construct(
+        private readonly ProcessRunnerInterface $runner,
+        private readonly AgentRuntimeResolver $runtimes = new AgentRuntimeResolver(),
+    ) {
     }
 
-    /** @return list<string> argv for the summarizing opencode call */
-    public static function argv(string $prompt): array
+    private static function instruction(string $prompt): string
     {
         // The hard wording (label semantics + explicit "output nothing except
         // the summary, then stop") is deliberate: big-pickle occasionally
         // appends a conversational follow-up ("I'm ready to help…") to softer
         // phrasings, which would end up in the branch name.
-        $instruction = 'You label tasks with a short branch name. Reply with only the summary of the task: '
+        return 'You label tasks with a short branch name. Reply with only the summary of the task: '
             .'at most '.self::MAX_WORDS.' words, plain lowercase text, no quotes, no list, no code block. '
             .'Output nothing except the summary. Do not continue the conversation, do not ask questions, '
             ."do not offer help.\n\nTask:\n".$prompt;
+    }
 
-        return ['opencode', 'run', '-m', self::MODEL, '--format', 'json', $instruction];
+    /** @return list<string> argv for the summarizing opencode call */
+    public static function argv(string $prompt): array
+    {
+        return ['opencode', 'run', '-m', self::MODEL, '--format', 'json', self::instruction($prompt)];
+    }
+
+    /**
+     * @return list<string> argv for the summarizing Claude Code call: no
+     *                      tools, no MCP servers, no transcript left behind
+     */
+    public static function claudeArgv(string $prompt): array
+    {
+        return [
+            'claude', '-p', '--model', self::CLAUDE_MODEL, '--output-format', 'json',
+            '--no-session-persistence', '--strict-mcp-config', '--tools', '',
+            // `--`: the variadic --tools would otherwise swallow the prompt.
+            '--', self::instruction($prompt),
+        ];
     }
 
     public function summarize(string $repoPath, string $prompt): ?string
     {
+        try {
+            $claude = AgentRuntimeInterface::CLAUDE_CODE === $this->runtimes->resolveName();
+        } catch (\Throwable) {
+            return null;
+        }
+        if ($claude) {
+            try {
+                $out = $this->runner->run(self::claudeArgv($prompt), check: false, timeout: self::TIMEOUT_S, cwd: $repoPath);
+            } catch (\Throwable) {
+                return null;
+            }
+
+            return self::clean(self::parseClaude($out) ?? '');
+        }
+
         // OpenCode v2 removed `run --dir`; running from $repoPath's working
         // directory attaches the one-shot session to that project instead of
         // to whatever project the pablo process itself sits in.
@@ -99,6 +141,20 @@ final class TaskSummarizer
         }
 
         return ['text' => $text, 'session' => $session];
+    }
+
+    /**
+     * The answer from `claude -p --output-format json`: one JSON object whose
+     * `result` holds the text (null on an error result or odd output).
+     */
+    public static function parseClaude(string $raw): ?string
+    {
+        $data = json_decode(trim($raw), true);
+        if (!\is_array($data) || true === ($data['is_error'] ?? false) || !\is_string($data['result'] ?? null)) {
+            return null;
+        }
+
+        return $data['result'];
     }
 
     public static function clean(string $raw): ?string

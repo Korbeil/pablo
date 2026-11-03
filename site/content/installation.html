@@ -10,7 +10,7 @@
 
 <ul>
   <li><b>git</b>: every task is a branch and a worktree.</li>
-  <li><b><a href="https://opencode.ai">OpenCode</a></b>, set up with your usual model provider: it runs the agents.</li>
+  <li><b>An agent runtime</b> that runs the agents: <a href="https://opencode.ai">OpenCode</a> set up with your usual model provider (the default), or <a href="https://code.claude.com/docs">Claude Code</a> logged in to your Claude account. See <a href="#claude-code">With Claude Code</a>.</li>
   <li><b>An agent development environment</b>, <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a>: where agents run and where you chat with them. Optional in theory (without one, agents run headless in the background), but that's where you'll read their work. See <a href="#choose-an-agent-backend">Choose an agent backend</a>.</li>
   <li><b>PHP 8.4.1+ and Composer</b>, to run PABLO itself.</li>
 </ul>
@@ -42,16 +42,16 @@ cd pablo
 <p>The installer is safe to run again. It:</p>
 
 <ol>
-  <li>creates <code>~/.pablo/</code> and, if you don't have one yet, a default <a href="page:configuration#global-defaults">global config</a> in <code>~/.pablo/config.yaml</code>, set to the agent backend you have installed (OpenChamber when it finds OpenChamber but no Orca);</li>
+  <li>creates <code>~/.pablo/</code> and, if you don't have one yet, a default <a href="page:configuration#global-defaults">global config</a> in <code>~/.pablo/config.yaml</code>, set to the tools you have installed (Claude Code when it finds Claude Code but no OpenCode, OpenChamber when it finds OpenChamber but no Orca);</li>
   <li>installs PHP dependencies and warms PABLO's cache;</li>
-  <li>generates the OpenCode agents;</li>
+  <li>generates the agents for your <a href="page:configuration#global-only-keys">agent runtime</a>;</li>
   <li>writes the <code>pablo</code> command to <code>~/.local/bin/pablo</code> and, if that directory isn't on your <code>PATH</code> yet, adds it (see below);</li>
-  <li>links the agents, the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill into <code>~/.config/opencode/</code>;</li>
+  <li>links the agents, the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill into <code>~/.config/opencode/</code> (OpenCode), or the command and the skill into <code>~/.claude/</code> (Claude Code);</li>
   <li>starts the background scheduler, which runs PABLO every 5 minutes, and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code>;</li>
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
 </ol>
 
-<aside class="callout note"><p>Your own OpenCode files are never touched. The installer only creates <em>new</em> symlinks, and refuses to replace any file in <code>~/.config/opencode/</code> that isn't already a link into the PABLO repository.</p></aside>
+<aside class="callout note"><p>Your own OpenCode and Claude Code files are never touched. The installer only creates <em>new</em> symlinks, and refuses to replace any file in <code>~/.config/opencode/</code> or <code>~/.claude/</code> that isn't already a link into the PABLO repository.</p></aside>
 
 <h3>The <code>pablo</code> command on your <code>PATH</code></h3>
 
@@ -65,19 +65,36 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
 
 <p><code>system:setup</code> stops at the first problem and prints the exact command to install or log in to the tool. Fix it, run <code>pablo system:setup</code> again, and it moves on to the next check. Tracker tools (<code>acli</code>, <code>linear</code>) are only checked once a project uses them.</p>
 
-<p>The doctor also checks that the agents installed in <code>~/.config/opencode/agents/</code> are up to date. If one is reported stale, run <code>pablo system:generate-agents</code>.</p>
+<p>The doctor also checks that the installed agents are up to date: <code>~/.config/opencode/agents/</code> under OpenCode; <code>~/.pablo/claude/agents.json</code>, the command and the skill under Claude Code. If one is reported stale, run <code>pablo system:generate-agents</code>.</p>
+
+<h2 id="claude-code">With Claude Code</h2>
+
+<p>Set <code>agent_runtime: claude-code</code> and a Claude model in <code>~/.pablo/config.yaml</code> (a first install does it when it finds <code>claude</code> but no <code>opencode</code>), then run <code>./bin/install.sh</code> again:</p>
+
+<pre><code class="language-yaml">agent_runtime: claude-code
+default_model: sonnet        # or opus, haiku, or a full model id
+</code></pre>
+
+<ul>
+  <li><b>Prerequisite.</b> The <code>claude</code> command, logged in: the doctor runs <code>claude auth status</code>. Install it with <code>curl -fsSL https://claude.ai/install.sh | bash</code>.</li>
+  <li><b>What is installed.</b> <code>~/.pablo/claude/agents.json</code> holds the five agents; the installer links <code>~/.claude/commands/pablo-commit-and-pr.md</code> and <code>~/.claude/skills/pablo-task</code>.</li>
+  <li><b>What is not.</b> Nothing goes into <code>~/.claude/agents/</code>: PABLO's agents would otherwise appear in your own Claude Code sessions. PABLO hands them to <code>claude</code> at each launch instead.</li>
+  <li><b>Backend.</b> Use Orca, or no backend (headless). OpenChamber can't run Claude Code; the doctor reports it.</li>
+</ul>
+
+<p>Switching runtime later works the same way: change <code>agent_runtime</code>, run <code>./bin/install.sh</code>. The other runtime's links stay in place until <code>./bin/uninstall.sh</code>; they're harmless.</p>
 
 <h2>Choose an agent backend</h2>
 
-<p>The agent backend is where PABLO's agents run, and where you open them to read their analysis or keep chatting. On a first install the installer picks it for you: Orca by default, OpenChamber when it finds OpenChamber but no Orca. The doctor only checks the backend you use.</p>
+<p>The agent backend is where PABLO's agents run, and where you open them to read their analysis or keep chatting. On a first install the installer picks it for you: Orca by default, OpenChamber when it finds OpenChamber but no Orca. The doctor only checks the backend you use. Both run OpenCode; with Claude Code, use Orca or headless.</p>
 
 <dl>
   <dt>Orca (default)</dt>
   <dd>Agents run in Orca terminals. Orca only sees repositories registered with it, so register each project's repository once: <code>orca repo add &lt;path&gt;</code>.</dd>
   <dt>OpenChamber</dt>
-  <dd>Set <code>agent_backend: openchamber</code> in <code>~/.pablo/config.yaml</code> (or export <code>PABLO_AGENT_BACKEND=openchamber</code>). OpenChamber works from directories, so there is nothing to register.</dd>
+  <dd>Set <code>agent_backend: openchamber</code> in <code>~/.pablo/config.yaml</code> (or export <code>PABLO_AGENT_BACKEND=openchamber</code>). OpenChamber works from directories, so there is nothing to register. OpenCode only: not available with <code>agent_runtime: claude-code</code>.</dd>
   <dt>Headless</dt>
-  <dd>When the backend is unavailable, or doesn't know a repository, PABLO falls back to <code>opencode run</code> in the background, so agents still run. You read their output with <code>opencode -s &lt;session&gt;</code>.</dd>
+  <dd>When the backend is unavailable, or doesn't know a repository, PABLO falls back to <code>opencode run</code> (or <code>claude -p</code>) in the background, so agents still run. You read their output with <code>opencode -s &lt;session&gt;</code> (or <code>claude --resume &lt;session&gt;</code> in the worktree).</dd>
 </dl>
 
 <p>More details in <a href="page:how-it-works#agent-backends">How it works</a>.</p>
@@ -137,7 +154,7 @@ git pull
 <pre><code class="language-bash">./bin/uninstall.sh
 </code></pre>
 
-<p>It removes what the installer created (the shim, the links, the <code>PATH</code> block, the scheduler and dashboard services) and keeps your data in <code>~/.pablo/</code>. Delete that folder yourself if you want a clean slate, or <a href="page:backups">back it up</a> first.</p>
+<p>It removes what the installer created (the shim, the links under <code>~/.config/opencode/</code> and <code>~/.claude/</code>, the generated <code>~/.pablo/claude/</code>, the <code>PATH</code> block, the scheduler and dashboard services) and keeps your data in <code>~/.pablo/</code>. Delete that folder yourself if you want a clean slate, or <a href="page:backups">back it up</a> first.</p>
 
 <h2>Next step</h2>
 
