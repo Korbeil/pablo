@@ -26,6 +26,8 @@ app/config/reference.php
 /opencode/agents/rebase-conflict-resolver.md
 # Claude Code rendering of the commands (agent_runtime: claude-code).
 /claude/
+# Copilot rendering of the agents and commands (agent_runtime: copilot).
+/copilot/
 
 # A `gh` invocation that inherits no HOME writes its state next to the cwd.
 app/.local/

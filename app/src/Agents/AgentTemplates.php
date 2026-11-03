@@ -13,7 +13,8 @@ use Pablo\Config\Config;
  * the rendered files) and `pablo system:doctor` (compares a fresh render
  * against what is installed under ~/.config/opencode) so the two can never
  * drift apart. Reads only — never writes. These renders are also the source
- * of the Claude Code translation (Runtime\ClaudeCodeAgents).
+ * of the Claude Code and Copilot translations (Runtime\ClaudeCodeAgents,
+ * Runtime\CopilotAgents).
  */
 final class AgentTemplates
 {
@@ -51,6 +52,16 @@ final class AgentTemplates
     public function repoClaudeDir(): string
     {
         return \dirname(__DIR__, 3).'/claude';
+    }
+
+    /**
+     * Repo directory (git-ignored) holding the Copilot rendering: agents/
+     * (pablo-<agent>.agent.md) and skills/ (the commands as skills);
+     * install.sh symlinks both into ~/.copilot.
+     */
+    public function repoCopilotDir(): string
+    {
+        return \dirname(__DIR__, 3).'/copilot';
     }
 
     /**

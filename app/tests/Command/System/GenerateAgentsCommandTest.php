@@ -105,6 +105,28 @@ YAML);
         $this->assertStringContainsString('agents.json (Claude Code)', $tester->getDisplay());
     }
 
+    public function testCopilotRuntimeWritesAgentFilesAndSkill(): void
+    {
+        $this->writeProject('gh-project', 'github');
+        $this->copyAllTemplates();
+        mkdir($this->tmp.'/commands');
+        copy(\dirname(__DIR__, 4).'/opencode/commands/pablo-commit-and-pr.md', $this->tmp.'/commands/pablo-commit-and-pr.md');
+
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $tester = new CommandTester($command);
+        $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'copilot', '--copilot-dir' => $this->tmp.'/copilot']);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        foreach (self::TEMPLATE_NAMES as $name) {
+            $this->assertFileExists($this->tmp.'/copilot/agents/pablo-'.$name.'.agent.md');
+        }
+        $analyst = (string) file_get_contents($this->tmp.'/copilot/agents/pablo-task-analyst.agent.md');
+        $this->assertStringContainsString('GitHub', $analyst);
+        $this->assertStringNotContainsString('Linear', $analyst);
+        $this->assertStringContainsString('disable-model-invocation: true', (string) file_get_contents($this->tmp.'/copilot/skills/pablo-commit-and-pr/SKILL.md'));
+        $this->assertStringContainsString('(Copilot)', $tester->getDisplay());
+    }
+
     public function testOpenCodeRuntimeWritesNoClaudeFiles(): void
     {
         $this->copyAllTemplates();

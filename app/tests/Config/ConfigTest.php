@@ -486,6 +486,25 @@ YAML);
         $this->assertSame('claude-opus-5-5', $this->loader()->loadProjects($this->projectsDir)['mini']->defaultModel);
     }
 
+    public function testCopilotRuntimeChecksTheModelId(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        putenv('PABLO_AGENT_RUNTIME=copilot');
+        try {
+            try {
+                $this->loader()->loadProjects($this->projectsDir);
+                $this->fail('expected PabloError');
+            } catch (PabloError $e) {
+                $this->assertStringContainsString("default_model 'opencode-go/glm-5.3-flash' looks like an OpenCode provider/model id; agent_runtime copilot", $e->getMessage());
+            }
+
+            $this->write('mini.yaml', self::MINIMAL_PROJECT."default_model: claude-sonnet-5.5\n");
+            $this->assertSame('claude-sonnet-5.5', $this->loader()->loadProjects($this->projectsDir)['mini']->defaultModel);
+        } finally {
+            putenv('PABLO_AGENT_RUNTIME');
+        }
+    }
+
     public function testProjectsDirDefaultsToUserConfig(): void
     {
         putenv('PABLO_PROJECTS_DIR');

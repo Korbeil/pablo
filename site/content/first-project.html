@@ -4,10 +4,10 @@
 
 <h2>1. Set your global defaults</h2>
 
-<p>The installer created <code>~/.pablo/config.yaml</code> with working defaults. Two settings are required before any project can load, and both come pre-filled: the AI model agents use (GLM 5.3 Flash through <a href="https://opencode.ai">OpenCode Go</a>), and the language of pull request descriptions. Change the model if you use another provider. Under <a href="page:configuration#claude-code">Claude Code</a>, the installer writes <code>default_model: sonnet</code> instead.</p>
+<p>The installer created <code>~/.pablo/config.yaml</code> with working defaults. Two settings are required before any project can load, and both come pre-filled: the AI model agents use (GLM 5.3 Flash through <a href="https://opencode.ai">OpenCode Go</a>), and the language of pull request descriptions. Change the model if you use another provider. Under <a href="page:configuration#claude-code">Claude Code</a>, the installer writes <code>default_model: sonnet</code> instead; under <a href="page:configuration#copilot">Copilot</a>, <code>default_model: claude-sonnet-5.5</code>.</p>
 
 <pre><code class="language-yaml"># ~/.pablo/config.yaml
-default_model: opencode-go/glm-5.3-flash   # any model id OpenCode accepts (Claude Code: sonnet, opus, haiku…)
+default_model: opencode-go/glm-5.3-flash   # any model id OpenCode accepts (Claude Code: sonnet, opus, haiku…; Copilot: claude-sonnet-5.5…)
 pr_description_locale: en
 
 sync:

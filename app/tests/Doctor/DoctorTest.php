@@ -143,6 +143,27 @@ YAML;
         $this->assertSame([['claude', 'auth', 'status', '--text']], $this->runner()->probeCalls);
     }
 
+    public function testCopilotRuntimeReplacesOpenCode(): void
+    {
+        $this->writeGlobalConfig(str_replace('openrouter/test/model', 'claude-sonnet-5.5', self::DEFAULTS)."\nagent_runtime: copilot\n");
+        $this->onWhich = static fn (string $bin): string => '/usr/bin/'.$bin;
+        $doctor = $this->doctor();
+        $this->assertSame(['copilot', 'gh', 'orca'], $doctor->requiredClis(['a' => $this->makeCfg('a', 'github')]));
+        $this->assertSame('npm install -g @github/copilot', $doctor->installCommand('copilot'));
+
+        $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, "1.0.12\n");
+        $this->assertTrue($doctor->checkIds(['copilot'])[0]->ok());
+        $this->assertSame([['copilot', '--version']], $this->runner()->probeCalls);
+    }
+
+    public function testOpenChamberWithCopilotIsAConfigError(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nagent_runtime: copilot\nagent_backend: openchamber\n");
+        $errors = $this->doctor()->configErrors();
+        $this->assertCount(1, $errors);
+        $this->assertStringContainsString('agent_runtime copilot cannot run on agent_backend openchamber', $errors[0]);
+    }
+
     public function testOpenChamberWithClaudeCodeIsAConfigError(): void
     {
         $this->writeGlobalConfig(self::DEFAULTS."\nagent_runtime: claude-code\nagent_backend: openchamber\n");

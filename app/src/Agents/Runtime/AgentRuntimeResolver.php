@@ -54,6 +54,9 @@ final class AgentRuntimeResolver
             AgentRuntimeInterface::CLAUDE_CODE => new ClaudeCodeRuntime(
                 new ClaudeCodeAgents(new AgentTemplates(new Config($this->globalConfig))),
             ),
+            AgentRuntimeInterface::COPILOT => new CopilotRuntime(
+                new CopilotAgents(new AgentTemplates(new Config($this->globalConfig))),
+            ),
             AgentRuntimeInterface::OPENCODE => new OpenCodeRuntime(),
             default => throw new PabloError(\sprintf("unknown agent_runtime '%s' (expected one of: %s)", $name, implode(', ', AgentRuntimeInterface::NAMES))),
         };

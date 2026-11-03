@@ -14,7 +14,7 @@ use Pablo\Support\ProcessRunnerInterface;
  * Launching agents on worktrees and querying their activity.
  *
  * Primary path is the Orca CLI, running the selected runtime's one-shot
- * command (`opencode run` or `claude -p`) in an Orca terminal. When Orca
+ * command (`opencode run`, `claude -p` or `copilot -p`) in an Orca terminal. When Orca
  * refuses (e.g. selector_not_found for an unregistered repo) or is
  * unreachable, PABLO falls back to running that same command headless,
  * tracked via pidfiles under ~/.pablo/agents/.
@@ -118,7 +118,8 @@ final class Agents extends AbstractAgentLauncher
         // The runtime's one-shot command runs inside the worktree, in an Orca
         // terminal (OpenCode v2 removed the TUI's positional directory +
         // --prompt flags). The same session id carries over to the headless
-        // fallback so `claude --resume` and analytics find the run either way.
+        // fallback so `claude --resume` / `copilot --resume` and analytics find
+        // the run either way.
         $sessionId = $this->runtime->newSessionId();
         $command = 'cd '.escapeshellarg($worktree).'; '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId);
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {

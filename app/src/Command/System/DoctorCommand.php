@@ -31,7 +31,7 @@ final class DoctorCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        // Agent settings that cannot work at all (OpenChamber + Claude Code,
+        // Agent settings that cannot work at all (OpenChamber + Claude Code or Copilot,
         // unknown runtime) come first: they are hard failures.
         $configErrors = $this->doctor->configErrors();
         if ([] !== $configErrors) {
@@ -46,7 +46,7 @@ final class DoctorCommand extends Command
             }
         }
 
-        // Generated agents (OpenCode or Claude Code): staleness is soft (cosmetic), a missing
+        // Generated agents (OpenCode, Claude Code or Copilot): staleness is soft (cosmetic), a missing
         // or broken install is hard — same split as the dispatcher's CLI checks.
         $agentResults = $this->agentStaleness->check();
         $agentLines = $this->agentStaleness->render($agentResults);

@@ -11,6 +11,7 @@ use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\ClaudeCodeAgents;
 use Pablo\Agents\Runtime\ClaudeCodeRuntime;
+use Pablo\Agents\Runtime\CopilotAgents;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Store\Store;
@@ -24,9 +25,11 @@ use Symfony\Component\Console\Output\OutputInterface;
  * Renders the agents from their .md.template sources + the project configs
  * for the selected runtime: OpenCode .md files next to the templates, and —
  * under Claude Code — the `--agents` file (~/.pablo/claude/agents.json) plus
- * the Claude Code rendering of the commands (claude/commands/, git-ignored).
+ * the Claude Code rendering of the commands (claude/commands/, git-ignored);
+ * under Copilot, the `pablo-<agent>.agent.md` files and the commands as
+ * skills (copilot/agents/ and copilot/skills/, git-ignored).
  */
-#[AsCommand(name: 'system:generate-agents', description: 'generate the agent definitions (OpenCode .md files, or Claude Code agents.json + command) from .md.template + project configs')]
+#[AsCommand(name: 'system:generate-agents', description: 'generate the agent definitions (OpenCode .md files, Claude Code agents.json + command, or Copilot agents + skill) from .md.template + project configs')]
 final class GenerateAgentsCommand extends Command
 {
     public function __construct(
@@ -43,9 +46,10 @@ final class GenerateAgentsCommand extends Command
     {
         $this
             ->addOption('agents-dir', null, InputOption::VALUE_REQUIRED, 'agents directory (default: repo opencode/agents)')
-            ->addOption('runtime', null, InputOption::VALUE_REQUIRED, 'opencode | claude-code (default: agent_runtime / PABLO_AGENT_RUNTIME)')
+            ->addOption('runtime', null, InputOption::VALUE_REQUIRED, 'opencode | claude-code | copilot (default: agent_runtime / PABLO_AGENT_RUNTIME)')
             ->addOption('claude-dir', null, InputOption::VALUE_REQUIRED, 'where agents.json goes under claude-code (default: ~/.pablo/claude)')
-            ->addOption('claude-commands-dir', null, InputOption::VALUE_REQUIRED, 'where the Claude Code commands go (default: repo claude/commands)');
+            ->addOption('claude-commands-dir', null, InputOption::VALUE_REQUIRED, 'where the Claude Code commands go (default: repo claude/commands)')
+            ->addOption('copilot-dir', null, InputOption::VALUE_REQUIRED, 'where the Copilot agents/ and skills/ go (default: repo copilot)');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
@@ -83,11 +87,11 @@ final class GenerateAgentsCommand extends Command
             $output->writeln("Generated {$name}.md with providers: ".implode(', ', $enabledProviders ?: ['(none)']));
         }
 
-        if (AgentRuntimeInterface::CLAUDE_CODE !== $runtime) {
-            return self::SUCCESS;
-        }
-
-        return $this->generateClaudeCode($input, $output, $agentsDir, $enabledProviders);
+        return match ($runtime) {
+            AgentRuntimeInterface::CLAUDE_CODE => $this->generateClaudeCode($input, $output, $agentsDir, $enabledProviders),
+            AgentRuntimeInterface::COPILOT => $this->generateCopilot($input, $output, $agentsDir, $enabledProviders),
+            default => self::SUCCESS,
+        };
     }
 
     /**
@@ -110,6 +114,39 @@ final class GenerateAgentsCommand extends Command
             return self::FAILURE;
         }
 
+        return self::writeFiles($output, $files, 'Claude Code');
+    }
+
+    /**
+     * @param list<string> $providers
+     */
+    private function generateCopilot(InputInterface $input, OutputInterface $output, string $agentsDir, array $providers): int
+    {
+        $copilot = new CopilotAgents($this->agentTemplates);
+        $copilotDir = $input->getOption('copilot-dir') ?? $this->agentTemplates->repoCopilotDir();
+
+        try {
+            $files = [];
+            foreach ($copilot->renderAgentFiles($agentsDir, $providers) as $file => $content) {
+                $files[$copilotDir.'/agents/'.$file] = $content;
+            }
+            foreach (glob(AgentTemplates::commandsDirFor($agentsDir).'/*.md') ?: [] as $source) {
+                $files[$copilotDir.'/skills/'.basename($source, '.md').'/SKILL.md'] = $copilot->renderSkill($source);
+            }
+        } catch (AgentTemplateError $e) {
+            $output->writeln('<error>'.$e->getMessage().'</error>');
+
+            return self::FAILURE;
+        }
+
+        return self::writeFiles($output, $files, 'Copilot');
+    }
+
+    /**
+     * @param array<string, string> $files path => content
+     */
+    private static function writeFiles(OutputInterface $output, array $files, string $runtimeLabel): int
+    {
         foreach ($files as $path => $content) {
             $dir = \dirname($path);
             if (!is_dir($dir)) {
@@ -120,7 +157,7 @@ final class GenerateAgentsCommand extends Command
 
                 return self::FAILURE;
             }
-            $output->writeln("Generated {$path} (Claude Code)");
+            $output->writeln("Generated {$path} ({$runtimeLabel})");
         }
 
         return self::SUCCESS;

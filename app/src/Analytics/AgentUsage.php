@@ -18,6 +18,7 @@ final class AgentUsage implements UsageHarvesterInterface
         private readonly AgentRuntimeResolver $runtimes = new AgentRuntimeResolver(),
         private readonly OpenCodeUsage $openCode = new OpenCodeUsage(new ProcessRunner()),
         private readonly ClaudeCodeUsage $claudeCode = new ClaudeCodeUsage(),
+        private readonly CopilotUsage $copilot = new CopilotUsage(),
     ) {
     }
 
@@ -29,8 +30,12 @@ final class AgentUsage implements UsageHarvesterInterface
             return null;
         }
 
-        return AgentRuntimeInterface::CLAUDE_CODE === $runtime
-            ? $this->claudeCode->harvest($worktree, $launchedAt, $fingerprint)
-            : $this->openCode->harvest($worktree, $launchedAt, $fingerprint);
+        $harvester = match ($runtime) {
+            AgentRuntimeInterface::CLAUDE_CODE => $this->claudeCode,
+            AgentRuntimeInterface::COPILOT => $this->copilot,
+            default => $this->openCode,
+        };
+
+        return $harvester->harvest($worktree, $launchedAt, $fingerprint);
     }
 }
