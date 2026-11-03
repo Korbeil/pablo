@@ -6,11 +6,15 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\LaunchContext;
+use Pablo\Agents\Runtime\AgentRuntimeResolver;
+use Pablo\Analytics\AgentUsage;
 use Pablo\Analytics\AnalyticsAggregator;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\AnalyticsReader;
+use Pablo\Analytics\ClaudeCodeUsage;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Analytics\OpenCodeUsage;
+use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\App\ConsoleApplication;
 use Pablo\Backup\Backup;
 use Pablo\Command\Command as PabloCommand;
@@ -82,7 +86,11 @@ return static function (ContainerConfigurator $container): void {
     $services->set(JsonlAnalytics::class);
     $services->set(AnalyticsReader::class);
     $services->set(AnalyticsAggregator::class);
+    // Run usage comes from the selected runtime's own storage (resolved per call).
     $services->set(OpenCodeUsage::class);
+    $services->set(ClaudeCodeUsage::class);
+    $services->set(AgentUsage::class);
+    $services->alias(UsageHarvesterInterface::class, AgentUsage::class);
     $services->alias(AnalyticsInterface::class, JsonlAnalytics::class);
 
     // Tracker providers and their registry.
@@ -102,9 +110,14 @@ return static function (ContainerConfigurator $container): void {
     // Agent backends are selected per call (env > global config > orca), so
     // commands get the factory; a default-behaviour launcher is exposed as
     // the interface for consumers that never need an explicit backend.
+    $services->set(AgentRuntimeResolver::class);
     $services->set(AgentLauncherFactory::class);
+    // Lazy: every command is constructed up front to build the CLI, and
+    // create() refuses an incompatible backend/runtime pair (OpenChamber +
+    // Claude Code) — `pablo system:doctor` must still run to report it.
     $services->set(AgentLauncherInterface::class)
         ->factory([service(AgentLauncherFactory::class), 'create'])
+        ->lazy()
         ->public();
 
     // Engine orchestration.

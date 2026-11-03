@@ -4,17 +4,20 @@ declare(strict_types=1);
 
 namespace Pablo\Agents;
 
+use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
 use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
- * Launching OpenCode agents on worktrees and querying their activity.
+ * Launching agents on worktrees and querying their activity.
  *
- * Primary path is the Orca CLI. When Orca refuses (e.g. selector_not_found
- * for an unregistered repo) or is unreachable, PABLO falls back to a headless
- * `opencode run` tracked via pidfiles under ~/.pablo/agents/.
+ * Primary path is the Orca CLI, running the selected runtime's one-shot
+ * command (`opencode run` or `claude -p`) in an Orca terminal. When Orca
+ * refuses (e.g. selector_not_found for an unregistered repo) or is
+ * unreachable, PABLO falls back to running that same command headless,
+ * tracked via pidfiles under ~/.pablo/agents/.
  */
 final class Agents extends AbstractAgentLauncher
 {
@@ -28,8 +31,9 @@ final class Agents extends AbstractAgentLauncher
         ?Time $time = null,
         ?Store $store = null,
         ?string $shimPath = null,
+        ?AgentRuntimeInterface $runtime = null,
     ) {
-        parent::__construct($runner ?? new ProcessRunner(), $time ?? new Time(), $store, $shimPath, 'orca');
+        parent::__construct($runner ?? new ProcessRunner(), $time ?? new Time(), $store, $shimPath, 'orca', $runtime);
     }
 
     /** @return array{0: ?array, 1: ?string} (result, reason) */
@@ -111,11 +115,12 @@ final class Agents extends AbstractAgentLauncher
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
-        // OpenCode v2 removed the TUI's positional directory + --prompt
-        // flags; run the headless run command inside the worktree instead.
-        $command = 'cd '.escapeshellarg($worktree).'; opencode run'
-            .(null !== $model ? ' --model '.escapeshellarg($model) : '')
-            ." --agent {$agent} ".escapeshellarg($prompt);
+        // The runtime's one-shot command runs inside the worktree, in an Orca
+        // terminal (OpenCode v2 removed the TUI's positional directory +
+        // --prompt flags). The same session id carries over to the headless
+        // fallback so `claude --resume` and analytics find the run either way.
+        $sessionId = $this->runtime->newSessionId();
+        $command = 'cd '.escapeshellarg($worktree).'; '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId);
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
             if (!$this->waitForOrcaAdoption($worktree)) {
                 return new OrcaCall(null, 'orca adoption timeout for '.$worktree);
@@ -138,7 +143,7 @@ final class Agents extends AbstractAgentLauncher
         }
         $this->logOrcaFallback($worktree, $agent, $reason);
 
-        return $this->launchHeadless($worktree, $agent, $prompt, $model);
+        return $this->launchHeadless($worktree, $agent, $prompt, $model, $sessionId);
     }
 
     public function doRunStartupScript(string $worktree, string $script): string

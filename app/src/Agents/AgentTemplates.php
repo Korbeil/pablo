@@ -12,7 +12,8 @@ use Pablo\Config\Config;
  * configured projects use. Shared by `pablo system:generate-agents` (writes
  * the rendered files) and `pablo system:doctor` (compares a fresh render
  * against what is installed under ~/.config/opencode) so the two can never
- * drift apart. Reads only — never writes.
+ * drift apart. Reads only — never writes. These renders are also the source
+ * of the Claude Code translation (Runtime\ClaudeCodeAgents).
  */
 final class AgentTemplates
 {
@@ -35,6 +36,21 @@ final class AgentTemplates
     public function repoAgentsDir(): string
     {
         return \dirname(__DIR__, 3).'/opencode/agents';
+    }
+
+    /** Commands sources (opencode/commands), next to the agents directory. */
+    public static function commandsDirFor(string $agentsDir): string
+    {
+        return \dirname($agentsDir).'/commands';
+    }
+
+    /**
+     * Repo directory (git-ignored) holding the Claude Code rendering of the
+     * commands; install.sh symlinks claude/commands/*.md into ~/.claude/commands.
+     */
+    public function repoClaudeDir(): string
+    {
+        return \dirname(__DIR__, 3).'/claude';
     }
 
     /**

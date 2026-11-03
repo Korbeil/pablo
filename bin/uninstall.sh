@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 # PABLO uninstaller (Linux + macOS): removes only symlinks that resolve
-# into this repository (and the launchd plist PABLO generated) and
-# disables the dispatcher. Runtime data in ~/.pablo is kept.
+# into this repository (under ~/.config/opencode and ~/.claude, whichever
+# runtime was installed), the launchd plist PABLO generated and the
+# generated ~/.pablo/claude/, and disables the dispatcher. Runtime data in
+# ~/.pablo is kept.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 OPENCODE_DIR="${HOME}/.config/opencode"
+CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
 BIN_DIR="${HOME}/.local/bin"
 OS="$(uname -s)"
 
@@ -55,7 +58,16 @@ for f in "$REPO_DIR"/opencode/agents/*.md "$REPO_DIR"/opencode/commands/*.md; do
 done
 for d in "$REPO_DIR"/opencode/skills/*/; do
     remove_if_ours "$OPENCODE_DIR/skill/$(basename "$d")"
+    remove_if_ours "$CLAUDE_DIR/skills/$(basename "$d")"
 done
+# Claude Code runtime: the command links, then the generated --agents file.
+for f in "$REPO_DIR"/opencode/commands/*.md; do
+    remove_if_ours "$CLAUDE_DIR/commands/$(basename "$f")"
+done
+if [ -d "${HOME}/.pablo/claude" ]; then
+    rm -rf "${HOME}/.pablo/claude"
+    info "removed ${HOME}/.pablo/claude"
+fi
 
 remove_if_ours "$BIN_DIR/pablo"
 
@@ -75,4 +87,4 @@ if [ -f "$FISH_RC" ] && grep -qF '# >>> pablo >>>' "$FISH_RC"; then
     info "removed $FISH_RC"
 fi
 
-info "done. ~/.pablo (state, stamps, worktrees, logs) was left in place."
+info "done. ~/.pablo (state, stamps, worktrees, logs, config) was left in place."

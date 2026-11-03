@@ -50,7 +50,7 @@
   <tbody>
     <tr><td><code>system:doctor</code></td><td>Check every required tool is installed and logged in, and that the agents are up to date. <a href="page:providers#the-doctor">Details</a></td></tr>
     <tr><td><code>system:setup</code></td><td>The same checks as a wizard, one fix at a time.</td></tr>
-    <tr><td><code>system:generate-agents [--agents-dir=&lt;dir&gt;]</code></td><td>Regenerate the OpenCode agent files from their templates. <a href="page:agents#customise-the-agents">Details</a></td></tr>
+    <tr><td><code>system:generate-agents [--runtime=opencode|claude-code] [--agents-dir=&lt;dir&gt;] [--claude-dir=&lt;dir&gt;] [--claude-commands-dir=&lt;dir&gt;]</code></td><td>Regenerate the agents from their templates: the OpenCode agent files, plus, under Claude Code, <code>~/.pablo/claude/agents.json</code> and the command in <code>claude/commands/</code>. The runtime defaults to <code>agent_runtime</code>. <a href="page:agents#customise-the-agents">Details</a></td></tr>
     <tr><td><code>system:dispatch</code></td><td>The background job: run every due poll, sync and main update. Called by the scheduler every 5 minutes.</td></tr>
     <tr><td><code>system:poll [&lt;project&gt;]</code></td><td>Run the state poller once.</td></tr>
     <tr><td><code>system:repair-merge-flags [--dry-run] [--project=&lt;name&gt;]</code></td><td>Fix old analytics events that recorded a merged pull request as not merged.</td></tr>
@@ -69,12 +69,12 @@
   </tbody>
 </table>
 
-<h2>OpenCode command</h2>
+<h2>Agent command</h2>
 
 <table class="cmds">
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
-    <tr><td><code>/pablo-commit-and-pr [--force]</code></td><td>In an OpenCode session inside a task worktree: commit, push, open a draft pull request, move the task to <code>draft</code>. <a href="page:tasks#ship-your-work">Guide</a></td></tr>
+    <tr><td><code>/pablo-commit-and-pr [--force]</code></td><td>In an OpenCode or Claude Code session inside a task worktree: commit, push, open a draft pull request, move the task to <code>draft</code>. <a href="page:tasks#ship-your-work">Guide</a></td></tr>
   </tbody>
 </table>
 

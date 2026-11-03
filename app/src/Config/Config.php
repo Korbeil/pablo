@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Config;
 
+use Pablo\Agents\Runtime\AgentRuntimeResolver;
 use Pablo\Support\PabloError;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
@@ -208,6 +209,12 @@ final class Config
             throw new PabloError('no value for default_model — set it in the project config, default_model_by_type, or ~/.pablo/config.yaml');
         }
         $defaultModel = (string) $defaultModel;
+        // The model id format depends on the runtime that receives it:
+        // OpenCode wants provider/model, Claude Code an alias or model id.
+        $modelError = (new AgentRuntimeResolver($this->global))->resolve(AgentRuntimeResolver::nameFrom($defaults))->modelError($defaultModel);
+        if (null !== $modelError) {
+            throw new PabloError("{$name}: default_model {$modelError}");
+        }
         $prDescriptionLocale = $data['pr_description_locale'] ?? $defaults['pr_description_locale'] ?? null;
         if (null === $prDescriptionLocale) {
             throw new PabloError('no value for pr_description_locale — set it in the project config or ~/.pablo/config.yaml');

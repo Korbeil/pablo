@@ -234,7 +234,7 @@ permissions:
         </div>
         <div class="pr">
           <h3>No tokens stored</h3>
-          <p>PABLO talks to the CLIs you've already logged into: <code>gh</code>, <code>acli</code>, <code>linear</code>, <code>opencode</code>. <code>pablo system:doctor</code> tells you what's missing <i>before</i> a cron job fails at 3 am.</p>
+          <p>PABLO talks to the CLIs you've already logged into: <code>gh</code>, <code>acli</code>, <code>linear</code>, <code>opencode</code> or <code>claude</code>. <code>pablo system:doctor</code> tells you what's missing <i>before</i> a cron job fails at 3 am.</p>
         </div>
         <div class="pr">
           <h3>Careful with git</h3>
@@ -277,7 +277,7 @@ permissions:
       <div class="stack">
         <div><h4>Issue trackers</h4><p><span class="chip">GitHub Issues</span><span class="chip">Jira</span><span class="chip">Linear</span><span class="chip">Confluence</span></p></div>
         <div><h4>Code &amp; CI</h4><p><span class="chip">GitHub PRs</span><span class="chip">GitHub Actions</span><span class="chip">CircleCI</span><span class="chip">any check</span></p></div>
-        <div><h4>Agents</h4><p><span class="chip">OpenCode</span><span class="chip">Orca</span><span class="chip">OpenChamber</span><span class="chip">headless</span></p></div>
+        <div><h4>Agents</h4><p><span class="chip">OpenCode</span><span class="chip">Claude Code</span><span class="chip">Orca</span><span class="chip">OpenChamber</span><span class="chip">headless</span></p></div>
         <div><h4>Scheduler</h4><p><span class="chip">systemd (Linux)</span><span class="chip">launchd (macOS)</span></p></div>
       </div>
     </div>
@@ -308,10 +308,10 @@ permissions:
           <h3>Start a task</h3>
           <p>From an issue link or a plain prompt. The task-analyst starts right away.</p>
 <pre><code><span class="prompt">$</span> pablo task:start &lt;issue-url&gt;
-<span class="prompt">&gt;</span> /pablo-commit-and-pr  <span class="c"># in OpenCode</span></code></pre>
+<span class="prompt">&gt;</span> /pablo-commit-and-pr  <span class="c"># in OpenCode or Claude Code</span></code></pre>
         </div>
       </div>
-      <p class="req"><b>You'll need:</b> git, OpenCode and an agent environment (Orca or OpenChamber), plus PHP 8.4 to run PABLO. Then the command-line tool of each service your projects use: <code>gh</code> for GitHub, <code>acli</code> for Jira, <code>linear</code> for Linear. <a href="docs/quickstart/">Quickstart guide →</a></p>
+      <p class="req"><b>You'll need:</b> git, OpenCode or Claude Code, and an agent environment (Orca or OpenChamber), plus PHP 8.4 to run PABLO. Then the command-line tool of each service your projects use: <code>gh</code> for GitHub, <code>acli</code> for Jira, <code>linear</code> for Linear. <a href="docs/quickstart/">Quickstart guide →</a></p>
     </div>
   </section>
 

@@ -6,6 +6,7 @@ namespace Pablo\Doctor;
 
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Config\ProjectConfig;
+use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
 use Symfony\Component\Process\ExecutableFinder;
 
@@ -15,8 +16,9 @@ use Symfony\Component\Process\ExecutableFinder;
  * Derives the required CLI set from the configured projects. gh is always
  * required; acli (Jira) and a separate acli-confluence probe when a project
  * configures a Confluence space, only for jira projects; linear only when a
- * project uses that provider; opencode always; orca or openchamber, whichever
- * the global agent_backend selects (orca by default).
+ * project uses that provider; the selected agent runtime's CLI (opencode or
+ * claude, per agent_runtime); orca or openchamber, whichever the global
+ * agent_backend selects (orca by default).
  */
 final class Doctor
 {
@@ -27,16 +29,17 @@ final class Doctor
         'linear' => [['linear', 'auth', 'status'], 'run: linear auth login (schpet/linear-cli)'],
         'orca' => [['orca', 'status'], 'start the Orca app, or run: orca open'],
         'opencode' => [['opencode', '--version'], 'install opencode: https://opencode.ai'],
+        'claude' => [['claude', 'auth', 'status', '--text'], 'run: claude auth login'],
         'openchamber' => [['openchamber', 'status'], 'install openchamber: https://github.com/openchamber/openchamber'],
     ];
 
-    private const ALWAYS_REQUIRED = ['gh', 'opencode'];
+    private const ALWAYS_REQUIRED = ['gh'];
 
     /**
      * Wizard ordering: hard requirements first, then the per-provider
      * trackers (only included when a project uses them).
      */
-    public const CLI_ORDER = ['gh', 'orca', 'opencode', 'openchamber', 'acli', 'acli-confluence', 'linear'];
+    public const CLI_ORDER = ['gh', 'orca', 'opencode', 'claude', 'openchamber', 'acli', 'acli-confluence', 'linear'];
 
     /** @var array<string, array<string, string>> platform => install command */
     private const INSTALL_COMMANDS = [
@@ -47,6 +50,10 @@ final class Doctor
         'opencode' => [
             'Darwin' => 'curl -fsSL https://opencode.ai/install | bash',
             'Linux' => 'curl -fsSL https://opencode.ai/install | bash',
+        ],
+        'claude' => [
+            'Darwin' => 'curl -fsSL https://claude.ai/install.sh | bash',
+            'Linux' => 'curl -fsSL https://claude.ai/install.sh | bash',
         ],
         'openchamber' => [
             'Darwin' => 'curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash',
@@ -69,6 +76,7 @@ final class Doctor
     private const DOCS_URLS = [
         'gh' => 'https://cli.github.com',
         'opencode' => 'https://opencode.ai',
+        'claude' => 'https://code.claude.com/docs',
         'openchamber' => 'https://github.com/openchamber/openchamber',
         'acli' => 'https://developer.atlassian.com/cloud/acli/',
         'acli-confluence' => 'https://developer.atlassian.com/cloud/acli/',
@@ -110,12 +118,52 @@ final class Doctor
         if ($needsConfluence) {
             $required['acli-confluence'] = true;
         }
-        // Only the selected backend is required: an OpenChamber user need not install Orca.
+        // Only the selected backend and runtime are required: an OpenChamber
+        // user need not install Orca, a Claude Code user need not install OpenCode.
         $required['openchamber' === $this->agentLaunchers->resolveBackend() ? 'openchamber' : 'orca'] = true;
+        $required[$this->runtimeBinary()] = true;
         $list = array_keys($required);
         sort($list);
 
         return $list;
+    }
+
+    /**
+     * The selected runtime's CLI. An unknown runtime is reported by
+     * configErrors(); the CLI checks fall back to OpenCode meanwhile.
+     */
+    private function runtimeBinary(): string
+    {
+        try {
+            return $this->agentLaunchers->runtime()->binary();
+        } catch (PabloError) {
+            return 'opencode';
+        }
+    }
+
+    /**
+     * Global agent settings that cannot work at all: an unknown
+     * agent_runtime, or a backend that cannot run the runtime (OpenChamber +
+     * Claude Code). Always a hard failure — for the doctor and the dispatcher.
+     *
+     * @return list<string>
+     */
+    public function configErrors(): array
+    {
+        try {
+            $runtime = $this->agentLaunchers->runtimes()->resolveName();
+        } catch (PabloError $e) {
+            return [$e->getMessage()];
+        }
+        $error = AgentLauncherFactory::incompatibility($this->agentLaunchers->resolveBackend(), $runtime);
+
+        return null !== $error ? [$error] : [];
+    }
+
+    /** @param list<string> $errors */
+    public function renderConfigErrors(array $errors): string
+    {
+        return implode("\n", array_map(static fn (string $e): string => \sprintf('❌ %-10s %s', 'config', $e), $errors));
     }
 
     /** @return list<string> */

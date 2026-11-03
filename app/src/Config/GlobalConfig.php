@@ -74,6 +74,7 @@ final class GlobalConfig
             'pr_description_locale' => isset($data['pr_description_locale']) ? (string) $data['pr_description_locale'] : null,
             'branch_prefix' => isset($data['branch_prefix']) ? (string) $data['branch_prefix'] : null,
             'agent_backend' => isset($data['agent_backend']) ? (string) $data['agent_backend'] : null,
+            'agent_runtime' => isset($data['agent_runtime']) ? (string) $data['agent_runtime'] : null,
         ];
     }
 }

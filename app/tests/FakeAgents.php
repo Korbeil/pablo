@@ -122,8 +122,13 @@ final class FakeAgents implements AgentLauncherInterface
         ++$this->refreshCount;
     }
 
-    public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null): string
+    /** @var list<array{agent: string, model: ?string, session: ?string}> every launchHeadless() call */
+    public array $headless = [];
+
+    public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string
     {
+        $this->headless[] = ['agent' => $agent, 'model' => $model, 'session' => $sessionId];
+
         return 'pid:0';
     }
 

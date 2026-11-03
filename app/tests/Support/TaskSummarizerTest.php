@@ -10,6 +10,42 @@ use PHPUnit\Framework\TestCase;
 
 final class TaskSummarizerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        // Pin the runtime: the developer's own ~/.pablo/config.yaml must not leak in.
+        putenv('PABLO_AGENT_RUNTIME=opencode');
+    }
+
+    protected function tearDown(): void
+    {
+        putenv('PABLO_AGENT_RUNTIME');
+    }
+
+    public function testSummarizesViaClaudeHaikuUnderClaudeCode(): void
+    {
+        putenv('PABLO_AGENT_RUNTIME=claude-code');
+        $runner = new FakeProcessRunner();
+        $runner->outputs = [json_encode(['type' => 'result', 'is_error' => false, 'session_id' => 'x', 'result' => "Fix webhook retry with backoff.\n"], \JSON_THROW_ON_ERROR)];
+        $summarizer = new TaskSummarizer($runner);
+
+        $this->assertSame('Fix webhook retry with backoff', $summarizer->summarize('/repo', 'do the webhooks'));
+
+        $this->assertCount(1, $runner->calls, 'nothing persisted, so nothing to delete');
+        [$argv, $check, $timeout, $cwd] = $runner->calls[0];
+        $this->assertSame(['claude', '-p', '--model', 'haiku', '--output-format', 'json', '--no-session-persistence', '--strict-mcp-config', '--tools', ''], \array_slice($argv, 0, 10));
+        $this->assertSame('--', $argv[10]);
+        $this->assertStringContainsString('do the webhooks', (string) end($argv));
+        $this->assertFalse($check);
+        $this->assertSame('/repo', $cwd);
+    }
+
+    public function testClaudeErrorResultFallsBack(): void
+    {
+        $this->assertNull(TaskSummarizer::parseClaude('{"type":"result","is_error":true,"result":"Not logged in"}'));
+        $this->assertNull(TaskSummarizer::parseClaude('not json'));
+        $this->assertSame('ok', TaskSummarizer::parseClaude('{"result":"ok"}'));
+    }
+
     public function testSummarizesViaOpencodeBigPickle(): void
     {
         $runner = new FakeProcessRunner();

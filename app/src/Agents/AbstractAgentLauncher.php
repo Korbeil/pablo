@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Agents;
 
+use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\Runtime\OpenCodeRuntime;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
@@ -34,6 +36,8 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
 
     protected readonly string $backend;
 
+    protected readonly AgentRuntimeInterface $runtime;
+
     /**
      * Mirrors Store::defaultRoot(): resolved per process, never at container
      * compile time (the compiled container is cached under app/var/cache).
@@ -61,7 +65,9 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         ?Store $store = null,
         ?string $shimPath = null,
         ?string $backend = null,
+        ?AgentRuntimeInterface $runtime = null,
     ) {
+        $this->runtime = $runtime ?? new OpenCodeRuntime();
         $this->store = $store ?? new Store();
         $this->shimPath = $shimPath ?? self::defaultShimPath();
         $this->backend = $backend ?? 'orca';
@@ -115,17 +121,24 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         return $logs.'/'.time().'-'.$label.'.log';
     }
 
-    protected function writePidfile(int $pid, string $worktree, string $label): void
+    public function runtime(): AgentRuntimeInterface
     {
-        file_put_contents(
-            $this->agentsDir.'/'.$pid.'.json',
-            json_encode([
-                'pid' => $pid,
-                'worktree' => $worktree,
-                'agent' => $label,
-                'started_at' => $this->time->utcnow(),
-            ]),
-        );
+        return $this->runtime;
+    }
+
+    protected function writePidfile(int $pid, string $worktree, string $label, ?string $sessionId = null): void
+    {
+        $record = [
+            'pid' => $pid,
+            'worktree' => $worktree,
+            'agent' => $label,
+            'started_at' => $this->time->utcnow(),
+        ];
+        if (null !== $sessionId) {
+            $record['runtime'] = $this->runtime->name();
+            $record['session'] = $sessionId;
+        }
+        file_put_contents($this->agentsDir.'/'.$pid.'.json', json_encode($record));
     }
 
     public function launch(string $worktree, \Pablo\Domain\Agent $agent, string $prompt, string $project, string $branch): string
@@ -229,22 +242,22 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         return "pid:{$pid}";
     }
 
-    public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null): string
+    public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string
     {
+        $sessionId ??= $this->runtime->newSessionId();
         $log = $this->logFor($agent);
         $out = [];
-        // OpenCode v2 removed `run --dir`; the session attaches to the
-        // working directory instead, so the detached subshell cd's into the
-        // worktree before exec'ing opencode.
+        // Both runtimes attach the session to the working directory (OpenCode
+        // v2 removed `run --dir`), so the detached subshell cd's into the
+        // worktree before exec'ing the agent CLI.
         exec(
-            $this->detach('cd '.escapeshellarg($worktree).'; exec opencode run'
-                .(null !== $model ? ' --model '.escapeshellarg($model) : '')
-                .' --agent '.escapeshellarg($agent).' '.escapeshellarg($prompt)
+            $this->detach('cd '.escapeshellarg($worktree).'; exec '
+                .$this->runtime->launchCommand($agent, $prompt, $model, $sessionId)
                 .' >>'.escapeshellarg($log).' 2>&1'),
             $out,
         );
         $pid = (int) trim((string) ($out[0] ?? ''));
-        $this->writePidfile($pid, $worktree, $agent);
+        $this->writePidfile($pid, $worktree, $agent, $sessionId);
 
         return "pid:{$pid}";
     }

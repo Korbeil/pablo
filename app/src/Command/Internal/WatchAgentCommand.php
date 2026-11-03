@@ -7,9 +7,10 @@ namespace Pablo\Command\Internal;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AgentRunRecord;
+use Pablo\Analytics\AgentUsage;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\NullAnalytics;
-use Pablo\Analytics\OpenCodeUsage;
+use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Domain\Agent;
@@ -18,7 +19,6 @@ use Pablo\Domain\State;
 use Pablo\Domain\Time;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
-use Pablo\Support\ProcessRunner;
 use Pablo\Support\RepoSlug;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -37,7 +37,7 @@ final class WatchAgentCommand extends Command
         AgentLauncherFactory $agentLaunchers,
         AgentLauncherInterface $agents,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
-        private readonly OpenCodeUsage $usage = new OpenCodeUsage(new ProcessRunner()),
+        private readonly UsageHarvesterInterface $usage = new AgentUsage(),
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
@@ -120,7 +120,7 @@ final class WatchAgentCommand extends Command
 
     /**
      * Best-effort analytics for the concluded run: wall-clock duration plus
-     * token/cost usage harvested from the local OpenCode storage. Must never
+     * token/cost usage harvested from the selected runtime's local storage. Must never
      * break the watcher — harvest() already swallows its own failures.
      */
     private function recordAgentRunFinished(\Pablo\Domain\Task $task, ?string $launchedAt, string $finishedAt, string $runId, string $agentName, string $backend, string $fingerprint): void

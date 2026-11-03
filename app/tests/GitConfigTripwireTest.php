@@ -35,6 +35,38 @@ final class GitConfigTripwireTest extends TestCase
         $this->assertNoMatches(self::FORBIDDEN_MARKDOWN, $this->markdownFiles());
     }
 
+    /**
+     * The Claude Code renders (agents.json, the claude/ command copies) are
+     * generated, so they are checked from a fresh in-memory render rather
+     * than from files that may not exist yet.
+     */
+    public function testClaudeCodeRendersContainNoIdentityWrites(): void
+    {
+        $templates = new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $claude = new \Pablo\Agents\Runtime\ClaudeCodeAgents($templates);
+        $renders = ['agents.json' => $claude->renderAgentsJson($templates->repoAgentsDir(), \Pablo\Config\Config::PROVIDERS)];
+        foreach (glob(\Pablo\Agents\AgentTemplates::commandsDirFor($templates->repoAgentsDir()).'/*.md') ?: [] as $source) {
+            $renders['claude/commands/'.basename($source)] = $claude->renderCommand($source);
+        }
+        foreach (glob($templates->repoClaudeDir().'/commands/*.md') ?: [] as $generated) {
+            $renders['claude/commands/'.basename($generated).' (on disk)'] = (string) file_get_contents($generated);
+        }
+
+        $violations = [];
+        foreach ($renders as $label => $content) {
+            // agents.json escapes quotes and newlines: scan the decoded text.
+            $decoded = json_decode($content, true);
+            $text = \is_array($decoded) ? implode("\n", array_map(static fn (array $a): string => (string) $a['prompt'], $decoded)) : $content;
+            foreach (self::FORBIDDEN_MARKDOWN as $rule => $regex) {
+                if (preg_match($regex, $text, $m)) {
+                    $violations[] = "{$label} ({$rule}): {$m[0]}";
+                }
+            }
+        }
+
+        $this->assertSame([], $violations, "Git identity writes found:\n".implode("\n", $violations));
+    }
+
     public function testSrcContainsNoIdentityConfigWrites(): void
     {
         $this->assertNoMatches(self::FORBIDDEN_PHP, $this->phpFiles());

@@ -21,7 +21,7 @@ use Pablo\Support\ProcessRunnerInterface;
  * is merged ("window" quality); nothing matched means no usage is recorded,
  * never a guess.
  */
-final class OpenCodeUsage
+final class OpenCodeUsage implements UsageHarvesterInterface
 {
     private const SESSION_GRACE_S = 5;
     private const SESSION_MAX_COUNT = 200;

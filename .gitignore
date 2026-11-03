@@ -24,6 +24,8 @@ app/config/reference.php
 /opencode/agents/ci-analyst.md
 /opencode/agents/pr-feedback.md
 /opencode/agents/rebase-conflict-resolver.md
+# Claude Code rendering of the commands (agent_runtime: claude-code).
+/claude/
 
 # A `gh` invocation that inherits no HOME writes its state next to the cwd.
 app/.local/

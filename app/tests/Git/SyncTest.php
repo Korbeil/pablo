@@ -271,6 +271,29 @@ final class SyncTest extends TestCase
         $this->assertFileExists($this->wt.'/main-only.txt');
     }
 
+    public function testClaudeCodeResolverGetsAPabloAssignedSession(): void
+    {
+        RepoHelper::commitFile($this->wt, 'feature.txt', "branch side\n", 'branch work');
+        RepoHelper::commitFile($this->other, 'feature.txt', "main side\n", 'clash');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
+        $agents = new \Pablo\Tests\FakeAgents();
+
+        putenv('PABLO_AGENT_RUNTIME=claude-code');
+        try {
+            $report = $this->byBranch($this->sync()->syncProject($this->cfg, $this->store, true, $agents))['pr-1'];
+        } finally {
+            putenv('PABLO_AGENT_RUNTIME');
+        }
+
+        $this->assertSame('conflict', $report->action);
+        $this->assertCount(1, $agents->headless);
+        $this->assertSame('rebase-conflict-resolver', $agents->headless[0]['agent']);
+        $session = (string) $agents->headless[0]['session'];
+        $this->assertTrue(\Pablo\Agents\Runtime\SessionRef::isClaudeSession($session));
+        $this->assertSame($session, $report->agentHandle);
+        $this->assertStringContainsString('fix agent running — claude --resume '.$session, Sync::renderReports([$report]));
+    }
+
     public function testConflictPromptUsesStackedBase(): void
     {
         $report = new \Pablo\Provider\Git\SyncReport(

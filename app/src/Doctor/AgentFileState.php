@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Pablo\Doctor;
 
 /**
- * Verdict for one installed opencode agent file. Stale is soft (cosmetic —
+ * Verdict for one installed agent file (an OpenCode agent, or under Claude
+ * Code agents.json / the command / the skill). Stale is soft (cosmetic —
  * the old prompt keeps working; regenerate to refresh); missing, broken
- * symlinks and non-PABLO files are hard: that agent is absent from
- * opencode, so its frontmatter guardrails are not in effect.
+ * symlinks and non-PABLO files are hard: that agent is absent from the
+ * runtime, so its guardrails are not in effect.
  */
 enum AgentFileState
 {

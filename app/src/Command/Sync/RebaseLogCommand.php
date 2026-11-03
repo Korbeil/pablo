@@ -6,6 +6,7 @@ namespace Pablo\Command\Sync;
 
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Provider\Git\Sync;
@@ -69,7 +70,7 @@ final class RebaseLogCommand extends Command
                         $output->writeln('   conflicting files: '.implode(', ', $files));
                     }
                     if ('' !== $r->agentHandle) {
-                        $output->writeln('   fix agent running — opencode -s '.$r->agentHandle);
+                        $output->writeln('   fix agent running — '.SessionRef::command($r->agentHandle));
                     }
                 }
             }

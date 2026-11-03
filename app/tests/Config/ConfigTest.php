@@ -462,6 +462,30 @@ YAML);
         $this->assertSame(getenv('HOME').'/.pablo/config.yaml', $this->gconf()->configPath());
     }
 
+    public function testClaudeCodeRuntimeRefusesAnOpenCodeModelId(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        putenv('PABLO_AGENT_RUNTIME=claude-code');
+        try {
+            $this->loader()->loadProjects($this->projectsDir);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString("default_model 'opencode-go/glm-5.3-flash' looks like an OpenCode provider/model id", $e->getMessage());
+        } finally {
+            putenv('PABLO_AGENT_RUNTIME');
+        }
+    }
+
+    public function testClaudeCodeRuntimeAcceptsAliasesAndModelIds(): void
+    {
+        $this->writeGlobalConfig(str_replace('default_model: opencode-go/glm-5.3-flash', "agent_runtime: claude-code\ndefault_model: sonnet", self::DEFAULTS));
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->assertSame('sonnet', $this->loader()->loadProjects($this->projectsDir)['mini']->defaultModel);
+
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."default_model: claude-opus-5-5\n");
+        $this->assertSame('claude-opus-5-5', $this->loader()->loadProjects($this->projectsDir)['mini']->defaultModel);
+    }
+
     public function testProjectsDirDefaultsToUserConfig(): void
     {
         putenv('PABLO_PROJECTS_DIR');
