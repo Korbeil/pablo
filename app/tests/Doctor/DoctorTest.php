@@ -129,6 +129,8 @@ YAML;
     {
         $this->writeGlobalConfig(str_replace('openrouter/test/model', 'sonnet', self::DEFAULTS)."\nagent_runtime: claude-code\n");
         $projects = ['a' => $this->makeCfg('a', 'github')];
+        // Never depend on a real `claude` on the PATH (CI has none).
+        $this->onWhich = static fn (string $bin): string => '/usr/bin/'.$bin;
         $doctor = $this->doctor();
         $this->assertSame(['claude', 'gh', 'orca'], $doctor->requiredClis($projects));
         $this->assertSame([], $doctor->configErrors());
