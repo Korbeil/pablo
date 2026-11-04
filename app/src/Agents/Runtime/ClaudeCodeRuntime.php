@@ -6,8 +6,10 @@ namespace Pablo\Agents\Runtime;
 
 /**
  * Claude Code: `claude -p` with PABLO's agents passed at launch through
- * `--agents ~/.pablo/claude/agents.json` (never installed under
- * ~/.claude/agents, so they stay out of the user's interactive sessions).
+ * `--agents ~/.pablo/claude/agents.json`. They are also linked into
+ * ~/.claude/agents as pablo-<agent> (see ClaudeCodeAgents::renderAgentFiles)
+ * so the user's own sessions list them; those files carry tool-level limits
+ * only, the shell-pattern rules below exist solely as launch flags.
  *
  * Every launch repeats the agent's permissions as CLI flags — the only place
  * shell patterns can be expressed — runs with the user's own settings and

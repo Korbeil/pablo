@@ -165,8 +165,10 @@ as the command's working directory for
 repos not registered in Orca. *What* runs is the agent **runtime**
 (`src/Agents/Runtime/`, `agent_runtime` / `PABLO_AGENT_RUNTIME`, resolved per
 call by `AgentRuntimeResolver`): `opencode run` (default), `claude -p`
-(Claude Code: agents passed with `--agents ~/.pablo/claude/agents.json`,
-permissions translated from the same templates by `ClaudeCodeAgents`, every
+(Claude Code: agents passed with `--agents ~/.pablo/claude/agents.json`, and
+also rendered as `pablo-<agent>.md` into the git-ignored `claude/agents/`,
+linked into `~/.claude/agents` for `/agents` and the `@` picker — tool-level
+limits only; permissions translated from the same templates by `ClaudeCodeAgents`, every
 shell deny doubled in its `rtk`-prefixed form) or `copilot -p` (GitHub
 Copilot CLI: `pablo-<agent>.agent.md` files rendered by `CopilotAgents` into
 the git-ignored `copilot/` and linked into `~/.copilot/agents`, policy

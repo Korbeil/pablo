@@ -190,11 +190,16 @@ link_skills_into() { # link_skills_into <dest-dir> [<src-dir>] (default src: ope
 }
 
 if [ "$RUNTIME" = claude-code ]; then
-    # Only the command and the skill go under ~/.claude. The agents stay out
-    # of ~/.claude/agents on purpose (they would show up in your interactive
-    # sessions): PABLO passes ~/.pablo/claude/agents.json with --agents.
+    # PABLO's own launches pass ~/.pablo/claude/agents.json with --agents; the
+    # agents are also linked into ~/.claude/agents as pablo-<agent>, so you
+    # can pick them in /agents and the @ picker of your own sessions.
     [ -f "$PABLO_DIR/claude/agents.json" ] ||
         die "$PABLO_DIR/claude/agents.json was not generated — run: php $REPO_DIR/app/bin/pablo system:generate-agents --runtime claude-code"
+    compgen -G "$REPO_DIR/claude/agents/*.md" >/dev/null ||
+        die "$REPO_DIR/claude/agents was not generated — run: php $REPO_DIR/app/bin/pablo system:generate-agents --runtime claude-code"
+    for f in "$REPO_DIR"/claude/agents/*.md; do
+        link_into "$f" "$CLAUDE_DIR/agents"
+    done
     for f in "$REPO_DIR"/claude/commands/*.md; do
         link_into "$f" "$CLAUDE_DIR/commands"
     done

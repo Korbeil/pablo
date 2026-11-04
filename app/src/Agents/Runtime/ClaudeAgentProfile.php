@@ -48,6 +48,27 @@ final class ClaudeAgentProfile
     }
 
     /**
+     * The same agent as a Claude Code subagent file (~/.claude/agents/<id>.md),
+     * so it shows in `/agents` and the `@` picker. Only tool-level limits fit
+     * in a file: shell-pattern rules stay launch flags (see cliArgs()), so
+     * outside a PABLO launch the agent is bound by its tool lists alone.
+     */
+    public function agentFile(string $id): string
+    {
+        $front = "---\n"
+            .'name: '.$id."\n"
+            .'description: '.json_encode($this->description, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR)."\n";
+        if ([] !== $this->tools) {
+            $front .= 'tools: '.implode(', ', $this->tools)."\n";
+        }
+        if ([] !== $this->deniedTools) {
+            $front .= 'disallowedTools: '.implode(', ', $this->deniedTools)."\n";
+        }
+
+        return $front."---\n".$this->prompt."\n";
+    }
+
+    /**
      * Launch flags enforcing the same rules from the command line — the only
      * place shell patterns can be expressed.
      *

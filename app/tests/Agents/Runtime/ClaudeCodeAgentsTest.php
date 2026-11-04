@@ -159,6 +159,27 @@ final class ClaudeCodeAgentsTest extends TestCase
         }
     }
 
+    public function testAgentFilesAreValidSubagentsNamedWithThePrefix(): void
+    {
+        $files = $this->claude->renderAgentFiles($this->templates->repoAgentsDir(), ['github']);
+        $this->assertSame(
+            array_map(static fn (string $n): string => 'pablo-'.$n.'.md', AgentTemplates::AGENT_NAMES),
+            array_keys($files),
+        );
+        foreach ($files as $file => $content) {
+            [$front, $body] = ClaudeCodeAgents::splitFrontmatter($content, $file);
+            $this->assertSame(basename($file, '.md'), $front['name'], $file);
+            $this->assertNotSame('', $front['description'], $file);
+            $this->assertArrayHasKey('tools', $front, $file);
+            $this->assertArrayNotHasKey('model', $front, $file);
+            $this->assertStringNotContainsString('{{', $body, $file);
+        }
+        $resolver = ClaudeCodeAgents::splitFrontmatter($files['pablo-rebase-conflict-resolver.md'], 'r')[0];
+        $this->assertStringContainsString('Edit', $resolver['tools']);
+        $analyst = ClaudeCodeAgents::splitFrontmatter($files['pablo-task-analyst.md'], 'a')[0];
+        $this->assertStringNotContainsString('Edit', $analyst['tools']);
+    }
+
     public function testUnknownActionIsRefused(): void
     {
         $this->expectException(AgentTemplateError::class);

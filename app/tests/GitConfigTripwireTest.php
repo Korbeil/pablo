@@ -48,6 +48,9 @@ final class GitConfigTripwireTest extends TestCase
         foreach (glob(\Pablo\Agents\AgentTemplates::commandsDirFor($templates->repoAgentsDir()).'/*.md') ?: [] as $source) {
             $renders['claude/commands/'.basename($source)] = $claude->renderCommand($source);
         }
+        foreach ($claude->renderAgentFiles($templates->repoAgentsDir(), \Pablo\Config\Config::PROVIDERS) as $file => $content) {
+            $renders['claude/agents/'.$file] = $content;
+        }
         foreach (glob($templates->repoClaudeDir().'/commands/*.md') ?: [] as $generated) {
             $renders['claude/commands/'.basename($generated).' (on disk)'] = (string) file_get_contents($generated);
         }

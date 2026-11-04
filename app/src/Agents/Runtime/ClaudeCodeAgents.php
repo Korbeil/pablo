@@ -87,6 +87,35 @@ final class ClaudeCodeAgents
         return json_encode($agents, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR)."\n";
     }
 
+    /** Prefix of the subagent files linked into ~/.claude/agents. */
+    public const ID_PREFIX = 'pablo-';
+
+    public static function agentId(string $agent): string
+    {
+        return self::ID_PREFIX.$agent;
+    }
+
+    /**
+     * Every agent as a Claude Code subagent file, keyed by file name
+     * (`pablo-<agent>.md`), for ~/.claude/agents.
+     *
+     * @param list<string> $providers
+     *
+     * @return array<string, string>
+     *
+     * @throws AgentTemplateError
+     */
+    public function renderAgentFiles(string $agentsDir, array $providers): array
+    {
+        $files = [];
+        foreach (AgentTemplates::AGENT_NAMES as $name) {
+            $id = self::agentId($name);
+            $files[$id.'.md'] = $this->profile($name, $agentsDir, $providers)->agentFile($id);
+        }
+
+        return $files;
+    }
+
     /**
      * @throws AgentTemplateError
      */

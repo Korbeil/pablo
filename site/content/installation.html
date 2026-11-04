@@ -65,7 +65,7 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
 
 <p><code>system:setup</code> stops at the first problem and prints the exact command to install or log in to the tool. Fix it, run <code>pablo system:setup</code> again, and it moves on to the next check. Tracker tools (<code>acli</code>, <code>linear</code>) are only checked once a project uses them.</p>
 
-<p>The doctor also checks that the installed agents are up to date: <code>~/.config/opencode/agents/</code> under OpenCode; <code>~/.pablo/claude/agents.json</code>, the command and the skill under Claude Code; the agent files and skills in <code>~/.copilot/</code> under Copilot. If one is reported stale, run <code>pablo system:generate-agents</code>.</p>
+<p>The doctor also checks that the installed agents are up to date: <code>~/.config/opencode/agents/</code> under OpenCode; <code>~/.pablo/claude/agents.json</code>, the <code>~/.claude/agents/pablo-*.md</code> files, the command and the skill under Claude Code; the agent files and skills in <code>~/.copilot/</code> under Copilot. If one is reported stale, run <code>pablo system:generate-agents</code>.</p>
 
 <h2 id="claude-code">With Claude Code</h2>
 
@@ -78,7 +78,7 @@ default_model: sonnet        # or opus, haiku, or a full model id
 <ul>
   <li><b>Prerequisite.</b> The <code>claude</code> command, logged in: the doctor runs <code>claude auth status</code>. Install it with <code>curl -fsSL https://claude.ai/install.sh | bash</code>.</li>
   <li><b>What is installed.</b> <code>~/.pablo/claude/agents.json</code> holds the five agents; the installer links <code>~/.claude/commands/pablo-commit-and-pr.md</code> and <code>~/.claude/skills/pablo-task</code>.</li>
-  <li><b>What is not.</b> Nothing goes into <code>~/.claude/agents/</code>: PABLO's agents would otherwise appear in your own Claude Code sessions. PABLO hands them to <code>claude</code> at each launch instead.</li>
+  <li><b>Your own sessions.</b> The installer also links the agents into <code>~/.claude/agents/</code> as <code>pablo-&lt;agent&gt;</code>, so they appear in <code>/agents</code> and the <code>@</code> picker. PABLO's own launches still pass <code>agents.json</code> with <code>--agents</code>; only those enforce the per-command shell denies.</li>
   <li><b>Backend.</b> Use Orca, or no backend (headless). OpenChamber can't run Claude Code; the doctor reports it.</li>
 </ul>
 

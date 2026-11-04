@@ -24,8 +24,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * Renders the agents from their .md.template sources + the project configs
  * for the selected runtime: OpenCode .md files next to the templates, and —
- * under Claude Code — the `--agents` file (~/.pablo/claude/agents.json) plus
- * the Claude Code rendering of the commands (claude/commands/, git-ignored);
+ * under Claude Code — the `--agents` file (~/.pablo/claude/agents.json), the
+ * pablo-<agent>.md subagent files (claude/agents/, linked into ~/.claude/agents
+ * so /agents and the @ picker show them) plus the Claude Code rendering of the
+ * commands (claude/commands/, git-ignored);
  * under Copilot, the `pablo-<agent>.agent.md` files and the commands as
  * skills (copilot/agents/ and copilot/skills/, git-ignored).
  */
@@ -49,6 +51,7 @@ final class GenerateAgentsCommand extends Command
             ->addOption('runtime', null, InputOption::VALUE_REQUIRED, 'opencode | claude-code | copilot (default: agent_runtime / PABLO_AGENT_RUNTIME)')
             ->addOption('claude-dir', null, InputOption::VALUE_REQUIRED, 'where agents.json goes under claude-code (default: ~/.pablo/claude)')
             ->addOption('claude-commands-dir', null, InputOption::VALUE_REQUIRED, 'where the Claude Code commands go (default: repo claude/commands)')
+            ->addOption('claude-agents-dir', null, InputOption::VALUE_REQUIRED, 'where the Claude Code pablo-<agent>.md subagent files go (default: repo claude/agents)')
             ->addOption('copilot-dir', null, InputOption::VALUE_REQUIRED, 'where the Copilot agents/ and skills/ go (default: repo copilot)');
     }
 
@@ -102,9 +105,13 @@ final class GenerateAgentsCommand extends Command
         $claude = new ClaudeCodeAgents($this->agentTemplates);
         $claudeDir = $input->getOption('claude-dir') ?? ClaudeCodeRuntime::defaultDir();
         $commandsDir = $input->getOption('claude-commands-dir') ?? $this->agentTemplates->repoClaudeDir().'/commands';
+        $claudeAgentsDir = $input->getOption('claude-agents-dir') ?? $this->agentTemplates->repoClaudeDir().'/agents';
 
         try {
             $files = [$claudeDir.'/agents.json' => $claude->renderAgentsJson($agentsDir, $providers)];
+            foreach ($claude->renderAgentFiles($agentsDir, $providers) as $file => $content) {
+                $files[$claudeAgentsDir.'/'.$file] = $content;
+            }
             foreach (glob(AgentTemplates::commandsDirFor($agentsDir).'/*.md') ?: [] as $source) {
                 $files[$commandsDir.'/'.basename($source)] = $claude->renderCommand($source);
             }

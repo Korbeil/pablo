@@ -70,7 +70,12 @@ done
 for f in "$REPO_DIR"/opencode/commands/*.md; do
     remove_if_ours "$COPILOT_DIR/skills/$(basename "$f" .md)"
 done
-# Claude Code runtime: the command links, then the generated --agents file.
+# Claude Code runtime: the pablo-<agent> links, the command links, then the
+# generated --agents file.
+for f in "$REPO_DIR"/claude/agents/*.md; do
+    [ -e "$f" ] || continue
+    remove_if_ours "$CLAUDE_DIR/agents/$(basename "$f")"
+done
 for f in "$REPO_DIR"/opencode/commands/*.md; do
     remove_if_ours "$CLAUDE_DIR/commands/$(basename "$f")"
 done

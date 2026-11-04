@@ -122,6 +122,18 @@ final class AgentStaleness
             $results[] = new AgentFileStatus('agents.json', AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
         }
 
+        $providers = $this->agentTemplates->enabledProviders();
+        foreach (AgentTemplates::AGENT_NAMES as $name) {
+            $id = ClaudeCodeAgents::agentId($name);
+            try {
+                $fresh = $claude->profile($name, $agentsDir, $providers)->agentFile($id);
+            } catch (AgentTemplateError $e) {
+                $results[] = new AgentFileStatus($id, AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
+                continue;
+            }
+            $results[] = self::checkLinked($id, $userClaudeDir.'/agents/'.$id.'.md', $fresh);
+        }
+
         foreach (glob(AgentTemplates::commandsDirFor($agentsDir).'/*.md') ?: [] as $source) {
             $name = basename($source, '.md');
             try {

@@ -93,9 +93,16 @@ YAML);
             '--runtime' => 'claude-code',
             '--claude-dir' => $this->tmp.'/pablo-claude',
             '--claude-commands-dir' => $this->tmp.'/claude-commands',
+            '--claude-agents-dir' => $this->tmp.'/claude-agents',
         ]);
 
         $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        foreach (self::TEMPLATE_NAMES as $name) {
+            $this->assertFileExists($this->tmp.'/claude-agents/pablo-'.$name.'.md');
+        }
+        $file = (string) file_get_contents($this->tmp.'/claude-agents/pablo-task-analyst.md');
+        $this->assertStringStartsWith("---\nname: pablo-task-analyst\n", $file);
+        $this->assertStringContainsString('GitHub', $file);
         $agents = json_decode((string) file_get_contents($this->tmp.'/pablo-claude/agents.json'), true);
         $this->assertIsArray($agents);
         $this->assertSame(self::TEMPLATE_NAMES, array_keys($agents));

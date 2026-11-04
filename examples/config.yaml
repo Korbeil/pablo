@@ -17,9 +17,9 @@ default_model: opencode-go/glm-5.3-flash
 pr_description_locale: en
 # agent_runtime: opencode | claude-code | copilot  (default: opencode)
 # The program that runs the agents. With claude-code, PABLO launches
-# `claude -p` with its agents from ~/.pablo/claude/agents.json (never
-# installed in ~/.claude/agents), links /pablo-commit-and-pr and the
-# pablo-task skill into ~/.claude, and needs a Claude model above, e.g.
+# `claude -p` with its agents from ~/.pablo/claude/agents.json, links the
+# agents into ~/.claude/agents as pablo-<agent> (visible in /agents and the
+# @ picker), links /pablo-commit-and-pr and the pablo-task skill into ~/.claude, and needs a Claude model above, e.g.
 #   default_model: sonnet
 # With copilot, PABLO launches `copilot -p` with its agents linked into
 # ~/.copilot/agents as pablo-<agent> (so you can run them yourself too),
