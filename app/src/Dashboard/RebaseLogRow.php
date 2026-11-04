@@ -22,7 +22,7 @@ final readonly class RebaseLogRow
     ) {
     }
 
-    /** `opencode -s <id>` or `claude --resume <id>` for the conflict-fix agent. */
+    /** `opencode -s <id>`, `claude --resume <id>` or `copilot --resume=<id>` for the conflict-fix agent. */
     public function agentSessionRef(): string
     {
         return SessionRef::command($this->report->agentHandle);

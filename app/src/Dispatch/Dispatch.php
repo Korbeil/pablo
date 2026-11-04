@@ -27,7 +27,7 @@ final class Dispatch
      * Provider CLIs that are soft requirements: a failure here warns but does
      * not abort the run — only the affected project's sync/poll degrades (the
      * per-project failure path already handles that). gh and the runtime CLI
-     * (opencode or claude) stay hard.
+     * (opencode, claude or copilot) stay hard.
      */
     private const SOFT_CLIS = ['orca', 'openchamber', 'acli', 'acli-confluence', 'linear'];
 
@@ -62,7 +62,7 @@ final class Dispatch
      */
     public function preflightErrors(array $projects): array
     {
-        // An impossible agent setup (OpenChamber + Claude Code) would only
+        // An impossible agent setup (OpenChamber + Claude Code or Copilot) would only
         // fail every launch: stop here, loud, before touching any project.
         $errors = $this->doctor->configErrors();
         foreach ($this->doctor->checkAll($projects) as $result) {

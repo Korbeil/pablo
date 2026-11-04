@@ -14,7 +14,7 @@ use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Creates the agent launcher for a backend ('orca' | 'openchamber'), running
- * the selected agent runtime ('opencode' | 'claude-code').
+ * the selected agent runtime ('opencode' | 'claude-code' | 'copilot').
  *
  * Backend and runtime are resolved per call — env override first, then the
  * global config — never at container compile time (the compiled container is
@@ -34,7 +34,7 @@ final class AgentLauncherFactory
     }
 
     /**
-     * @throws PabloError for an unknown backend, or OpenChamber with Claude Code
+     * @throws PabloError for an unknown backend, or OpenChamber with a runtime other than OpenCode
      */
     public function create(?string $backend = null): AgentLauncherInterface
     {
@@ -67,8 +67,8 @@ final class AgentLauncherFactory
      */
     public static function incompatibility(string $backend, string $runtime): ?string
     {
-        if ('openchamber' === $backend && AgentRuntimeInterface::CLAUDE_CODE === $runtime) {
-            return 'OpenChamber only works with OpenCode: agent_runtime claude-code cannot run on agent_backend openchamber. '
+        if ('openchamber' === $backend && AgentRuntimeInterface::OPENCODE !== $runtime) {
+            return "OpenChamber only works with OpenCode: agent_runtime {$runtime} cannot run on agent_backend openchamber. "
                 .'Switch to agent_backend: orca, or to agent_runtime: opencode.';
         }
 

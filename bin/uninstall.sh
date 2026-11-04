@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PABLO uninstaller (Linux + macOS): removes only symlinks that resolve
-# into this repository (under ~/.config/opencode and ~/.claude, whichever
-# runtime was installed), the launchd plist PABLO generated and the
+# into this repository (under ~/.config/opencode, ~/.claude and ~/.copilot,
+# whichever runtime was installed), the launchd plist PABLO generated and the
 # generated ~/.pablo/claude/, and disables the dispatcher. Runtime data in
 # ~/.pablo is kept.
 set -euo pipefail
@@ -9,6 +9,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 OPENCODE_DIR="${HOME}/.config/opencode"
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
+COPILOT_DIR="${COPILOT_HOME:-${HOME}/.copilot}"
 BIN_DIR="${HOME}/.local/bin"
 OS="$(uname -s)"
 
@@ -59,6 +60,15 @@ done
 for d in "$REPO_DIR"/opencode/skills/*/; do
     remove_if_ours "$OPENCODE_DIR/skill/$(basename "$d")"
     remove_if_ours "$CLAUDE_DIR/skills/$(basename "$d")"
+    remove_if_ours "$COPILOT_DIR/skills/$(basename "$d")"
+done
+# Copilot runtime: the pablo-<agent> links and the command skills.
+for f in "$REPO_DIR"/copilot/agents/*.agent.md; do
+    [ -e "$f" ] || continue
+    remove_if_ours "$COPILOT_DIR/agents/$(basename "$f")"
+done
+for f in "$REPO_DIR"/opencode/commands/*.md; do
+    remove_if_ours "$COPILOT_DIR/skills/$(basename "$f" .md)"
 done
 # Claude Code runtime: the command links, then the generated --agents file.
 for f in "$REPO_DIR"/opencode/commands/*.md; do

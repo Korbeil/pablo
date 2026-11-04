@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # PABLO installer (Linux + macOS). Idempotent. Creates ONLY new
 # symlinks/units — it refuses to touch any pre-existing file in
-# ~/.config/opencode (OpenCode runtime) or ~/.claude (Claude Code runtime)
-# that isn't already a symlink into this repository (spec: originals stay
-# untouched).
+# ~/.config/opencode (OpenCode runtime), ~/.claude (Claude Code runtime) or
+# ~/.copilot (Copilot runtime) that isn't already a symlink into this
+# repository (spec: originals stay untouched).
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 OPENCODE_DIR="${HOME}/.config/opencode"
 CLAUDE_DIR="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
+COPILOT_DIR="${COPILOT_HOME:-${HOME}/.copilot}"
 BIN_DIR="${HOME}/.local/bin"
 OS="$(uname -s)"
 
@@ -62,10 +63,16 @@ if [ ! -f "$PABLO_CONFIG_FILE" ]; then
         mv "$PABLO_CONFIG_FILE.tmp" "$PABLO_CONFIG_FILE"
         printf '\nagent_runtime: claude-code\n' >> "$PABLO_CONFIG_FILE"
         info "Claude Code found (and no OpenCode): set agent_runtime: claude-code, default_model: sonnet"
+    elif ! command -v opencode >/dev/null 2>&1 && command -v copilot >/dev/null 2>&1; then
+        # Same for GitHub Copilot CLI, when neither OpenCode nor Claude Code is there.
+        sed -e 's|^default_model:.*$|default_model: claude-sonnet-5.5|' "$PABLO_CONFIG_FILE" > "$PABLO_CONFIG_FILE.tmp"
+        mv "$PABLO_CONFIG_FILE.tmp" "$PABLO_CONFIG_FILE"
+        printf '\nagent_runtime: copilot\n' >> "$PABLO_CONFIG_FILE"
+        info "Copilot CLI found (and no OpenCode or Claude Code): set agent_runtime: copilot, default_model: claude-sonnet-5.5"
     fi
     # Pick the agent backend the user actually has: Orca is the default, so
     # only switch when OpenChamber is installed and Orca is not — and never
-    # under Claude Code, which OpenChamber cannot run.
+    # under Claude Code or Copilot, which OpenChamber cannot run.
     if ! command -v orca >/dev/null 2>&1 && command -v openchamber >/dev/null 2>&1 && command -v opencode >/dev/null 2>&1; then
         printf '\nagent_backend: openchamber\n' >> "$PABLO_CONFIG_FILE"
         info "OpenChamber found (and no Orca): set agent_backend: openchamber"
@@ -84,8 +91,8 @@ if [ -z "$RUNTIME" ] && [ -f "$PABLO_CONFIG_FILE" ]; then
 fi
 RUNTIME="${RUNTIME:-opencode}"
 case "$RUNTIME" in
-opencode | claude-code) info "agent runtime: $RUNTIME" ;;
-*) die "unknown agent_runtime '$RUNTIME' (expected opencode or claude-code)" ;;
+opencode | claude-code | copilot) info "agent runtime: $RUNTIME" ;;
+*) die "unknown agent_runtime '$RUNTIME' (expected opencode, claude-code or copilot)" ;;
 esac
 
 # 1. PHP dependencies --------------------------------------------------------
@@ -170,14 +177,14 @@ link_into() { # link_into <src-file> <dest-dir>
     info "linked $dest"
 }
 
-link_skills_into() { # link_skills_into <dest-dir>
-    local dest_dir="$1" d name
-    for d in "$REPO_DIR"/opencode/skills/*/; do
+link_skills_into() { # link_skills_into <dest-dir> [<src-dir>] (default src: opencode/skills)
+    local dest_dir="$1" src_dir="${2:-$REPO_DIR/opencode/skills}" d name
+    for d in "$src_dir"/*/; do
         name="$(basename "$d")"
         [ -e "$dest_dir/$name" ] && [ ! -L "$dest_dir/$name" ] &&
             die "$dest_dir/$name exists and is not a symlink — refusing to overwrite"
         mkdir -p "$dest_dir"
-        ln -sfn "$REPO_DIR/opencode/skills/$name" "$dest_dir/$name"
+        ln -sfn "$src_dir/$name" "$dest_dir/$name"
         info "linked $dest_dir/$name"
     done
 }
@@ -192,6 +199,18 @@ if [ "$RUNTIME" = claude-code ]; then
         link_into "$f" "$CLAUDE_DIR/commands"
     done
     link_skills_into "$CLAUDE_DIR/skills"
+elif [ "$RUNTIME" = copilot ]; then
+    # The agents go into ~/.copilot/agents as pablo-<agent>, so you can also
+    # pick them in your own Copilot sessions; /pablo-commit-and-pr and
+    # pablo-task are linked as skills.
+    compgen -G "$REPO_DIR/copilot/agents/*.agent.md" >/dev/null ||
+        die "$REPO_DIR/copilot/agents was not generated — run: php $REPO_DIR/app/bin/pablo system:generate-agents --runtime copilot"
+    for f in "$REPO_DIR"/copilot/agents/*.agent.md; do
+        link_into "$f" "$COPILOT_DIR/agents"
+    done
+    link_skills_into "$COPILOT_DIR/skills" "$REPO_DIR/copilot/skills"
+    link_skills_into "$COPILOT_DIR/skills"
+    info "Copilot: log in once with 'copilot login' if you have not already"
 else
     for f in "$REPO_DIR"/opencode/agents/*.md; do
         link_into "$f" "$OPENCODE_DIR/agents"

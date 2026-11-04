@@ -174,7 +174,7 @@ final class ClaudeCodeAgents
      * per-agent equivalent, so the budget becomes an instruction (the 1 h
      * watcher timeout stays the hard backstop).
      */
-    private static function withStepBudget(string $prompt, ?int $steps): string
+    public static function withStepBudget(string $prompt, ?int $steps): string
     {
         if (null === $steps) {
             return $prompt;
@@ -256,7 +256,7 @@ final class ClaudeCodeAgents
      *
      * @throws AgentTemplateError
      */
-    private static function splitFrontmatter(string $markdown, string $name): array
+    public static function splitFrontmatter(string $markdown, string $name): array
     {
         if (1 !== preg_match('/\A---\R(.*?)\R---\R?(.*)\z/s', $markdown, $m)) {
             throw new AgentTemplateError("{$name}: no frontmatter");

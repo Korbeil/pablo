@@ -39,6 +39,25 @@ final class TaskSummarizerTest extends TestCase
         $this->assertSame('/repo', $cwd);
     }
 
+    public function testSummarizesViaCopilotHaikuUnderCopilot(): void
+    {
+        putenv('PABLO_AGENT_RUNTIME=copilot');
+        $runner = new FakeProcessRunner();
+        $runner->outputs = ["Fix webhook retry with backoff.\n"];
+        $summarizer = new TaskSummarizer($runner);
+
+        $this->assertSame('Fix webhook retry with backoff', $summarizer->summarize('/repo', 'do the webhooks'));
+
+        $this->assertCount(1, $runner->calls);
+        [$argv, $check, , $cwd] = $runner->calls[0];
+        $this->assertSame(['copilot', '--model', 'claude-haiku-5.5', '-s'], \array_slice($argv, 0, 4));
+        $this->assertContains('--disable-builtin-mcps', $argv);
+        $this->assertSame('-p', $argv[\count($argv) - 2]);
+        $this->assertStringContainsString('do the webhooks', (string) end($argv));
+        $this->assertFalse($check);
+        $this->assertSame('/repo', $cwd);
+    }
+
     public function testClaudeErrorResultFallsBack(): void
     {
         $this->assertNull(TaskSummarizer::parseClaude('{"type":"result","is_error":true,"result":"Not logged in"}'));

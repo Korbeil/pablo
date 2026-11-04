@@ -16,8 +16,9 @@
 │   └── tests/            # PHPUnit, mirroring src/
 ├── bin/install.sh        # installer (and uninstall.sh)
 ├── examples/             # example global and project configuration
-├── opencode/             # agent templates, the commit command, the skill (the single source for both runtimes)
+├── opencode/             # agent templates, the commit command, the skill (the single source for every runtime)
 ├── claude/               # generated, git-ignored: the Claude Code rendering of the command
+├── copilot/              # generated, git-ignored: the Copilot agent files and skill
 ├── systemd/, launchd/    # scheduler and dashboard service definitions
 ├── site/                 # this website
 └── castor.php            # quality tasks
@@ -83,7 +84,7 @@ php app/bin/console lint:twig app/templates
 <ul>
   <li>Tests mirror the source tree: <code>app/src/Store/Store.php</code> is tested by <code>app/tests/Store/StoreTest.php</code>.</li>
   <li>The engine uses dependency injection everywhere. Collaborators that touch the outside world sit behind interfaces (<code>GhPrInterface</code>, <code>GitRepoInterface</code>, <code>ProcessRunnerInterface</code>, <code>ProviderRegistryInterface</code>, <code>AnalyticsInterface</code>, <code>AgentLauncherInterface</code>), with fakes beside the tests: <code>FakeAgents</code>, <code>FakeGit</code>, <code>FakeGhPr</code>, <code>FakeProcessRunner</code>, <code>StubProviders</code>, <code>FakeAnalytics</code>.</li>
-  <li><code>FakeAgents</code> is injected wherever a real agent launcher could be reached, so a test can never start a real <code>opencode run</code> or <code>claude -p</code> (a real, paid model call).</li>
+  <li><code>FakeAgents</code> is injected wherever a real agent launcher could be reached, so a test can never start a real <code>opencode run</code>, <code>claude -p</code> or <code>copilot -p</code> (a real, paid model call).</li>
   <li><code>tests/Command/CommandTestBed.php</code> wires the fake graph for command tests; <code>tests/EngineGraph.php</code> does the same for the poller, listing and dispatcher.</li>
   <li>A test that boots the kernel must use the <code>RestoresErrorHandlers</code> trait around the boot, or PHPUnit flags it as risky.</li>
 </ul>

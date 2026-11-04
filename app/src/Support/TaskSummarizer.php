@@ -11,7 +11,9 @@ use Pablo\Agents\Runtime\AgentRuntimeResolver;
  * Produces a very short task summary for prompt-started tasks by asking a
  * small LLM instead of truncating the prompt: the free `opencode/big-pickle`
  * under OpenCode, `haiku` under Claude Code (one throwaway `claude -p`, no
- * tools, no MCP servers, nothing persisted).
+ * tools, no MCP servers, nothing persisted), `claude-haiku-5.5` under Copilot
+ * (one `copilot -p` with shell and writes denied and no MCP servers; Copilot
+ * cannot skip saving the session, so it stays in its session list).
  *
  * Best-effort: any failure (missing CLI, timeout, empty/odd output) yields
  * null so the caller can fall back to plain word truncation. Runs through
@@ -25,6 +27,9 @@ final class TaskSummarizer
 
     /** Claude Code model used for the one-shot summary. */
     public const CLAUDE_MODEL = 'haiku';
+
+    /** Copilot model used for the one-shot summary. */
+    public const COPILOT_MODEL = 'claude-haiku-5.5';
 
     /** Hard cap on words in the returned summary. */
     public const MAX_WORDS = 7;
@@ -71,14 +76,36 @@ final class TaskSummarizer
         ];
     }
 
+    /**
+     * @return list<string> argv for the summarizing Copilot call: plain-text
+     *                      answer (-s), no shell, no writes, no MCP servers
+     */
+    public static function copilotArgv(string $prompt): array
+    {
+        return [
+            'copilot', '--model', self::COPILOT_MODEL, '-s', '--no-color', '--no-ask-user', '--no-auto-update',
+            '--no-custom-instructions', '--disable-builtin-mcps', '--deny-tool', 'shell', '--deny-tool', 'write',
+            '-p', self::instruction($prompt),
+        ];
+    }
+
     public function summarize(string $repoPath, string $prompt): ?string
     {
         try {
-            $claude = AgentRuntimeInterface::CLAUDE_CODE === $this->runtimes->resolveName();
+            $runtime = $this->runtimes->resolveName();
         } catch (\Throwable) {
             return null;
         }
-        if ($claude) {
+        if (AgentRuntimeInterface::COPILOT === $runtime) {
+            try {
+                $out = $this->runner->run(self::copilotArgv($prompt), check: false, timeout: self::TIMEOUT_S, cwd: $repoPath);
+            } catch (\Throwable) {
+                return null;
+            }
+
+            return self::clean($out);
+        }
+        if (AgentRuntimeInterface::CLAUDE_CODE === $runtime) {
             try {
                 $out = $this->runner->run(self::claudeArgv($prompt), check: false, timeout: self::TIMEOUT_S, cwd: $repoPath);
             } catch (\Throwable) {

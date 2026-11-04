@@ -4,7 +4,7 @@
 
 <h2>Before you start</h2>
 
-<p>You need <b>git</b>, <b>PHP 8.4</b> with <b>Composer</b>, <a href="https://opencode.ai"><b>OpenCode</b></a> or <a href="https://code.claude.com/docs"><b>Claude Code</b></a>, and the GitHub CLI <a href="https://cli.github.com/"><code>gh</code></a>, logged in with <code>gh auth login</code>. An agent environment, <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a>, is where you'll read the agents' work. Using Jira or Linear? See <a href="page:installation#prerequisites">Prerequisites</a>.</p>
+<p>You need <b>git</b>, <b>PHP 8.4</b> with <b>Composer</b>, <a href="https://opencode.ai"><b>OpenCode</b></a> <a href="https://code.claude.com/docs"><b>Claude Code</b></a> or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli"><b>GitHub Copilot CLI</b></a>, and the GitHub CLI <a href="https://cli.github.com/"><code>gh</code></a>, logged in with <code>gh auth login</code>. An agent environment, <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a>, is where you'll read the agents' work. Using Jira or Linear? See <a href="page:installation#prerequisites">Prerequisites</a>.</p>
 
 <h2>1. Install</h2>
 
@@ -21,7 +21,7 @@ cd pablo
 pablo project:new
 </code></pre>
 
-<p>A short wizard: it detects the repository, asks for the issue tracker, and writes the project file. Agents use GLM 5.3 Flash through OpenCode Go by default, or Claude Sonnet when the installer set you up with <a href="page:configuration#claude-code">Claude Code</a>; <a href="page:configuration#choose-the-agent-model">pick another model</a> in <code>~/.pablo/config.yaml</code>. More in <a href="page:first-project">Your first project</a>.</p>
+<p>A short wizard: it detects the repository, asks for the issue tracker, and writes the project file. Agents use GLM 5.3 Flash through OpenCode Go by default, or Claude Sonnet when the installer set you up with <a href="page:configuration#claude-code">Claude Code</a> or <a href="page:configuration#copilot">Copilot</a>; <a href="page:configuration#choose-the-agent-model">pick another model</a> in <code>~/.pablo/config.yaml</code>. More in <a href="page:first-project">Your first project</a>.</p>
 
 <h2>3. Start a task</h2>
 
@@ -34,4 +34,4 @@ pablo task:start --project your-repo "fix callback verification"
 
 <h2>4. Follow it</h2>
 
-<p>Open <a href="http://127.0.0.1:8321"><code>http://127.0.0.1:8321</code></a>, or run <code>pablo task:list</code>. When the plan is ready, read it in Orca or OpenChamber, write the code, then run <code>/pablo-commit-and-pr</code> in OpenCode or Claude Code to open the pull request. From there PABLO follows CI, reviews and QA, and launches the right agent when something needs you. The whole loop is in <a href="page:first-task">Your first task</a>.</p>
+<p>Open <a href="http://127.0.0.1:8321"><code>http://127.0.0.1:8321</code></a>, or run <code>pablo task:list</code>. When the plan is ready, read it in Orca or OpenChamber, write the code, then run <code>/pablo-commit-and-pr</code> in OpenCode, Claude Code or Copilot to open the pull request. From there PABLO follows CI, reviews and QA, and launches the right agent when something needs you. The whole loop is in <a href="page:first-task">Your first task</a>.</p>

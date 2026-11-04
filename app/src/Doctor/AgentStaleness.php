@@ -10,6 +10,8 @@ use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\AgentRuntimeResolver;
 use Pablo\Agents\Runtime\ClaudeCodeAgents;
 use Pablo\Agents\Runtime\ClaudeCodeRuntime;
+use Pablo\Agents\Runtime\CopilotAgents;
+use Pablo\Agents\Runtime\CopilotRuntime;
 use Pablo\Support\PabloError;
 
 /**
@@ -24,6 +26,11 @@ use Pablo\Support\PabloError;
  * for all five agents, passed with --agents) and the
  * ~/.claude/commands/pablo-commit-and-pr.md symlink, plus the presence of the
  * ~/.claude/skills/pablo-task symlink.
+ *
+ * Copilot: the same comparison for each ~/.copilot/agents/pablo-<agent>.agent.md
+ * symlink and the ~/.copilot/skills/pablo-commit-and-pr/SKILL.md the skill
+ * symlink leads to, plus the presence of the ~/.copilot/skills/pablo-task
+ * symlink.
  *
  * Symlinks are resolved; broken links and files PABLO does not manage are
  * reported distinctly.
@@ -69,8 +76,12 @@ final class AgentStaleness
         if (null !== $this->check) {
             return ($this->check)();
         }
-        if (AgentRuntimeInterface::CLAUDE_CODE === $this->runtimeName()) {
+        $runtime = $this->runtimeName();
+        if (AgentRuntimeInterface::CLAUDE_CODE === $runtime) {
             return $this->checkClaudeCode(agentsDir: $agentsDir);
+        }
+        if (AgentRuntimeInterface::COPILOT === $runtime) {
+            return $this->checkCopilot(agentsDir: $agentsDir);
         }
 
         $installedDir ??= $this->installedDir();
@@ -129,10 +140,53 @@ final class AgentStaleness
     }
 
     /**
-     * A PABLO symlink under ~/.claude: compared against $fresh when given,
-     * otherwise only required to resolve.
+     * @param string|null $userCopilotDir override of ~/.copilot (tests)
+     * @param string|null $agentsDir      override of the repo template dir (tests)
+     *
+     * @return list<AgentFileStatus>
      */
-    private static function checkLinked(string $label, string $dest, ?string $fresh): AgentFileStatus
+    public function checkCopilot(?string $userCopilotDir = null, ?string $agentsDir = null): array
+    {
+        $userCopilotDir ??= CopilotRuntime::userConfigDir();
+        $agentsDir ??= $this->agentTemplates->repoAgentsDir();
+        $copilot = new CopilotAgents($this->agentTemplates);
+        $providers = $this->agentTemplates->enabledProviders();
+
+        $results = [];
+        foreach (AgentTemplates::AGENT_NAMES as $name) {
+            $id = CopilotAgents::agentId($name);
+            try {
+                $fresh = $copilot->profile($name, $agentsDir, $providers)->definition();
+            } catch (AgentTemplateError $e) {
+                $results[] = new AgentFileStatus($id, AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
+                continue;
+            }
+            $results[] = self::checkLinked($id, $userCopilotDir.'/agents/'.$id.'.agent.md', $fresh);
+        }
+
+        foreach (glob(AgentTemplates::commandsDirFor($agentsDir).'/*.md') ?: [] as $source) {
+            $name = basename($source, '.md');
+            try {
+                $results[] = self::checkLinked('skill '.$name, $userCopilotDir.'/skills/'.$name, $copilot->renderSkill($source), 'SKILL.md');
+            } catch (AgentTemplateError $e) {
+                $results[] = new AgentFileStatus('skill '.$name, AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
+            }
+        }
+
+        foreach (glob(\dirname($agentsDir).'/skills/*', \GLOB_ONLYDIR) ?: [] as $skillDir) {
+            $name = basename($skillDir);
+            $results[] = self::checkLinked('skill '.$name, $userCopilotDir.'/skills/'.$name, null);
+        }
+
+        return $results;
+    }
+
+    /**
+     * A PABLO symlink under ~/.claude or ~/.copilot: compared against $fresh
+     * when given (for a linked directory, against its $file), otherwise only
+     * required to resolve.
+     */
+    private static function checkLinked(string $label, string $dest, ?string $fresh, ?string $file = null): AgentFileStatus
     {
         if (!is_link($dest) && !file_exists($dest)) {
             return new AgentFileStatus($label, AgentFileState::Missing, 'missing', 'run: pablo system:generate-agents && ./bin/install.sh');
@@ -149,7 +203,11 @@ final class AgentStaleness
                 'broken symlink → '.(false !== $linkTarget ? $linkTarget : '?'), 're-run ./bin/install.sh to relink');
         }
 
-        return null !== $fresh ? self::compare($label, $target, $fresh) : new AgentFileStatus($label, AgentFileState::Ok, 'ok');
+        if (null === $fresh) {
+            return new AgentFileStatus($label, AgentFileState::Ok, 'ok');
+        }
+
+        return self::compare($label, null !== $file ? $target.'/'.$file : $target, $fresh);
     }
 
     /** @param list<AgentFileStatus> $results */
