@@ -584,7 +584,7 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
    project only needs its own "last seen" line. */
 .pablo-poll-recap {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
     gap: 0.35rem 1.25rem;
     margin-top: 0.85rem;
 }
@@ -716,7 +716,8 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
 
 .pablo-logs {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    /* min(): never wider than the container, or a phone scrolls sideways. */
+    grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
     gap: 1rem;
 }
 
@@ -922,7 +923,7 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
 
 .pablo-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(26rem, 100%), 1fr));
     gap: var(--pablo-gap);
 }
 
@@ -944,4 +945,254 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
     position: relative;
     height: 18rem;
     padding: 0.25rem 0.75rem 0.75rem;
+}
+
+/* -------------------------------------------------------------- mobile -- */
+
+/* Bulma's own "mobile" breakpoint. Everything above stays the desktop
+   layout; this block only reflows it for a phone-sized screen. It sits
+   last so it wins source-order ties with the rules it overrides. */
+@media screen and (max-width: 768px) {
+    :root {
+        --pablo-gap: 0.85rem;
+    }
+
+    /* Header: one row — smaller logo, no page tag, icon-only buttons
+       (their labels stay available through aria-label/title). */
+    .pablo-header {
+        padding: 0.6rem 0;
+        margin-bottom: 1.25rem;
+    }
+
+    .pablo-header-inner,
+    .pablo-header-actions {
+        flex-wrap: nowrap;
+    }
+
+    .pablo-header-inner {
+        gap: 0.5rem;
+    }
+
+    .pablo-header-actions {
+        gap: 0.4rem;
+    }
+
+    .pablo-logo {
+        height: 1.9rem;
+    }
+
+    .pablo-page-tag,
+    .pablo-btn-label {
+        display: none;
+    }
+
+    .button:has(> .pablo-btn-label) {
+        width: 2.5em;
+        padding-left: 0;
+        padding-right: 0;
+        padding-top: calc(0.5em - 1px);
+    }
+
+    .button:has(> .pablo-btn-label) .pablo-icon {
+        margin-right: 0;
+    }
+
+    /* Sections. */
+    .pablo-section {
+        margin-bottom: 1.75rem;
+    }
+
+    .pablo-heading {
+        font-size: 1.15rem;
+        margin-bottom: 0.7rem;
+    }
+
+    .pablo-heading > .pablo-icon:first-child {
+        width: 1.6rem;
+        height: 1.6rem;
+        padding: 0.32rem;
+    }
+
+    /* Filter pills wrap instead of hiding off-screen in a sideways scroll. */
+    .tabs.pablo-tabs {
+        margin-bottom: 1.1rem;
+        white-space: normal;
+        overflow: visible;
+    }
+
+    .tabs.pablo-tabs ul {
+        flex-wrap: wrap;
+        flex-shrink: 1;
+    }
+
+    .tabs.is-boxed.pablo-tabs li a {
+        font-size: 0.9rem;
+        padding: 0.4em 0.85em 0.25em;
+    }
+
+    .pablo-poll,
+    .pablo-log {
+        padding: 0.85rem 0.95rem;
+    }
+
+    /* Task tables → one card per task:
+         branch + issue title (full width)
+         state · PR · agents · tracker · project · since
+         actions (full width, finger-sized)
+       The columns are self-describing chips, so the header row goes. */
+    .pablo-task-table thead {
+        display: none;
+    }
+
+    .pablo-task-table,
+    .pablo-task-table tbody {
+        display: block;
+    }
+
+    .pablo-task-table tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.45rem 0.5rem;
+        padding: 0.9rem 1rem;
+        border-bottom: 1px solid var(--pablo-line);
+    }
+
+    .pablo-task-table tbody tr:last-child {
+        border-bottom: none;
+    }
+
+    .pablo-table.pablo-task-table td {
+        display: block;
+        padding: 0;
+        border: none;
+    }
+
+    /* An empty column ("—") is noise in a card. */
+    .pablo-table.pablo-task-table td:has(> .has-text-grey-light:only-child) {
+        display: none;
+    }
+
+    .pablo-cell-task {
+        order: 0;
+        flex: 1 1 100%;
+        min-width: 0;
+    }
+
+    .pablo-cell-state { order: 1; }
+    .pablo-cell-pr { order: 2; }
+    .pablo-cell-agents { order: 3; }
+    .pablo-cell-tracker { order: 4; }
+    .pablo-cell-project { order: 5; }
+    .pablo-cell-since { order: 6; }
+
+    .pablo-cell-project,
+    .pablo-cell-since {
+        font-size: 0.82rem;
+    }
+
+    /* The hover-only title is unreachable on touch; spell it out. */
+    .pablo-cell-since {
+        margin-left: auto;
+    }
+
+    .pablo-cell-since::before {
+        content: 'since ';
+    }
+
+    .pablo-cell-state .tag.is-medium {
+        font-size: 0.9rem;
+    }
+
+    .pablo-task-table .pablo-branch code {
+        overflow-wrap: anywhere;
+    }
+
+    .pablo-task-table .pablo-label {
+        max-width: none;
+    }
+
+    .pablo-task-table .pablo-label:has(> .has-text-grey-light:only-child) {
+        display: none;
+    }
+
+    .pablo-cell-actions {
+        order: 7;
+        flex: 1 1 100%;
+        margin-top: 0.3rem;
+    }
+
+    .buttons.are-small.pablo-row-actions .button {
+        flex: 1 1 0;
+        font-size: 0.95rem;
+        min-height: 2.75rem;
+    }
+
+    /* Modals: a bottom sheet across the full width, buttons in thumb reach. */
+    .modal-card.pablo-modal,
+    .modal-card.pablo-modal.pablo-modal-narrow {
+        width: 100%;
+        margin: auto 0 0;
+        max-height: calc(100dvh - 2.5rem);
+        border-radius: var(--pablo-radius) var(--pablo-radius) 0 0;
+    }
+
+    .pablo-modal .modal-card-foot {
+        border-radius: 0;
+        padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    }
+
+    .pablo-modal .modal-card-foot > .button,
+    .pablo-modal .modal-card-foot > .buttons,
+    .pablo-modal .modal-card-foot > .buttons > .button {
+        flex: 1 1 0;
+    }
+
+    .pablo-modal .modal-card-foot .button {
+        min-height: 2.75rem;
+    }
+
+    .notification.pablo-new-task-flash {
+        left: 0.75rem;
+        right: 0.75rem;
+        bottom: calc(0.75rem + env(safe-area-inset-bottom));
+        max-width: none;
+    }
+
+    /* Analytics. */
+    .pablo-kpis {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-bottom: 1.5rem;
+    }
+
+    .pablo-kpi-value {
+        font-size: 1.6rem;
+    }
+
+    .pablo-chart-card {
+        padding: 0.9rem 0.85rem 0.7rem;
+    }
+
+    .pablo-chart-box {
+        height: 14rem;
+        padding: 0.25rem 0 0.5rem;
+    }
+}
+
+/* Very narrow phones: even New task drops its label. */
+@media screen and (max-width: 380px) {
+    .pablo-btn-label-narrow {
+        display: none;
+    }
+
+    .button:has(> .pablo-btn-label-narrow) {
+        width: 2.5em;
+        padding-left: 0;
+        padding-right: 0;
+        padding-top: calc(0.5em - 1px);
+    }
+
+    .button:has(> .pablo-btn-label-narrow) .pablo-icon {
+        margin-right: 0;
+    }
 }

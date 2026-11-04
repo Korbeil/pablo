@@ -13,9 +13,9 @@
             <div class="pablo-header-actions">
                 <twig:ThemeToggle />
                 <twig:SlackModal />
-                <a class="button pablo-header-btn" href="{{ path('analytics') }}">
+                <a class="button pablo-header-btn" href="{{ path('analytics') }}" title="Analytics" aria-label="Analytics">
                     {{ ux_icon('lucide:chart-column', {class: 'pablo-icon'}) }}
-                    <span>Analytics</span>
+                    <span class="pablo-btn-label">Analytics</span>
                 </a>
                 <twig:NewTaskModal />
             </div>

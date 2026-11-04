@@ -4,9 +4,11 @@
             class="button pablo-header-btn"
             data-action="live#action"
             data-live-action-param="open"
-            data-loading="addClass(is-loading)">
+            data-loading="addClass(is-loading)"
+            title="Slack messages"
+            aria-label="Slack messages">
         {{ ux_icon('lucide:send', {class: 'pablo-icon'}) }}
-        <span>Slack messages</span>
+        <span class="pablo-btn-label">Slack messages</span>
     </button>
 
     {# Escape closes it (modal_controller clicks the backdrop's close action). #}

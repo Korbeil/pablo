@@ -1,10 +1,10 @@
 {# @var task \Pablo\Dashboard\TaskView #}
 <tr>
-    <td class="pablo-nowrap">
+    <td class="pablo-nowrap pablo-cell-project">
         <span class="has-text-grey">{{ task.project }}</span>
     </td>
 
-    <td>
+    <td class="pablo-cell-task">
         <div class="pablo-branch">
             {{ ux_icon('lucide:git-branch', {class: 'pablo-icon pablo-icon-dim'}) }}
             <code>{{ task.branch }}</code>
@@ -21,9 +21,9 @@
         </div>
     </td>
 
-    <td><twig:StateBadge :task="task" /></td>
+    <td class="pablo-cell-state"><twig:StateBadge :task="task" /></td>
 
-    <td class="pablo-nowrap">
+    <td class="pablo-nowrap pablo-cell-agents">
         {% if task.agents.total == 0 %}
             <span class="has-text-grey-light">—</span>
         {% else %}
@@ -40,7 +40,7 @@
         {% endif %}
     </td>
 
-    <td class="pablo-nowrap">
+    <td class="pablo-nowrap pablo-cell-tracker">
         {% if task.trackerStatus %}
             {% if task.issue %}
                 <a class="tag pablo-chip pablo-state" href="{{ task.issue.url }}" target="_blank" rel="noopener">
@@ -55,11 +55,11 @@
         {% endif %}
     </td>
 
-    <td class="pablo-nowrap"><twig:PrTag :pr="task.pr" :url="task.prUrl" /></td>
+    <td class="pablo-nowrap pablo-cell-pr"><twig:PrTag :pr="task.pr" :url="task.prUrl" /></td>
 
-    <td class="pablo-nowrap has-text-grey" title="entered {{ task.stateEnteredAt|date('Y-m-d H:i') }}">{{ task.since }}</td>
+    <td class="pablo-nowrap pablo-cell-since has-text-grey" title="entered {{ task.stateEnteredAt|date('Y-m-d H:i') }}">{{ task.since }}</td>
 
-    <td class="pablo-nowrap">
+    <td class="pablo-nowrap pablo-cell-actions">
         {% set event = constant('Pablo\\Twig\\Components\\TaskActionsModal::OPEN_EVENT') %}
         <div class="buttons are-small pablo-row-actions">
             {% if task.state.value == 'ci-red' %}

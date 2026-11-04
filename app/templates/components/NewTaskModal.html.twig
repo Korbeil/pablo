@@ -4,9 +4,10 @@
             class="button is-primary"
             data-action="live#action"
             data-live-action-param="open"
-            data-loading="addClass(is-loading)">
+            data-loading="addClass(is-loading)"
+            aria-label="New task">
         {{ ux_icon('lucide:plus', {class: 'pablo-icon'}) }}
-        <span>New task</span>
+        <span class="pablo-btn-label-narrow">New task</span>
     </button>
 
     {# Outside the modal: a successful start closes it, so the message must survive that. #}

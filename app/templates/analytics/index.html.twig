@@ -12,9 +12,9 @@
             <h1 class="pablo-visually-hidden">P.A.B.L.O. analytics — task lifetimes, agent runs, tokens &amp; cost</h1>
             <div class="pablo-header-actions">
                 <twig:ThemeToggle />
-                <a class="button pablo-header-btn" href="{{ path('dashboard') }}">
+                <a class="button pablo-header-btn" href="{{ path('dashboard') }}" title="Task board" aria-label="Task board">
                     {{ ux_icon('lucide:arrow-left', {class: 'pablo-icon'}) }}
-                    <span>Task board</span>
+                    <span class="pablo-btn-label">Task board</span>
                 </a>
             </div>
         </div>
