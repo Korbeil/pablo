@@ -14,13 +14,13 @@
 │   ├── templates/        # Twig: dashboard pages and components
 │   ├── assets/           # dashboard JS, CSS, fonts, icons, vendored libraries
 │   └── tests/            # PHPUnit, mirroring src/
-├── bin/install.sh        # installer (and uninstall.sh)
+├── bin/install.sh        # installer run from a checkout (and uninstall.sh)
 ├── examples/             # example global and project configuration
 ├── opencode/             # agent templates, the commit command, the skill (the single source for every runtime)
 ├── claude/               # generated, git-ignored: the Claude Code rendering of the command
 ├── copilot/              # generated, git-ignored: the Copilot agent files and skill
 ├── systemd/, launchd/    # scheduler and dashboard service definitions
-├── site/                 # this website
+├── site/                 # this website; site/installer is the curl | bash installer, served at /installer
 └── castor.php            # quality tasks
 </code></pre>
 

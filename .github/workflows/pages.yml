@@ -3,9 +3,9 @@ name: Website
 on:
   push:
     branches: [ "main" ]
-    paths: [ "site/**", ".github/workflows/pages.yml" ]
+    paths: [ "site/**", "bin/**", ".github/workflows/pages.yml" ]
   pull_request:
-    paths: [ "site/**", ".github/workflows/pages.yml" ]
+    paths: [ "site/**", "bin/**", ".github/workflows/pages.yml" ]
   workflow_dispatch: ~
 
 permissions:
@@ -39,8 +39,14 @@ jobs:
         run: composer install --no-interaction --no-progress --working-dir=site/build
       - name: phpstan
         run: site/build/vendor/bin/phpstan analyse --configuration=site/build/phpstan.neon --no-progress
+      # site/installer is run straight from the web (curl | bash): a broken
+      # script must fail the pull request, not the first user.
+      - name: lint shell scripts
+        run: |
+          for script in site/installer bin/install.sh bin/uninstall.sh; do bash -n "$script"; done
+          shellcheck --severity=warning site/installer bin/install.sh bin/uninstall.sh
       - name: build
-        run: php site/build/build.php --base=/pablo/
+        run: php site/build/build.php --base=/
       - name: configure-pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v6
