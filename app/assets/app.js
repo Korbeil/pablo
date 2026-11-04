@@ -15,5 +15,5 @@ document.addEventListener('chartjs:init', (event) => {
     // Theme-aware text and grid colours (read once: a theme switch shows on
     // the next load, the page has no live charts to repaint).
     Chart.defaults.color = css.getPropertyValue('--pablo-muted').trim() || Chart.defaults.color;
-    Chart.defaults.borderColor = css.getPropertyValue('--pablo-line').trim() || Chart.defaults.borderColor;
+    Chart.defaults.borderColor = css.getPropertyValue('--pablo-line-strong').trim() || Chart.defaults.borderColor;
 });

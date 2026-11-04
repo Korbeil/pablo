@@ -54,10 +54,19 @@
     --pablo-card: #ffffff;
     --pablo-card-2: #efeadb;
     --pablo-line: #e2ddcc;
+    /* Card, table and tab outlines: a step darker than --pablo-line so a
+       surface stands out from the page; --pablo-line stays for the
+       separators inside a card. */
+    --pablo-line-strong: #cdc6ae;
     --pablo-text: #2b2b2a;
     --pablo-muted: #6b685f;
     --pablo-hover: #fbf8ef;
     --pablo-link: #7a6508;
+    /* Progress fill: the brand yellow is too pale on the beige track
+       (1.3:1); this gold keeps >= 3:1 (WCAG non-text contrast). */
+    --pablo-progress: #9a8108;
+    /* "Hot" counter: white text keeps >= 4.5:1 on it. */
+    --pablo-hot: #c0392b;
 
     /* Soft chip tones: background / text. */
     --pablo-green-bg: #dcefd9;   --pablo-green-fg: #2c6a2f;
@@ -75,19 +84,21 @@ html[data-theme=dark] {
     --pablo-card: #272726;
     --pablo-card-2: #323230;
     --pablo-line: #3a3936;
+    --pablo-line-strong: #4a4945;
     --pablo-text: #ece9e0;
-    --pablo-muted: #a5a197;
+    --pablo-muted: #b3afa4;
     --pablo-hover: #2f2f2d;
     --pablo-link: var(--pablo-yellow);
+    --pablo-progress: var(--pablo-yellow);
 
-    --pablo-green-bg: rgb(76 175 80 / 18%);   --pablo-green-fg: #9bdc9d;
-    --pablo-red-bg: rgb(229 83 75 / 20%);     --pablo-red-fg: #ff9a92;
-    --pablo-orange-bg: rgb(240 150 50 / 18%); --pablo-orange-fg: #ffc27a;
-    --pablo-yellow-bg: rgb(233 206 55 / 18%); --pablo-yellow-fg: #e9ce37;
-    --pablo-blue-bg: rgb(110 170 255 / 16%);  --pablo-blue-fg: #a9cbff;
-    --pablo-purple-bg: rgb(160 130 255 / 18%); --pablo-purple-fg: #cdbdff;
-    --pablo-neutral-bg: rgb(255 255 255 / 8%); --pablo-neutral-fg: #d2cfc6;
-    --pablo-muted-bg: rgb(255 255 255 / 5%);  --pablo-muted-fg: #a5a197;
+    --pablo-green-bg: rgb(76 175 80 / 22%);   --pablo-green-fg: #9bdc9d;
+    --pablo-red-bg: rgb(229 83 75 / 24%);     --pablo-red-fg: #ff9a92;
+    --pablo-orange-bg: rgb(240 150 50 / 22%); --pablo-orange-fg: #ffc27a;
+    --pablo-yellow-bg: rgb(233 206 55 / 22%); --pablo-yellow-fg: #e9ce37;
+    --pablo-blue-bg: rgb(110 170 255 / 20%);  --pablo-blue-fg: #a9cbff;
+    --pablo-purple-bg: rgb(160 130 255 / 22%); --pablo-purple-fg: #cdbdff;
+    --pablo-neutral-bg: rgb(255 255 255 / 10%); --pablo-neutral-fg: #d2cfc6;
+    --pablo-muted-bg: rgb(255 255 255 / 9%);  --pablo-muted-fg: #c4c0b5;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -96,19 +107,21 @@ html[data-theme=dark] {
         --pablo-card: #272726;
         --pablo-card-2: #323230;
         --pablo-line: #3a3936;
+        --pablo-line-strong: #4a4945;
         --pablo-text: #ece9e0;
-        --pablo-muted: #a5a197;
+        --pablo-muted: #b3afa4;
         --pablo-hover: #2f2f2d;
         --pablo-link: var(--pablo-yellow);
+        --pablo-progress: var(--pablo-yellow);
 
-        --pablo-green-bg: rgb(76 175 80 / 18%);   --pablo-green-fg: #9bdc9d;
-        --pablo-red-bg: rgb(229 83 75 / 20%);     --pablo-red-fg: #ff9a92;
-        --pablo-orange-bg: rgb(240 150 50 / 18%); --pablo-orange-fg: #ffc27a;
-        --pablo-yellow-bg: rgb(233 206 55 / 18%); --pablo-yellow-fg: #e9ce37;
-        --pablo-blue-bg: rgb(110 170 255 / 16%);  --pablo-blue-fg: #a9cbff;
-        --pablo-purple-bg: rgb(160 130 255 / 18%); --pablo-purple-fg: #cdbdff;
-        --pablo-neutral-bg: rgb(255 255 255 / 8%); --pablo-neutral-fg: #d2cfc6;
-        --pablo-muted-bg: rgb(255 255 255 / 5%);  --pablo-muted-fg: #a5a197;
+        --pablo-green-bg: rgb(76 175 80 / 22%);   --pablo-green-fg: #9bdc9d;
+        --pablo-red-bg: rgb(229 83 75 / 24%);     --pablo-red-fg: #ff9a92;
+        --pablo-orange-bg: rgb(240 150 50 / 22%); --pablo-orange-fg: #ffc27a;
+        --pablo-yellow-bg: rgb(233 206 55 / 22%); --pablo-yellow-fg: #e9ce37;
+        --pablo-blue-bg: rgb(110 170 255 / 20%);  --pablo-blue-fg: #a9cbff;
+        --pablo-purple-bg: rgb(160 130 255 / 22%); --pablo-purple-fg: #cdbdff;
+        --pablo-neutral-bg: rgb(255 255 255 / 10%); --pablo-neutral-fg: #d2cfc6;
+        --pablo-muted-bg: rgb(255 255 255 / 9%);  --pablo-muted-fg: #c4c0b5;
     }
 }
 
@@ -155,7 +168,7 @@ code {
 
 .pablo-card {
     background: var(--pablo-card);
-    border: 1px solid var(--pablo-line);
+    border: 1px solid var(--pablo-line-strong);
     border-radius: var(--pablo-radius);
 }
 
@@ -282,7 +295,7 @@ code {
 }
 
 .tabs.is-boxed.pablo-tabs li a {
-    border: 1px solid var(--pablo-line);
+    border: 1px solid var(--pablo-line-strong);
     border-radius: 999px;
     background: var(--pablo-card);
     color: var(--pablo-text);
@@ -319,7 +332,7 @@ html[data-theme=dark] .tabs.is-boxed.pablo-tabs li.is-active a {
 
 /* Toggle tabs (new-task modal modes). */
 .tabs.is-toggle li a {
-    border-color: var(--pablo-line);
+    border-color: var(--pablo-line-strong);
 }
 
 .tabs.is-toggle li.is-active a {
@@ -370,8 +383,9 @@ html[data-theme=dark] .tabs.is-boxed.pablo-tabs li.is-active a {
     flex: none;
 }
 
+/* Secondary glyphs: muted rather than faded, so they keep >= 3:1. */
 .pablo-icon-dim {
-    opacity: 0.55;
+    color: var(--pablo-muted);
 }
 
 /* Theme toggle: exactly one glyph per state, keyed only on the
@@ -499,7 +513,7 @@ html .tag.is-link { background-color: var(--pablo-purple-bg); color: var(--pablo
 }
 
 .tag.pablo-count-hot {
-    background-color: #d9534f;
+    background-color: var(--pablo-hot);
     color: #fff;
 }
 
@@ -550,7 +564,7 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
 }
 
 .pablo-poll .progress.is-primary {
-    --bulma-progress-value-background-color: var(--pablo-yellow);
+    --bulma-progress-value-background-color: var(--pablo-progress);
 }
 
 .pablo-poll .progress.is-warning {
@@ -596,12 +610,12 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
 }
 
 .pablo-poll-recap-ago {
-    opacity: 0.7;
+    color: var(--pablo-muted);
 }
 
 .pablo-poll-recap-duration {
     font-size: 0.78rem;
-    opacity: 0.7;
+    color: var(--pablo-muted);
     font-variant-numeric: tabular-nums;
 }
 
@@ -620,7 +634,7 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
 }
 
 .pablo-table th {
-    font-size: 0.72rem;
+    font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
@@ -655,8 +669,10 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
     padding-bottom: 0.7rem;
 }
 
-.pablo-table td.has-text-grey,
-.pablo-table td .has-text-grey {
+/* Bulma's greys are fixed and fail contrast (grey-light is ~2:1 on white);
+   map them onto the themed muted tone. */
+.has-text-grey,
+.has-text-grey-light {
     color: var(--pablo-muted) !important;
 }
 
@@ -883,7 +899,7 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
 
 .pablo-chart-card {
     background: var(--pablo-card);
-    border: 1px solid var(--pablo-line);
+    border: 1px solid var(--pablo-line-strong);
     border-radius: var(--pablo-radius);
     padding: 1.1rem 1.25rem 0.9rem;
 }
