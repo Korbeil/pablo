@@ -11,7 +11,7 @@ standalone product.
 
 **The documentation website is the source of truth for behavior** — its
 pages live in `site/content/*.html` (published at
-https://korbeil.github.io/pablo/docs/); read the relevant page before
+https://getpablo.dev/docs/); read the relevant page before
 non-trivial changes, and update it in the same change when behaviour
 moves. There is no other documentation in the repo: `README.md` only
 links to the website, and there is no `docs/` folder.
@@ -59,7 +59,11 @@ pablo --help                                # engine subcommands
 pablo web                                   # read-only dashboard on 127.0.0.1:8321
 php app/bin/console cache:clear             # framework CLI: cache:clear, lint:twig, debug:router,
                                             # importmap:*, ux:icons:import
-./bin/install.sh / ./bin/uninstall.sh       # install/remove shim + scheduler
+./bin/install.sh / ./bin/uninstall.sh       # install/remove shim + scheduler (install.sh takes
+                                            # --runtime/--backend/--without-web)
+# site/installer = the interactive `curl -fsSL https://getpablo.dev/installer | bash`
+# script (clone/update, detect runtimes + ADEs, then hands over to bin/install.sh);
+# tests: app/tests/Install/ (castor qa:test)
 journalctl --user -u pablo-dispatch.service -f  # dispatcher logs (Linux)
 ```
 

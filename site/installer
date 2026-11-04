@@ -1,0 +1,545 @@
+#!/usr/bin/env bash
+# PABLO installer (Linux + macOS), served at https://getpablo.dev/installer:
+#
+#   curl -fsSL https://getpablo.dev/installer | bash
+#   curl -fsSL https://getpablo.dev/installer | bash -s -- --install-dir ~/pablo --runtime claude-code
+#
+# It checks the prerequisites, clones (or updates) PABLO in a user directory,
+# detects the agent runtimes (OpenCode, Claude Code, GitHub Copilot CLI) and the
+# agent development environments (Orca, OpenChamber) that are installed, asks
+# which ones to use, then hands over to bin/install.sh from the checkout.
+#
+# Written for bash 3.2 (macOS): no associative arrays, mapfile or ${var,,}.
+set -euo pipefail
+
+PABLO_REPO_URL="${PABLO_REPO_URL:-https://github.com/Korbeil/pablo.git}"
+PREREQUISITES_URL="https://getpablo.dev/docs/installation/#prerequisites"
+DEFAULT_INSTALL_DIR="${HOME}/.local/share/pablo"
+MIN_PHP_VERSION="8.4.1"
+
+# Where the answers are read from. With `curl | bash` stdin is the script
+# itself, so questions go through the terminal. PABLO_INSTALLER_TTY lets the
+# test suite feed answers from a file.
+TTY_IN="${PABLO_INSTALLER_TTY:-/dev/tty}"
+INTERACTIVE=false
+ANSWER=""
+CHOICE=""
+
+COLORS=false
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
+    COLORS=true
+fi
+
+output() { # output <text> [success|error|warning|heading|muted]
+    local start="" end=""
+    if $COLORS; then
+        case "${2:-}" in
+        success) start='\033[0;32m' end='\033[0m' ;;
+        error) start='\033[31m' end='\033[0m' ;;
+        warning) start='\033[33m' end='\033[0m' ;;
+        heading) start='\033[1;33m' end='\033[22;39m' ;;
+        muted) start='\033[2m' end='\033[0m' ;;
+        esac
+    fi
+    printf '%b%b%b\n' "$start" "$1" "$end"
+}
+
+ok() { output "  [*] $1" success; }
+warn() { output "  [!] $1" warning; }
+bad() { output "  [ ] $1" error; }
+fail() {
+    output "\n$1" error >&2
+    exit 1
+}
+
+has_word() { # has_word "<space separated list>" <word>
+    case " $1 " in
+    *" $2 "*) return 0 ;;
+    *) return 1 ;;
+    esac
+}
+
+runtime_command() {
+    case "$1" in
+    opencode) echo opencode ;;
+    claude-code) echo claude ;;
+    copilot) echo copilot ;;
+    esac
+}
+
+runtime_label() {
+    case "$1" in
+    opencode) echo "OpenCode" ;;
+    claude-code) echo "Claude Code" ;;
+    copilot) echo "GitHub Copilot CLI" ;;
+    esac
+}
+
+backend_label() {
+    case "$1" in
+    orca) echo "Orca" ;;
+    openchamber) echo "OpenChamber" ;;
+    headless) echo "none (agents run headless in the background)" ;;
+    esac
+}
+
+usage() {
+    cat <<'USAGE'
+Usage: installer [options]
+
+  --install-dir <dir>   where PABLO is installed (default: ~/.local/share/pablo,
+                        or $PABLO_INSTALL_DIR)
+  --ref <ref>           branch or tag to install (default: the default branch)
+  --runtime <name>      opencode, claude-code or copilot
+  --backend <name>      orca, openchamber or headless (OpenChamber: OpenCode only)
+  --without-web         do not install the dashboard service
+  --no-interaction      never ask: use the options, then what is detected
+  -h, --help            show this help
+
+Without --runtime / --backend, the installer detects what is installed and asks.
+USAGE
+}
+
+# Questions -------------------------------------------------------------------
+
+setup_interaction() {
+    if [ "$NO_INTERACTION" = true ]; then
+        return 0
+    fi
+    # `: <` first: /dev/tty exists as a file even without a terminal, and a
+    # failing `exec` redirection would end the whole script.
+    if (: <"$TTY_IN") 2>/dev/null; then
+        exec 3<"$TTY_IN"
+        INTERACTIVE=true
+    fi
+}
+
+read_answer() { # sets ANSWER; empty at end of input
+    ANSWER=""
+    IFS= read -r ANSWER <&3 || ANSWER=""
+}
+
+ask_choice() { # ask_choice <title> <default-value> <value|label>...  -> CHOICE
+    local title="$1" default="$2" opt i default_idx=1 n
+    shift 2
+    n=$#
+    i=1
+    for opt in "$@"; do
+        if [ "${opt%%|*}" = "$default" ]; then
+            default_idx=$i
+        fi
+        i=$((i + 1))
+    done
+    while true; do
+        output "\n$title" heading
+        i=1
+        for opt in "$@"; do
+            printf '  %s) %s\n' "$i" "${opt#*|}"
+            i=$((i + 1))
+        done
+        printf 'Your choice [%s]: ' "$default_idx"
+        read_answer
+        if [ -z "$ANSWER" ]; then
+            ANSWER="$default_idx"
+        fi
+        if [[ "$ANSWER" =~ ^[0-9]+$ ]] && [ "$ANSWER" -ge 1 ] && [ "$ANSWER" -le "$n" ]; then
+            i=1
+            for opt in "$@"; do
+                if [ "$i" -eq "$ANSWER" ]; then
+                    CHOICE="${opt%%|*}"
+                fi
+                i=$((i + 1))
+            done
+            return 0
+        fi
+        warn "Answer with a number between 1 and $n."
+    done
+}
+
+ask_yes_no() { # ask_yes_no <question> <y|n>  -> status 0 for yes
+    local default="$2" hint="[Y/n]"
+    if [ "$default" = n ]; then
+        hint="[y/N]"
+    fi
+    while true; do
+        printf '\n%s %s: ' "$1" "$hint"
+        read_answer
+        case "$ANSWER" in
+        "") ANSWER="$default" ;;
+        esac
+        case "$ANSWER" in
+        y | Y | yes | YES | Yes) return 0 ;;
+        n | N | no | NO | No) return 1 ;;
+        esac
+        warn "Answer with y or n."
+    done
+}
+
+ask_text() { # ask_text <question> <default>  -> ANSWER
+    printf '\n%s [%s]: ' "$1" "$2"
+    read_answer
+    if [ -z "$ANSWER" ]; then
+        ANSWER="$2"
+    fi
+}
+
+# Detection -------------------------------------------------------------------
+
+config_value() { # config_value <key>: a top-level key of an existing ~/.pablo/config.yaml
+    local file="${PABLO_CONFIG:-$HOME/.pablo/config.yaml}"
+    if [ -f "$file" ]; then
+        sed -n "s/^$1:[[:space:]]*[\"']\{0,1\}\([^\"'#[:space:]]*\).*\$/\1/p" "$file" | head -n 1
+    fi
+}
+
+php_is_recent_enough() {
+    php -r 'exit(version_compare(PHP_VERSION, $argv[1], ">=") ? 0 : 1);' "$MIN_PHP_VERSION"
+}
+
+check_environment() {
+    local failed=false
+    output "\nEnvironment check" heading
+
+    kernel="$(uname -s 2>/dev/null || /usr/bin/uname -s)"
+    case "$kernel" in
+    Linux | linux)
+        kernel=linux
+        ok "Linux"
+        ;;
+    Darwin | darwin)
+        kernel=darwin
+        ok "macOS"
+        ;;
+    *)
+        fail "OS '$kernel' is not supported (Linux and macOS are)."
+        ;;
+    esac
+
+    if command -v git >/dev/null 2>&1; then
+        ok "git is installed"
+    else
+        bad "git is required: every task is a branch and a worktree"
+        failed=true
+    fi
+
+    if command -v php >/dev/null 2>&1; then
+        if php_is_recent_enough; then
+            ok "PHP $(php -r 'echo PHP_VERSION;')"
+        else
+            bad "PHP $(php -r 'echo PHP_VERSION;') is too old: PABLO needs PHP $MIN_PHP_VERSION or newer"
+            failed=true
+        fi
+    else
+        bad "PHP $MIN_PHP_VERSION or newer is required to run PABLO"
+        failed=true
+    fi
+
+    if command -v composer >/dev/null 2>&1; then
+        ok "Composer is installed"
+    else
+        bad "Composer is required to install PABLO's dependencies"
+        failed=true
+    fi
+
+    if $failed; then
+        fail "Some prerequisites are missing. See $PREREQUISITES_URL"
+    fi
+}
+
+choose_install_dir() {
+    if [ -z "$INSTALL_DIR" ]; then
+        INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+        if $INTERACTIVE; then
+            ask_text "Where should PABLO be installed?" "$INSTALL_DIR"
+            INSTALL_DIR="$ANSWER"
+        fi
+    fi
+    # shellcheck disable=SC2088 # a literal "~" typed at the prompt, expanded by hand
+    case "$INSTALL_DIR" in
+    "~") INSTALL_DIR="$HOME" ;;
+    "~/"*) INSTALL_DIR="$HOME/${INSTALL_DIR#"~/"}" ;;
+    esac
+    case "$INSTALL_DIR" in
+    /*) ;;
+    *) INSTALL_DIR="$PWD/$INSTALL_DIR" ;;
+    esac
+    while [ "${#INSTALL_DIR}" -gt 1 ] && [ "${INSTALL_DIR%/}" != "$INSTALL_DIR" ]; do
+        INSTALL_DIR="${INSTALL_DIR%/}"
+    done
+}
+
+choose_runtime() {
+    local found="" r default options
+    options=()
+    output "\nAgent runtimes" heading
+    for r in opencode claude-code copilot; do
+        if command -v "$(runtime_command "$r")" >/dev/null 2>&1; then
+            found="$found $r"
+            ok "$(runtime_label "$r") found ($(command -v "$(runtime_command "$r")"))"
+        else
+            output "  [ ] $(runtime_label "$r") not found" muted
+        fi
+    done
+
+    if [ -n "$RUNTIME" ]; then
+        if ! has_word "$found" "$RUNTIME"; then
+            warn "$(runtime_label "$RUNTIME") was asked for but '$(runtime_command "$RUNTIME")' is not on your PATH"
+        fi
+        return 0
+    fi
+
+    if [ -z "$found" ]; then
+        bad "No agent runtime found. PABLO needs one of OpenCode, Claude Code or GitHub Copilot CLI."
+        fail "Install one of them, then run this installer again. See $PREREQUISITES_URL"
+    fi
+
+    default=""
+    r="$(config_value agent_runtime)"
+    if [ -n "$r" ] && has_word "$found" "$r"; then
+        default="$r"
+    else
+        for r in $found; do
+            default="$r"
+            break
+        done
+    fi
+
+    # One runtime only: nothing to ask. Several: ask when we can.
+    # shellcheck disable=SC2086 # $found is a space separated list on purpose
+    set -- $found
+    if [ $# -eq 1 ] || ! $INTERACTIVE; then
+        RUNTIME="$default"
+        return 0
+    fi
+    for r in $found; do
+        options+=("$r|$(runtime_label "$r")")
+    done
+    ask_choice "Which agent runtime should PABLO use?" "$default" "${options[@]}"
+    RUNTIME="$CHOICE"
+}
+
+choose_backend() {
+    local candidates="orca" found="" b default options
+    options=()
+    # OpenChamber drives its own OpenCode server: it only matches OpenCode.
+    if [ "$RUNTIME" = opencode ]; then
+        candidates="orca openchamber"
+    fi
+
+    output "\nAgent development environments" heading
+    for b in orca openchamber; do
+        if command -v "$b" >/dev/null 2>&1; then
+            if has_word "$candidates" "$b"; then
+                found="$found $b"
+                ok "$(backend_label "$b") found ($(command -v "$b"))"
+            else
+                output "  [ ] $(backend_label "$b") found, but it cannot run $(runtime_label "$RUNTIME") (OpenCode only)" muted
+            fi
+        else
+            output "  [ ] $(backend_label "$b") not found" muted
+        fi
+    done
+
+    if [ -n "$BACKEND" ]; then
+        if [ "$BACKEND" = openchamber ] && [ "$RUNTIME" != opencode ]; then
+            fail "OpenChamber only works with OpenCode: --backend openchamber cannot run $(runtime_label "$RUNTIME")."
+        fi
+        if [ "$BACKEND" != headless ] && ! command -v "$BACKEND" >/dev/null 2>&1; then
+            warn "$(backend_label "$BACKEND") was asked for but '$BACKEND' is not on your PATH"
+        fi
+        return 0
+    fi
+
+    if [ -z "$found" ]; then
+        warn "No agent development environment found: agents can run headless in the background."
+        warn "Install Orca or OpenChamber to read and chat with them. See $PREREQUISITES_URL"
+        BACKEND=headless
+        if $INTERACTIVE; then
+            ask_choice "How should PABLO run the agents?" headless \
+                "headless|$(backend_label headless)" \
+                "quit|Stop here, I will install one first"
+            if [ "$CHOICE" = quit ]; then
+                fail "Aborted, nothing was installed. Install Orca or OpenChamber, then run this installer again. See $PREREQUISITES_URL"
+            fi
+        fi
+        return 0
+    fi
+
+    default=""
+    b="$(config_value agent_backend)"
+    if [ -n "$b" ] && has_word "$found" "$b"; then
+        default="$b"
+    else
+        for b in $found; do
+            default="$b"
+            break
+        done
+    fi
+
+    if ! $INTERACTIVE; then
+        BACKEND="$default"
+        return 0
+    fi
+    for b in $found; do
+        options+=("$b|$(backend_label "$b")")
+    done
+    options+=("headless|$(backend_label headless)")
+    ask_choice "Which agent development environment should PABLO use?" "$default" "${options[@]}"
+    BACKEND="$CHOICE"
+}
+
+# Checkout --------------------------------------------------------------------
+
+is_pablo_checkout() {
+    [ -d "$1/.git" ] && [ -f "$1/bin/install.sh" ] && [ -f "$1/app/composer.json" ]
+}
+
+fetch_pablo() {
+    output "\nDownload" heading
+    if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR" ]; then
+        fail "$INSTALL_DIR exists and is not a directory."
+    fi
+
+    if is_pablo_checkout "$INSTALL_DIR"; then
+        output "  Updating the PABLO checkout in $INSTALL_DIR."
+        git -C "$INSTALL_DIR" fetch --quiet --tags origin </dev/null ||
+            fail "Could not fetch updates from origin in $INSTALL_DIR."
+        if [ -n "$REF" ]; then
+            git -C "$INSTALL_DIR" checkout --quiet "$REF" </dev/null ||
+                fail "Could not check out '$REF' in $INSTALL_DIR."
+        fi
+        # A branch fast-forwards; a tag leaves a detached HEAD, nothing to pull.
+        if git -C "$INSTALL_DIR" symbolic-ref -q HEAD >/dev/null 2>&1; then
+            git -C "$INSTALL_DIR" pull --ff-only --quiet </dev/null ||
+                fail "$INSTALL_DIR has local changes or diverged: fix it by hand, or pick another --install-dir."
+        fi
+        ok "PABLO is up to date in $INSTALL_DIR"
+        return 0
+    fi
+
+    if [ -d "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR")" ]; then
+        fail "$INSTALL_DIR is not empty and is not a PABLO checkout. Pick another --install-dir."
+    fi
+
+    output "  Cloning $PABLO_REPO_URL into $INSTALL_DIR."
+    mkdir -p "$(dirname "$INSTALL_DIR")"
+    if [ -n "$REF" ]; then
+        git clone --quiet --branch "$REF" "$PABLO_REPO_URL" "$INSTALL_DIR" </dev/null ||
+            fail "Could not clone '$REF' from $PABLO_REPO_URL (a branch or a tag is expected)."
+    else
+        git clone --quiet "$PABLO_REPO_URL" "$INSTALL_DIR" </dev/null ||
+            fail "Could not clone $PABLO_REPO_URL."
+    fi
+    ok "PABLO cloned into $INSTALL_DIR"
+}
+
+run_install() {
+    output "\nInstall" heading
+    set -- --runtime "$RUNTIME" --backend "$BACKEND"
+    if ! $WITH_WEB; then
+        set -- "$@" --without-web
+    fi
+    if ! bash "$INSTALL_DIR/bin/install.sh" "$@" </dev/null; then
+        fail "bin/install.sh failed. Fix the error above, then run: bash $INSTALL_DIR/bin/install.sh $*"
+    fi
+}
+
+main() {
+    output "PABLO installer" heading
+
+    INSTALL_DIR="${PABLO_INSTALL_DIR:-}"
+    REF=""
+    RUNTIME=""
+    BACKEND=""
+    WITH_WEB=true
+    NO_INTERACTION=false
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+        --install-dir=*) INSTALL_DIR="${1#*=}" ;;
+        --install-dir)
+            [ $# -ge 2 ] || fail "--install-dir needs a value"
+            INSTALL_DIR="$2"
+            shift
+            ;;
+        --ref=*) REF="${1#*=}" ;;
+        --ref)
+            [ $# -ge 2 ] || fail "--ref needs a value"
+            REF="$2"
+            shift
+            ;;
+        --runtime=*) RUNTIME="${1#*=}" ;;
+        --runtime)
+            [ $# -ge 2 ] || fail "--runtime needs a value"
+            RUNTIME="$2"
+            shift
+            ;;
+        --backend=*) BACKEND="${1#*=}" ;;
+        --backend)
+            [ $# -ge 2 ] || fail "--backend needs a value"
+            BACKEND="$2"
+            shift
+            ;;
+        --without-web) WITH_WEB=false ;;
+        --with-web) WITH_WEB=true ;;
+        --no-interaction | -n) NO_INTERACTION=true ;;
+        -h | --help)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            fail "Unknown option $1"
+            ;;
+        esac
+        shift
+    done
+
+    case "$RUNTIME" in
+    "" | opencode | claude-code | copilot) ;;
+    *) fail "Unknown --runtime '$RUNTIME' (expected opencode, claude-code or copilot)." ;;
+    esac
+    case "$BACKEND" in
+    "" | orca | openchamber | headless) ;;
+    *) fail "Unknown --backend '$BACKEND' (expected orca, openchamber or headless)." ;;
+    esac
+
+    setup_interaction
+    check_environment
+    choose_install_dir
+    choose_runtime
+    choose_backend
+
+    if $INTERACTIVE && $WITH_WEB; then
+        if ! ask_yes_no "Install the dashboard service (http://127.0.0.1:8321, restarts on its own)?" y; then
+            WITH_WEB=false
+        fi
+    fi
+
+    output "\nSummary" heading
+    output "  Install directory  $INSTALL_DIR"
+    output "  Agent runtime      $(runtime_label "$RUNTIME")"
+    output "  Agent environment  $(backend_label "$BACKEND")"
+    if $WITH_WEB; then
+        output "  Dashboard service  yes"
+    else
+        output "  Dashboard service  no"
+    fi
+    if $INTERACTIVE; then
+        if ! ask_yes_no "Go ahead?" y; then
+            fail "Aborted, nothing was installed."
+        fi
+    fi
+
+    fetch_pablo
+    run_install
+
+    output "\nPABLO was installed successfully!" success
+    output "  Installed in  $INSTALL_DIR"
+    output "  Update        run this installer again"
+    output "  Uninstall     bash $INSTALL_DIR/bin/uninstall.sh"
+}
+
+# The whole script is read before anything runs: a truncated download
+# (curl | bash) cannot execute a partial script.
+main "$@"

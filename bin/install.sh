@@ -19,20 +19,75 @@ die() { printf '❌ %s\n' "$*" >&2; exit 1; }
 # The web dashboard is installed as a background service by default; opt out
 # with: ./bin/install.sh --without-web (which also removes a previously
 # installed dashboard service).
+#
+# --runtime <opencode|claude-code|copilot> and --backend <orca|openchamber|headless>
+# record the choice in ~/.pablo/config.yaml (the installer at
+# https://getpablo.dev/installer passes them). Without them the config is left
+# alone, and a first install picks whatever tools it finds.
 WITH_WEB=true
-for arg in "$@"; do
-    case "$arg" in
+RUNTIME_OPT=""
+BACKEND_OPT=""
+USAGE="supported: --without-web, --runtime <opencode|claude-code|copilot>, --backend <orca|openchamber|headless>"
+while [ $# -gt 0 ]; do
+    case "$1" in
     --without-web)
         WITH_WEB=false
         ;;
     --with-web)
         info "--with-web is now the default (opt out with --without-web)"
         ;;
+    --runtime=*)
+        RUNTIME_OPT="${1#*=}"
+        ;;
+    --runtime)
+        [ $# -ge 2 ] || die "--runtime needs a value ($USAGE)"
+        RUNTIME_OPT="$2"
+        shift
+        ;;
+    --backend=*)
+        BACKEND_OPT="${1#*=}"
+        ;;
+    --backend)
+        [ $# -ge 2 ] || die "--backend needs a value ($USAGE)"
+        BACKEND_OPT="$2"
+        shift
+        ;;
     *)
-        die "unknown option: $arg (supported: --without-web)"
+        die "unknown option: $1 ($USAGE)"
         ;;
     esac
+    shift
 done
+
+case "$RUNTIME_OPT" in
+"" | opencode | claude-code | copilot) ;;
+*) die "unknown --runtime '$RUNTIME_OPT' (expected opencode, claude-code or copilot)" ;;
+esac
+case "$BACKEND_OPT" in
+"" | orca | openchamber | headless) ;;
+*) die "unknown --backend '$BACKEND_OPT' (expected orca, openchamber or headless)" ;;
+esac
+if [ "$BACKEND_OPT" = openchamber ] && [ -n "$RUNTIME_OPT" ] && [ "$RUNTIME_OPT" != opencode ]; then
+    die "OpenChamber only works with OpenCode: --backend openchamber cannot run --runtime $RUNTIME_OPT"
+fi
+
+# Set <key>: <value> in the global config: replace the first top-level line of
+# that key, or append one. Rewrites through cat (not mv) to keep permissions.
+set_config_key() { # set_config_key <key> <value>
+    local key="$1" value="$2" tmp
+    tmp="$(mktemp)"
+    awk -v k="$key" -v v="$value" '
+        !done && index($0, k ":") == 1 { print k ": " v; done = 1; next }
+        { print }
+        END { if (!done) print k ": " v }
+    ' "$PABLO_CONFIG_FILE" > "$tmp"
+    cat "$tmp" > "$PABLO_CONFIG_FILE"
+    rm -f "$tmp"
+}
+
+config_key() { # config_key <key>: the value of a top-level key, quotes stripped
+    sed -n "s/^$1:[[:space:]]*[\"']\{0,1\}\([^\"'#[:space:]]*\).*\$/\1/p" "$PABLO_CONFIG_FILE" | head -n 1
+}
 
 # Portable `readlink -f` (BSD readlink lacks -f on older macOS).
 resolve_path() {
@@ -83,13 +138,56 @@ else
     info "keeping existing $PABLO_CONFIG_FILE"
 fi
 
+# Explicit choices (--runtime / --backend) win over what the config says.
+if [ -n "$RUNTIME_OPT" ]; then
+    CURRENT_RUNTIME="$(config_key agent_runtime)"
+    CURRENT_RUNTIME="${CURRENT_RUNTIME:-opencode}"
+    if [ "$RUNTIME_OPT" != "$CURRENT_RUNTIME" ]; then
+        # The model id format follows the runtime, so it changes with it.
+        case "$RUNTIME_OPT" in
+        opencode) NEW_MODEL="$(sed -n 's/^default_model:[[:space:]]*//p' "$REPO_DIR/examples/config.yaml" | head -n 1)" ;;
+        claude-code) NEW_MODEL="sonnet" ;;
+        copilot) NEW_MODEL="claude-sonnet-5.5" ;;
+        esac
+        set_config_key default_model "$NEW_MODEL"
+        info "agent runtime $CURRENT_RUNTIME -> $RUNTIME_OPT: set default_model: $NEW_MODEL"
+    fi
+    set_config_key agent_runtime "$RUNTIME_OPT"
+fi
+if [ -n "$BACKEND_OPT" ]; then
+    case "$BACKEND_OPT" in
+    openchamber)
+        set_config_key agent_backend openchamber
+        info "agent backend: openchamber"
+        ;;
+    orca)
+        set_config_key agent_backend orca
+        info "agent backend: orca"
+        ;;
+    headless)
+        # There is no "headless" backend value: PABLO falls back to a headless
+        # run by itself whenever Orca is missing or does not know a repository.
+        set_config_key agent_backend orca
+        info "agent backend: none (agents run headless in the background)"
+        ;;
+    esac
+fi
+
 # The agent runtime decides what gets generated and linked below:
-# PABLO_AGENT_RUNTIME, else agent_runtime in the global config, else opencode.
-RUNTIME="${PABLO_AGENT_RUNTIME:-}"
+# --runtime, else PABLO_AGENT_RUNTIME, else agent_runtime in the global
+# config, else opencode.
+RUNTIME="${RUNTIME_OPT:-${PABLO_AGENT_RUNTIME:-}}"
 if [ -z "$RUNTIME" ] && [ -f "$PABLO_CONFIG_FILE" ]; then
-    RUNTIME="$(sed -n 's/^agent_runtime:[[:space:]]*["'"'"']\{0,1\}\([a-z-]*\).*$/\1/p' "$PABLO_CONFIG_FILE" | head -n 1)"
+    RUNTIME="$(config_key agent_runtime)"
 fi
 RUNTIME="${RUNTIME:-opencode}"
+
+# An OpenChamber backend (from the config, or kept from an earlier install)
+# cannot drive another runtime: refuse now rather than fail at the first launch.
+EFFECTIVE_BACKEND="${PABLO_AGENT_BACKEND:-$(config_key agent_backend)}"
+if [ "$EFFECTIVE_BACKEND" = openchamber ] && [ "$RUNTIME" != opencode ]; then
+    die "agent_backend: openchamber only works with OpenCode, not $RUNTIME. Pass --backend orca (or edit $PABLO_CONFIG_FILE)."
+fi
 case "$RUNTIME" in
 opencode | claude-code | copilot) info "agent runtime: $RUNTIME" ;;
 *) die "unknown agent_runtime '$RUNTIME' (expected opencode, claude-code or copilot)" ;;
@@ -167,8 +265,8 @@ esac
 
 # 3. Agents, commands and skills (per runtime) ------------------------------
 link_into() { # link_into <src-file> <dest-dir>
-    local src="$1" dest_dir="$2"
-    local dest="$dest_dir/$(basename "$src")"
+    local src="$1" dest_dir="$2" dest
+    dest="$dest_dir/$(basename "$src")"
     if [ -e "$dest" ] && { [ ! -L "$dest" ] || [[ "$(resolve_path "$dest")" != "$REPO_DIR"/* ]]; }; then
         die "$dest exists and is not a PABLO symlink — refusing to overwrite (originals stay untouched)"
     fi

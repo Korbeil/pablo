@@ -8,12 +8,10 @@
 
 <h2>1. Install</h2>
 
-<pre><code class="language-bash">git clone https://github.com/Korbeil/pablo
-cd pablo
-./bin/install.sh
+<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash
 </code></pre>
 
-<p>It puts the <code>pablo</code> command on your <code>PATH</code>, starts the background scheduler and the dashboard, checks your tools, and prints what to do next. Open a new terminal if it tells you to. If a check fails, <code>pablo system:setup</code> walks you through each fix. More in <a href="page:installation">Installation</a>.</p>
+<p>It asks where to install PABLO, which agent runtime and which agent environment to use among the ones it finds on your machine, then puts the <code>pablo</code> command on your <code>PATH</code>, starts the background scheduler and the dashboard, checks your tools, and prints what to do next. Open a new terminal if it tells you to. If a check fails, <code>pablo system:setup</code> walks you through each fix. More in <a href="page:installation">Installation</a>.</p>
 
 <h2>2. Add your project</h2>
 

@@ -14,7 +14,7 @@
   <meta name="description" content="<?= $e($description) ?>">
   <meta property="og:title" content="<?= $e($title) ?> · PABLO">
   <meta property="og:description" content="<?= $e($description) ?>">
-  <meta property="og:image" content="https://korbeil.github.io/pablo/assets/og.png">
+  <meta property="og:image" content="https://getpablo.dev/assets/og.png">
   <meta property="og:type" content="article">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#2b2b2a">
