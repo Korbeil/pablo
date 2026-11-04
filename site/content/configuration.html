@@ -89,7 +89,9 @@ default_model_by_type:
 default_model: sonnet
 </code></pre>
 
-<pre><code class="language-bash">./bin/install.sh            # generates ~/.pablo/claude/agents.json, links the agents and the command
+<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash -s -- --runtime claude-code
+                            # generates ~/.pablo/claude/agents.json, links the agents and the command
+                            # (from a clone: ./bin/install.sh --runtime claude-code)
 pablo system:doctor         # checks claude and the generated files
 </code></pre>
 
@@ -111,7 +113,9 @@ pablo system:doctor         # checks claude and the generated files
 default_model: claude-sonnet-5.5
 </code></pre>
 
-<pre><code class="language-bash">./bin/install.sh            # renders copilot/ and links the agents and skills into ~/.copilot/
+<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash -s -- --runtime copilot
+                            # renders copilot/ and links the agents and skills into ~/.copilot/
+                            # (from a clone: ./bin/install.sh --runtime copilot)
 pablo system:doctor         # checks copilot and the generated files
 </code></pre>
 

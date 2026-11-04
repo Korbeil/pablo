@@ -216,6 +216,11 @@ final class InstallScriptTest extends TestCase
             $process = $this->runInSandbox([$this->sandbox.'/path/cp', '-R', $root.'/'.$directory, $this->repo.'/'.$directory]);
             $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         }
+        // The agents are generated and git-ignored: a CI checkout has none, so
+        // the copy must not carry the ones a developer machine has.
+        foreach (glob($this->repo.'/opencode/agents/*.md') ?: [] as $generated) {
+            unlink($generated);
+        }
         foreach (['pablo', 'console'] as $entrypoint) {
             file_put_contents($this->repo.'/app/bin/'.$entrypoint, "#!/usr/bin/env php\n");
             chmod($this->repo.'/app/bin/'.$entrypoint, 0o755);
@@ -232,6 +237,9 @@ final class InstallScriptTest extends TestCase
             *system:generate-agents*)
                 repo="$(cd "$(dirname "$1")/../.." && pwd -P)"
                 case "$*" in
+                *"--runtime opencode"*)
+                    echo agent > "$repo/opencode/agents/task-analyst.md"
+                    ;;
                 *"--runtime claude-code"*)
                     mkdir -p "$HOME/.pablo/claude" "$repo/claude/agents" "$repo/claude/commands"
                     echo '{}' > "$HOME/.pablo/claude/agents.json"
