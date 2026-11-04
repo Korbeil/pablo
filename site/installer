@@ -351,9 +351,17 @@ choose_backend() {
     fi
 
     if [ -z "$found" ]; then
-        BACKEND=headless
-        warn "No agent development environment found: agents will run headless in the background."
+        warn "No agent development environment found: agents can run headless in the background."
         warn "Install Orca or OpenChamber to read and chat with them. See $PREREQUISITES_URL"
+        BACKEND=headless
+        if $INTERACTIVE; then
+            ask_choice "How should PABLO run the agents?" headless \
+                "headless|$(backend_label headless)" \
+                "quit|Stop here, I will install one first"
+            if [ "$CHOICE" = quit ]; then
+                fail "Aborted, nothing was installed. Install Orca or OpenChamber, then run this installer again. See $PREREQUISITES_URL"
+            fi
+        fi
         return 0
     fi
 

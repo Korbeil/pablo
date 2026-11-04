@@ -140,7 +140,7 @@ final class InstallerTest extends TestCase
         $process = $this->install(['--no-interaction']);
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
-        $this->assertStringContainsString('agents will run headless', $this->outputOf($process));
+        $this->assertStringContainsString('agents can run headless', $this->outputOf($process));
         $this->assertStringContainsString(self::PREREQUISITES_URL, $this->outputOf($process));
         $this->assertSame('--runtime copilot --backend headless', $this->installArguments());
     }
@@ -318,7 +318,8 @@ final class InstallerTest extends TestCase
     {
         $this->fakeTool('opencode');
         $this->fakeTool('claude');
-        $process = $this->interactive("{$this->installDir}\n9\nabc\n2\n\n\n");
+        // runtime: 9, abc (refused), 2 = Claude Code; environment: default; dashboard: default; go: default
+        $process = $this->interactive("{$this->installDir}\n9\nabc\n2\n\n\n\n");
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringContainsString('Answer with a number between 1 and 2', $this->outputOf($process));
@@ -332,17 +333,45 @@ final class InstallerTest extends TestCase
         mkdir($this->sandbox.'/home/.pablo', 0o777, true);
         file_put_contents($this->sandbox.'/home/.pablo/config.yaml', "agent_runtime: copilot\n");
 
-        $process = $this->interactive("{$this->installDir}\n\n\n\n");
+        $process = $this->interactive("{$this->installDir}\n\n\n\n\n");
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertSame('--runtime copilot --backend headless', $this->installArguments());
+    }
+
+    public function testInteractiveWithoutEnvironmentOffersHeadless(): void
+    {
+        $this->fakeTool('claude');
+
+        // environment: 1 = headless
+        $process = $this->interactive("{$this->installDir}\n1\n\n\n");
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString('1) none (agents run headless in the background)', $this->outputOf($process));
+        $this->assertStringContainsString(self::PREREQUISITES_URL, $this->outputOf($process));
+        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+    }
+
+    public function testInteractiveWithoutEnvironmentCanStopToInstallOne(): void
+    {
+        $this->fakeTool('claude');
+
+        // environment: 2 = stop here
+        $process = $this->interactive("{$this->installDir}\n2\n");
+
+        $this->assertNotSame(0, $process->getExitCode());
+        $this->assertStringContainsString('2) Stop here', $this->outputOf($process));
+        $this->assertStringContainsString('Install Orca or OpenChamber', $this->outputOf($process));
+        $this->assertDirectoryDoesNotExist($this->installDir);
+        $this->assertFileDoesNotExist($this->sandbox.'/home/install-args');
     }
 
     public function testInteractiveNoAbortsBeforeAnythingIsInstalled(): void
     {
         $this->fakeTool('claude');
 
-        $process = $this->interactive("{$this->installDir}\n\nn\n");
+        // environment: default (headless), dashboard: default, go: no
+        $process = $this->interactive("{$this->installDir}\n\n\nn\n");
 
         $this->assertNotSame(0, $process->getExitCode());
         $this->assertStringContainsString('nothing was installed', $this->outputOf($process));

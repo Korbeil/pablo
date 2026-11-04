@@ -47,7 +47,7 @@
   <li>asks whether to install the <a href="#the-dashboard-service">dashboard service</a>, shows a summary, then runs <code>bin/install.sh</code> from the checkout with your answers (see below).</li>
 </ol>
 
-<p>If it finds no agent runtime, it stops and sends you back to the <a href="#prerequisites">prerequisites</a>. If it finds no agent development environment, it carries on and the agents run headless, with the same pointer.</p>
+<p>If it finds no agent runtime, it stops and sends you back to the <a href="#prerequisites">prerequisites</a>. If it finds no agent development environment, it says so with the same pointer and offers to carry on headless (the agents then run in the background) or to stop so you can install one first. Without a terminal, it carries on headless.</p>
 
 <p>Every question has an option, so you can script it. Pass options after <code>bash -s --</code>:</p>
 
