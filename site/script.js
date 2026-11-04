@@ -16,21 +16,21 @@
   };
 
   const initialRows = () => [
-    { id: 'sso', branch: 'oms-1290-sso-login', state: 'in-progress', pr: '—', agents: '🏃 1' },
-    { id: 'csv', branch: 'oms-1274-export-csv', state: 'draft', pr: '📪 #1281', agents: '—' },
-    { id: 'cache', branch: 'oms-1251-cache-bust', state: 'waiting-review', pr: '📬 #1262', agents: '—' },
-    { id: 'vat', branch: 'oms-1238-vat-rounding', state: 'needs-testing', pr: '📬 #1245', agents: '—' },
+    { id: 'sso', branch: 'acme-1290-sso-login', state: 'in-progress', pr: '—', agents: '🏃 1' },
+    { id: 'csv', branch: 'acme-1274-export-csv', state: 'draft', pr: '📪 #1281', agents: '—' },
+    { id: 'cache', branch: 'acme-1251-cache-bust', state: 'waiting-review', pr: '📬 #1262', agents: '—' },
+    { id: 'vat', branch: 'acme-1238-vat-rounding', state: 'needs-testing', pr: '📬 #1245', agents: '—' },
   ];
 
   const timeline = [
-    { t: '22:58', msg: 'oms-1290 · <b>task-analyst</b> done, plan ready for you', set: ['sso', { agents: '💭 1' }] },
-    { t: '23:04', msg: 'oms-1274 · CI turned red → <b>ci-red</b>', set: ['csv', { state: 'ci-red' }] },
-    { t: '23:04', msg: 'oms-1274 · launching <b>ci-analyst</b> in its worktree', set: ['csv', { agents: '🏃 1' }] },
-    { t: '23:14', msg: 'oms-1251 · approved by a reviewer → <b>needs-testing</b>', set: ['cache', { state: 'needs-testing' }] },
-    { t: '23:19', msg: 'oms-1274 · <b>ci-analyst</b> done, fix plan waiting', set: ['csv', { agents: '💭 1' }] },
-    { t: '07:42', msg: 'you · <b>/pablo-commit-and-pr</b> on oms-1274 → draft', set: ['csv', { state: 'draft', agents: '—' }] },
-    { t: '07:52', msg: 'oms-1274 · CI green, PR marked ready → <b>waiting-review</b>', set: ['csv', { state: 'waiting-review', pr: '📬 #1281' }] },
-    { t: '08:02', msg: 'oms-1238 · merged → task closed, worktree removed', remove: 'vat' },
+    { t: '22:58', msg: 'acme-1290 · <b>task-analyst</b> done, plan ready for you', set: ['sso', { agents: '💭 1' }] },
+    { t: '23:04', msg: 'acme-1274 · CI turned red → <b>ci-red</b>', set: ['csv', { state: 'ci-red' }] },
+    { t: '23:04', msg: 'acme-1274 · launching <b>ci-analyst</b> in its worktree', set: ['csv', { agents: '🏃 1' }] },
+    { t: '23:14', msg: 'acme-1251 · approved by a reviewer → <b>needs-testing</b>', set: ['cache', { state: 'needs-testing' }] },
+    { t: '23:19', msg: 'acme-1274 · <b>ci-analyst</b> done, fix plan waiting', set: ['csv', { agents: '💭 1' }] },
+    { t: '07:42', msg: 'you · <b>/pablo-commit-and-pr</b> on acme-1274 → draft', set: ['csv', { state: 'draft', agents: '—' }] },
+    { t: '07:52', msg: 'acme-1274 · CI green, PR marked ready → <b>waiting-review</b>', set: ['csv', { state: 'waiting-review', pr: '📬 #1281' }] },
+    { t: '08:02', msg: 'acme-1238 · merged → task closed, worktree removed', remove: 'vat' },
   ];
 
   const tbody = document.getElementById('term-rows');
