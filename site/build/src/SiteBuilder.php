@@ -171,8 +171,10 @@ final class SiteBuilder
             $this->highlight($document, $code);
         }
 
-        // Wide tables scroll sideways inside their own box on small screens.
+        // Wide tables scroll sideways inside their own box; on phones each row
+        // stacks into a card, every cell labelled by its column header.
         foreach ($document->querySelectorAll('table') as $table) {
+            $this->labelCells($table);
             $wrapper = $document->createElement('div');
             $wrapper->setAttribute('class', 'table-wrap');
             $table->replaceWith($wrapper);
@@ -180,6 +182,37 @@ final class SiteBuilder
         }
 
         return $toc;
+    }
+
+    /**
+     * Copies each column header onto its body cells as data-label, so the
+     * stacked mobile layout can name them. A cell spanning several columns
+     * gets their headers joined ("Linux / macOS").
+     */
+    private function labelCells(Element $table): void
+    {
+        $headers = [];
+        foreach ($table->querySelectorAll('thead th') as $th) {
+            $headers[] = $this->text($th);
+        }
+        if ([] === $headers) {
+            return;
+        }
+
+        foreach ($table->querySelectorAll('tbody tr') as $row) {
+            $column = 0;
+            foreach ($row->childNodes as $cell) {
+                if (!$cell instanceof Element) {
+                    continue;
+                }
+                $span = max(1, (int) ($cell->getAttribute('colspan') ?? '1'));
+                $label = implode(' / ', array_filter(\array_slice($headers, $column, $span), static fn (string $h): bool => '' !== $h));
+                if ('TD' === $cell->tagName && '' !== $label) {
+                    $cell->setAttribute('data-label', $label);
+                }
+                $column += $span;
+            }
+        }
     }
 
     private function highlight(HTMLDocument $document, Element $code): void

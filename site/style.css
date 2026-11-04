@@ -46,11 +46,12 @@ p { margin: 0 0 1em; }
   color: #fff;
 }
 .nav-inner { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.brand { flex: none; }
 .brand img { height: 34px; width: auto; }
 .nav-links { display: flex; align-items: center; gap: 1.6rem; font-size: .95rem; }
 .nav-links a { text-decoration: none; opacity: .85; padding-top: .2em; }
 .nav-links a:hover { opacity: 1; color: var(--yellow); }
-.nav-cta { background: var(--yellow); color: var(--ink) !important; opacity: 1 !important; padding: .45em .9em .3em !important; border-radius: 999px; font-weight: 600; }
+.nav-cta { background: var(--yellow); color: var(--ink) !important; opacity: 1 !important; padding: .45em .9em .3em !important; border-radius: 999px; font-weight: 600; white-space: nowrap; }
 .nav-gh { display: inline-flex; padding: 0 !important; }
 
 /* ---------- search (shared by the home page and the docs) ---------- */
@@ -289,25 +290,55 @@ pre.one { display: inline-block; }
 .foot a { color: #fff; }
 
 /* ---------- responsive ---------- */
+/* Grid tracks use minmax(0, 1fr), not 1fr: a bare 1fr never shrinks below
+   its content, so one long <pre> would widen the whole page on a phone. */
 @media (max-width: 1000px) {
-  .hero-grid, .two-col, .dash, .sm { grid-template-columns: 1fr; }
-  .stats, .stack { grid-template-columns: repeat(2, 1fr); }
-  .principles { grid-template-columns: 1fr 1fr; }
+  .hero-grid, .two-col, .dash, .sm { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .stats, .stack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .principles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pr:first-child { grid-column: 1 / -1; grid-row: auto; }
-  .steps { grid-template-columns: 1fr; gap: 34px; }
+  .steps { grid-template-columns: minmax(0, 1fr); gap: 34px; }
   .shot { transform: none; }
+  .nav-links a:not(.nav-cta):not(.nav-gh):not(.nav-docs) { display: none; }
 }
 @media (max-width: 720px) {
   body { font-size: 17px; }
-  .nav-links a:not(.nav-cta):not(.nav-gh):not(.nav-docs) { display: none; }
-  .nav-search span { display: none; }
+  .wrap { width: min(1140px, 100% - 36px); }
+  .nav-search { padding: .45em .6em .4em; }
+  .nav-search span, .nav-search kbd { display: none; }
   .nav-links { gap: 1rem; }
-  .search-foot { display: none; }
-  .hero { padding: 56px 0 64px; }
-  .section { padding: 72px 0; }
-  .cards, .principles, .talks, .stats, .stack { grid-template-columns: 1fr; }
-  .term { font-size: 11px; }
+  .search { padding: 12px 10px; }
+  .search-panel { max-height: calc(100dvh - 24px); border-radius: 14px; }
+  .search-field input { font-size: 16px; } /* 16px+ stops iOS from zooming on focus */
+  .search-field kbd, .search-foot { display: none; }
+  .hero { padding: 48px 0 56px; }
+  .cta .btn { flex: 1 1 auto; text-align: center; }
+  .section { padding: 64px 0; }
+  .punch { padding: 64px 0; }
+  .punch::before { width: 6px; }
+  .band { padding: 48px 0; }
+  .closing { padding: 72px 0 80px; }
+  .cards, .principles, .talks, .stats, .stack { grid-template-columns: minmax(0, 1fr); }
+  .card { padding: 18px 18px 6px; }
+  .card-head .on { margin-left: 0; }
+  .pr { padding: 20px 18px 8px; }
+  .pr:first-child pre { font-size: 12px; }
+  .term { font-size: 11px; border-radius: 12px; }
+  .term-body { padding: 14px 12px; }
   .term-table th:nth-child(3), .term-table td:nth-child(3) { display: none; }
+  .talk { padding: 20px 44px 20px 20px; }
+  .talk::after { right: 18px; top: 18px; }
+  .foot-inner { flex-direction: column; align-items: flex-start; }
+}
+@media (max-width: 440px) {
+  .nav-cta { display: none; } /* the hero's own "Get started" sits right below */
+  .term-table th:nth-child(4), .term-table td:nth-child(4) { display: none; }
+  .big { font-size: 2.8rem; }
+}
+/* Touch screens: no hover, so no lift-on-hover jitter on tap. */
+@media (hover: none) {
+  .btn:hover, .card:hover, .talk:hover { transform: none; }
+  .card:hover { box-shadow: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

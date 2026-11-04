@@ -24,6 +24,16 @@ require __DIR__.'/_header.php';
     <?php if ('' !== $page['section']) { ?>
       <p class="tag docs-section"><?= $e($page['section']) ?></p>
     <?php } ?>
+    <?php if (\count($toc) > 1) { ?>
+      <details class="toc-mobile">
+        <summary>On this page</summary>
+        <ul>
+          <?php foreach ($toc as $item) { ?>
+            <li class="toc-l<?= $item['level'] ?>"><a href="#<?= $e($item['id']) ?>"><?= $e($item['text']) ?></a></li>
+          <?php } ?>
+        </ul>
+      </details>
+    <?php } ?>
     <article class="prose">
       <?= $content ?>
     </article>

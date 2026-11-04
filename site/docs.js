@@ -28,14 +28,26 @@
   if (sidebar && toggle) {
     const set = (open) => {
       sidebar.classList.toggle('is-open', open);
+      document.body.classList.toggle('sidebar-open', open);
       toggle.setAttribute('aria-expanded', String(open));
     };
+    // Leaving the mobile layout (rotation, resize) must not keep the page locked.
+    window.matchMedia('(min-width: 901px)').addEventListener('change', (ev) => { if (ev.matches) set(false); });
     toggle.addEventListener('click', () => set(!sidebar.classList.contains('is-open')));
     sidebar.addEventListener('click', (ev) => { if (ev.target.closest('a')) set(false); });
     document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') set(false); });
     document.addEventListener('click', (ev) => {
       if (sidebar.classList.contains('is-open') && !sidebar.contains(ev.target) && !toggle.contains(ev.target)) set(false);
     });
+  }
+
+  // Folded "On this page" (narrow screens): sit under the page's lead
+  // paragraph rather than above its title, and fold back once used.
+  const tocMobile = document.querySelector('.toc-mobile');
+  if (tocMobile) {
+    const lead = document.querySelector('.prose > h1 + p');
+    if (lead) lead.after(tocMobile);
+    tocMobile.addEventListener('click', (ev) => { if (ev.target.closest('a')) tocMobile.open = false; });
   }
 
   // Highlight the section being read in "On this page".

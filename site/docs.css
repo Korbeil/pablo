@@ -215,9 +215,30 @@
 
 /* -------------------------------------------------------- responsive -- */
 
+/* "On this page", folded, above the article: only where the TOC column is gone. */
+.toc-mobile { display: none; }
+
 @media (max-width: 1200px) {
   .docs-layout { grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
   .docs-toc { display: none; }
+
+  .toc-mobile {
+    display: block; max-width: 780px; margin: 0 0 1.6rem;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px; font-size: .95rem;
+  }
+  .toc-mobile summary {
+    display: flex; align-items: center; justify-content: space-between; gap: 1em;
+    cursor: pointer; list-style: none; padding: .75em 1em .6em;
+    font-size: .74rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  }
+  .toc-mobile summary::-webkit-details-marker { display: none; }
+  .toc-mobile summary::after { content: ''; width: .5em; height: .5em; border: solid var(--ink-soft); border-width: 0 2px 2px 0; transform: rotate(45deg); margin-top: -.3em; transition: transform .15s; }
+  .toc-mobile[open] summary::after { transform: rotate(-135deg); margin-top: .2em; }
+  .toc-mobile ul { list-style: none; margin: 0; padding: .2em .6em .8em; border-top: 1px solid var(--line); max-height: 50vh; overflow-y: auto; }
+  .toc-mobile li { margin: 0; }
+  .toc-mobile a { display: block; padding: .45em .5em .35em; color: var(--ink-soft); text-decoration: none; line-height: 1.35; border-radius: 6px; }
+  .toc-mobile a:hover { color: var(--ink); background: rgba(43,43,42,.05); }
+  .toc-mobile .toc-l3 a { padding-left: 1.6em; font-size: .95em; }
 }
 
 @media (max-width: 900px) {
@@ -227,15 +248,64 @@
     position: fixed; z-index: 20; top: 64px; left: 0; bottom: 0;
     width: min(300px, 86vw); max-height: none;
     background: var(--paper); padding: 20px 16px 40px;
-    box-shadow: 20px 0 50px -20px rgba(43,43,42,.5);
-    transform: translateX(-105%); transition: transform .2s ease;
+    overscroll-behavior: contain;
+    transform: translateX(-105%); visibility: hidden;
+    transition: transform .2s ease, visibility 0s linear .2s;
   }
-  .docs-sidebar.is-open { transform: none; }
-  .quickstart, .docs-map-section { grid-template-columns: 1fr; }
+  .docs-sidebar.is-open {
+    transform: none; visibility: visible; transition: transform .2s ease;
+    box-shadow: 20px 0 50px -20px rgba(43,43,42,.5);
+  }
+  .docs-sidebar a, .sidebar-home { padding: .6em .8em .5em; } /* finger-sized targets */
+  body.sidebar-open { overflow: hidden; }
+  body.sidebar-open::after {
+    content: ''; position: fixed; inset: 64px 0 0; z-index: 19;
+    background: rgba(29,29,28,.45);
+  }
+  .quickstart, .docs-map-section { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 720px) {
-  .prose { font-size: 1rem; }
-  .docs-pager { grid-template-columns: 1fr; }
+  .nav-wide { width: min(1440px, 100% - 28px); }
+  .nav-menu { margin-right: 2px; }
+  .docs-layout { padding: 22px 0 56px; }
+  .prose { font-size: 1rem; line-height: 1.68; }
+  .prose h1 + p { font-size: 1.1rem; }
+  .prose h2 { font-size: 1.5rem; margin-top: 1.9em; }
+  .prose h3 { font-size: 1.18rem; }
+  .prose ul, .prose ol { padding-left: 1.2em; }
+  .prose ol.walkthrough > li { padding-left: 2.2em; margin-left: .9rem; }
+  .code pre { font-size: 12.5px; padding: 14px; border-radius: 10px; }
+  .callout { padding: .85em 1em .25em; }
+  .prose .quick { padding: 14px; }
+  .docs-pager { grid-template-columns: minmax(0, 1fr); }
   .pager-next { grid-column: 1; }
+}
+
+/* Small screens: each table row becomes a card, every cell labelled with its
+   column header (data-label is added at build time). */
+@media (max-width: 640px) {
+  .table-wrap { overflow: visible; background: none; border: 0; border-radius: 0; }
+  .prose table, .prose tbody, .prose tr, .prose td { display: block; width: auto; }
+  .prose thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .prose tr { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 4px 0; margin-bottom: 10px; }
+  .prose td { padding: 6px 14px; border: 0; }
+  .prose td:first-child { font-family: var(--sans); font-weight: 700; color: var(--ink); padding-top: 10px; }
+  .prose td + td[data-label]::before {
+    content: attr(data-label); display: block;
+    font-family: var(--sans); font-size: .7rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-soft); margin-bottom: .1em;
+  }
+  .prose td:last-child { padding-bottom: 12px; }
+  .prose td code { white-space: normal; }
+  .prose table.cmds td:first-child { width: auto; }
+}
+
+/* Touch screens have no hover: keep the copy button visible. */
+@media (hover: none) {
+  .code-copy { opacity: 1; }
+  .code-lang { display: none; }
+  .code pre { padding-top: 40px; } /* room for the always-visible button */
+  .anchor { opacity: .5; }
+  .prose .quick:hover, .docs-card:hover { transform: none; }
 }
