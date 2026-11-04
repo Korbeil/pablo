@@ -24,7 +24,7 @@ final class TaskLifecycleTest extends CommandTestBed
 {
     public function testStateForcesWithSharedHandler(): void
     {
-        $this->runCommand(new StateCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['state' => 'request-changes']);
+        $this->runCommand(new StateCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['state' => 'request-changes']);
         $this->assertSame(['pr-feedback'], $this->agents->launch);
         $this->assertSame([7], $this->gh->drafts);
         $this->assertSame(State::RequestChanges, $this->getTask()->state);
@@ -32,7 +32,7 @@ final class TaskLifecycleTest extends CommandTestBed
 
     public function testStateNoTriggerSkipsActions(): void
     {
-        $this->runCommand(new StateCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['state' => 'request-changes', '--no-trigger' => true]);
+        $this->runCommand(new StateCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['state' => 'request-changes', '--no-trigger' => true]);
         $this->assertSame([], $this->agents->launch);
         $this->assertSame(State::RequestChanges, $this->getTask()->state);
     }
@@ -40,14 +40,14 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testStateOutsideWorktreeFails(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new StateCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['state' => 'draft']);
+        $tester = $this->runCommand(new StateCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['state' => 'draft']);
         $this->assertSame(1, $tester->getStatusCode());
     }
 
     public function testStateWithWorktreeOptionFromOutsideWorktree(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new StateCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
+        $tester = $this->runCommand(new StateCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
             'state' => 'request-changes',
             '--worktree' => $this->wt,
         ]);
@@ -394,7 +394,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::CiRed;
         $this->store->save($task);
-        $tester = $this->runCommand(new SkipCiCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
+        $tester = $this->runCommand(new SkipCiCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(0, $tester->getStatusCode());
         $updated = $this->getTask();
         $this->assertSame(State::WaitingReview, $updated->state);
@@ -407,7 +407,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::Draft;
         $this->store->save($task);
-        $tester = $this->runCommand(new SkipCiCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
+        $tester = $this->runCommand(new SkipCiCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(1, $tester->getStatusCode());
     }
 

@@ -40,6 +40,19 @@ pablo web --port 9000 --open   # another port, and open the browser
 
 <p>It does exactly what <code>pablo task:start</code> does: worktree, task, task-analyst.</p>
 
+<h2 id="change-a-task-from-the-browser">Change a task from the browser</h2>
+
+<p>Each task row ends with buttons that open a confirmation dialog. Nothing changes until you click <b>Confirm</b>.</p>
+
+<dl>
+  <dt>Force state</dt>
+  <dd>On every task. Pick the new state, and untick <b>Run the state's triggers</b> to only record it. Same as <a href="page:tasks#force-a-state"><code>pablo task:state</code></a>, with the same rules: no <code>waiting</code> from <code>request-changes</code> or <code>testing-failed</code>, no <code>needs-testing</code> when the project has no QA step.</dd>
+  <dt>Skip CI</dt>
+  <dd>Only on <code>ci-red</code> tasks. Ignores the failing checks and moves the task on to review, until the next <code>/pablo-commit-and-pr</code>. Same as <a href="page:tasks#help-with-ci"><code>pablo task:skip-ci</code></a>.</dd>
+</dl>
+
+<p>The tables refresh as soon as the change is saved.</p>
+
 <h2>Slack messages</h2>
 
 <p><b>Slack messages</b> builds two ready-to-paste lists: your pull requests waiting for review, and the ones waiting for QA, each with a copy button. They're fetched from GitHub when you click, not when the page loads; <b>Refresh</b> fetches again.</p>
@@ -51,8 +64,8 @@ pablo web --port 9000 --open   # another port, and open the browser
 <h2>Guarantees</h2>
 
 <ul>
-  <li><b>Read-only.</b> Loading or refreshing the page never changes a task, a worktree, a pull request or a ticket. The only button that changes something is <b>Start task</b> in the New task form.</li>
+  <li><b>Read-only until you confirm.</b> Loading or refreshing the page never changes a task, a worktree, a pull request or a ticket. Only three buttons change something: <b>Start task</b> in the New task form, and <b>Confirm</b> in the Force state and Skip CI dialogs.</li>
   <li><b>Local only.</b> It always listens on <code>127.0.0.1</code> and that can't be changed: the page has no login and shows branch names, issue titles and pull request links.</li>
-  <li><b>Fast and quiet.</b> The tables are built from what the background poller already saved, so a page load never calls GitHub or your tracker. Only the Slack messages and New task forms do, when you use them.</li>
+  <li><b>Fast and quiet.</b> The tables are built from what the background poller already saved, so a page load never calls GitHub or your tracker. Only the Slack messages, New task, Force state and Skip CI forms do, when you use them.</li>
   <li><b>Works offline.</b> Fonts, icons and scripts are all bundled; nothing is loaded from the internet.</li>
 </ul>

@@ -9,9 +9,24 @@
         <span>New task</span>
     </button>
 
-    <div class="modal {{ this.open ? 'is-active' : '' }}">
-        <div class="modal-background"
-             data-action="live#action"
+    {# Outside the modal: a successful start closes it, so the message must survive that. #}
+    {% if this.message and not this.open %}
+        <div class="notification is-success is-light pablo-new-task-flash">
+            <button class="delete" aria-label="dismiss"
+                    data-action="live#action"
+                    data-live-action-param="dismiss"></button>
+            {{ ux_icon('lucide:check', {class: 'pablo-icon'}) }}
+            {{ this.message }}
+        </div>
+    {% endif %}
+
+    {# Escape closes it (modal_controller clicks the backdrop's close action). #}
+    <div class="modal {{ this.open ? 'is-active' : '' }}"
+         data-controller="modal"
+         data-action="keydown.esc@window->modal#close">
+        {# A <div> has no default Stimulus event: "click->" is required. #}
+        <div class="modal-background" data-modal-target="backdrop"
+             data-action="click->live#action"
              data-live-action-param="close"></div>
 
         <div class="modal-card pablo-modal">
@@ -50,11 +65,6 @@
                         {{ ux_icon('lucide:triangle-alert', {class: 'pablo-icon'}) }}
                         {{ this.error }}
                     </div>
-                {% elseif this.message %}
-                    <div class="notification is-success is-light">
-                        {{ ux_icon('lucide:check', {class: 'pablo-icon'}) }}
-                        {{ this.message }}
-                    </div>
                 {% endif %}
 
                 {% if 'issue' == this.mode %}
@@ -65,8 +75,8 @@
                                    type="text"
                                    name="text"
                                    placeholder="https://github.com/…/issues/123 or ABC-123"
-                                   data-model="text"
-                                   data-action="live#update">
+                                   value="{{ this.text }}"
+                                   data-model="text">
                         </div>
                         <p class="help">No project needed — PABLO scans every configured project.</p>
                     </div>
@@ -75,7 +85,7 @@
                         <label class="label">Project</label>
                         <div class="control">
                             <div class="select is-fullwidth">
-                                <select name="project" data-model="project" data-action="live#update">
+                                <select name="project" data-model="project">
                                     <option value="">— pick a project —</option>
                                     {% for type, names in this.projectChoices %}
                                         <optgroup label="{{ type }}">
@@ -95,8 +105,7 @@
                                       name="text"
                                       rows="6"
                                       placeholder="Describe what PABLO should work on…"
-                                      data-model="text"
-                                      data-action="live#update"></textarea>
+                                      data-model="text">{{ this.text }}</textarea>
                         </div>
                         <p class="help">The branch name comes from an AI summary of the prompt; task-analyst starts right after creation, so this can take a moment.</p>
                     </div>

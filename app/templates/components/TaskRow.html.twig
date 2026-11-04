@@ -58,4 +58,34 @@
     <td class="pablo-nowrap"><twig:PrTag :pr="task.pr" :url="task.prUrl" /></td>
 
     <td class="pablo-nowrap has-text-grey" title="entered {{ task.stateEnteredAt|date('Y-m-d H:i') }}">{{ task.since }}</td>
+
+    <td class="pablo-nowrap">
+        {% set event = constant('Pablo\\Twig\\Components\\TaskActionsModal::OPEN_EVENT') %}
+        <div class="buttons are-small pablo-row-actions">
+            {% if task.state.value == 'ci-red' %}
+                <button type="button" class="button is-warning is-light"
+                        title="Ignore failing CI checks"
+                        data-action="live#emit"
+                        data-live-event-param="{{ event }}"
+                        data-live-mode-param="{{ constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_SKIP_CI') }}"
+                        data-live-project-param="{{ task.project }}"
+                        data-live-branch-param="{{ task.branch }}"
+                        data-live-state-param="{{ task.state.value }}">
+                    {{ ux_icon('lucide:ban', {class: 'pablo-icon'}) }}
+                    <span>Skip CI</span>
+                </button>
+            {% endif %}
+            <button type="button" class="button"
+                    title="Force a state"
+                    data-action="live#emit"
+                    data-live-event-param="{{ event }}"
+                    data-live-mode-param="{{ constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_FORCE_STATE') }}"
+                    data-live-project-param="{{ task.project }}"
+                    data-live-branch-param="{{ task.branch }}"
+                    data-live-state-param="{{ task.state.value }}">
+                {{ ux_icon('lucide:repeat', {class: 'pablo-icon'}) }}
+                <span>Force state</span>
+            </button>
+        </div>
+    </td>
 </tr>

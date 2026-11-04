@@ -25,7 +25,9 @@ use Pablo\Tests\FakeGit;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\UsesGlobalConfig;
 use Pablo\Twig\Components\NewTaskModal;
+use Pablo\Twig\Components\TaskBoard;
 use PHPUnit\Framework\TestCase;
+use Symfony\UX\LiveComponent\LiveResponder;
 
 final class StartIssueProvider implements Provider
 {
@@ -90,6 +92,7 @@ final class NewTaskModalTest extends TestCase
     private FakeAgents $agents;
     private FakeGit $git;
     private FakeAnalytics $analytics;
+    private LiveResponder $responder;
 
     protected function setUp(): void
     {
@@ -172,7 +175,10 @@ YAML,
             $this->agents,
         );
 
-        return new NewTaskModal($starter);
+        $modal = new NewTaskModal($starter);
+        $modal->setLiveResponder($this->responder = new LiveResponder());
+
+        return $modal;
     }
 
     public function testIssueModeRejectsEmptyInput(): void
@@ -221,6 +227,44 @@ YAML,
         $task = $this->store->get('wallet-kit', 'wk-fix-callback-verification-quickly');
         $this->assertNotNull($task);
         $this->assertSame(State::InProgress, $task->state);
+    }
+
+    /** Second use: the component outlives the modal, so opening must start from a blank form. */
+    public function testReopeningStartsFromABlankForm(): void
+    {
+        $modal = $this->modal();
+        $modal->open();
+        $modal->mode = 'issue';
+        $modal->text = 'https://github.com/acme/wallet-kit/issues/9';
+        $modal->start();
+        $this->assertFalse($modal->open);
+        $this->assertSame('', $modal->text);
+        $this->assertNotNull($modal->message);
+        $this->assertSame(TaskBoard::TASKS_CHANGED_EVENT, $this->responder->getEventsToEmit()[0]['event'] ?? null);
+
+        $modal->open();
+        $this->assertTrue($modal->open);
+        $this->assertSame('', $modal->text);
+        $this->assertNull($modal->message);
+        $this->assertNull($modal->error);
+
+        $modal->mode = 'prompt';
+        $modal->project = 'wallet-kit';
+        $modal->text = 'fix callback verification quickly now';
+        $modal->start();
+        $this->assertNull($modal->error);
+        $this->assertStringContainsString('Started task in project wallet-kit', (string) $modal->message);
+        $this->assertCount(2, $this->store->allTasks('wallet-kit'));
+    }
+
+    public function testClosingClearsTheError(): void
+    {
+        $modal = $this->modal();
+        $modal->open();
+        $modal->start();
+        $this->assertNotNull($modal->error);
+        $modal->close();
+        $this->assertNull($modal->error);
     }
 
     public function testProjectChoicesListConfiguredProjectsByType(): void

@@ -87,6 +87,8 @@ pablo task:state needs-testing --no-trigger   # only records the new state
 
 <p>Forcing <code>needs-testing</code> is refused when the project has no QA step (<code>testing.enabled: false</code>).</p>
 
+<p>The <a href="page:dashboard#change-a-task-from-the-browser">dashboard</a> does the same with its <b>Force state</b> button.</p>
+
 <h2 id="adopt-an-existing-worktree">Adopt an existing worktree</h2>
 
 <pre><code class="language-bash">cd ~/dev/wallet-kit-worktrees/my-branch
@@ -109,7 +111,7 @@ pablo task:relaunch --only=task-analyst   # just one of them
   <dt><code>pablo task:retrigger-ci</code></dt>
   <dd>Re-runs the latest GitHub Actions run of each workflow on the task's branch, and puts the pull request back in draft while they run.</dd>
   <dt><code>pablo task:skip-ci</code></dt>
-  <dd>From <code>ci-red</code> only: ignores the failing checks and moves the task on to review. CI is ignored until the next <code>/pablo-commit-and-pr</code>.</dd>
+  <dd>From <code>ci-red</code> only: ignores the failing checks and moves the task on to review. CI is ignored until the next <code>/pablo-commit-and-pr</code>. The <a href="page:dashboard#change-a-task-from-the-browser">dashboard</a> shows a <b>Skip CI</b> button on <code>ci-red</code> tasks.</dd>
 </dl>
 
 <p>A check that <em>never</em> finishes (a manual deployment gate, for example) is better excluded for good with <a href="page:configuration#ci-ignore-checks"><code>ci.ignore_checks</code></a>.</p>

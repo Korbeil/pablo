@@ -9,8 +9,9 @@ use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Domain\State;
-use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
+use Pablo\Support\PabloError;
+use Pablo\Task\TaskStateChanger;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -21,7 +22,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class StateCommand extends Command
 {
     public function __construct(
-        private readonly StateMachine $stateMachine,
+        private readonly TaskStateChanger $changer,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -40,19 +41,13 @@ final class StateCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $store = $this->store();
         $state = State::tryFrom((string) $input->getArgument('state'));
         if (null === $state) {
-            throw new \Pablo\Support\PabloError('unknown state '.var_export($input->getArgument('state'), true));
+            throw new PabloError('unknown state '.var_export($input->getArgument('state'), true));
         }
         $ctx = $this->resolveCtx((string) $input->getOption('worktree'));
-        $lock = $store->taskLock($ctx->task->project, $ctx->task->branch);
-        try {
-            $this->stateMachine->enterState($ctx, $state, trigger: !$input->getOption('no-trigger'));
-        } finally {
-            $lock->release();
-        }
-        $output->writeln("{$ctx->task->branch}: state set to {$ctx->task->state->value}");
+        $task = $this->changer->forceState($ctx->task->project, $ctx->task->branch, $state, trigger: !$input->getOption('no-trigger'));
+        $output->writeln("{$task->branch}: state set to {$task->state->value}");
 
         return self::SUCCESS;
     }

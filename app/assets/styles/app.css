@@ -801,6 +801,35 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
     border-radius: var(--pablo-radius);
 }
 
+.pablo-modal.pablo-modal-narrow {
+    width: min(560px, 92vw);
+}
+
+.pablo-row-actions {
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+}
+
+.pablo-row-actions .button {
+    margin-bottom: 0;
+}
+
+.pablo-task-actions-flash {
+    margin-top: 1rem;
+}
+
+/* The New task button sits in the header row: its result floats as a toast,
+   bottom-right so it never covers the header buttons. */
+.notification.pablo-new-task-flash {
+    position: fixed;
+    bottom: 1rem;
+    right: 1rem;
+    z-index: 50;
+    max-width: min(560px, 92vw);
+    margin: 0;
+    box-shadow: 0 6px 24px rgb(0 0 0 / 18%);
+}
+
 .modal-card-head,
 .modal-card-foot {
     background: var(--pablo-card-2);

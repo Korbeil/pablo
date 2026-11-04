@@ -10,6 +10,7 @@ use Pablo\Task\TaskStarter;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
 use Symfony\UX\LiveComponent\Attribute\LiveAction;
 use Symfony\UX\LiveComponent\Attribute\LiveProp;
+use Symfony\UX\LiveComponent\ComponentToolsTrait;
 use Symfony\UX\LiveComponent\DefaultActionTrait;
 
 /**
@@ -29,6 +30,7 @@ use Symfony\UX\LiveComponent\DefaultActionTrait;
 #[AsLiveComponent]
 final class NewTaskModal
 {
+    use ComponentToolsTrait;
     use DefaultActionTrait;
 
     #[LiveProp(writable: true)]
@@ -73,9 +75,17 @@ final class NewTaskModal
         return $groups;
     }
 
+    /**
+     * Every opening starts from a blank form: the component outlives the
+     * modal, so without this a second use would show the previous text and
+     * message, and re-submit the previous issue.
+     */
     #[LiveAction]
     public function open(): void
     {
+        $this->text = '';
+        $this->error = null;
+        $this->message = null;
         $this->open = true;
     }
 
@@ -83,6 +93,13 @@ final class NewTaskModal
     public function close(): void
     {
         $this->open = false;
+        $this->error = null;
+    }
+
+    #[LiveAction]
+    public function dismiss(): void
+    {
+        $this->message = null;
     }
 
     #[LiveAction]
@@ -121,7 +138,9 @@ final class NewTaskModal
 
         try {
             $this->message = $this->render($this->starter->start($text, $project));
+            $this->text = '';
             $this->open = false;
+            $this->emit(TaskBoard::TASKS_CHANGED_EVENT);
         } catch (PabloError $e) {
             $this->error = $e->getMessage();
         }

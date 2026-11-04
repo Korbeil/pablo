@@ -14,6 +14,7 @@ use Pablo\Domain\Time;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
+use Pablo\Task\TaskStateChanger;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeAnalytics;
 use Pablo\Tests\FakeGhPr;
@@ -139,6 +140,11 @@ YAML,
             $this->tmp,
             $script,
         ));
+    }
+
+    protected function stateChanger(): TaskStateChanger
+    {
+        return new TaskStateChanger($this->stateMachine, $this->store, $this->projectsLoader, $this->agents);
     }
 
     protected function getTask(): Task

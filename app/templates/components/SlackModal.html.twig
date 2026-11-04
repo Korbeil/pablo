@@ -9,9 +9,13 @@
         <span>Slack messages</span>
     </button>
 
-    <div class="modal {{ this.open ? 'is-active' : '' }}">
-        <div class="modal-background"
-             data-action="live#action"
+    {# Escape closes it (modal_controller clicks the backdrop's close action). #}
+    <div class="modal {{ this.open ? 'is-active' : '' }}"
+         data-controller="modal"
+         data-action="keydown.esc@window->modal#close">
+        {# A <div> has no default Stimulus event: "click->" is required. #}
+        <div class="modal-background" data-modal-target="backdrop"
+             data-action="click->live#action"
              data-live-action-param="close"></div>
 
         <div class="modal-card pablo-modal">

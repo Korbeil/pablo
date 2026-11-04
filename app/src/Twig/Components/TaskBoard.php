@@ -10,6 +10,7 @@ use Pablo\Dashboard\TaskView;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
 use Symfony\UX\LiveComponent\Attribute\LiveAction;
 use Symfony\UX\LiveComponent\Attribute\LiveArg;
+use Symfony\UX\LiveComponent\Attribute\LiveListener;
 use Symfony\UX\LiveComponent\Attribute\LiveProp;
 use Symfony\UX\LiveComponent\ComponentToolsTrait;
 use Symfony\UX\LiveComponent\DefaultActionTrait;
@@ -32,6 +33,9 @@ final class TaskBoard
 
     /** Event broadcast to the other dashboard sections when the filter moves. */
     public const TYPE_CHANGED_EVENT = 'pablo:type-change';
+
+    /** Event a dashboard write (new task, force state, skip CI) sends to re-render the tables now. */
+    public const TASKS_CHANGED_EVENT = 'pablo:tasks-changed';
 
     public function __construct(private readonly Dashboard $dashboard)
     {
@@ -61,6 +65,15 @@ final class TaskBoard
     {
         $this->type = $type;
         $this->emit(self::TYPE_CHANGED_EVENT, ['type' => $type]);
+    }
+
+    /**
+     * A task was started or changed from the dashboard: re-render now
+     * instead of waiting up to POLL_MS for the poll to show it.
+     */
+    #[LiveListener(self::TASKS_CHANGED_EVENT)]
+    public function onTaskChanged(): void
+    {
     }
 
     private ?Board $board = null;

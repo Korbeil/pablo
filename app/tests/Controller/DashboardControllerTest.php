@@ -161,7 +161,7 @@ final class DashboardControllerTest extends WebTestCase
         $this->assertStringContainsString('Nothing is waiting on you right now', $crawler->text());
     }
 
-    /** All four live components must be mounted (the new-task modal is the dashboard's one write exception, Slack modal the one network exception). */
+    /** Every live component must be mounted (the new-task and task-actions modals are the dashboard's write exceptions, Slack modal the network exception). */
     public function testLiveComponentsAreMounted(): void
     {
         $crawler = $this->browser()->request('GET', '/');
@@ -170,7 +170,7 @@ final class DashboardControllerTest extends WebTestCase
             ->each(static fn ($n) => $n->attr('data-live-name-value'));
 
         sort($names);
-        $this->assertSame(['NewTaskModal', 'PollProgress', 'RebaseLog', 'SlackModal', 'TaskBoard'], $names);
+        $this->assertSame(['NewTaskModal', 'PollProgress', 'RebaseLog', 'SlackModal', 'TaskActionsModal', 'TaskBoard'], $names);
     }
 
     /** The theme switcher must be mounted with its three state glyphs. */

@@ -1,0 +1,90 @@
+{# @var this \Pablo\Twig\Components\TaskActionsModal #}
+{% set skipCi = this.mode == constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_SKIP_CI') %}
+<div {{ attributes }}>
+    {% if this.message %}
+        <div class="notification is-success is-light pablo-task-actions-flash">
+            <button class="delete" aria-label="dismiss" {{ live_action('dismiss') }}></button>
+            {{ ux_icon('lucide:check', {class: 'pablo-icon'}) }}
+            {{ this.message }}
+        </div>
+    {% endif %}
+
+    {# Escape closes it (modal_controller clicks the backdrop's close action). #}
+    <div class="modal {{ this.open ? 'is-active' : '' }}"
+         data-controller="modal"
+         data-action="keydown.esc@window->modal#close">
+        {# A <div> has no default Stimulus event: "click->" is required. #}
+        <div class="modal-background" data-modal-target="backdrop"
+             data-action="click->live#action"
+             data-live-action-param="close"></div>
+
+        <div class="modal-card pablo-modal pablo-modal-narrow">
+            <header class="modal-card-head">
+                <p class="modal-card-title">
+                    {% if skipCi %}
+                        {{ ux_icon('lucide:ban', {class: 'pablo-icon'}) }}
+                        Skip CI
+                    {% else %}
+                        {{ ux_icon('lucide:repeat', {class: 'pablo-icon'}) }}
+                        Force state
+                    {% endif %}
+                </p>
+                <button class="delete" aria-label="close" {{ live_action('close') }}></button>
+            </header>
+
+            <section class="modal-card-body">
+                {% if this.error %}
+                    <div class="notification is-danger is-light">
+                        {{ ux_icon('lucide:triangle-alert', {class: 'pablo-icon'}) }}
+                        {{ this.error }}
+                    </div>
+                {% endif %}
+
+                <p class="block">
+                    <span class="has-text-grey">{{ this.project }}</span>
+                    <code>{{ this.branch }}</code>
+                    — currently <span class="tag pablo-chip">{{ this.currentState }}</span>
+                </p>
+
+                {% if skipCi %}
+                    <p>Ignore the failing CI checks on <code>{{ this.branch }}</code> and move it to <b>ready-to-review</b>? They stay ignored until the next <code>/pablo-commit-and-pr</code>.</p>
+                {% else %}
+                    <div class="field">
+                        <label class="label">New state</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                <select name="target" data-model="target">
+                                    <option value="">— pick a state —</option>
+                                    {% for state in this.states %}
+                                        <option value="{{ state.value }}"
+                                                {{ state.value == this.currentState ? 'disabled' : '' }}
+                                                {{ state.value == this.target ? 'selected' : '' }}>{{ state.value }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="field">
+                        <label class="checkbox">
+                            <input type="checkbox" name="trigger" data-model="trigger" {{ this.trigger ? 'checked' : '' }}>
+                            Run the state's triggers
+                        </label>
+                        <p class="help">Unchecked only records the new state, like <code>--no-trigger</code> (waiting always remembers the previous state).</p>
+                    </div>
+                {% endif %}
+            </section>
+
+            <footer class="modal-card-foot">
+                <div class="buttons">
+                    <button class="button {{ skipCi ? 'is-warning' : 'is-primary' }}"
+                            {{ live_action('confirm') }}
+                            data-loading="addClass(is-loading)">
+                        {{ ux_icon('lucide:check', {class: 'pablo-icon'}) }}
+                        <span>Confirm</span>
+                    </button>
+                    <button class="button" {{ live_action('close') }}>Cancel</button>
+                </div>
+            </footer>
+        </div>
+    </div>
+</div>
