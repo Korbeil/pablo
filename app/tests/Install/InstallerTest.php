@@ -234,6 +234,51 @@ final class InstallerTest extends TestCase
         $this->assertFileExists($this->installDir.'/NEW');
     }
 
+    public function testAlreadyInstalledStopsAndNamesTheInstallDirectory(): void
+    {
+        $this->fakeTool('claude');
+        $this->fakeTool('pablo', "exec php '/opt/elsewhere/pablo/app/bin/pablo' \"\$@\"");
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertNotSame(0, $process->getExitCode());
+        $this->assertStringContainsString(
+            'PABLO is already installed in /opt/elsewhere/pablo (command: '.$this->sandbox.'/path/pablo)',
+            $this->outputOf($process),
+        );
+        $this->assertStringContainsString('bash /opt/elsewhere/pablo/bin/uninstall.sh', $this->outputOf($process));
+        $this->assertDirectoryDoesNotExist($this->installDir);
+        $this->assertFileDoesNotExist($this->sandbox.'/home/install-args');
+    }
+
+    public function testShimOffThePathStillCountsAsInstalled(): void
+    {
+        $this->fakeTool('claude');
+        mkdir($this->sandbox.'/home/.local/bin', 0o777, true);
+        file_put_contents(
+            $this->sandbox.'/home/.local/bin/pablo',
+            "#!/usr/bin/env bash\nexec php '{$this->sandbox}/old/app/bin/pablo' \"\$@\"\n",
+        );
+
+        $process = $this->interactive("{$this->installDir}\n\n\n\n");
+
+        $this->assertNotSame(0, $process->getExitCode());
+        $this->assertStringContainsString("PABLO is already installed in {$this->sandbox}/old", $this->outputOf($process));
+        $this->assertStringNotContainsString('Where should PABLO be installed?', $this->outputOf($process));
+        $this->assertDirectoryDoesNotExist($this->installDir);
+    }
+
+    public function testUnknownPabloCommandIsReportedByItsPath(): void
+    {
+        $this->fakeTool('claude');
+        $this->fakeTool('pablo');
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertNotSame(0, $process->getExitCode());
+        $this->assertStringContainsString('PABLO is already installed: '.$this->sandbox.'/path/pablo.', $this->outputOf($process));
+    }
+
     public function testRefInstallsThatBranch(): void
     {
         $this->fakeTool('claude');

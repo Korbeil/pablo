@@ -4,7 +4,9 @@
 #   curl -fsSL https://getpablo.dev/installer | bash
 #   curl -fsSL https://getpablo.dev/installer | bash -s -- --install-dir ~/pablo --runtime claude-code
 #
-# It checks the prerequisites, clones (or updates) PABLO in a user directory,
+# It stops when PABLO is already installed (a `pablo` command on the PATH or in
+# ~/.local/bin), checks the prerequisites, clones (or, for a checkout whose
+# install never finished, updates) PABLO in a user directory,
 # detects the agent runtimes (OpenCode, Claude Code, GitHub Copilot CLI) and the
 # agent development environments (Orca, OpenChamber) that are installed, asks
 # which ones to use, then hands over to bin/install.sh from the checkout.
@@ -190,6 +192,34 @@ config_value() { # config_value <key>: a top-level key of an existing ~/.pablo/c
     if [ -f "$file" ]; then
         sed -n "s/^$1:[[:space:]]*[\"']\{0,1\}\([^\"'#[:space:]]*\).*\$/\1/p" "$file" | head -n 1
     fi
+}
+
+check_not_installed() {
+    local shim="" target="" dir=""
+    if command -v pablo >/dev/null 2>&1; then
+        shim="$(command -v pablo)"
+    elif [ -e "$HOME/.local/bin/pablo" ]; then
+        shim="$HOME/.local/bin/pablo"
+    else
+        return 0
+    fi
+
+    # bin/install.sh writes the shim as: exec php '<checkout>/app/bin/pablo' "$@"
+    if [ -f "$shim" ]; then
+        target="$(sed -n "s/^exec php '\(.*\)' .*\$/\1/p" "$shim" 2>/dev/null | head -n 1)"
+    fi
+    case "$target" in
+    */app/bin/pablo) dir="${target%/app/bin/pablo}" ;;
+    esac
+
+    if [ -n "$dir" ]; then
+        output "\nPABLO is already installed in $dir (command: $shim)." error >&2
+        output "  Update     git -C $dir pull --ff-only && bash $dir/bin/install.sh" >&2
+        output "  Uninstall  bash $dir/bin/uninstall.sh" >&2
+    else
+        output "\nPABLO is already installed: $shim." error >&2
+    fi
+    exit 1
 }
 
 php_is_recent_enough() {
@@ -504,6 +534,7 @@ main() {
     *) fail "Unknown --backend '$BACKEND' (expected orca, openchamber or headless)." ;;
     esac
 
+    check_not_installed
     setup_interaction
     check_environment
     choose_install_dir
@@ -536,7 +567,7 @@ main() {
 
     output "\nPABLO was installed successfully!" success
     output "  Installed in  $INSTALL_DIR"
-    output "  Update        run this installer again"
+    output "  Update        git -C $INSTALL_DIR pull --ff-only && bash $INSTALL_DIR/bin/install.sh"
     output "  Uninstall     bash $INSTALL_DIR/bin/uninstall.sh"
 }
 

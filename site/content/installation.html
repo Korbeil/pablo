@@ -66,7 +66,7 @@
   </tbody>
 </table>
 
-<p>Running it again updates the checkout (<code>git pull --ff-only</code>) and re-applies the install, so it is also how you <a href="#update">update</a>. It refuses a directory that is not empty and is not a PABLO checkout.</p>
+<p>It is for a first install only: when PABLO is already installed (a <code>pablo</code> command on your <code>PATH</code> or in <code>~/.local/bin</code>), it stops with an error naming the installed checkout, and prints how to <a href="#update">update</a> or uninstall it. It refuses a directory that is not empty and is not a PABLO checkout, and updates a PABLO checkout whose install never finished.</p>
 
 <h3>From a clone</h3>
 
@@ -107,7 +107,7 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
 
 <h2 id="claude-code">With Claude Code</h2>
 
-<p>Set <code>agent_runtime: claude-code</code> and a Claude model in <code>~/.pablo/config.yaml</code> (a first install does it when it finds <code>claude</code> but no <code>opencode</code>), then <a href="#install">run the installer</a> again, or let it set both for you with <code>--runtime claude-code</code>:</p>
+<p>Set <code>agent_runtime: claude-code</code> and a Claude model in <code>~/.pablo/config.yaml</code> (a first install does it when it finds <code>claude</code> but no <code>opencode</code>), then run <code>bin/install.sh</code> from your checkout again, or let it set both for you with <code>--runtime claude-code</code>:</p>
 
 <pre><code class="language-yaml">agent_runtime: claude-code
 default_model: sonnet        # or opus, haiku, or a full model id
@@ -122,7 +122,7 @@ default_model: sonnet        # or opus, haiku, or a full model id
 
 <h2 id="copilot">With GitHub Copilot CLI</h2>
 
-<p>Set <code>agent_runtime: copilot</code> and a Copilot model in <code>~/.pablo/config.yaml</code> (a first install does it when it finds <code>copilot</code> but neither <code>opencode</code> nor <code>claude</code>), then <a href="#install">run the installer</a> again, or let it set both for you with <code>--runtime copilot</code>:</p>
+<p>Set <code>agent_runtime: copilot</code> and a Copilot model in <code>~/.pablo/config.yaml</code> (a first install does it when it finds <code>copilot</code> but neither <code>opencode</code> nor <code>claude</code>), then run <code>bin/install.sh</code> from your checkout again, or let it set both for you with <code>--runtime copilot</code>:</p>
 
 <pre><code class="language-yaml">agent_runtime: copilot
 default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-codex
@@ -135,11 +135,11 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
   <li><b>Backend.</b> Use Orca, or no backend (headless). OpenChamber can't run Copilot; the doctor reports it.</li>
 </ul>
 
-<p>Switching runtime later works the same way: run the installer again with <code>--runtime</code> (or change <code>agent_runtime</code> and run it without). The other runtimes' links stay in place until <code>./bin/uninstall.sh</code>; they're harmless.</p>
+<p>Switching runtime later works the same way: run <code>bin/install.sh</code> again with <code>--runtime</code> (or change <code>agent_runtime</code> and run it without). The other runtimes' links stay in place until <code>./bin/uninstall.sh</code>; they're harmless.</p>
 
 <h2 id="choose-an-agent-runtime">Choose an agent runtime</h2>
 
-<p>The runtime is the program that runs the agents: OpenCode, Claude Code or GitHub Copilot CLI. The installer lists the ones it finds on your <code>PATH</code> and asks which to use. With a single one it takes it without asking, and with none it stops. To change it later, see <a href="#claude-code">With Claude Code</a> and <a href="#copilot">With GitHub Copilot CLI</a>, or run the installer again with <code>--runtime</code>.</p>
+<p>The runtime is the program that runs the agents: OpenCode, Claude Code or GitHub Copilot CLI. The installer lists the ones it finds on your <code>PATH</code> and asks which to use. With a single one it takes it without asking, and with none it stops. To change it later, see <a href="#claude-code">With Claude Code</a> and <a href="#copilot">With GitHub Copilot CLI</a>, or run <code>bin/install.sh</code> again with <code>--runtime</code>.</p>
 
 <h2>Choose an agent backend</h2>
 
@@ -198,14 +198,12 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
 
 <h2 id="update">Update</h2>
 
-<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash
-# or, from your clone:
-cd pablo
-git pull
+<pre><code class="language-bash">cd ~/.local/share/pablo   # or your clone, or the directory the installer's error names
+git pull --ff-only
 ./bin/install.sh
 </code></pre>
 
-<p>Re-running the installer picks up new dependencies, new agents and new links. Your data in <code>~/.pablo/</code> is never touched.</p>
+<p>The <code>curl | bash</code> installer does not update: it stops when PABLO is already installed. Re-running <code>bin/install.sh</code> picks up new dependencies, new agents and new links. Your data in <code>~/.pablo/</code> is never touched.</p>
 
 <aside class="callout note"><p>The dashboard service is now installed by default, so an update also starts it. Add <code>--without-web</code> to keep it off.</p></aside>
 
