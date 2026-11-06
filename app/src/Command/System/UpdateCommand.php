@@ -9,19 +9,22 @@ use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Store\Store;
+use Pablo\Support\PabloError;
 use Pablo\Update\Updater;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Updates PABLO with PABLO: replaces the running binary with the latest
- * release for this OS and architecture (see Updater), then runs
+ * release for this OS and architecture — or the release named as argument,
+ * older ones included (see Updater) — then runs
  * `system:install` with the new binary so agents, links and services follow
  * and the dashboard restarts on it.
  */
-#[AsCommand(name: 'system:update', description: 'update the pablo binary to the latest release, then re-run system:install', aliases: ['update'])]
+#[AsCommand(name: 'system:update', description: 'update the pablo binary to the latest release (or the one given), then re-run system:install', aliases: ['update'])]
 final class UpdateCommand extends Command
 {
     public function __construct(
@@ -37,6 +40,7 @@ final class UpdateCommand extends Command
     protected function configure(): void
     {
         $this
+            ->addArgument('release', InputArgument::OPTIONAL, 'the release to install, by name (e.g. 5b34e92; default: the latest)')
             ->addOption('check', null, InputOption::VALUE_NONE, 'only tell whether a newer release exists')
             ->addOption('no-install', null, InputOption::VALUE_NONE, 'replace the binary but do not run system:install afterwards');
     }
@@ -55,20 +59,37 @@ final class UpdateCommand extends Command
         }
 
         $current = $this->updater->currentVersion();
-        $latest = $this->updater->latestVersion();
-        if (!Updater::isNewer($latest, $current)) {
-            $output->writeln("PABLO <info>{$current}</info> is up to date (latest release: {$latest}).");
+        $requested = $input->getArgument('release');
+        $requested = \is_string($requested) && '' !== $requested ? $requested : null;
 
-            return self::SUCCESS;
+        if (null !== $requested) {
+            // An explicit release is installed as asked, older ones included.
+            $target = $requested;
+            if ($target === $current) {
+                $output->writeln("PABLO <info>{$current}</info> is already the running release.");
+
+                return self::SUCCESS;
+            }
+        } else {
+            $target = $this->updater->latestVersion();
+            if (!Updater::isNewer($target, $current)) {
+                $output->writeln("PABLO <info>{$current}</info> is up to date (latest release: {$target}).");
+
+                return self::SUCCESS;
+            }
         }
         if ($input->getOption('check')) {
-            $output->writeln("PABLO <info>{$latest}</info> is available (installed: {$current}). Run <info>pablo update</info>.");
+            $output->writeln("PABLO <info>{$target}</info> is available (installed: {$current}). Run <info>pablo update".(null !== $requested ? ' '.$target : '').'</info>.');
 
             return self::SUCCESS;
         }
 
-        $this->updater->update($latest, $info);
-        $output->writeln("PABLO updated: {$current} → <info>{$latest}</info>");
+        try {
+            $this->updater->update($target, $info);
+        } catch (PabloError $e) {
+            throw null !== $requested ? new PabloError($e->getMessage()." (is {$target} a PABLO release? See castor release:list or https://github.com/Korbeil/pablo/releases)") : $e;
+        }
+        $output->writeln("PABLO updated: {$current} → <info>{$target}</info>");
 
         if ($input->getOption('no-install')) {
             $output->writeln('Run <info>pablo system:install</info> to refresh the agents and restart the services.');

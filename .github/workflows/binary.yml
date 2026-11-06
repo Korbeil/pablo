@@ -1,21 +1,35 @@
 name: Binary
 # The standalone `pablo` binary: a Box phar of the app combined with a static
 # PHP (static-php-cli micro.sfx), per OS/arch. Built on every pull request
-# (nothing published), on demand, and on v* tags — where the binaries and
-# their sha256sums.txt are attached to the GitHub Release that
-# https://getpablo.dev/installer downloads from.
+# (nothing published) and on demand.
+#
+# Releases: `castor release:create` dispatches this workflow on main with
+# release=true. Only once the four builds pass does the release job create a
+# GitHub Release named after the commit's short hash (tag and title), with
+# the binaries and their sha256sums.txt, flagged "latest" unless latest=false.
+# Creating the release last means `releases/latest` (what
+# https://getpablo.dev/installer and `pablo update` read) never points at a
+# release without binaries.
 #
 # Same steps as `castor build:binary` (castor.php); keep EXTENSIONS and the
 # micro:combine ini in step with BINARY_EXTENSIONS / BINARY_INI there.
 on:
-  push:
-    tags: [ "v*" ]
   pull_request: ~
-  workflow_dispatch: ~
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a GitHub Release named after the commit's short hash (main only)"
+        type: boolean
+        default: false
+      latest:
+        description: "Flag that release as the latest one (what the installer and pablo update install)"
+        type: boolean
+        default: true
 
 concurrency:
   group: binary-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a release run halfway.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -145,12 +159,24 @@ jobs:
 
   release:
     name: release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'workflow_dispatch' && inputs.release && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: checkout
+        uses: actions/checkout@v7
+        with:
+          # Full history, as in the build job: %h's length depends on it.
+          fetch-depth: 0
+
+      # The same short hash Box wrote into the binaries (`git-version` falls
+      # back to `git log --pretty=%h` on an untagged commit).
+      - name: release name
+        id: name
+        run: echo "tag=$(git log --pretty=%h -n1 HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: download the binaries
         uses: actions/download-artifact@v5
         with:
@@ -166,9 +192,18 @@ jobs:
           cat sha256sums.txt
 
       - name: publish
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            release/pablo-*
-            release/sha256sums.txt
-          fail_on_unmatched_files: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.name.outputs.tag }}
+          LATEST: ${{ inputs.latest }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "release $TAG already exists" >&2
+            exit 1
+          fi
+          gh release create "$TAG" release/pablo-* release/sha256sums.txt \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --generate-notes \
+            --latest="$LATEST"

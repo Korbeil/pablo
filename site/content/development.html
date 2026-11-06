@@ -92,7 +92,16 @@ castor build:binary --micro=path/to/micro.sfx --spc=spc  # + dist/pablo, the sta
 
 <p>The task builds from a copy in <code>dist/stage/</code>, so your <code>app/vendor/</code> keeps its dev tools and no compiled assets land in <code>app/public/assets/</code> (they would shadow the dev AssetMapper). Build a <code>micro.sfx</code> once with static-php-cli; the task prints the commands. The extensions are <code>phar, ctype, iconv, mbstring, tokenizer, filter, posix, pcntl, dom, xml, zlib, openssl</code>. OPcache is not enabled in the binary: with PHP 8.5's micro, <code>opcache.enable_cli=1</code> crashes at startup.</p>
 
-<p><code>.github/workflows/binary.yml</code> builds <code>pablo-linux-x86_64</code>, <code>pablo-linux-aarch64</code>, <code>pablo-macos-arm64</code> and <code>pablo-macos-x86_64</code> on every pull request (nothing is published), smoke-tests each one (on Linux in a <code>debian:stable-slim</code> container without PHP), and on a <code>v*</code> tag attaches them with <code>sha256sums.txt</code> to the GitHub release the installer downloads from.</p>
+<p><code>.github/workflows/binary.yml</code> builds <code>pablo-linux-x86_64</code>, <code>pablo-linux-aarch64</code>, <code>pablo-macos-arm64</code> and <code>pablo-macos-x86_64</code> on every pull request (nothing is published) and smoke-tests each one (on Linux in a <code>debian:stable-slim</code> container without PHP).</p>
+
+<h3 id="releasing">Releasing</h3>
+
+<pre><code class="language-bash">castor release:create              # release main's last commit, flagged latest
+castor release:create --no-latest  # publish it without making it the one users get
+castor release:list                # the last 10 releases (--limit to see more)
+</code></pre>
+
+<p>A release is named after the short hash of the last commit on <code>main</code> (tag and title), which is also what its binaries report with <code>pablo --version</code>. The task starts the Binary workflow on <code>main</code>; only once the four builds pass does the workflow create the release, with the binaries and <code>sha256sums.txt</code>, so the release the installer and <code>pablo update</code> pick (the one flagged <em>latest</em>) always has its binaries. It needs the <code>gh</code> CLI, logged in with write access to the repository, and refuses a commit that already has a release. A release published without the latest flag can still be installed by name: <code>pablo update &lt;release&gt;</code>.</p>
 
 <h2>Tests</h2>
 

@@ -114,9 +114,58 @@ final class UpdateCommandTest extends TestCase
         $this->assertSame([], $this->runner->probeCalls);
     }
 
+    public function testANamedReleaseIsInstalledWithoutAskingForTheLatest(): void
+    {
+        $tester = $this->runUpdate(['release' => 'abc1234']);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertStringContainsString('PABLO updated: v1.0.0 → abc1234', $tester->getDisplay());
+        $this->assertNotContains('-fsSLI', array_merge(...$this->runner->probeCalls), 'the latest release is not looked up');
+        $this->assertContains(['curl', '-fsSL', '-o', $this->downloadedTo(), Updater::DEFAULT_RELEASES_URL.'/download/abc1234/pablo-linux-x86_64'], $this->runner->probeCalls);
+    }
+
+    public function testANamedReleaseCanBeOlderThanTheRunningOne(): void
+    {
+        $tester = $this->runUpdate(['release' => 'v0.9.0']);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertStringContainsString('PABLO updated: v1.0.0 → v0.9.0', $tester->getDisplay());
+    }
+
+    public function testTheRunningReleaseIsNotReinstalled(): void
+    {
+        $tester = $this->runUpdate(['release' => 'v1.0.0']);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString('already the running release', $tester->getDisplay());
+        $this->assertSame([], $this->runner->probeCalls);
+    }
+
+    public function testAnUnknownReleaseIsReportedAsSuch(): void
+    {
+        $this->runner->onProbe = static fn (array $argv): ProbeResult => new ProbeResult(22, 'curl: (22) The requested URL returned error: 404');
+
+        $tester = $this->runUpdate(['release' => 'nope123']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('is nope123 a PABLO release?', $tester->getDisplay());
+        $this->assertSame("OLD\n", file_get_contents($this->binary));
+    }
+
     public function testIsAlsoCalledUpdate(): void
     {
         $this->assertContains('update', $this->command(new Updater($this->runner))->getAliases());
+    }
+
+    /** Where the fake curl call for the binary wrote it (the temporary dir is random). */
+    private function downloadedTo(): string
+    {
+        foreach ($this->runner->probeCalls as $argv) {
+            if ('curl' === $argv[0] && '-o' === ($argv[2] ?? null) && str_ends_with($argv[4] ?? '', 'pablo-linux-x86_64')) {
+                return $argv[3];
+            }
+        }
+        $this->fail('the binary was never downloaded');
     }
 
     /** @param array<string, mixed> $input */
