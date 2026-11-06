@@ -93,7 +93,7 @@ final class Backup
 
         return new Manifest(
             version: self::MANIFEST_VERSION,
-            pabloVersion: ConsoleApplication::VERSION,
+            pabloVersion: ConsoleApplication::version(),
             createdAt: $this->time->utcnow(),
             pabloRoot: $pabloRoot,
             projects: $projectList,

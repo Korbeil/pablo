@@ -14,8 +14,15 @@
 ├── analytics/&lt;project&gt;/YYYY-MM.jsonl # analytics events
 ├── logs/                             # sync logs (rebase-last-&lt;project&gt;.json), macOS service logs
 ├── cache/                            # small lookup caches (e.g. Jira site ids)
+│   └── container/&lt;version&gt;/          # the binary's compiled application cache, one per version
+├── runtime/                          # generated: the agents, commands and skills linked into your runtime
+│   ├── opencode/{agents,commands,skills}/
+│   ├── claude/{agents,commands}/ + agents.json   # agent_runtime: claude-code
+│   └── copilot/{agents,skills}/                  # agent_runtime: copilot
 └── worktrees/&lt;repo folder name&gt;/     # task worktrees, unless worktrees_root is set
 </code></pre>
+
+<p><code>runtime/</code> and <code>cache/container/</code> are generated: <code>pablo system:install</code> recreates them, and <code>pablo system:uninstall</code> removes them along with the links pointing into <code>runtime/</code>.</p>
 
 <p>Backups go to <code>~/.pablo-backups/</code> by default (see <a href="page:backups">Backups</a>). Each part can be moved with an <a href="page:configuration#environment-variables">environment variable</a>.</p>
 

@@ -6,25 +6,23 @@
 
 <pre><code class="language-text">pablo/
 ├── app/                  # the Symfony application (Composer package "pablo")
-│   ├── bin/pablo         # the pablo command (PABLO commands only)
+│   ├── bin/pablo         # the pablo command (PABLO commands only); the binary's entry point
 │   ├── bin/console       # framework maintenance: cache:clear, lint:twig, debug:router…
-│   ├── public/index.php  # the dashboard's front controller (pablo web)
+│   ├── box.json          # how the binary's phar is built (Box)
+│   ├── public/index.php  # front controller for a regular PHP server (pablo web does not use it)
 │   ├── config/           # bundles, services, routes, packages/
 │   ├── src/              # the engine
 │   ├── templates/        # Twig: dashboard pages and components
 │   ├── assets/           # dashboard JS, CSS, fonts, icons, vendored libraries
 │   └── tests/            # PHPUnit, mirroring src/
-├── bin/install.sh        # installer run from a checkout (and uninstall.sh)
-├── examples/             # example global and project configuration
+├── examples/             # example global and project configuration (config.yaml is bundled in the binary)
 ├── opencode/             # agent templates, the commit command, the skill (the single source for every runtime)
-├── claude/               # generated, git-ignored: the Claude Code rendering of the command
-├── copilot/              # generated, git-ignored: the Copilot agent files and skill
-├── systemd/, launchd/    # scheduler and dashboard service definitions
+├── systemd/, launchd/    # scheduler and dashboard service definitions, written by pablo system:install
 ├── site/                 # this website; site/installer is the curl | bash installer, served at /installer
-└── castor.php            # quality tasks
+└── castor.php            # quality and build tasks
 </code></pre>
 
-<p>Nothing is ever written outside the repository except the links the installer creates and the data in <code>~/.pablo/</code>.</p>
+<p>The binary is the same tree packed into one file. Nothing is ever written into the repository (or the binary) at runtime: rendered agents go to <code>~/.pablo/runtime/</code>, and the only other files outside <code>~/.pablo/</code> are the links, service files and <code>PATH</code> block <code>pablo system:install</code> creates.</p>
 
 <h2>Engine modules</h2>
 
@@ -45,6 +43,8 @@
     <tr><td><code>Analytics/</code></td><td>the JSONL event log, reader and aggregator</td></tr>
     <tr><td><code>Listing/</code></td><td>the terminal tables</td></tr>
     <tr><td><code>Dashboard/</code>, <code>Controller/</code>, <code>Twig/Components/</code></td><td>the dashboard</td></tr>
+    <tr><td><code>Web/</code></td><td>the dashboard's HTTP server (<code>pablo web</code>)</td></tr>
+    <tr><td><code>Install/</code></td><td><code>pablo system:install</code> / <code>system:uninstall</code>: config seeding, links, <code>PATH</code> block, the systemd and launchd schedulers</td></tr>
     <tr><td><code>Doctor/</code>, <code>Dispatch/</code>, <code>Backup/</code>, <code>Support/</code></td><td>preflight checks, the background job, backups, helpers</td></tr>
   </tbody>
 </table>
@@ -52,14 +52,16 @@
 <h2>Architecture notes</h2>
 
 <ul>
-  <li><b>One kernel, three entry points.</b> <code>bin/pablo</code>, <code>bin/console</code> and <code>public/index.php</code> share one FrameworkBundle kernel, whose container is cached in <code>app/var/cache/&lt;env&gt;</code>. <code>PABLO_ENV</code> defaults to <code>dev</code> so the cache is revalidated after a <code>git pull</code>.</li>
+  <li><b>One kernel, three entry points.</b> <code>bin/pablo</code>, <code>bin/console</code> and the dashboard share one FrameworkBundle kernel. From a checkout its container is cached in <code>app/var/cache/&lt;env&gt;</code> and <code>PABLO_ENV</code> defaults to <code>dev</code>, so the cache is revalidated after a <code>git pull</code>. From the binary (a read-only phar) it is cached in <code>~/.pablo/cache/container/&lt;version&gt;/&lt;env&gt;-&lt;hash&gt;</code> and <code>PABLO_ENV</code> defaults to <code>prod</code>: a new version never reuses an old container.</li>
+  <li><b>Bundled files are read-only.</b> Templates, service files and the example config may sit inside the binary: read them through <code>PabloPaths::resourcesDir()</code>, list them with <code>Support\Files::list()</code> (<code>glob()</code> sees nothing inside a phar), and write whatever is rendered from them under <code>~/.pablo/runtime/</code>.</li>
+  <li><b>The dashboard server</b> (<code>Web\Server</code>) is plain PHP, used from a checkout and from the binary alike: 127.0.0.1 only, four pre-forked workers that each boot the kernel once, one request per connection. A service that memoises something must implement <code>ResetInterface</code>, which the kernel calls between two requests.</li>
   <li><b>Never resolve a <code>PABLO_*</code> variable (or <code>HOME</code>) when the container is compiled</b>: the value would be frozen into the cache. <code>Store</code> and <code>Agents</code> resolve their paths in their constructors for this reason.</li>
   <li><b><code>pablo --help</code> lists PABLO commands only</b>: the console application collects the <code>pablo.command</code> tag, not <code>console.command</code>.</li>
   <li><b>Add a state</b>: a case in <code>Domain/State.php</code> and a row in <code>StateMachine::states()</code>. Always change state through <code>StateMachine::enterState()</code>, never by setting the field.</li>
   <li><b>Add an issue tracker</b>: implement <code>ProviderInterface</code> and register it in <code>ProviderRegistry</code>.</li>
   <li><b>Terminal and dashboard can't drift</b>: both render the same value objects (<code>PrBadge</code>, <code>AgentActivity</code>) and use the same rules (<code>Listing::isWaitingForFeedback()</code>, <code>Listing::stateRank()</code>).</li>
   <li><b>The dashboard never calls external tools while rendering</b>: it reads the poller's <code>DisplayCache</code>. Analytics come from <code>AnalyticsAggregator</code>, shared with <code>pablo stats</code>.</li>
-  <li><b>Portability</b>: the engine runs on Linux and macOS. <code>tests/PortabilityTest.php</code> fails if <code>src/</code> mentions <code>systemctl</code>, <code>journalctl</code>, <code>/etc/</code>, <code>/proc/</code> or <code>/opt/</code>.</li>
+  <li><b>Portability</b>: the engine runs on Linux and macOS. <code>tests/PortabilityTest.php</code> fails if <code>src/</code> mentions <code>systemctl</code>, <code>journalctl</code>, <code>/etc/</code>, <code>/proc/</code> or <code>/opt/</code>, except in <code>Install/Scheduler/SystemdScheduler.php</code>, which only ever runs on Linux.</li>
 </ul>
 
 <h2>Quality checks</h2>
@@ -77,7 +79,19 @@ php app/bin/console lint:twig app/templates
 
 <p>PHPStan runs at level 8 over <code>src</code>, <code>tests</code>, <code>config</code> and <code>public</code>. Raise the level by fixing what it reports, never by ignoring errors or adding them to the baseline. php-cs-fixer runs with <code>--path-mode intersection</code>: a new top-level folder has to be added to both <code>castor.php</code> and <code>app/.php-cs-fixer.php</code>.</p>
 
-<p>CI (<code>.github/workflows/ci.yml</code>) runs the tests, PHPStan and the coding-style check on every push to <code>main</code> and every pull request.</p>
+<p>CI (<code>.github/workflows/ci.yml</code>) runs the tests, PHPStan and the coding-style check on every push to <code>main</code> and every pull request, from a checkout. <code>.github/workflows/binary.yml</code> builds the binaries (see below).</p>
+
+<h2 id="the-standalone-binary">The standalone binary</h2>
+
+<p>What users install is one file per platform: the application packed into a phar by <a href="https://box-project.github.io/box/">Box</a> (<code>app/box.json</code>), appended to a static PHP built by <a href="https://static-php.dev/">static-php-cli</a> (<code>micro.sfx</code>). It carries everything: <code>vendor/</code> without dev dependencies, the compiled dashboard assets (<code>asset-map:compile</code>), the agent templates, the service files and <code>examples/config.yaml</code>. Its version is the git tag (or the short commit hash), and a checkout reports <code>dev</code>.</p>
+
+<pre><code class="language-bash">castor build:binary                                    # dist/pablo.phar (needs a PHP to run)
+castor build:binary --micro=path/to/micro.sfx --spc=spc  # + dist/pablo, the standalone binary
+</code></pre>
+
+<p>The task builds from a copy in <code>dist/stage/</code>, so your <code>app/vendor/</code> keeps its dev tools and no compiled assets land in <code>app/public/assets/</code> (they would shadow the dev AssetMapper). Build a <code>micro.sfx</code> once with static-php-cli; the task prints the commands. The extensions are <code>phar, ctype, iconv, mbstring, tokenizer, filter, posix, pcntl, dom, xml, zlib, openssl</code>. OPcache is not enabled in the binary: with PHP 8.5's micro, <code>opcache.enable_cli=1</code> crashes at startup.</p>
+
+<p><code>.github/workflows/binary.yml</code> builds <code>pablo-linux-x86_64</code>, <code>pablo-linux-aarch64</code>, <code>pablo-macos-arm64</code> and <code>pablo-macos-x86_64</code> on every pull request (nothing is published), smoke-tests each one (on Linux in a <code>debian:stable-slim</code> container without PHP), and on a <code>v*</code> tag attaches them with <code>sha256sums.txt</code> to the GitHub release the installer downloads from.</p>
 
 <h2>Tests</h2>
 
@@ -98,7 +112,7 @@ php app/bin/console ux:icons:import lucide:name  # add an icon, then commit it
 </code></pre>
 
 <ul>
-  <li><code>app/assets/vendor/</code> must stay committed: the installer never runs <code>importmap:install</code>, so a missing file means a dashboard without JavaScript. (The root <code>.gitignore</code> only ignores <code>/app/vendor/</code> for that reason.)</li>
+  <li><code>app/assets/vendor/</code> must stay committed: neither the binary build nor an install runs <code>importmap:install</code>, so a missing file means a dashboard without JavaScript. (The root <code>.gitignore</code> only ignores <code>/app/vendor/</code> for that reason.)</li>
   <li>Icons are Lucide icons committed in <code>app/assets/icons/</code>, with online downloads disabled.</li>
   <li>The fonts (Josefin Sans, JetBrains Mono, SIL Open Font License) are committed in <code>app/assets/fonts/</code>.</li>
   <li><code>app/assets/styles/app.css</code> themes Bulma after this website. Colour classes returned by <code>TaskView</code> and <code>RebaseLogView</code> (<code>is-danger</code>, <code>is-success</code>…) are mapped to soft tones in both themes; never use a bare <code>tag is-light</code> or <code>is-grey</code> (a test guards it).</li>

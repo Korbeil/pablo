@@ -5,45 +5,60 @@ declare(strict_types=1);
 namespace Pablo\Tests\Command\System;
 
 use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\System\WebCommand;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Store\Store;
 use Pablo\Tests\FakeAgents;
+use Pablo\Web\Server;
+use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RequiresFunction;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Process\Process;
 
 /**
- * Argument assembly only — this must never actually start a server.
+ * `pablo web`: option checks in-process, then the real command started on a
+ * free port against a throwaway ~/.pablo, spoken to over HTTP.
  */
 final class WebCommandTest extends TestCase
 {
-    public function testServerCommandBindsLoopbackAndTheAppPublicDir(): void
-    {
-        $argv = WebCommand::serverCommand(9000);
+    private ?string $tmp = null;
+    private ?Process $process = null;
 
-        $this->assertSame(\PHP_BINARY, $argv[0]);
-        $this->assertSame('-S', $argv[1]);
-        $this->assertSame('127.0.0.1:9000', $argv[2]);
-        $this->assertSame('-t', $argv[3]);
-        $this->assertSame(realpath(\dirname(__DIR__, 3).'/public'), realpath($argv[4]));
-        $this->assertSame(realpath(\dirname(__DIR__, 3).'/public/index.php'), realpath($argv[5]));
+    protected function tearDown(): void
+    {
+        if (null !== $this->process && $this->process->isRunning()) {
+            $this->process->stop(5);
+        }
+        if (null !== $this->tmp) {
+            exec('rm -rf '.escapeshellarg($this->tmp));
+        }
     }
 
     /** The dashboard has no auth; binding beyond loopback must not be possible. */
     public function testNeverBindsBeyondLoopback(): void
     {
-        foreach ([80, 8321, 65535] as $port) {
-            $this->assertSame('127.0.0.1:'.$port, WebCommand::serverCommand($port)[2]);
-        }
+        $this->assertSame('127.0.0.1', WebCommand::HOST);
+        $this->assertSame('127.0.0.1', Server::HOST);
     }
 
-    public function testFrontControllerExists(): void
+    public function testServesTheAppPublicDir(): void
     {
-        $this->assertFileExists(WebCommand::serverCommand(1)[5]);
+        $this->assertSame(realpath(\dirname(__DIR__, 3).'/public'), realpath(WebCommand::publicDir()));
+        $this->assertInstanceOf(Server::class, $this->command()->server(new NullOutput()));
+    }
+
+    /** No `php -S` anywhere: the standalone binary has no built-in server. */
+    public function testDoesNotShellOutToThePhpBuiltInServer(): void
+    {
+        $source = (string) file_get_contents((new \ReflectionClass(WebCommand::class))->getFileName() ?: '');
+
+        $this->assertStringNotContainsString('PHP_BINARY', $source);
+        $this->assertStringNotContainsString("'-S'", $source);
     }
 
     /** @return iterable<string, array{string}> */
@@ -56,12 +71,7 @@ final class WebCommandTest extends TestCase
         yield 'empty' => [''];
     }
 
-    private function agents(): AgentLauncherInterface
-    {
-        return new FakeAgents();
-    }
-
-    #[\PHPUnit\Framework\Attributes\DataProvider('badPorts')]
+    #[DataProvider('badPorts')]
     public function testRejectsInvalidPorts(string $port): void
     {
         $tester = new CommandTester($this->command());
@@ -71,12 +81,101 @@ final class WebCommandTest extends TestCase
         $this->assertStringContainsString('invalid --port', $tester->getDisplay());
     }
 
+    #[RequiresFunction('pcntl_fork')]
+    public function testServesTheDashboardAndItsAssetsWithoutCallingExternalTools(): void
+    {
+        $port = $this->start();
+
+        [$status, $headers, $page] = self::get($port, '/');
+        $this->assertSame(200, $status, $page);
+        $this->assertStringContainsString('text/html', $headers['content-type'] ?? '');
+        $this->assertStringContainsString('PABLO', $page);
+
+        if (1 !== preg_match('#href="(/assets/[^"]+\.css)"#', $page, $css)) {
+            $this->fail('no stylesheet link in the page');
+        }
+        [$status, $headers] = self::get($port, $css[1]);
+        $this->assertSame(200, $status, $css[1]);
+        $this->assertStringContainsString('text/css', $headers['content-type'] ?? '');
+
+        [$status] = self::get($port, '/no-such-page');
+        $this->assertSame(404, $status);
+
+        // A second request reuses a booted worker and still renders.
+        $this->assertSame(200, self::get($port, '/')[0]);
+
+        $this->assertFileDoesNotExist($this->tmp.'/external-tool-called', 'the dashboard must never run gh/orca/a tracker CLI to render');
+    }
+
+    private function start(): int
+    {
+        $this->tmp = sys_get_temp_dir().'/pablo-web-cmd-'.bin2hex(random_bytes(4));
+        foreach (['home/.pablo/projects', 'home/.pablo/stamps', 'home/.pablo/logs', 'home/.pablo/state', 'bin'] as $dir) {
+            mkdir($this->tmp.'/'.$dir, 0o777, true);
+        }
+        foreach (['gh', 'orca', 'openchamber', 'acli', 'linear', 'opencode', 'claude', 'copilot'] as $tool) {
+            file_put_contents($this->tmp.'/bin/'.$tool, "#!/bin/sh\necho \"\$0 \$*\" >> '{$this->tmp}/external-tool-called'\nexit 1\n");
+            chmod($this->tmp.'/bin/'.$tool, 0o755);
+        }
+
+        // A free port: bind one, release it, hand it over.
+        $probe = stream_socket_server('tcp://127.0.0.1:0');
+        $this->assertNotFalse($probe);
+        $name = (string) stream_socket_get_name($probe, false);
+        $port = (int) substr($name, (int) strrpos($name, ':') + 1);
+        fclose($probe);
+
+        $home = $this->tmp.'/home';
+        $this->process = new Process([\PHP_BINARY, \dirname(__DIR__, 3).'/bin/pablo', 'web', '--port', (string) $port], null, [
+            'HOME' => $home,
+            'PATH' => $this->tmp.'/bin:/usr/bin:/bin',
+            'PABLO_ENV' => 'test',
+            'PABLO_STATE_DIR' => $home.'/.pablo/state',
+            'PABLO_PROJECTS_DIR' => $home.'/.pablo/projects',
+            'PABLO_STAMPS_DIR' => $home.'/.pablo/stamps',
+            'PABLO_LOGS_DIR' => $home.'/.pablo/logs',
+            'PABLO_CONFIG' => $home.'/.pablo/config.yaml',
+            'PABLO_AGENT_RUNTIME' => false,
+            'PABLO_AGENT_BACKEND' => false,
+        ]);
+        $this->process->setTimeout(120);
+        $this->process->start();
+        $this->process->waitUntil(static fn (string $type, string $output): bool => str_contains($output, 'ctrl-c'));
+        $this->assertTrue($this->process->isRunning(), $this->process->getErrorOutput());
+
+        return $port;
+    }
+
+    /**
+     * @return array{int, array<string, string>, string}
+     */
+    private static function get(int $port, string $path): array
+    {
+        $client = stream_socket_client('tcp://127.0.0.1:'.$port, $errno, $errstr, 10);
+        self::assertNotFalse($client, $errstr ?? 'cannot connect');
+        stream_set_timeout($client, 60);
+        fwrite($client, "GET {$path} HTTP/1.1\r\nHost: 127.0.0.1:{$port}\r\nAccept: text/html\r\n\r\n");
+        $response = (string) stream_get_contents($client);
+        fclose($client);
+
+        [$head, $body] = explode("\r\n\r\n", $response, 2) + [1 => ''];
+        $lines = explode("\r\n", $head);
+        $status = (int) (explode(' ', (string) array_shift($lines))[1] ?? 0);
+        $headers = [];
+        foreach ($lines as $line) {
+            if (str_contains($line, ':')) {
+                [$name, $value] = explode(':', $line, 2);
+                $headers[strtolower($name)] = trim($value);
+            }
+        }
+
+        return [$status, $headers, $body];
+    }
+
     private function command(): WebCommand
     {
-        $command = new WebCommand(new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), $this->agents());
-        $application = new Application();
-        $application = new Application();
-        $application->addCommand($command);
+        $command = new WebCommand(new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), new FakeAgents());
+        (new Application())->addCommand($command);
 
         return $command;
     }

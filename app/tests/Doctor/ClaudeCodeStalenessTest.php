@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Doctor's agent check under agent_runtime: claude-code — agents.json in
- * ~/.pablo/claude, the command and skill symlinks in ~/.claude.
+ * ~/.pablo/runtime/claude, the command and skill symlinks in ~/.claude.
  */
 final class ClaudeCodeStalenessTest extends TestCase
 {
@@ -62,7 +62,7 @@ final class ClaudeCodeStalenessTest extends TestCase
     private function install(): void
     {
         $claude = new ClaudeCodeAgents($this->templates);
-        $agentsDir = $this->templates->repoAgentsDir();
+        $agentsDir = $this->templates->templatesDir();
         file_put_contents($this->tmp.'/pablo-claude/agents.json', $claude->renderAgentsJson($agentsDir, $this->templates->enabledProviders()));
         mkdir($this->tmp.'/claude/agents', 0o777, true);
         foreach ($claude->renderAgentFiles($agentsDir, $this->templates->enabledProviders()) as $file => $content) {

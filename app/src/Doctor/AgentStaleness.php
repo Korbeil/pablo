@@ -12,6 +12,7 @@ use Pablo\Agents\Runtime\ClaudeCodeAgents;
 use Pablo\Agents\Runtime\ClaudeCodeRuntime;
 use Pablo\Agents\Runtime\CopilotAgents;
 use Pablo\Agents\Runtime\CopilotRuntime;
+use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 
 /**
@@ -19,10 +20,10 @@ use Pablo\Support\PabloError;
  *
  * OpenCode: for each of the five generated agents, render the template in
  * memory (no writes) exactly as `system:generate-agents` would and compare
- * against the installed ~/.config/opencode/agents/<name>.md — the same
- * location bin/install.sh symlinks into.
+ * against the installed ~/.config/opencode/agents/<name>.md — the link
+ * `pablo system:install` creates (into ~/.pablo/runtime/opencode/agents).
  *
- * Claude Code: the same comparison for ~/.pablo/claude/agents.json (one file
+ * Claude Code: the same comparison for ~/.pablo/runtime/claude/agents.json (one file
  * for all five agents, passed with --agents) and the
  * ~/.claude/commands/pablo-commit-and-pr.md symlink, plus the presence of the
  * ~/.claude/skills/pablo-task symlink.
@@ -37,6 +38,9 @@ use Pablo\Support\PabloError;
  */
 final class AgentStaleness
 {
+    /** Renders the agents and (re)creates the links: the fix for every hard failure here. */
+    private const INSTALL = 'pablo system:install';
+
     /**
      * @param callable|null $check optional full-result override fn(): list<AgentFileStatus>
      */
@@ -57,7 +61,7 @@ final class AgentStaleness
     }
 
     /**
-     * Same convention as bin/install.sh ($HOME/.config/opencode); resolved at
+     * Same convention as `pablo system:install` ($HOME/.config/opencode); resolved at
      * call time like every HOME-derived default, never at container compile time.
      */
     public function installedDir(): string
@@ -85,7 +89,7 @@ final class AgentStaleness
         }
 
         $installedDir ??= $this->installedDir();
-        $agentsDir ??= $this->agentTemplates->repoAgentsDir();
+        $agentsDir ??= $this->agentTemplates->templatesDir();
         $providers = $this->agentTemplates->enabledProviders();
 
         $results = [];
@@ -97,7 +101,7 @@ final class AgentStaleness
     }
 
     /**
-     * @param string|null $claudeDir     override of ~/.pablo/claude (tests)
+     * @param string|null $claudeDir     override of ~/.pablo/runtime/claude (tests)
      * @param string|null $userClaudeDir override of ~/.claude (tests)
      * @param string|null $agentsDir     override of the repo template dir (tests)
      *
@@ -107,9 +111,9 @@ final class AgentStaleness
     {
         $claudeDir ??= ClaudeCodeRuntime::defaultDir();
         $userClaudeDir ??= ClaudeCodeRuntime::userConfigDir();
-        $agentsDir ??= $this->agentTemplates->repoAgentsDir();
+        $agentsDir ??= $this->agentTemplates->templatesDir();
         $claude = new ClaudeCodeAgents($this->agentTemplates);
-        $regenerate = 'run: pablo system:generate-agents && ./bin/install.sh';
+        $regenerate = 'run: '.self::INSTALL;
 
         $results = [];
         try {
@@ -134,7 +138,7 @@ final class AgentStaleness
             $results[] = self::checkLinked($id, $userClaudeDir.'/agents/'.$id.'.md', $fresh);
         }
 
-        foreach (glob(AgentTemplates::commandsDirFor($agentsDir).'/*.md') ?: [] as $source) {
+        foreach (Files::list(AgentTemplates::commandsDirFor($agentsDir), '*.md') as $source) {
             $name = basename($source, '.md');
             try {
                 $results[] = self::checkLinked('/'.$name, $userClaudeDir.'/commands/'.$name.'.md', $claude->renderCommand($source));
@@ -143,7 +147,7 @@ final class AgentStaleness
             }
         }
 
-        foreach (glob(\dirname($agentsDir).'/skills/*', \GLOB_ONLYDIR) ?: [] as $skillDir) {
+        foreach (Files::list(AgentTemplates::skillsDirFor($agentsDir), '*', dirsOnly: true) as $skillDir) {
             $name = basename($skillDir);
             $results[] = self::checkLinked('skill '.$name, $userClaudeDir.'/skills/'.$name, null);
         }
@@ -160,7 +164,7 @@ final class AgentStaleness
     public function checkCopilot(?string $userCopilotDir = null, ?string $agentsDir = null): array
     {
         $userCopilotDir ??= CopilotRuntime::userConfigDir();
-        $agentsDir ??= $this->agentTemplates->repoAgentsDir();
+        $agentsDir ??= $this->agentTemplates->templatesDir();
         $copilot = new CopilotAgents($this->agentTemplates);
         $providers = $this->agentTemplates->enabledProviders();
 
@@ -176,7 +180,7 @@ final class AgentStaleness
             $results[] = self::checkLinked($id, $userCopilotDir.'/agents/'.$id.'.agent.md', $fresh);
         }
 
-        foreach (glob(AgentTemplates::commandsDirFor($agentsDir).'/*.md') ?: [] as $source) {
+        foreach (Files::list(AgentTemplates::commandsDirFor($agentsDir), '*.md') as $source) {
             $name = basename($source, '.md');
             try {
                 $results[] = self::checkLinked('skill '.$name, $userCopilotDir.'/skills/'.$name, $copilot->renderSkill($source), 'SKILL.md');
@@ -185,7 +189,7 @@ final class AgentStaleness
             }
         }
 
-        foreach (glob(\dirname($agentsDir).'/skills/*', \GLOB_ONLYDIR) ?: [] as $skillDir) {
+        foreach (Files::list(AgentTemplates::skillsDirFor($agentsDir), '*', dirsOnly: true) as $skillDir) {
             $name = basename($skillDir);
             $results[] = self::checkLinked('skill '.$name, $userCopilotDir.'/skills/'.$name, null);
         }
@@ -201,18 +205,18 @@ final class AgentStaleness
     private static function checkLinked(string $label, string $dest, ?string $fresh, ?string $file = null): AgentFileStatus
     {
         if (!is_link($dest) && !file_exists($dest)) {
-            return new AgentFileStatus($label, AgentFileState::Missing, 'missing', 'run: pablo system:generate-agents && ./bin/install.sh');
+            return new AgentFileStatus($label, AgentFileState::Missing, 'missing', 'run: '.self::INSTALL);
         }
         if (!is_link($dest)) {
             return new AgentFileStatus($label, AgentFileState::ForeignFile,
-                'exists and is not a PABLO symlink', 'move it aside, then re-run ./bin/install.sh');
+                'exists and is not a PABLO symlink', 'move it aside, then re-run '.self::INSTALL);
         }
         $target = realpath($dest);
         if (false === $target) {
             $linkTarget = readlink($dest);
 
             return new AgentFileStatus($label, AgentFileState::BrokenSymlink,
-                'broken symlink → '.(false !== $linkTarget ? $linkTarget : '?'), 're-run ./bin/install.sh to relink');
+                'broken symlink → '.(false !== $linkTarget ? $linkTarget : '?'), 're-run '.self::INSTALL.' to relink');
         }
 
         if (null === $fresh) {
@@ -267,7 +271,7 @@ final class AgentStaleness
 
         if (!is_link($dest) && !file_exists($dest)) {
             return new AgentFileStatus($name, AgentFileState::Missing, 'missing',
-                'run: pablo system:generate-agents && ./bin/install.sh');
+                'run: '.self::INSTALL);
         }
 
         if (is_link($dest)) {
@@ -277,16 +281,16 @@ final class AgentStaleness
 
                 return new AgentFileStatus($name, AgentFileState::BrokenSymlink,
                     'broken symlink → '.(false !== $linkTarget ? $linkTarget : '?'),
-                    're-run ./bin/install.sh to relink');
+                    're-run '.self::INSTALL.' to relink');
             }
 
             return self::compare($name, $target, $fresh);
         }
 
-        // A regular file where install.sh expects to place its symlink —
-        // install.sh refuses to touch it, so this agent is not PABLO-managed.
+        // A regular file where system:install expects to place its symlink —
+        // system:install refuses to touch it, so this agent is not PABLO-managed.
         return new AgentFileStatus($name, AgentFileState::ForeignFile,
-            'exists and is not a PABLO symlink', 'move it aside, then re-run ./bin/install.sh');
+            'exists and is not a PABLO symlink', 'move it aside, then re-run '.self::INSTALL);
     }
 
     private static function compare(string $name, string $realPath, string $fresh): AgentFileStatus

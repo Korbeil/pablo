@@ -29,5 +29,5 @@ pablo task:start <issue-url>       # branch + worktree + an agent writing the pl
 
 Then watch your tasks on http://127.0.0.1:8321 or with `pablo task:list`.
 
-**You need:** git, PHP 8.4 + Composer, [OpenCode](https://opencode.ai), and [`gh`](https://cli.github.com/) logged in.
+**You need:** git, [OpenCode](https://opencode.ai) (or Claude Code, or Copilot CLI), and [`gh`](https://cli.github.com/) logged in. PABLO itself is a single binary: no PHP needed.
 Using Jira or Linear, or want the details? Read the [Quickstart](https://getpablo.dev/docs/quickstart/) and the [installation guide](https://getpablo.dev/docs/installation/).

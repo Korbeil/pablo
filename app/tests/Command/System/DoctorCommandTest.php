@@ -215,7 +215,7 @@ YAML;
         foreach (AgentTemplates::AGENT_NAMES as $name) {
             file_put_contents(
                 $rendered.'/'.$name.'.md',
-                $templates->render($templates->repoAgentsDir(), $name, $providers),
+                $templates->render($templates->templatesDir(), $name, $providers),
             );
             symlink($rendered.'/'.$name.'.md', $this->installedPath($name));
         }

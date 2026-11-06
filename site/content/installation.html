@@ -1,6 +1,6 @@
 <h1>Installation</h1>
 
-<p>Install PABLO with one script, then let <code>pablo system:doctor</code> tell you which tool is missing or logged out. It takes a few minutes on Linux or macOS.</p>
+<p>PABLO is a single binary: no PHP, no Composer. Install it with one script, then let <code>pablo system:doctor</code> tell you which tool is missing or logged out. It takes a minute on Linux (x86_64, aarch64) or macOS (Apple silicon, Intel).</p>
 
 <h2>Prerequisites</h2>
 
@@ -12,7 +12,7 @@
   <li><b>git</b>: every task is a branch and a worktree.</li>
   <li><b>An agent runtime</b> that runs the agents: <a href="https://opencode.ai">OpenCode</a> set up with your usual model provider (the default), <a href="https://code.claude.com/docs">Claude Code</a> logged in to your Claude account, or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> logged in to your GitHub account. See <a href="#claude-code">With Claude Code</a> and <a href="#copilot">With GitHub Copilot CLI</a>.</li>
   <li><b>An agent development environment</b>, <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a>: where agents run and where you chat with them. Optional in theory (without one, agents run headless in the background), but that's where you'll read their work. See <a href="#choose-an-agent-backend">Choose an agent backend</a>.</li>
-  <li><b>PHP 8.4.1+ and Composer</b>, to run PABLO itself.</li>
+  <li><b>curl</b>, to download PABLO. Nothing else: the binary carries its own PHP.</li>
 </ul>
 
 <h3>Then, for your projects</h3>
@@ -40,25 +40,24 @@
 <p>The script is interactive, on Linux and macOS. It:</p>
 
 <ol>
-  <li>checks that <code>git</code>, PHP 8.4.1+ and Composer are there;</li>
-  <li>asks where to install PABLO (<code>~/.local/share/pablo</code> by default) and clones it there;</li>
+  <li>checks that <code>git</code> and <code>curl</code> are there, and which binary your OS and processor need;</li>
   <li>looks for the <a href="#choose-an-agent-runtime">agent runtimes</a> you have (OpenCode, Claude Code, GitHub Copilot CLI) and asks which one to use;</li>
   <li>looks for the <a href="#choose-an-agent-backend">agent development environments</a> you have (Orca, OpenChamber) and asks which one to use. It only offers the ones that can run your runtime;</li>
-  <li>asks whether to install the <a href="#the-dashboard-service">dashboard service</a>, shows a summary, then runs <code>bin/install.sh</code> from the checkout with your answers (see below).</li>
+  <li>asks whether to install the <a href="#the-dashboard-service">dashboard service</a> and shows a summary;</li>
+  <li>downloads <code>pablo-&lt;os&gt;-&lt;arch&gt;</code> from the latest <a href="https://github.com/Korbeil/pablo/releases">GitHub release</a>, checks it against the release's <code>sha256sums.txt</code> (a mismatch installs nothing), installs it as <code>~/.local/bin/pablo</code>, then runs <a href="#what-pablo-system-install-does"><code>pablo system:install</code></a> with your answers.</li>
 </ol>
 
 <p>If it finds no agent runtime, it stops and sends you back to the <a href="#prerequisites">prerequisites</a>. If it finds no agent development environment, it says so with the same pointer and offers to carry on headless (the agents then run in the background) or to stop so you can install one first. Without a terminal, it carries on headless.</p>
 
 <p>Every question has an option, so you can script it. Pass options after <code>bash -s --</code>:</p>
 
-<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash -s -- --install-dir ~/pablo --runtime claude-code --backend orca --no-interaction
+<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash -s -- --runtime claude-code --backend orca --no-interaction
 </code></pre>
 
 <table>
   <thead><tr><th>Option</th><th>Meaning</th></tr></thead>
   <tbody>
-    <tr><td><code>--install-dir &lt;dir&gt;</code></td><td>where PABLO is installed (default <code>~/.local/share/pablo</code>, or <code>$PABLO_INSTALL_DIR</code>)</td></tr>
-    <tr><td><code>--ref &lt;ref&gt;</code></td><td>a branch or a tag to install, instead of the default branch</td></tr>
+    <tr><td><code>--version &lt;tag&gt;</code></td><td>a release to install, e.g. <code>v1.2.0</code>, instead of the latest</td></tr>
     <tr><td><code>--runtime &lt;name&gt;</code></td><td><code>opencode</code>, <code>claude-code</code> or <code>copilot</code></td></tr>
     <tr><td><code>--backend &lt;name&gt;</code></td><td><code>orca</code>, <code>openchamber</code> (OpenCode only) or <code>headless</code></td></tr>
     <tr><td><code>--without-web</code></td><td>skip the dashboard service</td></tr>
@@ -66,34 +65,38 @@
   </tbody>
 </table>
 
-<p>It is for a first install only: when PABLO is already installed (a <code>pablo</code> command on your <code>PATH</code> or in <code>~/.local/bin</code>), it stops with an error naming the installed checkout, and prints how to <a href="#update">update</a> or uninstall it. It refuses a directory that is not empty and is not a PABLO checkout, and updates a PABLO checkout whose install never finished.</p>
+<p>Run it again to <a href="#update">update</a>. It stops only when a <code>pablo</code> command that is not PABLO is in the way. An older install made from a clone of the repository is <a href="#migrating-from-a-clone-install">migrated</a>.</p>
 
-<h3>From a clone</h3>
+<h3 id="what-pablo-system-install-does">What <code>pablo system:install</code> does</h3>
 
-<p>Contributing, or want to read the code first? Clone the repository anywhere and run the installer it contains; it is the same <code>bin/install.sh</code> the script above hands over to.</p>
-
-<pre><code class="language-bash">git clone https://github.com/Korbeil/pablo
-cd pablo
-./bin/install.sh              # add --without-web to skip the dashboard service
-</code></pre>
-
-<p>Without options it keeps the choices already in <code>~/.pablo/config.yaml</code>, or on a first install picks the tools it finds. Two options record a choice there instead: <code>--runtime opencode|claude-code|copilot</code> and <code>--backend orca|openchamber|headless</code>. Changing the runtime also resets <code>default_model</code> to a model of that runtime. <code>bin/install.sh</code> is safe to run again. It:</p>
+<p>The installer hands over to <code>pablo system:install</code>, which you can also run yourself at any time: it is safe to run again. Without options it keeps the choices already in <code>~/.pablo/config.yaml</code>, or on a first install picks the tools it finds. Two options record a choice there instead: <code>--runtime opencode|claude-code|copilot</code> and <code>--backend orca|openchamber|headless</code>. Changing the runtime also resets <code>default_model</code> to a model of that runtime. <code>--without-web</code> skips (and removes) the dashboard service. It:</p>
 
 <ol>
   <li>creates <code>~/.pablo/</code> and, if you don't have one yet, a default <a href="page:configuration#global-defaults">global config</a> in <code>~/.pablo/config.yaml</code>, set to the tools you have installed (Claude Code when it finds Claude Code but no OpenCode, Copilot when it finds Copilot CLI but neither, OpenChamber when it finds OpenChamber but no Orca);</li>
-  <li>installs PHP dependencies and warms PABLO's cache;</li>
-  <li>generates the agents for your <a href="page:configuration#global-only-keys">agent runtime</a>;</li>
-  <li>writes the <code>pablo</code> command to <code>~/.local/bin/pablo</code> and, if that directory isn't on your <code>PATH</code> yet, adds it (see below);</li>
-  <li>links the agents, the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill into <code>~/.config/opencode/</code> (OpenCode), the command and the skill into <code>~/.claude/</code> (Claude Code), or the agents and both skills into <code>~/.copilot/</code> (Copilot);</li>
-  <li>starts the background scheduler, which runs PABLO every 5 minutes, and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code>;</li>
+  <li>makes sure <code>~/.local/bin/pablo</code> is this binary and, if that directory isn't on your <code>PATH</code> yet, adds it (see below);</li>
+  <li>renders the agents for your <a href="page:configuration#global-only-keys">agent runtime</a>, and extracts the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, into <code>~/.pablo/runtime/</code>;</li>
+  <li>links them into <code>~/.config/opencode/</code> (OpenCode), <code>~/.claude/</code> (Claude Code) or <code>~/.copilot/</code> (Copilot);</li>
+  <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary);</li>
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
 </ol>
 
-<aside class="callout note"><p>Your own OpenCode, Claude Code and Copilot files are never touched. The installer only creates <em>new</em> symlinks, and refuses to replace any file in <code>~/.config/opencode/</code>, <code>~/.claude/</code> or <code>~/.copilot/</code> that isn't already a link into the PABLO repository.</p></aside>
+<aside class="callout note"><p>Your own OpenCode, Claude Code and Copilot files are never touched. PABLO only creates <em>new</em> symlinks, all pointing into <code>~/.pablo/runtime/</code>, and refuses to replace any file in <code>~/.config/opencode/</code>, <code>~/.claude/</code> or <code>~/.copilot/</code> that isn't already one of its links. The same goes for the scheduler files: one without PABLO's <code>marker:</code> line is never overwritten.</p></aside>
+
+<h3>From a checkout (contributors)</h3>
+
+<p>Working on PABLO itself? Clone the repository and run it from there, with PHP 8.4.1+ and Composer: <code>php app/bin/pablo</code> is the same application as the binary. <code>pablo system:install</code> run from a checkout writes a <code>~/.local/bin/pablo</code> shim that runs <code>php app/bin/pablo</code> instead of copying a binary; everything else is the same.</p>
+
+<pre><code class="language-bash">git clone https://github.com/Korbeil/pablo
+cd pablo
+(cd app &amp;&amp; composer install)
+php app/bin/pablo system:install    # or: castor install
+</code></pre>
+
+<p>To build the binary yourself, see <a href="page:development#the-standalone-binary">Development</a>.</p>
 
 <h3>The <code>pablo</code> command on your <code>PATH</code></h3>
 
-<p>When <code>~/.local/bin</code> isn't on your <code>PATH</code> already, the installer appends a short block, between <code># &gt;&gt;&gt; pablo &gt;&gt;&gt;</code> and <code># &lt;&lt;&lt; pablo &lt;&lt;&lt;</code> markers, to <code>~/.zshrc</code> (zsh) or <code>~/.bashrc</code> (bash; <code>~/.bash_profile</code> on macOS). For fish it writes <code>~/.config/fish/conf.d/pablo.fish</code> instead. Open a new terminal afterwards. Running the installer again never adds the block twice, and <code>./bin/uninstall.sh</code> removes it. With another shell, the installer prints the line to add yourself.</p>
+<p>When <code>~/.local/bin</code> isn't on your <code>PATH</code> already, the installer appends a short block, between <code># &gt;&gt;&gt; pablo &gt;&gt;&gt;</code> and <code># &lt;&lt;&lt; pablo &lt;&lt;&lt;</code> markers, to <code>~/.zshrc</code> (zsh) or <code>~/.bashrc</code> (bash; <code>~/.bash_profile</code> on macOS). For fish it writes <code>~/.config/fish/conf.d/pablo.fish</code> instead. Open a new terminal afterwards. Running the installer again never adds the block twice, and <code>pablo system:uninstall</code> removes it. With another shell, the installer prints the line to add yourself.</p>
 
 <h2>Check your setup</h2>
 
@@ -103,11 +106,11 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
 
 <p><code>system:setup</code> stops at the first problem and prints the exact command to install or log in to the tool. Fix it, run <code>pablo system:setup</code> again, and it moves on to the next check. Tracker tools (<code>acli</code>, <code>linear</code>) are only checked once a project uses them.</p>
 
-<p>The doctor also checks that the installed agents are up to date: <code>~/.config/opencode/agents/</code> under OpenCode; <code>~/.pablo/claude/agents.json</code>, the <code>~/.claude/agents/pablo-*.md</code> files, the command and the skill under Claude Code; the agent files and skills in <code>~/.copilot/</code> under Copilot. If one is reported stale, run <code>pablo system:generate-agents</code>.</p>
+<p>The doctor also checks that the installed agents are up to date: <code>~/.config/opencode/agents/</code> under OpenCode; <code>~/.pablo/runtime/claude/agents.json</code>, the <code>~/.claude/agents/pablo-*.md</code> files, the command and the skill under Claude Code; the agent files and skills in <code>~/.copilot/</code> under Copilot. If one is reported stale, run <code>pablo system:generate-agents</code>.</p>
 
 <h2 id="claude-code">With Claude Code</h2>
 
-<p>Set <code>agent_runtime: claude-code</code> and a Claude model in <code>~/.pablo/config.yaml</code> (a first install does it when it finds <code>claude</code> but no <code>opencode</code>), then run <code>bin/install.sh</code> from your checkout again, or let it set both for you with <code>--runtime claude-code</code>:</p>
+<p>Set <code>agent_runtime: claude-code</code> and a Claude model in <code>~/.pablo/config.yaml</code> (a first install does it when it finds <code>claude</code> but no <code>opencode</code>), then run <code>pablo system:install</code> again, or let it set both for you with <code>pablo system:install --runtime claude-code</code>:</p>
 
 <pre><code class="language-yaml">agent_runtime: claude-code
 default_model: sonnet        # or opus, haiku, or a full model id
@@ -115,14 +118,14 @@ default_model: sonnet        # or opus, haiku, or a full model id
 
 <ul>
   <li><b>Prerequisite.</b> The <code>claude</code> command, logged in: the doctor runs <code>claude auth status</code>. Install it with <code>curl -fsSL https://claude.ai/install.sh | bash</code>.</li>
-  <li><b>What is installed.</b> <code>~/.pablo/claude/agents.json</code> holds the five agents; the installer links <code>~/.claude/commands/pablo-commit-and-pr.md</code> and <code>~/.claude/skills/pablo-task</code>.</li>
+  <li><b>What is installed.</b> <code>~/.pablo/runtime/claude/agents.json</code> holds the five agents; the installer links <code>~/.claude/commands/pablo-commit-and-pr.md</code> and <code>~/.claude/skills/pablo-task</code>.</li>
   <li><b>Your own sessions.</b> The installer also links the agents into <code>~/.claude/agents/</code> as <code>pablo-&lt;agent&gt;</code>, so they appear in <code>/agents</code> and the <code>@</code> picker. PABLO's own launches still pass <code>agents.json</code> with <code>--agents</code>; only those enforce the per-command shell denies.</li>
   <li><b>Backend.</b> Use Orca, or no backend (headless). OpenChamber can't run Claude Code; the doctor reports it.</li>
 </ul>
 
 <h2 id="copilot">With GitHub Copilot CLI</h2>
 
-<p>Set <code>agent_runtime: copilot</code> and a Copilot model in <code>~/.pablo/config.yaml</code> (a first install does it when it finds <code>copilot</code> but neither <code>opencode</code> nor <code>claude</code>), then run <code>bin/install.sh</code> from your checkout again, or let it set both for you with <code>--runtime copilot</code>:</p>
+<p>Set <code>agent_runtime: copilot</code> and a Copilot model in <code>~/.pablo/config.yaml</code> (a first install does it when it finds <code>copilot</code> but neither <code>opencode</code> nor <code>claude</code>), then run <code>pablo system:install</code> again, or let it set both for you with <code>pablo system:install --runtime copilot</code>:</p>
 
 <pre><code class="language-yaml">agent_runtime: copilot
 default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-codex
@@ -130,16 +133,16 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
 
 <ul>
   <li><b>Prerequisite.</b> The <code>copilot</code> command (<code>npm install -g @github/copilot</code>), logged in once with <code>copilot login</code>. The doctor only runs <code>copilot --version</code>: Copilot has no non-interactive login check, so a run fails if you're logged out.</li>
-  <li><b>What is installed.</b> The five <code>pablo-&lt;agent&gt;.agent.md</code> files, rendered into the git-ignored <code>copilot/</code>, are linked into <code>~/.copilot/agents/</code>; the <code>pablo-commit-and-pr</code> and <code>pablo-task</code> skills into <code>~/.copilot/skills/</code> (under <code>COPILOT_HOME</code> when set).</li>
+  <li><b>What is installed.</b> The five <code>pablo-&lt;agent&gt;.agent.md</code> files, rendered into <code>~/.pablo/runtime/copilot/</code>, are linked into <code>~/.copilot/agents/</code>; the <code>pablo-commit-and-pr</code> and <code>pablo-task</code> skills into <code>~/.copilot/skills/</code> (under <code>COPILOT_HOME</code> when set).</li>
   <li><b>Visible on purpose.</b> Unlike Claude Code, the agents go where your own Copilot sessions can pick them, prefixed <code>pablo-</code>.</li>
   <li><b>Backend.</b> Use Orca, or no backend (headless). OpenChamber can't run Copilot; the doctor reports it.</li>
 </ul>
 
-<p>Switching runtime later works the same way: run <code>bin/install.sh</code> again with <code>--runtime</code> (or change <code>agent_runtime</code> and run it without). The other runtimes' links stay in place until <code>./bin/uninstall.sh</code>; they're harmless.</p>
+<p>Switching runtime later works the same way: run <code>pablo system:install</code> again with <code>--runtime</code> (or change <code>agent_runtime</code> and run it without). The other runtimes' links stay in place until <code>pablo system:uninstall</code>; they're harmless.</p>
 
 <h2 id="choose-an-agent-runtime">Choose an agent runtime</h2>
 
-<p>The runtime is the program that runs the agents: OpenCode, Claude Code or GitHub Copilot CLI. The installer lists the ones it finds on your <code>PATH</code> and asks which to use. With a single one it takes it without asking, and with none it stops. To change it later, see <a href="#claude-code">With Claude Code</a> and <a href="#copilot">With GitHub Copilot CLI</a>, or run <code>bin/install.sh</code> again with <code>--runtime</code>.</p>
+<p>The runtime is the program that runs the agents: OpenCode, Claude Code or GitHub Copilot CLI. The installer lists the ones it finds on your <code>PATH</code> and asks which to use. With a single one it takes it without asking, and with none it stops. To change it later, see <a href="#claude-code">With Claude Code</a> and <a href="#copilot">With GitHub Copilot CLI</a>, or run <code>pablo system:install</code> again with <code>--runtime</code>.</p>
 
 <h2>Choose an agent backend</h2>
 
@@ -163,7 +166,7 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
 <p>Don't want it? Answer no when the installer asks, or install (or re-install) with <code>--without-web</code>; this also removes a dashboard service installed before. You can still start the dashboard by hand with <code>pablo web</code>.</p>
 
 <pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash -s -- --without-web
-# or, from your clone: ./bin/install.sh --without-web
+# or: pablo system:install --without-web
 </code></pre>
 
 <p>To only stop it for now: <code>systemctl --user stop pablo-web.service</code> on Linux, <code>launchctl bootout gui/$UID/com.pablo.web</code> on macOS.</p>
@@ -198,21 +201,23 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
 
 <h2 id="update">Update</h2>
 
-<pre><code class="language-bash">cd ~/.local/share/pablo   # or your clone, or the directory the installer's error names
-git pull --ff-only
-./bin/install.sh
+<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash
 </code></pre>
 
-<p>The <code>curl | bash</code> installer does not update: it stops when PABLO is already installed. Re-running <code>bin/install.sh</code> picks up new dependencies, new agents and new links. Your data in <code>~/.pablo/</code> is never touched.</p>
+<p>The installer replaces <code>~/.local/bin/pablo</code> with the latest release and runs <code>pablo system:install</code> again, which picks up new agents and links and restarts the dashboard. Your choices in <code>~/.pablo/config.yaml</code> and your data in <code>~/.pablo/</code> are kept. Each version compiles its own cache in <code>~/.pablo/cache/container/&lt;version&gt;/</code>; the install removes the ones of other versions. There is no <code>pablo self-update</code> yet.</p>
 
-<aside class="callout note"><p>The dashboard service is now installed by default, so an update also starts it. Add <code>--without-web</code> to keep it off.</p></aside>
+<p>From a checkout: <code>git pull</code>, <code>(cd app &amp;&amp; composer install)</code>, then <code>php app/bin/pablo system:install</code>.</p>
+
+<h3 id="migrating-from-a-clone-install">Migrating from a clone install</h3>
+
+<p>Earlier versions were installed by cloning the repository (to <code>~/.local/share/pablo</code> by default) and running <code>bin/install.sh</code>, which wrote a <code>~/.local/bin/pablo</code> shim running <code>php …/app/bin/pablo</code>. Run the installer above: it recognises that shim, replaces it with the binary, and <code>pablo system:install</code> takes over everything that install created. The links that pointed into the checkout now point into <code>~/.pablo/runtime/</code>, the systemd units that were links into the checkout are written as files, and <code>~/.pablo/claude/agents.json</code> moves to <code>~/.pablo/runtime/claude/</code>. The checkout itself is never touched: delete it once everything works. Your config, projects and tasks in <code>~/.pablo/</code> carry over as they are.</p>
 
 <h2>Uninstall</h2>
 
-<pre><code class="language-bash">~/.local/share/pablo/bin/uninstall.sh   # or ./bin/uninstall.sh in your clone
+<pre><code class="language-bash">pablo system:uninstall
 </code></pre>
 
-<p>It removes what the installer created (the shim, the links under <code>~/.config/opencode/</code>, <code>~/.claude/</code> and <code>~/.copilot/</code>, the generated <code>~/.pablo/claude/</code>, the <code>PATH</code> block, the scheduler and dashboard services) and keeps your data in <code>~/.pablo/</code>. The checkout itself stays: delete it yourself once you are done. Delete <code>~/.pablo/</code> as well if you want a clean slate, or <a href="page:backups">back it up</a> first.</p>
+<p>It removes what the install created (the <code>pablo</code> command, the links under <code>~/.config/opencode/</code>, <code>~/.claude/</code> and <code>~/.copilot/</code>, including the links an old clone install made, the generated <code>~/.pablo/runtime/</code> and <code>~/.pablo/cache/container/</code>, the <code>PATH</code> block, the scheduler and dashboard services) and keeps your data in <code>~/.pablo/</code>. Delete <code>~/.pablo/</code> as well if you want a clean slate, or <a href="page:backups">back it up</a> first.</p>
 
 <h2>Next step</h2>
 

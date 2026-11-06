@@ -1,0 +1,29 @@
+{
+    "$schema": "https://raw.githubusercontent.com/box-project/box/main/res/schema.json",
+    "base-path": "..",
+    "main": "app/bin/pablo",
+    "output": "dist/pablo.phar",
+    "alias": "pablo.phar",
+    "directories": [
+        "app/src",
+        "app/config",
+        "app/templates",
+        "app/assets",
+        "app/public",
+        "app/vendor",
+        "opencode",
+        "systemd",
+        "launchd"
+    ],
+    "files": [
+        "examples/config.yaml"
+    ],
+    "blacklist": [
+        "app/config/reference.php"
+    ],
+    "dump-autoload": false,
+    "exclude-composer-files": false,
+    "check-requirements": false,
+    "compression": "GZ",
+    "git-version": "package_version"
+}

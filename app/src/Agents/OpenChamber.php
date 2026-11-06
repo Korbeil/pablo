@@ -40,10 +40,11 @@ final class OpenChamber extends AbstractAgentLauncher
         ?string $agentsDir = null,
     ) {
         parent::__construct($runner, $time, $store, $shimPath, 'openchamber');
-        $this->agentFilesDir = $agentsDir ?? \dirname(__DIR__, 3).'/opencode/agents';
+        $this->agentFilesDir = $agentsDir;
     }
 
-    private readonly string $agentFilesDir;
+    /** Override of ~/.pablo/runtime/opencode/agents (tests); null resolves it per call. */
+    private readonly ?string $agentFilesDir;
 
     /**
      * One openchamber CLI call, returning the decoded payload plus the failure
@@ -145,8 +146,9 @@ final class OpenChamber extends AbstractAgentLauncher
     }
 
     /**
-     * The model declared in the agent's frontmatter (`opencode/agents/<agent>.md`,
-     * the same file `system:generate-agents` writes and `install.sh` symlinks into
+     * The model declared in the agent's frontmatter
+     * (`~/.pablo/runtime/opencode/agents/<agent>.md`, the same file
+     * `system:generate-agents` writes and `pablo system:install` links into
      * `~/.config/opencode`). OpenChamber otherwise falls back to its own
      * "configured selection", which can silently pick a different model than the
      * one the agent config declares.
@@ -159,7 +161,7 @@ final class OpenChamber extends AbstractAgentLauncher
      */
     private function agentModel(string $agent): ?string
     {
-        $path = $this->agentFilesDir.'/'.$agent.'.md';
+        $path = ($this->agentFilesDir ?? AgentTemplates::opencodeRuntimeDir().'/agents').'/'.$agent.'.md';
         if (!is_file($path)) {
             return null;
         }

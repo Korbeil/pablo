@@ -65,7 +65,7 @@ final class CopilotRuntimeTest extends TestCase
     /** @return list<array{action: string, resource: string, effect: string}> */
     private function openCodeRules(string $agent): array
     {
-        $markdown = $this->templates->render($this->templates->repoAgentsDir(), $agent, Config::PROVIDERS);
+        $markdown = $this->templates->render($this->templates->templatesDir(), $agent, Config::PROVIDERS);
         if (1 !== preg_match('/\A---\R(.*?)\R---/s', $markdown, $m)) {
             self::fail('no frontmatter');
         }
@@ -127,7 +127,7 @@ final class CopilotRuntimeTest extends TestCase
         $this->assertStringNotContainsString("\nmodel:", $file, 'a model line would beat --model');
         $this->assertSame(
             ['pablo-task-analyst.agent.md', 'pablo-task-feedback.agent.md', 'pablo-ci-analyst.agent.md', 'pablo-pr-feedback.agent.md', 'pablo-rebase-conflict-resolver.agent.md'],
-            array_keys($this->copilot->renderAgentFiles($this->templates->repoAgentsDir(), Config::PROVIDERS)),
+            array_keys($this->copilot->renderAgentFiles($this->templates->templatesDir(), Config::PROVIDERS)),
         );
     }
 
@@ -139,7 +139,7 @@ final class CopilotRuntimeTest extends TestCase
 
     public function testCommitCommandBecomesAManualOnlySkill(): void
     {
-        $skill = $this->copilot->renderSkill(AgentTemplates::commandsDirFor($this->templates->repoAgentsDir()).'/pablo-commit-and-pr.md');
+        $skill = $this->copilot->renderSkill(AgentTemplates::commandsDirFor($this->templates->templatesDir()).'/pablo-commit-and-pr.md');
         $this->assertStringStartsWith("---\nname: pablo-commit-and-pr\ndescription: ", $skill);
         $this->assertStringContainsString("disable-model-invocation: true\n", $skill, 'the model never commits on its own');
         $this->assertStringNotContainsString('!`', $skill, 'no ! context injection in Copilot');

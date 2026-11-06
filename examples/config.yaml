@@ -17,7 +17,7 @@ default_model: opencode-go/glm-5.3-flash
 pr_description_locale: en
 # agent_runtime: opencode | claude-code | copilot  (default: opencode)
 # The program that runs the agents. With claude-code, PABLO launches
-# `claude -p` with its agents from ~/.pablo/claude/agents.json, links the
+# `claude -p` with its agents from ~/.pablo/runtime/claude/agents.json, links the
 # agents into ~/.claude/agents as pablo-<agent> (visible in /agents and the
 # @ picker), links /pablo-commit-and-pr and the pablo-task skill into ~/.claude, and needs a Claude model above, e.g.
 #   default_model: sonnet
@@ -26,7 +26,7 @@ pr_description_locale: en
 # links /pablo-commit-and-pr and pablo-task as Copilot skills, and needs a
 # Copilot model above, e.g.
 #   default_model: claude-sonnet-5.5
-# Re-run ./bin/install.sh after changing it. Also settable with
+# Re-run `pablo system:install` after changing it. Also settable with
 # PABLO_AGENT_RUNTIME. Only opencode works with agent_backend: openchamber.
 # agent_backend: orca | openchamber  (default: orca)
 # OpenChamber is an alternative agent runner (directory-based; no Orca repo

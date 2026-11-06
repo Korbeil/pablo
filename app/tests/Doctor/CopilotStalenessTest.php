@@ -63,7 +63,7 @@ final class CopilotStalenessTest extends TestCase
     private function install(): void
     {
         $copilot = new CopilotAgents($this->templates);
-        $agentsDir = $this->templates->repoAgentsDir();
+        $agentsDir = $this->templates->templatesDir();
         foreach ($copilot->renderAgentFiles($agentsDir, $this->templates->enabledProviders()) as $file => $content) {
             file_put_contents($this->tmp.'/rendered/agents/'.$file, $content);
             symlink($this->tmp.'/rendered/agents/'.$file, $this->tmp.'/copilot/agents/'.$file);
