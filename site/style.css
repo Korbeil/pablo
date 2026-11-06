@@ -164,8 +164,12 @@ body.search-open { overflow: hidden; }
 .checklist input:checked + .box { background: var(--yellow-deep); }
 .checklist input:checked + .box::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
 .checklist input:focus-visible + .box { outline: 2px solid var(--yellow-deep); outline-offset: 2px; }
+#problem .two-col > div { display: grid; grid-template-rows: subgrid; grid-row: span 3; }
+#problem .two-col > div > .tag { justify-self: start; }
 .checklist .alarm { background: var(--yellow-soft); border-color: var(--yellow); }
 .checklist .alarm .box { border-color: #d9534f; }
+.checklist .alarm input:checked + .box { background: #d9534f; }
+.checklist .alarm input:focus-visible + .box { outline-color: #d9534f; }
 
 /* ---------- punchlines ---------- */
 .punch { position: relative; background: var(--ink); color: #fff; padding: 90px 0; }
