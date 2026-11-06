@@ -44,15 +44,12 @@ final class GitConfigTripwireTest extends TestCase
     {
         $templates = new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
         $claude = new \Pablo\Agents\Runtime\ClaudeCodeAgents($templates);
-        $renders = ['agents.json' => $claude->renderAgentsJson($templates->repoAgentsDir(), \Pablo\Config\Config::PROVIDERS)];
-        foreach (glob(\Pablo\Agents\AgentTemplates::commandsDirFor($templates->repoAgentsDir()).'/*.md') ?: [] as $source) {
+        $renders = ['agents.json' => $claude->renderAgentsJson($templates->templatesDir(), \Pablo\Config\Config::PROVIDERS)];
+        foreach (glob(\Pablo\Agents\AgentTemplates::commandsDirFor($templates->templatesDir()).'/*.md') ?: [] as $source) {
             $renders['claude/commands/'.basename($source)] = $claude->renderCommand($source);
         }
-        foreach ($claude->renderAgentFiles($templates->repoAgentsDir(), \Pablo\Config\Config::PROVIDERS) as $file => $content) {
+        foreach ($claude->renderAgentFiles($templates->templatesDir(), \Pablo\Config\Config::PROVIDERS) as $file => $content) {
             $renders['claude/agents/'.$file] = $content;
-        }
-        foreach (glob($templates->repoClaudeDir().'/commands/*.md') ?: [] as $generated) {
-            $renders['claude/commands/'.basename($generated).' (on disk)'] = (string) file_get_contents($generated);
         }
 
         $violations = [];
@@ -75,8 +72,8 @@ final class GitConfigTripwireTest extends TestCase
     {
         $templates = new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
         $copilot = new \Pablo\Agents\Runtime\CopilotAgents($templates);
-        $renders = $copilot->renderAgentFiles($templates->repoAgentsDir(), \Pablo\Config\Config::PROVIDERS);
-        foreach (glob(\Pablo\Agents\AgentTemplates::commandsDirFor($templates->repoAgentsDir()).'/*.md') ?: [] as $source) {
+        $renders = $copilot->renderAgentFiles($templates->templatesDir(), \Pablo\Config\Config::PROVIDERS);
+        foreach (glob(\Pablo\Agents\AgentTemplates::commandsDirFor($templates->templatesDir()).'/*.md') ?: [] as $source) {
             $renders['copilot/skills/'.basename($source, '.md')] = $copilot->renderSkill($source);
         }
 

@@ -9,22 +9,24 @@ use Pablo\App\Kernel;
 /**
  * PABLO — AI orchestrator. The user-facing CLI.
  *
- * The ~/.local/bin/pablo shim execs this binary directly; it runs from other
- * repositories' worktrees (cwd is used verbatim).
+ * Two ways to run it, same code:
+ *  - the standalone binary (~/.local/bin/pablo), built from this file by Box
+ *    (app/box.json) and combined with a static PHP: PABLO_ENV defaults to
+ *    `prod`, the container is cached under ~/.pablo/cache/container/<version>
+ *    (see Kernel::getCacheDir());
+ *  - `php app/bin/pablo` from a repository checkout (contributors): PABLO_ENV
+ *    defaults to `dev`, NOT `prod` — in prod the container cache is never
+ *    checked for freshness, so a `git pull` would leave a stale container
+ *    forever.
  *
- * Boots the same kernel as public/index.php but runs ConsoleApplication, which
- * consumes the `pablo.command` tag — so framework/bundle commands never leak
- * into `pablo --help`. Those live in bin/console.
- *
- * PABLO_ENV defaults to `dev`: in `prod` the container cache is never checked
- * for freshness, so a `git pull` would leave a stale compiled container in
- * place forever. Even `dev` is faster than the pre-FrameworkBundle behaviour
- * of recompiling the container on every single invocation.
+ * It runs from other repositories' worktrees (cwd is used verbatim). Boots the
+ * same kernel as the dashboard but runs ConsoleApplication, which consumes the
+ * `pablo.command` tag — so `pablo --help` lists PABLO subcommands only.
  */
 
 require __DIR__ . '/../vendor/autoload.php';
 
-$env = (string) (getenv('PABLO_ENV') ?: 'dev');
+$env = Kernel::defaultEnvironment();
 
 $kernel = new Kernel($env, 'prod' !== $env);
 $kernel->boot();

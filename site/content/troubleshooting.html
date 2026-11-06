@@ -28,7 +28,7 @@ pablo sync:log          # what the last sync did, per project
 
 <h3>“Unable to write in the cache directory”</h3>
 
-<p>A <code>sudo pablo</code> left files owned by root in PABLO's cache. Remove them once: <code>sudo rm -rf app/var/cache</code> (from the PABLO repository). The installer detects this and tells you.</p>
+<p>A <code>sudo pablo</code> left files owned by root in PABLO's cache. Remove them once: <code>sudo rm -rf ~/.pablo/cache/container</code> (from a checkout: <code>sudo rm -rf app/var/cache</code>), then run <code>pablo system:install</code> again.</p>
 
 <h3><code>pablo: command not found</code></h3>
 
@@ -36,7 +36,7 @@ pablo sync:log          # what the last sync did, per project
 
 <h3>The doctor says an agent file is stale</h3>
 
-<p>Your agents (in <code>~/.config/opencode/agents/</code>, <code>~/.pablo/claude/agents.json</code> and <code>~/.claude/agents/pablo-*.md</code> under Claude Code, or <code>~/.copilot/agents/</code> under Copilot) were generated from older templates or an older project list. Run <code>pablo system:generate-agents</code>. A ❌ instead means a missing file, a broken link, or a file PABLO doesn't manage in its place.</p>
+<p>Your agents (in <code>~/.config/opencode/agents/</code>, <code>~/.pablo/runtime/claude/agents.json</code> and <code>~/.claude/agents/pablo-*.md</code> under Claude Code, or <code>~/.copilot/agents/</code> under Copilot) were generated from older templates or an older project list. Run <code>pablo system:generate-agents</code>. A ❌ instead means a missing file, a broken link, or a file PABLO doesn't manage in its place: <code>pablo system:install</code> recreates the missing ones.</p>
 
 <h3>Loading a project fails about <code>default_model</code> or <code>pr_description_locale</code></h3>
 

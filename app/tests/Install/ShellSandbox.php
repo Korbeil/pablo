@@ -8,7 +8,7 @@ use Symfony\Component\Process\Process;
 
 /**
  * A throwaway HOME and a PATH holding only the system tools the shell
- * scripts need, so a script under test sees exactly the tools a test
+ * scripts need (site/installer), so a script under test sees exactly the tools a test
  * installs (a developer machine may well have opencode, claude or orca).
  *
  * Every tool is a wrapper script, not a symlink: a multi-call binary or a
@@ -17,9 +17,9 @@ use Symfony\Component\Process\Process;
 trait ShellSandbox
 {
     private const SYSTEM_TOOLS = [
-        'awk', 'basename', 'bash', 'cat', 'chmod', 'cp', 'cut', 'date', 'dirname', 'env', 'find', 'git', 'grep',
-        'head', 'id', 'ln', 'ls', 'mkdir', 'mktemp', 'mv', 'perl', 'readlink', 'rm', 'sed', 'sort', 'tail', 'tee',
-        'touch', 'tr', 'uname', 'wc',
+        'awk', 'basename', 'bash', 'cat', 'chmod', 'cp', 'curl', 'cut', 'date', 'dirname', 'env', 'find', 'git', 'grep',
+        'head', 'id', 'ln', 'ls', 'mkdir', 'mktemp', 'mv', 'perl', 'readlink', 'rm', 'sed', 'sha256sum', 'shasum', 'sort',
+        'tail', 'tee', 'touch', 'tr', 'uname', 'wc',
     ];
 
     private string $sandbox;
@@ -80,8 +80,7 @@ trait ShellSandbox
             'PABLO_AGENT_BACKEND' => false,
             'PABLO_CONFIG' => false,
             'PABLO_PROJECTS_DIR' => false,
-            'PABLO_INSTALL_DIR' => false,
-            'PABLO_REPO_URL' => false,
+            'PABLO_RELEASES_URL' => false,
             'PABLO_INSTALLER_TTY' => false,
             'CLAUDE_CONFIG_DIR' => false,
             'COPILOT_HOME' => false,

@@ -73,7 +73,7 @@
 <p>With <code>agent_runtime: claude-code</code>, the same templates are translated rather than rewritten, so the runtimes always run the same prompts and the same guardrails.</p>
 
 <ul>
-  <li><b>Where the agents live.</b> <code>pablo system:generate-agents</code> writes all five into <code>~/.pablo/claude/agents.json</code>, which every launch passes with <code>--agents</code>. The same agents are also rendered as <code>pablo-&lt;agent&gt;.md</code> files in the git-ignored <code>claude/agents/</code> and linked into <code>~/.claude/agents</code> by the installer, so they show up in <code>/agents</code> and the <code>@</code> picker of your own sessions. Those files only carry tool-level limits: the per-command shell denies (such as <code>git push</code>) are launch flags and apply only to PABLO's own launches.</li>
+  <li><b>Where the agents live.</b> <code>pablo system:generate-agents</code> writes all five into <code>~/.pablo/runtime/claude/agents.json</code>, which every launch passes with <code>--agents</code>. The same agents are also rendered as <code>pablo-&lt;agent&gt;.md</code> files in <code>~/.pablo/runtime/claude/agents/</code> and linked into <code>~/.claude/agents</code> by the installer, so they show up in <code>/agents</code> and the <code>@</code> picker of your own sessions. Those files only carry tool-level limits: the per-command shell denies (such as <code>git push</code>) are launch flags and apply only to PABLO's own launches.</li>
   <li><b>How they launch.</b> <code>claude -p --agents … --agent &lt;name&gt; --model &lt;default_model&gt; --session-id &lt;id&gt; --strict-mcp-config</code>, plus the permission flags below.</li>
   <li><b>No permission prompts.</b> The analysts run with <code>--permission-mode dontAsk</code> (anything not allowed is denied), the resolver with <code>acceptEdits</code>.</li>
 </ul>
@@ -95,14 +95,14 @@
 
 <aside class="callout note"><p><b>Why every command pattern is denied twice.</b> If you use <a href="https://github.com/rtk-ai/rtk">RTK</a>, its Claude Code hook rewrites <code>git push</code> into <code>rtk git push</code> <em>before</em> permissions are checked, which slips past a plain <code>Bash(git push*)</code> rule. Each denied pattern is therefore emitted raw and with the <code>rtk</code> prefix; a test checks that no OpenCode deny is missing either form.</p></aside>
 
-<p>The commit command is rendered into <code>claude/commands/</code> (git-ignored) and linked into <code>~/.claude/commands/</code>. Its body, the <code>!`…`</code> context injection and <code>$ARGUMENTS</code> work as in OpenCode, and its allowed commands become <code>allowed-tools</code> (raw and <code>rtk</code> forms again). One limit: a Claude Code command can't deny a tool, so “no edits” is an instruction in its hard rules rather than a permission.</p>
+<p>The commit command is rendered into <code>~/.pablo/runtime/claude/commands/</code> and linked into <code>~/.claude/commands/</code>. Its body, the <code>!`…`</code> context injection and <code>$ARGUMENTS</code> work as in OpenCode, and its allowed commands become <code>allowed-tools</code> (raw and <code>rtk</code> forms again). One limit: a Claude Code command can't deny a tool, so “no edits” is an instruction in its hard rules rather than a permission.</p>
 
 <h2 id="copilot">Under GitHub Copilot CLI</h2>
 
 <p>With <code>agent_runtime: copilot</code>, the same templates are translated once more, so all three runtimes run the same prompts and the same guardrails.</p>
 
 <ul>
-  <li><b>Where the agents live.</b> <code>pablo system:generate-agents</code> renders <code>copilot/agents/pablo-&lt;agent&gt;.agent.md</code> (git-ignored) for the five agents, and the installer links them into <code>~/.copilot/agents/</code>. Unlike Claude Code, they're deliberately visible, with a <code>pablo-</code> prefix, so you can pick them in your own Copilot sessions too.</li>
+  <li><b>Where the agents live.</b> <code>pablo system:generate-agents</code> renders <code>~/.pablo/runtime/copilot/agents/pablo-&lt;agent&gt;.agent.md</code> for the five agents, and the installer links them into <code>~/.copilot/agents/</code>. Unlike Claude Code, they're deliberately visible, with a <code>pablo-</code> prefix, so you can pick them in your own Copilot sessions too.</li>
   <li><b>What an agent file holds.</b> <code>name</code>, <code>description</code> and <code>tools</code> (Copilot aliases: <code>read</code>, <code>search</code>, <code>execute</code>, <code>web</code>, <code>edit</code>), and no <code>model:</code> line: in Copilot an agent file's model would override <code>--model</code>.</li>
   <li><b>How they launch.</b> <code>copilot --agent pablo-&lt;agent&gt; --model &lt;default_model&gt; --session-id &lt;uuid&gt; --no-ask-user --no-auto-update --no-color --disable-builtin-mcps --available-tools … --allow-tool … --deny-tool … -p '&lt;prompt&gt;'</code>. <code>--available-tools</code> lists exactly the built-in tools the agent may use (the analysts: <code>view</code>, <code>grep</code>, <code>glob</code>, <code>web_fetch</code>, <code>bash</code>; the resolver: <code>view</code>, <code>bash</code>, <code>edit</code>, <code>create</code>), which also hides your MCP tools; <code>--disable-builtin-mcps</code> turns off Copilot's built-in MCP servers. Your own custom instructions (<code>AGENTS.md</code>…) and hooks still load.</li>
 </ul>
@@ -133,9 +133,10 @@
 
 <h2 id="customise-the-agents">Customise the agents</h2>
 
-<p>The agent files are generated, not written by hand. Edit the sources in the repository, then regenerate:</p>
+<p>The agent files are generated, not written by hand, into <code>~/.pablo/runtime/</code>. Their sources ship inside the <code>pablo</code> binary; to change them, edit them in a checkout of the repository and regenerate from there:</p>
 
-<pre><code class="language-bash">pablo system:generate-agents
+<pre><code class="language-bash">pablo system:generate-agents                                        # from the bundled sources
+pablo system:generate-agents --agents-dir ~/src/pablo/opencode/agents  # from your edited checkout
 </code></pre>
 
 <ul>
@@ -145,4 +146,4 @@
   <li><code>opencode/agents/shared/housekeeping.body.md</code>: the house rules appended to every agent.</li>
 </ul>
 
-<p>The same sources produce the Claude Code <code>agents.json</code> and command when <code>agent_runtime</code> is <code>claude-code</code>, and the Copilot agent files and skill in <code>copilot/</code> when it is <code>copilot</code>. Templates pull these in with <code>{{SHARED_FRONTMATTER:&lt;profile&gt;}}</code> and <code>{{SHARED_BODY:&lt;profile&gt;}}</code>, and the task agents get tracker-specific instructions through <code>{{ISSUE_TRACKER_SECTION}}</code> and <code>{{ISSUE_TRACKER_NAMES}}</code>, filled in for the trackers your projects use. Generation runs on install, and again when <code>pablo project:new</code> or <code>pablo project:remove</code> changes the set of trackers. Never edit the generated <code>.md</code> files: they're overwritten.</p>
+<p>The same sources produce the Claude Code <code>agents.json</code> and command when <code>agent_runtime</code> is <code>claude-code</code>, and the Copilot agent files and skill in <code>~/.pablo/runtime/copilot/</code> when it is <code>copilot</code>. Templates pull these in with <code>{{SHARED_FRONTMATTER:&lt;profile&gt;}}</code> and <code>{{SHARED_BODY:&lt;profile&gt;}}</code>, and the task agents get tracker-specific instructions through <code>{{ISSUE_TRACKER_SECTION}}</code> and <code>{{ISSUE_TRACKER_NAMES}}</code>, filled in for the trackers your projects use. Generation runs on install, and again when <code>pablo project:new</code> or <code>pablo project:remove</code> changes the set of trackers. Never edit the generated <code>.md</code> files: they're overwritten. An update of the binary regenerates from its own sources, so upstream your changes (or regenerate with <code>--agents-dir</code> after each update).</p>

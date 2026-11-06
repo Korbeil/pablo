@@ -24,6 +24,7 @@ final class GenerateAgentsCommandTest extends TestCase
     private string $tmp;
     private string $agentsDir;
     private string $projectsDir;
+    private string $generatedDir;
 
     protected function setUp(): void
     {
@@ -36,6 +37,9 @@ final class GenerateAgentsCommandTest extends TestCase
         $this->copyShared();
 
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
+        // Renders go to ~/.pablo/runtime: keep them in the scratch dir.
+        putenv('PABLO_RUNTIME_DIR='.$this->tmp.'/runtime');
+        $this->generatedDir = $this->tmp.'/runtime/opencode/agents';
 
         $this->writeGlobalConfig(<<<'YAML'
 sync:
@@ -56,6 +60,7 @@ YAML);
     protected function tearDown(): void
     {
         putenv('PABLO_PROJECTS_DIR');
+        putenv('PABLO_RUNTIME_DIR');
         $this->unsetGlobalConfig();
         $this->removeDir($this->tmp);
     }
@@ -196,7 +201,7 @@ YAML);
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
-        $content = file_get_contents($this->agentsDir.'/task-analyst.md');
+        $content = file_get_contents($this->generatedDir.'/task-analyst.md');
         \assert(false !== $content);
         $this->assertStringContainsString('GitHub Issues, or Jira', $content);
         $this->assertStringNotContainsString('{{ISSUE_TRACKER_NAMES}}', $content);
@@ -215,19 +220,19 @@ YAML);
         $this->assertSame(0, $tester->getStatusCode());
 
         foreach (self::TEMPLATE_NAMES as $name) {
-            $content = file_get_contents($this->agentsDir.'/'.$name.'.md');
+            $content = file_get_contents($this->generatedDir.'/'.$name.'.md');
             \assert(false !== $content);
             $this->assertStringNotContainsString('{{SHARED_FRONTMATTER:', $content, $name);
             $this->assertStringNotContainsString('{{SHARED_BODY:', $content, $name);
         }
 
-        $analyst = file_get_contents($this->agentsDir.'/ci-analyst.md');
+        $analyst = file_get_contents($this->generatedDir.'/ci-analyst.md');
         \assert(false !== $analyst);
         $this->assertStringContainsString('action: webfetch', $analyst);
         $this->assertStringContainsString('resource: "git commit*"', $analyst);
         $this->assertStringNotContainsString('"gh run rerun*"', $analyst);
 
-        $resolver = file_get_contents($this->agentsDir.'/rebase-conflict-resolver.md');
+        $resolver = file_get_contents($this->generatedDir.'/rebase-conflict-resolver.md');
         \assert(false !== $resolver);
         $this->assertStringContainsString('resource: "gh pr comment*"', $resolver);
         $this->assertStringContainsString(<<<'EOF'
@@ -249,7 +254,7 @@ EOF, $resolver);
         $this->assertSame(0, $tester->getStatusCode());
 
         foreach (self::TEMPLATE_NAMES as $name) {
-            $content = file_get_contents($this->agentsDir.'/'.$name.'.md');
+            $content = file_get_contents($this->generatedDir.'/'.$name.'.md');
             \assert(false !== $content);
             $this->assertStringContainsString('## Language', $content, $name);
             $this->assertStringContainsString('written in', $content, $name);
@@ -338,7 +343,7 @@ EOF, $resolver);
 
     private function extractSection(string $name): string
     {
-        $path = $this->agentsDir.'/'.$name.'.md';
+        $path = $this->generatedDir.'/'.$name.'.md';
         $this->assertFileExists($path);
         $content = file_get_contents($path);
         \assert(false !== $content);
