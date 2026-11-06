@@ -220,8 +220,6 @@ body.search-open { overflow: hidden; }
 /* ---------- principles ---------- */
 .principles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 2rem; }
 .pr { background: #fff; border: 1px solid var(--line); border-top: 4px solid var(--yellow); border-radius: var(--radius); padding: 24px 24px 10px; }
-.pr:first-child { grid-column: span 2; grid-row: span 2; display: flex; flex-direction: column; }
-.pr:first-child pre { margin-top: auto; margin-bottom: 18px; font-size: 14px; }
 .pr p { color: var(--ink-soft); font-size: 1rem; }
 pre {
   margin: 0 0 1em; background: var(--ink); color: #e8e6df; border-radius: 10px;
@@ -284,8 +282,6 @@ pre.one { display: inline-block; }
    its content, so one long <pre> would widen the whole page on a phone. */
 @media (max-width: 1000px) {
   .hero-grid, .two-col, .dash { grid-template-columns: minmax(0, 1fr); gap: 40px; }
-  .principles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .pr:first-child { grid-column: 1 / -1; grid-row: auto; }
   .steps { grid-template-columns: minmax(0, 1fr); gap: 34px; }
   .shot { transform: none; }
   .nav-links a:not(.nav-cta):not(.nav-gh):not(.nav-docs) { display: none; }
@@ -310,7 +306,6 @@ pre.one { display: inline-block; }
   .card { padding: 18px 18px 6px; }
   .card-head .on { margin-left: 0; }
   .pr { padding: 20px 18px 8px; }
-  .pr:first-child pre { font-size: 12px; }
   .term { font-size: 11px; border-radius: 12px; }
   .term-body { padding: 14px 12px; }
   .term-table th:nth-child(3), .term-table td:nth-child(3) { display: none; }
