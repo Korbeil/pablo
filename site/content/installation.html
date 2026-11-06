@@ -201,10 +201,13 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
 
 <h2 id="update">Update</h2>
 
-<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash
+<pre><code class="language-bash">pablo update           # or pablo system:update
+pablo update --check   # only tell whether a newer release exists
 </code></pre>
 
-<p>The installer replaces <code>~/.local/bin/pablo</code> with the latest release and runs <code>pablo system:install</code> again, which picks up new agents and links and restarts the dashboard. Your choices in <code>~/.pablo/config.yaml</code> and your data in <code>~/.pablo/</code> are kept. Each version compiles its own cache in <code>~/.pablo/cache/container/&lt;version&gt;/</code>; the install removes the ones of other versions. There is no <code>pablo self-update</code> yet.</p>
+<p>PABLO updates itself: it finds the latest <a href="https://github.com/Korbeil/pablo/releases">release</a>, downloads the binary for your OS and processor with <code>curl</code>, checks it against the release's <code>sha256sums.txt</code>, runs it once, then swaps it in place of the current one (a failed check changes nothing). It then runs <code>pablo system:install</code> with the new binary, which picks up new agents and links and restarts the dashboard; <code>--no-install</code> skips that step. Your choices in <code>~/.pablo/config.yaml</code> and your data in <code>~/.pablo/</code> are kept. Each version compiles its own cache in <code>~/.pablo/cache/container/&lt;version&gt;/</code>; the install removes the ones of other versions.</p>
+
+<p>Running the installer again (<code>curl -fsSL https://getpablo.dev/installer | bash</code>) does the same, and is the way to switch to another release with <code>--version</code>.</p>
 
 <p>From a checkout: <code>git pull</code>, <code>(cd app &amp;&amp; composer install)</code>, then <code>php app/bin/pablo system:install</code>.</p>
 

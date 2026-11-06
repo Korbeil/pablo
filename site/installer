@@ -11,7 +11,7 @@
 # --version), checks it against the release's sha256sums.txt, installs it as
 # ~/.local/bin/pablo, then hands over to `pablo system:install`.
 #
-# Run it again to update. An install made from a clone of the repository
+# Run it again to update (or run `pablo update`). An install made from a clone of the repository
 # (a ~/.local/bin/pablo shim running `php …/app/bin/pablo`) is migrated: the
 # shim is replaced by the binary and system:install moves the links over to
 # ~/.pablo/runtime; the clone itself is left alone.
@@ -534,7 +534,7 @@ main() {
 
     output "\nPABLO was installed successfully!" success
     output "  Command    $BIN"
-    output "  Update     curl -fsSL https://getpablo.dev/installer | bash"
+    output "  Update     pablo update"
     output "  Uninstall  pablo system:uninstall"
     if [ -n "$CHECKOUT" ]; then
         output "  The checkout in $CHECKOUT is no longer used: delete it when you no longer need it."
