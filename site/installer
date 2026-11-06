@@ -2,22 +2,27 @@
 # PABLO installer (Linux + macOS), served at https://getpablo.dev/installer:
 #
 #   curl -fsSL https://getpablo.dev/installer | bash
-#   curl -fsSL https://getpablo.dev/installer | bash -s -- --install-dir ~/pablo --runtime claude-code
+#   curl -fsSL https://getpablo.dev/installer | bash -s -- --runtime claude-code --backend orca
 #
-# It stops when PABLO is already installed (a `pablo` command on the PATH or in
-# ~/.local/bin), checks the prerequisites, clones (or, for a checkout whose
-# install never finished, updates) PABLO in a user directory,
-# detects the agent runtimes (OpenCode, Claude Code, GitHub Copilot CLI) and the
-# agent development environments (Orca, OpenChamber) that are installed, asks
-# which ones to use, then hands over to bin/install.sh from the checkout.
+# PABLO is a single binary: no PHP, no Composer. This script detects the agent
+# runtimes (OpenCode, Claude Code, GitHub Copilot CLI) and the agent
+# development environments (Orca, OpenChamber) that are installed, asks which
+# ones to use, downloads pablo-<os>-<arch> from the latest GitHub Release (or
+# --version), checks it against the release's sha256sums.txt, installs it as
+# ~/.local/bin/pablo, then hands over to `pablo system:install`.
+#
+# Run it again to update. An install made from a clone of the repository
+# (a ~/.local/bin/pablo shim running `php …/app/bin/pablo`) is migrated: the
+# shim is replaced by the binary and system:install moves the links over to
+# ~/.pablo/runtime; the clone itself is left alone.
 #
 # Written for bash 3.2 (macOS): no associative arrays, mapfile or ${var,,}.
 set -euo pipefail
 
-PABLO_REPO_URL="${PABLO_REPO_URL:-https://github.com/Korbeil/pablo.git}"
+PABLO_RELEASES_URL="${PABLO_RELEASES_URL:-https://github.com/Korbeil/pablo/releases}"
 PREREQUISITES_URL="https://getpablo.dev/docs/installation/#prerequisites"
-DEFAULT_INSTALL_DIR="${HOME}/.local/share/pablo"
-MIN_PHP_VERSION="8.4.1"
+BIN_DIR="${HOME}/.local/bin"
+BIN="${BIN_DIR}/pablo"
 
 # Where the answers are read from. With `curl | bash` stdin is the script
 # itself, so questions go through the terminal. PABLO_INSTALLER_TTY lets the
@@ -89,9 +94,7 @@ usage() {
     cat <<'USAGE'
 Usage: installer [options]
 
-  --install-dir <dir>   where PABLO is installed (default: ~/.local/share/pablo,
-                        or $PABLO_INSTALL_DIR)
-  --ref <ref>           branch or tag to install (default: the default branch)
+  --version <tag>       release to install, e.g. v1.2.0 (default: the latest)
   --runtime <name>      opencode, claude-code or copilot
   --backend <name>      orca, openchamber or headless (OpenChamber: OpenCode only)
   --without-web         do not install the dashboard service
@@ -99,6 +102,7 @@ Usage: installer [options]
   -h, --help            show this help
 
 Without --runtime / --backend, the installer detects what is installed and asks.
+Run it again to update PABLO.
 USAGE
 }
 
@@ -177,14 +181,6 @@ ask_yes_no() { # ask_yes_no <question> <y|n>  -> status 0 for yes
     done
 }
 
-ask_text() { # ask_text <question> <default>  -> ANSWER
-    printf '\n%s [%s]: ' "$1" "$2"
-    read_answer
-    if [ -z "$ANSWER" ]; then
-        ANSWER="$2"
-    fi
-}
-
 # Detection -------------------------------------------------------------------
 
 config_value() { # config_value <key>: a top-level key of an existing ~/.pablo/config.yaml
@@ -194,56 +190,67 @@ config_value() { # config_value <key>: a top-level key of an existing ~/.pablo/c
     fi
 }
 
-check_not_installed() {
-    local shim="" target="" dir=""
-    if command -v pablo >/dev/null 2>&1; then
-        shim="$(command -v pablo)"
-    elif [ -e "$HOME/.local/bin/pablo" ]; then
-        shim="$HOME/.local/bin/pablo"
+# What is already there: nothing, a clone install to migrate (CHECKOUT set),
+# a PABLO binary to update (CURRENT set), or a foreign `pablo` (stop).
+detect_existing() {
+    local existing="" target=""
+    CHECKOUT=""
+    CURRENT=""
+    if [ -e "$BIN" ]; then
+        existing="$BIN"
+    elif command -v pablo >/dev/null 2>&1; then
+        existing="$(command -v pablo)"
     else
         return 0
     fi
 
-    # bin/install.sh writes the shim as: exec php '<checkout>/app/bin/pablo' "$@"
-    if [ -f "$shim" ]; then
-        target="$(sed -n "s/^exec php '\(.*\)' .*\$/\1/p" "$shim" 2>/dev/null | head -n 1)"
+    # The clone install's shim: exec php '<checkout>/app/bin/pablo' "$@"
+    if [ -f "$existing" ]; then
+        target="$(sed -n "s/^exec php '\(.*\)' .*\$/\1/p" "$existing" 2>/dev/null | head -n 1)"
     fi
     case "$target" in
-    */app/bin/pablo) dir="${target%/app/bin/pablo}" ;;
+    */app/bin/pablo)
+        CHECKOUT="${target%/app/bin/pablo}"
+        output "\nPABLO is installed from a checkout in $CHECKOUT (command: $existing)."
+        output "  It will be replaced by the standalone binary; the checkout itself is left alone."
+        return 0
+        ;;
     esac
 
-    if [ -n "$dir" ]; then
-        output "\nPABLO is already installed in $dir (command: $shim)." error >&2
-        output "  Update     git -C $dir pull --ff-only && bash $dir/bin/install.sh" >&2
-        output "  Uninstall  bash $dir/bin/uninstall.sh" >&2
-    else
-        output "\nPABLO is already installed: $shim." error >&2
+    if [ "$existing" = "$BIN" ]; then
+        CURRENT="$("$existing" --version 2>/dev/null | head -n 1 || true)"
+        case "$CURRENT" in
+        "pablo "*)
+            output "\n${CURRENT#pablo } is installed in $BIN: it will be updated."
+            return 0
+            ;;
+        esac
     fi
+
+    output "\nA pablo command already exists at $existing and is not PABLO." error >&2
+    output "  Move it out of the way, then run this installer again." >&2
     exit 1
 }
 
-php_is_recent_enough() {
-    php -r 'exit(version_compare(PHP_VERSION, $argv[1], ">=") ? 0 : 1);' "$MIN_PHP_VERSION"
-}
-
 check_environment() {
-    local failed=false
+    local failed=false arch
     output "\nEnvironment check" heading
 
     kernel="$(uname -s 2>/dev/null || /usr/bin/uname -s)"
+    arch="$(uname -m 2>/dev/null || /usr/bin/uname -m)"
     case "$kernel" in
-    Linux | linux)
-        kernel=linux
-        ok "Linux"
-        ;;
-    Darwin | darwin)
-        kernel=darwin
-        ok "macOS"
-        ;;
-    *)
-        fail "OS '$kernel' is not supported (Linux and macOS are)."
-        ;;
+    Linux | linux) OS=linux ;;
+    Darwin | darwin) OS=macos ;;
+    *) fail "OS '$kernel' is not supported (Linux and macOS are)." ;;
     esac
+    case "$OS-$arch" in
+    linux-x86_64 | linux-amd64) TARGET=linux-x86_64 ;;
+    linux-aarch64 | linux-arm64) TARGET=linux-aarch64 ;;
+    macos-arm64 | macos-aarch64) TARGET=macos-arm64 ;;
+    macos-x86_64) TARGET=macos-x86_64 ;;
+    *) fail "No PABLO binary for $kernel on $arch (supported: Linux x86_64/aarch64, macOS arm64/x86_64)." ;;
+    esac
+    ok "$kernel $arch"
 
     if command -v git >/dev/null 2>&1; then
         ok "git is installed"
@@ -252,50 +259,25 @@ check_environment() {
         failed=true
     fi
 
-    if command -v php >/dev/null 2>&1; then
-        if php_is_recent_enough; then
-            ok "PHP $(php -r 'echo PHP_VERSION;')"
-        else
-            bad "PHP $(php -r 'echo PHP_VERSION;') is too old: PABLO needs PHP $MIN_PHP_VERSION or newer"
-            failed=true
-        fi
+    if command -v curl >/dev/null 2>&1; then
+        ok "curl is installed"
     else
-        bad "PHP $MIN_PHP_VERSION or newer is required to run PABLO"
+        bad "curl is required to download PABLO"
         failed=true
     fi
 
-    if command -v composer >/dev/null 2>&1; then
-        ok "Composer is installed"
+    if command -v sha256sum >/dev/null 2>&1; then
+        SHA256="sha256sum"
+    elif command -v shasum >/dev/null 2>&1; then
+        SHA256="shasum -a 256"
     else
-        bad "Composer is required to install PABLO's dependencies"
+        bad "sha256sum or shasum is required to verify the download"
         failed=true
     fi
 
     if $failed; then
         fail "Some prerequisites are missing. See $PREREQUISITES_URL"
     fi
-}
-
-choose_install_dir() {
-    if [ -z "$INSTALL_DIR" ]; then
-        INSTALL_DIR="$DEFAULT_INSTALL_DIR"
-        if $INTERACTIVE; then
-            ask_text "Where should PABLO be installed?" "$INSTALL_DIR"
-            INSTALL_DIR="$ANSWER"
-        fi
-    fi
-    # shellcheck disable=SC2088 # a literal "~" typed at the prompt, expanded by hand
-    case "$INSTALL_DIR" in
-    "~") INSTALL_DIR="$HOME" ;;
-    "~/"*) INSTALL_DIR="$HOME/${INSTALL_DIR#"~/"}" ;;
-    esac
-    case "$INSTALL_DIR" in
-    /*) ;;
-    *) INSTALL_DIR="$PWD/$INSTALL_DIR" ;;
-    esac
-    while [ "${#INSTALL_DIR}" -gt 1 ] && [ "${INSTALL_DIR%/}" != "$INSTALL_DIR" ]; do
-        INSTALL_DIR="${INSTALL_DIR%/}"
-    done
 }
 
 choose_runtime() {
@@ -418,49 +400,41 @@ choose_backend() {
     BACKEND="$CHOICE"
 }
 
-# Checkout --------------------------------------------------------------------
+# Download --------------------------------------------------------------------
 
-is_pablo_checkout() {
-    [ -d "$1/.git" ] && [ -f "$1/bin/install.sh" ] && [ -f "$1/app/composer.json" ]
-}
-
-fetch_pablo() {
+download() {
+    local base asset tmp expected actual
     output "\nDownload" heading
-    if [ -e "$INSTALL_DIR" ] && [ ! -d "$INSTALL_DIR" ]; then
-        fail "$INSTALL_DIR exists and is not a directory."
-    fi
-
-    if is_pablo_checkout "$INSTALL_DIR"; then
-        output "  Updating the PABLO checkout in $INSTALL_DIR."
-        git -C "$INSTALL_DIR" fetch --quiet --tags origin </dev/null ||
-            fail "Could not fetch updates from origin in $INSTALL_DIR."
-        if [ -n "$REF" ]; then
-            git -C "$INSTALL_DIR" checkout --quiet "$REF" </dev/null ||
-                fail "Could not check out '$REF' in $INSTALL_DIR."
-        fi
-        # A branch fast-forwards; a tag leaves a detached HEAD, nothing to pull.
-        if git -C "$INSTALL_DIR" symbolic-ref -q HEAD >/dev/null 2>&1; then
-            git -C "$INSTALL_DIR" pull --ff-only --quiet </dev/null ||
-                fail "$INSTALL_DIR has local changes or diverged: fix it by hand, or pick another --install-dir."
-        fi
-        ok "PABLO is up to date in $INSTALL_DIR"
-        return 0
-    fi
-
-    if [ -d "$INSTALL_DIR" ] && [ -n "$(ls -A "$INSTALL_DIR")" ]; then
-        fail "$INSTALL_DIR is not empty and is not a PABLO checkout. Pick another --install-dir."
-    fi
-
-    output "  Cloning $PABLO_REPO_URL into $INSTALL_DIR."
-    mkdir -p "$(dirname "$INSTALL_DIR")"
-    if [ -n "$REF" ]; then
-        git clone --quiet --branch "$REF" "$PABLO_REPO_URL" "$INSTALL_DIR" </dev/null ||
-            fail "Could not clone '$REF' from $PABLO_REPO_URL (a branch or a tag is expected)."
+    asset="pablo-$TARGET"
+    if [ -n "$VERSION" ]; then
+        base="$PABLO_RELEASES_URL/download/$VERSION"
     else
-        git clone --quiet "$PABLO_REPO_URL" "$INSTALL_DIR" </dev/null ||
-            fail "Could not clone $PABLO_REPO_URL."
+        base="$PABLO_RELEASES_URL/latest/download"
     fi
-    ok "PABLO cloned into $INSTALL_DIR"
+
+    tmp="$(mktemp -d)"
+    # shellcheck disable=SC2064 # expand $tmp now
+    trap "rm -rf '$tmp'" EXIT
+
+    output "  Downloading $base/$asset"
+    curl -fsSL -o "$tmp/$asset" "$base/$asset" ||
+        fail "Could not download $base/$asset${VERSION:+ (is $VERSION a PABLO release?)}"
+    curl -fsSL -o "$tmp/sha256sums.txt" "$base/sha256sums.txt" ||
+        fail "Could not download $base/sha256sums.txt"
+
+    expected="$(awk -v a="$asset" '$2 == a || $2 == "*" a { print $1; exit }' "$tmp/sha256sums.txt")"
+    [ -n "$expected" ] || fail "$asset is not listed in sha256sums.txt: refusing to install an unverified binary."
+    actual="$($SHA256 "$tmp/$asset" | awk '{ print $1 }')"
+    if [ "$actual" != "$expected" ]; then
+        fail "Checksum mismatch for $asset (expected $expected, got $actual): nothing was installed."
+    fi
+    ok "sha256 verified"
+
+    chmod +x "$tmp/$asset"
+    mkdir -p "$BIN_DIR"
+    # Replaces a clone install's shim, or the previous binary.
+    mv -f "$tmp/$asset" "$BIN"
+    ok "installed $BIN"
 }
 
 run_install() {
@@ -469,16 +443,15 @@ run_install() {
     if ! $WITH_WEB; then
         set -- "$@" --without-web
     fi
-    if ! bash "$INSTALL_DIR/bin/install.sh" "$@" </dev/null; then
-        fail "bin/install.sh failed. Fix the error above, then run: bash $INSTALL_DIR/bin/install.sh $*"
+    if ! "$BIN" system:install "$@" </dev/null; then
+        fail "pablo system:install failed. Fix the error above, then run: $BIN system:install $*"
     fi
 }
 
 main() {
     output "PABLO installer" heading
 
-    INSTALL_DIR="${PABLO_INSTALL_DIR:-}"
-    REF=""
+    VERSION=""
     RUNTIME=""
     BACKEND=""
     WITH_WEB=true
@@ -486,16 +459,10 @@ main() {
 
     while [ $# -gt 0 ]; do
         case "$1" in
-        --install-dir=*) INSTALL_DIR="${1#*=}" ;;
-        --install-dir)
-            [ $# -ge 2 ] || fail "--install-dir needs a value"
-            INSTALL_DIR="$2"
-            shift
-            ;;
-        --ref=*) REF="${1#*=}" ;;
-        --ref)
-            [ $# -ge 2 ] || fail "--ref needs a value"
-            REF="$2"
+        --version=*) VERSION="${1#*=}" ;;
+        --version)
+            [ $# -ge 2 ] || fail "--version needs a value"
+            VERSION="$2"
             shift
             ;;
         --runtime=*) RUNTIME="${1#*=}" ;;
@@ -534,10 +501,9 @@ main() {
     *) fail "Unknown --backend '$BACKEND' (expected orca, openchamber or headless)." ;;
     esac
 
-    check_not_installed
+    detect_existing
     setup_interaction
     check_environment
-    choose_install_dir
     choose_runtime
     choose_backend
 
@@ -548,7 +514,8 @@ main() {
     fi
 
     output "\nSummary" heading
-    output "  Install directory  $INSTALL_DIR"
+    output "  Version            ${VERSION:-latest}"
+    output "  Binary             $BIN ($TARGET)"
     output "  Agent runtime      $(runtime_label "$RUNTIME")"
     output "  Agent environment  $(backend_label "$BACKEND")"
     if $WITH_WEB; then
@@ -562,13 +529,16 @@ main() {
         fi
     fi
 
-    fetch_pablo
+    download
     run_install
 
     output "\nPABLO was installed successfully!" success
-    output "  Installed in  $INSTALL_DIR"
-    output "  Update        git -C $INSTALL_DIR pull --ff-only && bash $INSTALL_DIR/bin/install.sh"
-    output "  Uninstall     bash $INSTALL_DIR/bin/uninstall.sh"
+    output "  Command    $BIN"
+    output "  Update     curl -fsSL https://getpablo.dev/installer | bash"
+    output "  Uninstall  pablo system:uninstall"
+    if [ -n "$CHECKOUT" ]; then
+        output "  The checkout in $CHECKOUT is no longer used: delete it when you no longer need it."
+    fi
 }
 
 # The whole script is read before anything runs: a truncated download

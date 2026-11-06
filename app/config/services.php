@@ -26,6 +26,7 @@ use Pablo\Dispatch\Stamps;
 use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
 use Pablo\Domain\Time;
+use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Listing\Listing;
 use Pablo\Poller\Poller;
 use Pablo\Provider\Gh\GhPr;
@@ -135,6 +136,10 @@ return static function (ContainerConfigurator $container): void {
     $services->set(TaskStarter::class);
     $services->set(TaskAttacher::class);
     $services->set(TaskStateChanger::class);
+
+    // `pablo system:install` / `system:uninstall`: the platform's background
+    // services (systemd or launchd), paths resolved per call.
+    $services->set(SchedulerFactory::class);
 
     // `pablo.command`, not `console.command`: every bundle now contributes to
     // the latter, and bin/pablo must keep listing PABLO subcommands only.

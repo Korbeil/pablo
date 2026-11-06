@@ -65,7 +65,7 @@ final class AgentRuntimeTest extends TestCase
 
     private function claude(): ClaudeCodeRuntime
     {
-        return new ClaudeCodeRuntime(new ClaudeCodeAgents(new AgentTemplates(new Config(new GlobalConfig()))), '/home/u/.pablo/claude');
+        return new ClaudeCodeRuntime(new ClaudeCodeAgents(new AgentTemplates(new Config(new GlobalConfig()))), '/home/u/.pablo/runtime/claude');
     }
 
     public function testOpenCodeCommandIsUnchanged(): void
@@ -85,7 +85,7 @@ final class AgentRuntimeTest extends TestCase
         $this->assertTrue(SessionRef::isClaudeSession($sid));
 
         $command = $runtime->launchCommand('task-analyst', "Analyze issue #45 — it's urgent", 'sonnet', $sid);
-        $this->assertStringStartsWith("claude -p --agents '/home/u/.pablo/claude/agents.json' --agent task-analyst --model sonnet --session-id {$sid} --strict-mcp-config --permission-mode dontAsk --allowedTools ", $command);
+        $this->assertStringStartsWith("claude -p --agents '/home/u/.pablo/runtime/claude/agents.json' --agent task-analyst --model sonnet --session-id {$sid} --strict-mcp-config --permission-mode dontAsk --allowedTools ", $command);
         $this->assertStringContainsString("'Bash(git push*)' 'Bash(rtk git push*)'", $command);
         $this->assertStringContainsString("'Bash(*acli jira workitem edit*)'", $command);
         // The prompt comes last, after `--`, so the variadic tool lists stop before it.

@@ -13,7 +13,7 @@ pablo project:new <name> --type <work|open-source|personal> --tracker <github|ji
 ```
 
 (or ask the user with which type/tracker; see https://getpablo.dev/docs/configuration/).
-After registering a project, re-run `./bin/install.sh` so the provider agent templates regenerate.
+Registering a project regenerates the provider agent templates by itself; if `pablo system:doctor` still reports stale agents, run `pablo system:generate-agents`.
 
 Create a task:
 

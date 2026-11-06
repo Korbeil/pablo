@@ -14,6 +14,7 @@ use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
+use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Everything the dashboard renders, read straight off disk.
@@ -31,7 +32,7 @@ use Pablo\Support\RepoSlug;
  *
  * Strictly read-only: nothing here writes to the store.
  */
-final class Dashboard
+final class Dashboard implements ResetInterface
 {
     /**
      * Project types the analytics/task tabs offer; '' means "All projects".
@@ -41,6 +42,12 @@ final class Dashboard
 
     /** @var array<string, ?string> memoised repo slugs, keyed by project name */
     private array $slugs = [];
+
+    /** Called between two requests of a dashboard worker (kernel.reset). */
+    public function reset(): void
+    {
+        $this->slugs = [];
+    }
 
     public function __construct(
         private readonly Store $store,

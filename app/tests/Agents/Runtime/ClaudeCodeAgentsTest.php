@@ -54,7 +54,7 @@ final class ClaudeCodeAgentsTest extends TestCase
      */
     private function openCodeRules(string $agent): array
     {
-        [$front] = self::split($this->templates->render($this->templates->repoAgentsDir(), $agent, Config::PROVIDERS));
+        [$front] = self::split($this->templates->render($this->templates->templatesDir(), $agent, Config::PROVIDERS));
         $this->assertIsArray($front['permissions']);
         $rules = [];
         foreach ($front['permissions'] as $rule) {
@@ -148,7 +148,7 @@ final class ClaudeCodeAgentsTest extends TestCase
 
     public function testAgentsJsonHoldsEveryAgentWithoutAModel(): void
     {
-        $json = json_decode($this->claude->renderAgentsJson($this->templates->repoAgentsDir(), ['github']), true);
+        $json = json_decode($this->claude->renderAgentsJson($this->templates->templatesDir(), ['github']), true);
         $this->assertIsArray($json);
         $this->assertSame(AgentTemplates::AGENT_NAMES, array_keys($json));
         foreach ($json as $name => $definition) {
@@ -161,7 +161,7 @@ final class ClaudeCodeAgentsTest extends TestCase
 
     public function testAgentFilesAreValidSubagentsNamedWithThePrefix(): void
     {
-        $files = $this->claude->renderAgentFiles($this->templates->repoAgentsDir(), ['github']);
+        $files = $this->claude->renderAgentFiles($this->templates->templatesDir(), ['github']);
         $this->assertSame(
             array_map(static fn (string $n): string => 'pablo-'.$n.'.md', AgentTemplates::AGENT_NAMES),
             array_keys($files),
@@ -195,7 +195,7 @@ final class ClaudeCodeAgentsTest extends TestCase
 
     public function testCommitCommandKeepsItsAllowListAndContextInjection(): void
     {
-        $source = AgentTemplates::commandsDirFor($this->templates->repoAgentsDir()).'/pablo-commit-and-pr.md';
+        $source = AgentTemplates::commandsDirFor($this->templates->templatesDir()).'/pablo-commit-and-pr.md';
         $rendered = $this->claude->renderCommand($source);
 
         [$front, $body] = self::split($rendered);

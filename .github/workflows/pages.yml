@@ -43,8 +43,8 @@ jobs:
       # script must fail the pull request, not the first user.
       - name: lint shell scripts
         run: |
-          for script in site/installer bin/install.sh bin/uninstall.sh; do bash -n "$script"; done
-          shellcheck --severity=warning site/installer bin/install.sh bin/uninstall.sh
+          bash -n site/installer
+          shellcheck --severity=warning site/installer
       - name: build
         run: php site/build/build.php --base=/
       - name: configure-pages

@@ -7,7 +7,9 @@ Guidance for agents working in this repository.
 PABLO is an AI task orchestrator: a small PHP engine (a standalone Symfony
 Console application, Composer package `pablo`) plus OpenCode agents/commands,
 and a background scheduler (systemd on Linux, launchd on macOS). Not a
-standalone product.
+standalone product. Users install it as a **single static binary** (Box phar +
+static-php-cli `micro.sfx`, no PHP needed — see "Standalone binary" below);
+contributors run `php app/bin/pablo` from the checkout.
 
 **The documentation website is the source of truth for behavior** — its
 pages live in `site/content/*.html` (published at
@@ -55,14 +57,19 @@ castor site:build                           # build the website into _site/ (fai
 castor site:serve                           # build + preview it on http://127.0.0.1:8000
 (cd app && composer test)                   # same as castor qa:test
 (cd app && composer exec phpunit tests/StateMachineTest.php)  # one file
-pablo --help                                # engine subcommands
-pablo web                                   # read-only dashboard on 127.0.0.1:8321
+castor build:binary [--micro=<micro.sfx> --spc=<spc>]  # dist/pablo.phar (+ dist/pablo, the static binary)
+php app/bin/pablo --help                    # engine subcommands, from the checkout
+php app/bin/pablo web                       # read-only dashboard on 127.0.0.1:8321 (Pablo\Web\Server)
 php app/bin/console cache:clear             # framework CLI: cache:clear, lint:twig, debug:router,
                                             # importmap:*, ux:icons:import
-./bin/install.sh / ./bin/uninstall.sh       # install/remove shim + scheduler (install.sh takes
-                                            # --runtime/--backend/--without-web)
+php app/bin/pablo system:install            # install/update for this user (shim from a checkout,
+                                            # the binary itself when run from it); takes
+                                            # --runtime/--backend/--without-web
+php app/bin/pablo system:uninstall          # remove services, links, command, PATH block
 # site/installer = the interactive `curl -fsSL https://getpablo.dev/installer | bash`
-# script (clone/update, detect runtimes + ADEs, then hands over to bin/install.sh);
+# script (detect runtimes + ADEs, download pablo-<os>-<arch> from the latest
+# GitHub Release, verify sha256sums.txt, install ~/.local/bin/pablo, then hand
+# over to `pablo system:install`; migrates a clone install's php shim);
 # tests: app/tests/Install/ (castor qa:test)
 journalctl --user -u pablo-dispatch.service -f  # dispatcher logs (Linux)
 ```
@@ -81,12 +88,18 @@ The application lives under `app/`; namespaces mirror folders
 unless noted.
 
 **One kernel, three entry points.** `src/App/Kernel.php` is a
-FrameworkBundle `MicroKernelTrait` kernel (project dir = `app/`, container
-cached in `var/cache/<env>`) serving `bin/pablo` (the user-facing CLI),
-`bin/console` (framework maintenance) and `public/index.php` (the
-dashboard). `PABLO_ENV` defaults to `dev` — **not** `prod`, where the
-container cache is never checked for freshness and a `git pull` would leave
-a stale container forever. `MicroKernelTrait`'s default
+FrameworkBundle `MicroKernelTrait` kernel (project dir = `app/`) serving
+`bin/pablo` (the user-facing CLI), `bin/console` (framework maintenance) and
+the dashboard (`pablo web`, served by `src/Web/Server.php`; `public/index.php`
+remains only for a regular PHP SAPI — there is no `php -S` anywhere). From a
+checkout the container is cached in `var/cache/<env>` and `PABLO_ENV`
+defaults to `dev` — **not** `prod`, where the container cache is never
+checked for freshness and a `git pull` would leave a stale container forever.
+From the binary (`PabloPaths::isPhar()`), the phar is read-only: the
+container goes to `~/.pablo/cache/container/<version>/<env>-<hash of the
+binary path+mtime>`, logs to `~/.pablo/logs`, and `PABLO_ENV` defaults to
+`prod` (safe: the dir is versioned). HOME is resolved in the Kernel at
+runtime (`Kernel::defaultEnvironment()`, `getCacheDir()`). `MicroKernelTrait`'s default
 `configureContainer`/`configureRoutes` are used as-is; config lives in
 `config/{bundles,services,routes}.php` + `config/packages/`.
 
@@ -156,11 +169,38 @@ cases, read before touching transition logic.
 **Task storage**: always under `~/.pablo/`, never in a project
 repo/worktree — `state/<project>/<branch>.json` (+ `.lock`),
 `stamps/<project>.{sync,poll}`, `agents/` (pidfiles+logs),
-`worktrees/`. Atomic writes, UTC ISO-8601 timestamps. The `Task` record
+`worktrees/`, plus generated `runtime/` (rendered agents/commands/skills) and
+`cache/container/<version>/` (the binary's compiled container). Atomic writes, UTC ISO-8601 timestamps. The `Task` record
 also holds a poller-written **display cache** (`DisplayCache` value object
 in `src/Domain/`) so `pablo task:list` renders instantly;
 `null` means never-polled and `Listing` falls back to a live fetch.
 `--live` forces a live fetch, `--refresh` forces the poller first.
+
+**Bundled resources are read-only.** `PabloPaths::resourcesDir()` is the
+repo root, or the inside of the phar (same layout). Never write next to
+templates; never `glob()` a bundled dir (it returns nothing on `phar://`) —
+use `Support\Files::list()`/`copy()`. Everything rendered goes under
+`~/.pablo/runtime/` (`PABLO_RUNTIME_DIR`): `opencode/{agents,commands,skills}`
+(commands/skills are extracted: a symlink cannot point into the binary),
+`claude/{agents,commands}` + `agents.json`, `copilot/{agents,skills}`. The
+links in `~/.config/opencode`, `~/.claude`, `~/.copilot` point there.
+
+**Dashboard server** (`src/Web/Server.php`): plain PHP, 127.0.0.1 only (not
+configurable), prefork of 4 workers accept()ing on one socket, each booting
+the kernel once (handle/terminate; the kernel resets `kernel.reset` services
+between requests — a service that memoises state must implement
+`ResetInterface`, as `Config` and `Dashboard` do). Content-Length bodies,
+`Connection: close`, no keep-alive/chunked/TLS. Compiled assets are served
+from `public/` (inside the phar for the binary).
+
+**Install** (`src/Install/`, `system:install` / `system:uninstall`):
+idempotent; never touches a pre-existing non-PABLO file in
+`~/.config/opencode`, `~/.claude`, `~/.copilot` (a link is PABLO's when it
+points into `~/.pablo/runtime` or into a PABLO checkout — the clone install's
+links, taken over on migration); systemd units / launchd plists are bundled
+and **written** (marker line, never symlinked), pointing at
+`~/.local/bin/pablo`. `SystemdScheduler` is the one file `PortabilityTest`
+lets name `systemctl` (built only on Linux by `SchedulerFactory`).
 
 **Agent execution**: via the Orca CLI (`orca terminal create` /
 `orca terminal wait` / `orca worktree ps`), same path as the user's other
@@ -169,13 +209,13 @@ as the command's working directory for
 repos not registered in Orca. *What* runs is the agent **runtime**
 (`src/Agents/Runtime/`, `agent_runtime` / `PABLO_AGENT_RUNTIME`, resolved per
 call by `AgentRuntimeResolver`): `opencode run` (default), `claude -p`
-(Claude Code: agents passed with `--agents ~/.pablo/claude/agents.json`, and
-also rendered as `pablo-<agent>.md` into the git-ignored `claude/agents/`,
+(Claude Code: agents passed with `--agents ~/.pablo/runtime/claude/agents.json`, and
+also rendered as `pablo-<agent>.md` into `~/.pablo/runtime/claude/agents/`,
 linked into `~/.claude/agents` for `/agents` and the `@` picker — tool-level
 limits only; permissions translated from the same templates by `ClaudeCodeAgents`, every
 shell deny doubled in its `rtk`-prefixed form) or `copilot -p` (GitHub
 Copilot CLI: `pablo-<agent>.agent.md` files rendered by `CopilotAgents` into
-the git-ignored `copilot/` and linked into `~/.copilot/agents`, policy
+`~/.pablo/runtime/copilot/` and linked into `~/.copilot/agents`, policy
 repeated as `--available-tools`/`--allow-tool`/`--deny-tool` flags, session
 handles recorded as `copilot:<uuid>`). OpenChamber + anything but OpenCode
 is refused (factory, doctor, dispatch). An optional `OpenChamber` backend
@@ -238,5 +278,23 @@ Composer project, PHP 8.4 `Dom\HTMLDocument`) wraps pages in the layout,
 adds heading anchors + the "On this page" column, highlights code, resolves
 `page:<slug>#<id>` / `repo:<path>` / `asset:<path>` links — a broken one
 fails the build — and writes `search-index.json` for the local search
-(`site/search.js`). Example configs used by `bin/install.sh` live in
-`examples/`.
+(`site/search.js`). Example configs live in `examples/`
+(`examples/config.yaml` is bundled in the binary and seeds
+`~/.pablo/config.yaml` on `system:install`).
+
+## Standalone binary
+
+`app/box.json` (base-path = repo root, so the phar mirrors the repo layout)
+packs `app/{src,config,templates,assets,public,vendor}` + `opencode/`,
+`systemd/`, `launchd/`, `examples/config.yaml`; `@package_version@` (Box
+`git-version`) feeds `ConsoleApplication::version()` (`dev` in a checkout).
+`castor build:binary` builds from a staged copy in `dist/stage/` (no-dev
+vendor, `asset-map:compile`) so the checkout's vendor and
+`app/public/assets/` stay untouched, then `spc micro:combine`s it when given
+`--micro`. `.github/workflows/binary.yml` does the same per OS/arch
+(linux-x86_64/aarch64, macos-arm64/x86_64), smoke-tests (Linux: in a
+`debian:stable-slim` container without PHP) and on `v*` tags publishes the
+binaries + `sha256sums.txt` to the GitHub Release. micro extensions:
+`phar,ctype,iconv,mbstring,tokenizer,filter,posix,pcntl,dom,xml,zlib,openssl`
+(keep `castor.php` and the workflow in step). No `opcache.enable_cli=1`: it
+segfaults PHP 8.5 micro at startup.

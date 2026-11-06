@@ -1,0 +1,174 @@
+name: Binary
+# The standalone `pablo` binary: a Box phar of the app combined with a static
+# PHP (static-php-cli micro.sfx), per OS/arch. Built on every pull request
+# (nothing published), on demand, and on v* tags — where the binaries and
+# their sha256sums.txt are attached to the GitHub Release that
+# https://getpablo.dev/installer downloads from.
+#
+# Same steps as `castor build:binary` (castor.php); keep EXTENSIONS and the
+# micro:combine ini in step with BINARY_EXTENSIONS / BINARY_INI there.
+on:
+  push:
+    tags: [ "v*" ]
+  pull_request: ~
+  workflow_dispatch: ~
+
+concurrency:
+  group: binary-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PHP_VERSION: "8.5"
+  EXTENSIONS: "phar,ctype,iconv,mbstring,tokenizer,filter,posix,pcntl,dom,xml,zlib,openssl"
+  # No opcache.enable_cli=1: with PHP 8.5 micro it segfaults at startup.
+  MICRO_INI: "memory_limit=512M"
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            runner: ubuntu-latest
+            spc: spc-linux-x86_64
+          - target: linux-aarch64
+            runner: ubuntu-24.04-arm
+            spc: spc-linux-aarch64
+          - target: macos-arm64
+            runner: macos-latest
+            spc: spc-macos-aarch64
+          - target: macos-x86_64
+            runner: macos-15-intel
+            spc: spc-macos-x86_64
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+        with:
+          # Box's git-version needs the tags (else it falls back to the commit hash).
+          fetch-depth: 0
+
+      - name: setup PHP (build only)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          coverage: none
+          extensions: mbstring, dom, xml
+          ini-values: phar.readonly=0
+          tools: box
+
+      - name: composer install (no-dev)
+        working-directory: app
+        run: composer install --no-dev --no-interaction --prefer-dist --no-progress -a --classmap-authoritative
+
+      - name: compile the dashboard assets
+        working-directory: app
+        run: php bin/console asset-map:compile --env=prod --no-debug
+
+      - name: box compile
+        working-directory: app
+        run: box compile --no-interaction
+
+      - name: phar smoke test
+        run: |
+          mkdir -p "$RUNNER_TEMP/phar-home"
+          HOME="$RUNNER_TEMP/phar-home" php dist/pablo.phar --version
+
+      - name: download static-php-cli
+        run: |
+          mkdir -p "$RUNNER_TEMP/spc"
+          curl -fsSL "https://dl.static-php.dev/static-php-cli/spc-bin/nightly/${{ matrix.spc }}.tar.gz" | tar -xz -C "$RUNNER_TEMP/spc"
+          chmod +x "$RUNNER_TEMP/spc/spc"
+          "$RUNNER_TEMP/spc/spc" --version
+
+      # actions/cache keys cannot contain commas: the extension list goes in with dashes.
+      - name: static-php-cli cache key
+        id: spc-key
+        run: echo "key=spc-${{ matrix.target }}-php${PHP_VERSION}-$(printf '%s' "$EXTENSIONS" | tr ',' '-')" >> "$GITHUB_OUTPUT"
+
+      - name: cache static-php-cli downloads and build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ runner.temp }}/spc/downloads
+            ${{ runner.temp }}/spc/buildroot
+          key: ${{ steps.spc-key.outputs.key }}
+
+      - name: build micro.sfx
+        working-directory: ${{ runner.temp }}/spc
+        run: |
+          if [ -f buildroot/bin/micro.sfx ]; then
+            echo "micro.sfx restored from cache"
+            exit 0
+          fi
+          ./spc doctor --auto-fix
+          ./spc download --for-extensions="$EXTENSIONS" --with-php="$PHP_VERSION" --prefer-pre-built
+          ./spc build "$EXTENSIONS" --build-micro
+
+      - name: micro:combine
+        working-directory: ${{ runner.temp }}/spc
+        run: |
+          ./spc micro:combine "$GITHUB_WORKSPACE/dist/pablo.phar" \
+            --with-micro=buildroot/bin/micro.sfx \
+            --output="$GITHUB_WORKSPACE/dist/pablo-${{ matrix.target }}" \
+            -I "$MICRO_INI"
+          chmod +x "$GITHUB_WORKSPACE/dist/pablo-${{ matrix.target }}"
+
+      - name: smoke test (Linux, no PHP installed)
+        if: startsWith(matrix.target, 'linux-')
+        run: |
+          docker run --rm -v "$GITHUB_WORKSPACE/dist:/dist:ro" -e HOME=/tmp debian:stable-slim sh -euc '
+            if command -v php >/dev/null 2>&1; then echo "php must not be installed here" >&2; exit 1; fi
+            /dist/pablo-${{ matrix.target }} --version
+            /dist/pablo-${{ matrix.target }} list
+          '
+
+      - name: smoke test (macOS)
+        if: startsWith(matrix.target, 'macos-')
+        run: |
+          export HOME="$RUNNER_TEMP/smoke-home"
+          mkdir -p "$HOME"
+          dist/pablo-${{ matrix.target }} --version
+          dist/pablo-${{ matrix.target }} list
+
+      - name: upload
+        uses: actions/upload-artifact@v5
+        with:
+          name: pablo-${{ matrix.target }}
+          path: dist/pablo-${{ matrix.target }}
+          if-no-files-found: error
+
+  release:
+    name: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: download the binaries
+        uses: actions/download-artifact@v5
+        with:
+          pattern: pablo-*
+          path: release
+          merge-multiple: true
+
+      - name: checksums
+        working-directory: release
+        run: |
+          chmod +x pablo-*
+          sha256sum pablo-* > sha256sums.txt
+          cat sha256sums.txt
+
+      - name: publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/pablo-*
+            release/sha256sums.txt
+          fail_on_unmatched_files: true

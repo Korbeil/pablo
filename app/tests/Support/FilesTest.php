@@ -1,0 +1,80 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Pablo\Tests\Support;
+
+use Pablo\Support\Files;
+use PHPUnit\Framework\TestCase;
+
+final class FilesTest extends TestCase
+{
+    private string $tmp;
+
+    protected function setUp(): void
+    {
+        $this->tmp = sys_get_temp_dir().'/pablo-files-'.bin2hex(random_bytes(4));
+        mkdir($this->tmp.'/src/skills/b', 0o777, true);
+        file_put_contents($this->tmp.'/src/b.md', 'b');
+        file_put_contents($this->tmp.'/src/a.md', 'a');
+        file_put_contents($this->tmp.'/src/c.txt', 'c');
+        file_put_contents($this->tmp.'/src/skills/b/SKILL.md', 'skill');
+    }
+
+    protected function tearDown(): void
+    {
+        exec('rm -rf '.escapeshellarg($this->tmp));
+    }
+
+    public function testListMatchesSortsAndFiltersDirectories(): void
+    {
+        $this->assertSame([$this->tmp.'/src/a.md', $this->tmp.'/src/b.md'], Files::list($this->tmp.'/src', '*.md'));
+        $this->assertSame([$this->tmp.'/src/skills'], Files::list($this->tmp.'/src', '*', dirsOnly: true));
+        $this->assertSame([], Files::list($this->tmp.'/missing'));
+    }
+
+    /** glob() sees nothing inside a phar; Files::list() must. */
+    public function testListWorksInsideAPhar(): void
+    {
+        // phar.readonly cannot be lifted at runtime: build it in a subprocess.
+        $build = '$p = new Phar($argv[1]); $p->addFromString("opencode/commands/x.md", "x"); $p->addFromString("opencode/skills/s/SKILL.md", "s");';
+        exec(escapeshellarg(\PHP_BINARY).' -d phar.readonly=0 -r '.escapeshellarg($build).' '.escapeshellarg($this->tmp.'/t.phar'), $out, $code);
+        $this->assertSame(0, $code, implode("\n", $out));
+
+        $root = 'phar://'.$this->tmp.'/t.phar/opencode';
+        $this->assertSame([$root.'/commands/x.md'], Files::list($root.'/commands', '*.md'));
+        $this->assertSame([], glob($root.'/commands/*.md') ?: []);
+        Files::copy($root.'/skills/s', $this->tmp.'/out/s');
+        $this->assertSame('s', file_get_contents($this->tmp.'/out/s/SKILL.md'));
+    }
+
+    public function testCopyIsRecursive(): void
+    {
+        Files::copy($this->tmp.'/src', $this->tmp.'/dst');
+
+        $this->assertSame('skill', file_get_contents($this->tmp.'/dst/skills/b/SKILL.md'));
+        $this->assertSame('a', file_get_contents($this->tmp.'/dst/a.md'));
+    }
+
+    public function testWriteReplacesASymlinkInsteadOfWritingThroughIt(): void
+    {
+        file_put_contents($this->tmp.'/target', 'original');
+        symlink($this->tmp.'/target', $this->tmp.'/link');
+
+        Files::write($this->tmp.'/link', 'new', 0o755);
+
+        $this->assertFalse(is_link($this->tmp.'/link'));
+        $this->assertSame('new', file_get_contents($this->tmp.'/link'));
+        $this->assertSame('original', file_get_contents($this->tmp.'/target'));
+        $this->assertTrue(is_executable($this->tmp.'/link'));
+    }
+
+    public function testRemoveDeletesATreeWithDotfiles(): void
+    {
+        file_put_contents($this->tmp.'/src/skills/.hidden', 'h');
+
+        Files::remove($this->tmp.'/src');
+
+        $this->assertDirectoryDoesNotExist($this->tmp.'/src');
+    }
+}

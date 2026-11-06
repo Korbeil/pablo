@@ -57,7 +57,7 @@ final class CopilotAgents
      */
     public function profile(string $agent, ?string $agentsDir = null, array $providers = []): CopilotAgentProfile
     {
-        $agentsDir ??= $this->templates->repoAgentsDir();
+        $agentsDir ??= $this->templates->templatesDir();
 
         return self::profileFromMarkdown($this->templates->render($agentsDir, $agent, $providers), $agent);
     }

@@ -5,13 +5,15 @@ declare(strict_types=1);
 namespace Pablo\Agents;
 
 use Pablo\Config\Config;
+use Pablo\Support\PabloPaths;
 
 /**
  * Renders the five opencode agent .md files IN MEMORY from the
  * opencode/agents/*.md.template sources plus the issue-tracker providers the
  * configured projects use. Shared by `pablo system:generate-agents` (writes
- * the rendered files) and `pablo system:doctor` (compares a fresh render
- * against what is installed under ~/.config/opencode) so the two can never
+ * the rendered files under ~/.pablo/runtime) and `pablo system:doctor`
+ * (compares a fresh render against what is installed under
+ * ~/.config/opencode) so the two can never
  * drift apart. Reads only — never writes. These renders are also the source
  * of the Claude Code and Copilot translations (Runtime\ClaudeCodeAgents,
  * Runtime\CopilotAgents).
@@ -31,12 +33,13 @@ final class AgentTemplates
     }
 
     /**
-     * Repo directory holding the *.md.template sources (install.sh symlinks
-     * the generated siblings into ~/.config/opencode).
+     * The bundled *.md.template sources (plus shared/ and providers/): in the
+     * repository checkout, or inside the standalone binary — read-only either
+     * way, so nothing is ever rendered next to them.
      */
-    public function repoAgentsDir(): string
+    public function templatesDir(): string
     {
-        return \dirname(__DIR__, 3).'/opencode/agents';
+        return PabloPaths::resourcesDir().'/opencode/agents';
     }
 
     /** Commands sources (opencode/commands), next to the agents directory. */
@@ -45,23 +48,31 @@ final class AgentTemplates
         return \dirname($agentsDir).'/commands';
     }
 
-    /**
-     * Repo directory (git-ignored) holding the Claude Code rendering of the
-     * commands; install.sh symlinks claude/commands/*.md into ~/.claude/commands.
-     */
-    public function repoClaudeDir(): string
+    /** Skills sources (opencode/skills/<name>/), next to the agents directory. */
+    public static function skillsDirFor(string $agentsDir): string
     {
-        return \dirname(__DIR__, 3).'/claude';
+        return \dirname($agentsDir).'/skills';
     }
 
     /**
-     * Repo directory (git-ignored) holding the Copilot rendering: agents/
-     * (pablo-<agent>.agent.md) and skills/ (the commands as skills);
-     * install.sh symlinks both into ~/.copilot.
+     * ~/.pablo/runtime/opencode: the rendered OpenCode agents (agents/) plus
+     * the commands and skills extracted from the bundle (commands/, skills/) —
+     * a symlink cannot point into the binary, so `pablo system:install` links
+     * ~/.config/opencode (and the skills under ~/.claude / ~/.copilot) here.
+     * Resolved per call.
      */
-    public function repoCopilotDir(): string
+    public static function opencodeRuntimeDir(): string
     {
-        return \dirname(__DIR__, 3).'/copilot';
+        return PabloPaths::runtimeDir().'/opencode';
+    }
+
+    /**
+     * ~/.pablo/runtime/copilot: agents/ (pablo-<agent>.agent.md) and skills/
+     * (the commands as skills), linked into ~/.copilot by `pablo system:install`.
+     */
+    public static function copilotRuntimeDir(): string
+    {
+        return PabloPaths::runtimeDir().'/copilot';
     }
 
     /**

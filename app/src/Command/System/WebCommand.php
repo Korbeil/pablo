@@ -4,18 +4,25 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
+use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentLauncherInterface;
+use Pablo\App\Kernel;
 use Pablo\Command\Command;
+use Pablo\Config\Config;
+use Pablo\Store\Store;
 use Pablo\Support\PabloError;
+use Pablo\Web\Server;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Process\Process;
 
 /**
- * Serves the read-only dashboard from PHP's built-in web server.
- *
- * No Docker, no symfony CLI, no extra daemon: `pablo web` and ctrl-c.
+ * Serves the read-only dashboard with PABLO's own HTTP server
+ * (Pablo\Web\Server): no `php -S` — the standalone binary has none — no
+ * Docker, no symfony CLI, no extra daemon: `pablo web` and ctrl-c.
  */
 #[AsCommand(name: 'web', description: 'serve the read-only dashboard on 127.0.0.1')]
 final class WebCommand extends Command
@@ -23,16 +30,23 @@ final class WebCommand extends Command
     public const DEFAULT_PORT = 8321;
 
     /**
-     * The built-in server is single-process by default, which makes a page with
-     * two polling live components feel stuck behind its own asset requests.
-     */
-    public const WORKERS = 4;
-
-    /**
      * Loopback only, and not configurable. The dashboard has no authentication
      * and exposes branch names, issue titles and PR URLs.
      */
-    private const HOST = '127.0.0.1';
+    public const HOST = Server::HOST;
+
+    public function __construct(
+        Store $store,
+        Config $projectsLoader,
+        AgentLauncherFactory $agentLaunchers,
+        AgentLauncherInterface $agents,
+        #[Autowire('%kernel.environment%')]
+        private readonly string $environment = 'dev',
+        #[Autowire('%kernel.debug%')]
+        private readonly bool $debug = true,
+    ) {
+        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+    }
 
     protected function configure(): void
     {
@@ -44,42 +58,47 @@ final class WebCommand extends Command
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $port = $this->port($input);
-        $url = 'http://'.self::HOST.':'.$port;
 
-        $process = new Process(self::serverCommand($port), env: ['PHP_CLI_SERVER_WORKERS' => (string) self::WORKERS]);
-        $process->setTimeout(null);
+        $server = $this->server($output);
+        $port = $server->listen($port);
+        $url = 'http://'.self::HOST.':'.$port;
 
         $output->writeln("PABLO dashboard → <info>{$url}</info>");
         $output->writeln('<comment>(ctrl-c to stop)</comment>');
-
-        $process->start();
 
         if ($input->getOption('open')) {
             $this->openBrowser($url);
         }
 
-        // Inherit the server's log lines so ctrl-c behaves like a foreground
-        // server; Process forwards SIGINT to the child.
-        $process->wait(static function (string $type, string $buffer) use ($output): void {
-            $output->write($buffer);
-        });
+        $server->run();
 
         return self::SUCCESS;
     }
 
     /**
-     * @return list<string>
+     * Each worker boots its own kernel, in the same env as this command, after
+     * the fork; this command's own container has already compiled (or loaded)
+     * the cached container they will reuse.
      */
-    public static function serverCommand(int $port): array
+    public function server(OutputInterface $output): Server
     {
-        $public = \dirname(__DIR__, 3).'/public';
+        $environment = $this->environment;
+        $debug = $this->debug;
 
-        return [
-            \PHP_BINARY,
-            '-S', self::HOST.':'.$port,
-            '-t', $public,
-            $public.'/index.php',
-        ];
+        return new Server(
+            static fn (): Kernel => new Kernel($environment, $debug),
+            self::publicDir(),
+            Server::WORKERS,
+            static function (string $line) use ($output): void {
+                $output->writeln('['.date('D M j H:i:s Y').'] '.$line);
+            },
+        );
+    }
+
+    /** app/public: the compiled assets (inside the binary, or in a checkout). */
+    public static function publicDir(): string
+    {
+        return \dirname(__DIR__, 3).'/public';
     }
 
     private function port(InputInterface $input): int

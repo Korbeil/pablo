@@ -38,7 +38,7 @@
 
 <p>PABLO doesn't run agents itself. It hands them to an agent backend, exactly the way you would, and asks it which agents are busy.</p>
 
-<p>The backend decides <em>where</em> an agent runs; the <a href="page:configuration#claude-code">agent runtime</a> (<code>agent_runtime</code>) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code, or <code>copilot --agent pablo-&lt;agent&gt; --session-id &lt;uuid&gt; … -p '&lt;prompt&gt;'</code> with <a href="page:configuration#copilot">Copilot</a>. Orca and the headless fallback run either; OpenChamber only runs OpenCode.</p>
+<p>The backend decides <em>where</em> an agent runs; the <a href="page:configuration#claude-code">agent runtime</a> (<code>agent_runtime</code>) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/runtime/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code, or <code>copilot --agent pablo-&lt;agent&gt; --session-id &lt;uuid&gt; … -p '&lt;prompt&gt;'</code> with <a href="page:configuration#copilot">Copilot</a>. Orca and the headless fallback run either; OpenChamber only runs OpenCode.</p>
 
 <h3>Orca (default)</h3>
 
@@ -87,6 +87,18 @@ openchamber session list --dir &lt;worktree&gt; --with-status
 </table>
 
 <p>It never merges or closes a pull request, never comments or reviews, and never changes a ticket.</p>
+
+<p>On your machine, outside the task worktrees, it writes only these files:</p>
+
+<table>
+  <thead><tr><th>Files</th><th>When</th></tr></thead>
+  <tbody>
+    <tr><td>Task records, stamps, logs, analytics under <code>~/.pablo/</code></td><td>as it runs (see <a href="page:storage">Storage</a>)</td></tr>
+    <tr><td>The rendered agents and the extracted commands and skills, in <code>~/.pablo/runtime/</code></td><td><code>pablo system:generate-agents</code> and <code>pablo system:install</code>; the binary is read-only, so nothing is ever written next to the templates it carries</td></tr>
+    <tr><td>The compiled application cache, in <code>~/.pablo/cache/container/&lt;version&gt;/</code></td><td>the first run of each binary version (from a checkout: <code>app/var/cache/</code>); <code>pablo system:install</code> removes the other versions'</td></tr>
+    <tr><td><code>~/.local/bin/pablo</code>, the links in <code>~/.config/opencode/</code>, <code>~/.claude/</code>, <code>~/.copilot/</code>, the scheduler files, the <code>PATH</code> block</td><td>only <code>pablo system:install</code> and <code>pablo system:uninstall</code>, never over a file that isn't PABLO's (see <a href="page:installation#what-pablo-system-install-does">Installation</a>)</td></tr>
+  </tbody>
+</table>
 
 <h2>Design decisions</h2>
 

@@ -9,9 +9,12 @@ use Symfony\Component\Process\Process;
 
 /**
  * site/installer (served at https://getpablo.dev/installer): prerequisites,
- * detection of the agent runtimes and environments, the questions, and the
- * hand-over to bin/install.sh. The checkout is a local git repository whose
- * bin/install.sh only records the arguments it received.
+ * detection of the agent runtimes and environments, the questions, the
+ * verified download and the hand-over to `pablo system:install`.
+ *
+ * The "release" is a local directory served through file:// (real curl, real
+ * sha256sum); its pablo-<target> is a script that records the arguments
+ * system:install received.
  */
 final class InstallerTest extends TestCase
 {
@@ -20,16 +23,16 @@ final class InstallerTest extends TestCase
     private const PREREQUISITES_URL = 'https://getpablo.dev/docs/installation/#prerequisites';
 
     private string $installer;
-    private string $origin;
-    private string $installDir;
+    private string $releases;
+    private string $target;
 
     protected function setUp(): void
     {
         $this->installer = \dirname(__DIR__, 3).'/site/installer';
         $this->createSandbox();
-        $this->fakeTool('composer');
-        $this->installDir = $this->sandbox.'/install';
-        $this->origin = $this->createOrigin();
+        $this->target = self::target();
+        $this->releases = $this->sandbox.'/releases';
+        $this->publish('latest/download', 'v9.9.9');
     }
 
     protected function tearDown(): void
@@ -37,13 +40,11 @@ final class InstallerTest extends TestCase
         $this->removeSandbox();
     }
 
-    public function testScriptsAreSyntacticallyValid(): void
+    public function testScriptIsSyntacticallyValid(): void
     {
-        $root = \dirname(__DIR__, 3);
-        foreach ([$this->installer, $root.'/bin/install.sh', $root.'/bin/uninstall.sh'] as $script) {
-            $process = $this->runInSandbox([$this->realTool('bash'), '-n', $script]);
-            $this->assertSame(0, $process->getExitCode(), $script.': '.$this->outputOf($process));
-        }
+        $process = $this->runInSandbox([$this->realTool('bash'), '-n', $this->installer]);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
     }
 
     public function testHelp(): void
@@ -51,16 +52,16 @@ final class InstallerTest extends TestCase
         $process = $this->install(['--help']);
 
         $this->assertSame(0, $process->getExitCode());
-        $this->assertStringContainsString('--install-dir', $process->getOutput());
+        $this->assertStringContainsString('--version', $process->getOutput());
         $this->assertStringContainsString('--runtime', $process->getOutput());
     }
 
     public function testUnknownOptionIsRefused(): void
     {
-        $process = $this->install(['--nope']);
+        $process = $this->install(['--install-dir', '/tmp/x']);
 
         $this->assertNotSame(0, $process->getExitCode());
-        $this->assertStringContainsString('Unknown option --nope', $this->outputOf($process));
+        $this->assertStringContainsString('Unknown option --install-dir', $this->outputOf($process));
     }
 
     public function testNoRuntimeFoundPointsToThePrerequisites(): void
@@ -72,31 +73,92 @@ final class InstallerTest extends TestCase
         $this->assertNotSame(0, $process->getExitCode());
         $this->assertStringContainsString('No agent runtime found', $this->outputOf($process));
         $this->assertStringContainsString(self::PREREQUISITES_URL, $this->outputOf($process));
-        $this->assertDirectoryDoesNotExist($this->installDir);
+        $this->assertFileDoesNotExist($this->bin());
     }
 
-    public function testMissingComposerPointsToThePrerequisites(): void
+    public function testNeitherPhpNorComposerIsNeeded(): void
     {
-        unlink($this->sandbox.'/path/composer');
+        unlink($this->sandbox.'/path/php');
+        $this->fakeTool('claude');
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringNotContainsString('PHP', $this->outputOf($process));
+        $this->assertStringNotContainsString('Composer', $this->outputOf($process));
+    }
+
+    public function testMissingCurlPointsToThePrerequisites(): void
+    {
+        unlink($this->sandbox.'/path/curl');
         $this->fakeTool('claude');
 
         $process = $this->install(['--no-interaction']);
 
         $this->assertNotSame(0, $process->getExitCode());
-        $this->assertStringContainsString('Composer is required', $this->outputOf($process));
+        $this->assertStringContainsString('curl is required', $this->outputOf($process));
         $this->assertStringContainsString(self::PREREQUISITES_URL, $this->outputOf($process));
     }
 
-    public function testTooOldPhpIsRefused(): void
+    public function testTheVerifiedBinaryIsInstalledAndHandedOver(): void
     {
-        $this->fakeTool('php', 'case "$*" in *version_compare*) exit 1 ;; *) echo 7.4.0 ;; esac');
         $this->fakeTool('claude');
+        $this->fakeTool('orca');
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString('sha256 verified', $this->outputOf($process));
+        $this->assertTrue(is_executable($this->bin()));
+        $this->assertStringContainsString('v9.9.9', (string) file_get_contents($this->bin()));
+        $this->assertSame('--runtime claude-code --backend orca', $this->installArguments());
+        $this->assertStringContainsString('Uninstall  pablo system:uninstall', $this->outputOf($process));
+    }
+
+    public function testAChecksumMismatchInstallsNothing(): void
+    {
+        $this->fakeTool('claude');
+        file_put_contents($this->releases.'/latest/download/sha256sums.txt', str_repeat('0', 64)."  pablo-{$this->target}\n");
 
         $process = $this->install(['--no-interaction']);
 
         $this->assertNotSame(0, $process->getExitCode());
-        $this->assertStringContainsString('PHP 7.4.0 is too old', $this->outputOf($process));
-        $this->assertDirectoryDoesNotExist($this->installDir);
+        $this->assertStringContainsString('Checksum mismatch', $this->outputOf($process));
+        $this->assertFileDoesNotExist($this->bin());
+    }
+
+    public function testABinaryMissingFromTheChecksumsIsRefused(): void
+    {
+        $this->fakeTool('claude');
+        file_put_contents($this->releases.'/latest/download/sha256sums.txt', '');
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertNotSame(0, $process->getExitCode());
+        $this->assertStringContainsString('not listed in sha256sums.txt', $this->outputOf($process));
+        $this->assertFileDoesNotExist($this->bin());
+    }
+
+    public function testVersionInstallsThatRelease(): void
+    {
+        $this->fakeTool('claude');
+        $this->publish('download/v1.0.0', 'v1.0.0');
+
+        $process = $this->install(['--no-interaction', '--version', 'v1.0.0']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString('v1.0.0', (string) file_get_contents($this->bin()));
+    }
+
+    public function testUnknownVersionFails(): void
+    {
+        $this->fakeTool('claude');
+
+        $process = $this->install(['--no-interaction', '--version', 'v0.0.0-nope']);
+
+        $this->assertNotSame(0, $process->getExitCode());
+        $this->assertStringContainsString('is v0.0.0-nope a PABLO release?', $this->outputOf($process));
+        $this->assertFileDoesNotExist($this->bin());
     }
 
     public function testSingleRuntimeAndOrcaAreUsedWithoutAsking(): void
@@ -166,7 +228,7 @@ final class InstallerTest extends TestCase
 
         $this->assertNotSame(0, $process->getExitCode());
         $this->assertStringContainsString('OpenChamber only works with OpenCode', $this->outputOf($process));
-        $this->assertDirectoryDoesNotExist($this->installDir);
+        $this->assertFileDoesNotExist($this->bin());
     }
 
     public function testUnknownRuntimeAndBackendAreRefused(): void
@@ -193,141 +255,56 @@ final class InstallerTest extends TestCase
         $this->assertSame('--runtime claude-code --backend orca --without-web', $this->installArguments());
     }
 
-    public function testDefaultInstallDirectoryIsUnderTheHome(): void
-    {
-        $this->fakeTool('claude');
-
-        $process = $this->runInSandbox(
-            [$this->realTool('bash'), $this->installer, '--no-interaction'],
-            ['PABLO_REPO_URL' => $this->origin],
-        );
-
-        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
-        $this->assertFileExists($this->sandbox.'/home/.local/share/pablo/bin/install.sh');
-    }
-
-    public function testInstallDirectoryFromTheEnvironment(): void
-    {
-        $this->fakeTool('claude');
-
-        $process = $this->runInSandbox(
-            [$this->realTool('bash'), $this->installer, '--no-interaction'],
-            ['PABLO_REPO_URL' => $this->origin, 'PABLO_INSTALL_DIR' => $this->sandbox.'/from-env'],
-        );
-
-        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
-        $this->assertFileExists($this->sandbox.'/from-env/bin/install.sh');
-    }
-
-    public function testRunningAgainUpdatesTheCheckout(): void
-    {
-        $this->fakeTool('claude');
-        $this->assertSame(0, $this->install(['--no-interaction'])->getExitCode());
-
-        file_put_contents($this->origin.'/NEW', "new\n");
-        $this->git($this->origin, ['add', '.']);
-        $this->git($this->origin, ['commit', '-q', '-m', 'new']);
-        $process = $this->install(['--no-interaction']);
-
-        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
-        $this->assertStringContainsString('up to date', $this->outputOf($process));
-        $this->assertFileExists($this->installDir.'/NEW');
-    }
-
-    public function testAlreadyInstalledStopsAndNamesTheInstallDirectory(): void
-    {
-        $this->fakeTool('claude');
-        $this->fakeTool('pablo', "exec php '/opt/elsewhere/pablo/app/bin/pablo' \"\$@\"");
-
-        $process = $this->install(['--no-interaction']);
-
-        $this->assertNotSame(0, $process->getExitCode());
-        $this->assertStringContainsString(
-            'PABLO is already installed in /opt/elsewhere/pablo (command: '.$this->sandbox.'/path/pablo)',
-            $this->outputOf($process),
-        );
-        $this->assertStringContainsString('bash /opt/elsewhere/pablo/bin/uninstall.sh', $this->outputOf($process));
-        $this->assertDirectoryDoesNotExist($this->installDir);
-        $this->assertFileDoesNotExist($this->sandbox.'/home/install-args');
-    }
-
-    public function testShimOffThePathStillCountsAsInstalled(): void
+    public function testACloneInstallIsMigrated(): void
     {
         $this->fakeTool('claude');
         mkdir($this->sandbox.'/home/.local/bin', 0o777, true);
-        file_put_contents(
-            $this->sandbox.'/home/.local/bin/pablo',
-            "#!/usr/bin/env bash\nexec php '{$this->sandbox}/old/app/bin/pablo' \"\$@\"\n",
-        );
-
-        $process = $this->interactive("{$this->installDir}\n\n\n\n");
-
-        $this->assertNotSame(0, $process->getExitCode());
-        $this->assertStringContainsString("PABLO is already installed in {$this->sandbox}/old", $this->outputOf($process));
-        $this->assertStringNotContainsString('Where should PABLO be installed?', $this->outputOf($process));
-        $this->assertDirectoryDoesNotExist($this->installDir);
-    }
-
-    public function testUnknownPabloCommandIsReportedByItsPath(): void
-    {
-        $this->fakeTool('claude');
-        $this->fakeTool('pablo');
+        file_put_contents($this->bin(), "#!/usr/bin/env bash\nexec php '{$this->sandbox}/old/app/bin/pablo' \"\$@\"\n");
+        chmod($this->bin(), 0o755);
 
         $process = $this->install(['--no-interaction']);
-
-        $this->assertNotSame(0, $process->getExitCode());
-        $this->assertStringContainsString('PABLO is already installed: '.$this->sandbox.'/path/pablo.', $this->outputOf($process));
-    }
-
-    public function testRefInstallsThatBranch(): void
-    {
-        $this->fakeTool('claude');
-        $this->git($this->origin, ['checkout', '-q', '-b', 'next']);
-        file_put_contents($this->origin.'/ON_NEXT', "next\n");
-        $this->git($this->origin, ['add', '.']);
-        $this->git($this->origin, ['commit', '-q', '-m', 'next']);
-        $this->git($this->origin, ['checkout', '-q', 'main']);
-
-        $process = $this->install(['--no-interaction', '--ref', 'next']);
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
-        $this->assertFileExists($this->installDir.'/ON_NEXT');
+        $this->assertStringContainsString("PABLO is installed from a checkout in {$this->sandbox}/old", $this->outputOf($process));
+        $this->assertStringContainsString("The checkout in {$this->sandbox}/old is no longer used", $this->outputOf($process));
+        $this->assertStringNotContainsString('exec php', (string) file_get_contents($this->bin()));
+        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
     }
 
-    public function testUnknownRefFails(): void
+    public function testRunningAgainUpdatesTheBinary(): void
     {
         $this->fakeTool('claude');
+        $this->assertSame(0, $this->install(['--no-interaction'])->getExitCode());
+        $this->publish('latest/download', 'v10.0.0');
 
-        $process = $this->install(['--no-interaction', '--ref', 'nope']);
+        $process = $this->install(['--no-interaction']);
 
-        $this->assertNotSame(0, $process->getExitCode());
-        $this->assertStringContainsString("Could not clone 'nope'", $this->outputOf($process));
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString("v9.9.9 is installed in {$this->bin()}: it will be updated", $this->outputOf($process));
+        $this->assertStringContainsString('v10.0.0', (string) file_get_contents($this->bin()));
     }
 
-    public function testForeignNonEmptyDirectoryIsLeftAlone(): void
+    public function testAForeignPabloCommandStopsTheInstaller(): void
     {
         $this->fakeTool('claude');
-        mkdir($this->installDir, 0o777, true);
-        file_put_contents($this->installDir.'/mine.txt', "mine\n");
+        $this->fakeTool('pablo', 'echo something else');
 
         $process = $this->install(['--no-interaction']);
 
         $this->assertNotSame(0, $process->getExitCode());
-        $this->assertStringContainsString('not a PABLO checkout', $this->outputOf($process));
-        $this->assertFileExists($this->installDir.'/mine.txt');
-        $this->assertFileDoesNotExist($this->installDir.'/bin/install.sh');
+        $this->assertStringContainsString('A pablo command already exists at '.$this->sandbox.'/path/pablo and is not PABLO', $this->outputOf($process));
+        $this->assertFileDoesNotExist($this->bin());
     }
 
-    public function testInstallScriptFailureIsReported(): void
+    public function testSystemInstallFailureIsReported(): void
     {
         $this->fakeTool('claude');
-        file_put_contents($this->origin.'/bin/install.sh', "#!/usr/bin/env bash\necho boom >&2\nexit 3\n");
-        $this->git($this->origin, ['commit', '-q', '-am', 'broken']);
+        $this->publish('latest/download', 'v9.9.9', "echo boom >&2\nexit 3");
 
         $process = $this->install(['--no-interaction']);
 
         $this->assertNotSame(0, $process->getExitCode());
-        $this->assertStringContainsString('bin/install.sh failed', $this->outputOf($process));
+        $this->assertStringContainsString('pablo system:install failed', $this->outputOf($process));
     }
 
     public function testInteractiveAnswers(): void
@@ -336,12 +313,10 @@ final class InstallerTest extends TestCase
         $this->fakeTool('claude');
         $this->fakeTool('orca');
         $this->fakeTool('openchamber');
-        $custom = $this->sandbox.'/custom';
-        // directory, runtime 2 = Claude Code, environment 2 = headless (OpenChamber is not offered), no dashboard, go
-        $process = $this->interactive("{$custom}\n2\n2\nn\ny\n");
+        // runtime 2 = Claude Code, environment 2 = headless (OpenChamber is not offered), no dashboard, go
+        $process = $this->interactive("2\n2\nn\ny\n");
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
-        $this->assertFileExists($custom.'/bin/install.sh');
         $this->assertSame('--runtime claude-code --backend headless --without-web', $this->installArguments());
         $this->assertStringNotContainsString('1) OpenChamber', $this->outputOf($process));
     }
@@ -352,7 +327,7 @@ final class InstallerTest extends TestCase
         $this->fakeTool('orca');
         $this->fakeTool('openchamber');
         // environments: 1 Orca, 2 OpenChamber, 3 headless
-        $process = $this->interactive("{$this->installDir}\n2\n\n\n");
+        $process = $this->interactive("2\n\n\n");
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringContainsString('2) OpenChamber', $this->outputOf($process));
@@ -364,7 +339,7 @@ final class InstallerTest extends TestCase
         $this->fakeTool('opencode');
         $this->fakeTool('claude');
         // runtime: 9, abc (refused), 2 = Claude Code; environment: default; dashboard: default; go: default
-        $process = $this->interactive("{$this->installDir}\n9\nabc\n2\n\n\n\n");
+        $process = $this->interactive("9\nabc\n2\n\n\n\n");
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringContainsString('Answer with a number between 1 and 2', $this->outputOf($process));
@@ -378,23 +353,10 @@ final class InstallerTest extends TestCase
         mkdir($this->sandbox.'/home/.pablo', 0o777, true);
         file_put_contents($this->sandbox.'/home/.pablo/config.yaml', "agent_runtime: copilot\n");
 
-        $process = $this->interactive("{$this->installDir}\n\n\n\n\n");
+        $process = $this->interactive("\n\n\n\n");
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertSame('--runtime copilot --backend headless', $this->installArguments());
-    }
-
-    public function testInteractiveWithoutEnvironmentOffersHeadless(): void
-    {
-        $this->fakeTool('claude');
-
-        // environment: 1 = headless
-        $process = $this->interactive("{$this->installDir}\n1\n\n\n");
-
-        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
-        $this->assertStringContainsString('1) none (agents run headless in the background)', $this->outputOf($process));
-        $this->assertStringContainsString(self::PREREQUISITES_URL, $this->outputOf($process));
-        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
     }
 
     public function testInteractiveWithoutEnvironmentCanStopToInstallOne(): void
@@ -402,13 +364,12 @@ final class InstallerTest extends TestCase
         $this->fakeTool('claude');
 
         // environment: 2 = stop here
-        $process = $this->interactive("{$this->installDir}\n2\n");
+        $process = $this->interactive("2\n");
 
         $this->assertNotSame(0, $process->getExitCode());
         $this->assertStringContainsString('2) Stop here', $this->outputOf($process));
         $this->assertStringContainsString('Install Orca or OpenChamber', $this->outputOf($process));
-        $this->assertDirectoryDoesNotExist($this->installDir);
-        $this->assertFileDoesNotExist($this->sandbox.'/home/install-args');
+        $this->assertFileDoesNotExist($this->bin());
     }
 
     public function testInteractiveNoAbortsBeforeAnythingIsInstalled(): void
@@ -416,23 +377,19 @@ final class InstallerTest extends TestCase
         $this->fakeTool('claude');
 
         // environment: default (headless), dashboard: default, go: no
-        $process = $this->interactive("{$this->installDir}\n\n\nn\n");
+        $process = $this->interactive("\n\nn\n");
 
         $this->assertNotSame(0, $process->getExitCode());
         $this->assertStringContainsString('nothing was installed', $this->outputOf($process));
-        $this->assertDirectoryDoesNotExist($this->installDir);
+        $this->assertFileDoesNotExist($this->bin());
     }
 
     /** @param list<string> $arguments */
     private function install(array $arguments): Process
     {
-        if (!\in_array('--install-dir', $arguments, true)) {
-            $arguments = ['--install-dir', $this->installDir, ...$arguments];
-        }
-
         return $this->runInSandbox(
             [$this->realTool('bash'), $this->installer, ...$arguments],
-            ['PABLO_REPO_URL' => $this->origin],
+            ['PABLO_RELEASES_URL' => 'file://'.$this->releases],
         );
     }
 
@@ -442,30 +399,55 @@ final class InstallerTest extends TestCase
 
         return $this->runInSandbox(
             [$this->realTool('bash'), $this->installer],
-            ['PABLO_REPO_URL' => $this->origin, 'PABLO_INSTALLER_TTY' => $this->sandbox.'/answers'],
+            ['PABLO_RELEASES_URL' => 'file://'.$this->releases, 'PABLO_INSTALLER_TTY' => $this->sandbox.'/answers'],
         );
+    }
+
+    private function bin(): string
+    {
+        return $this->sandbox.'/home/.local/bin/pablo';
     }
 
     private function installArguments(): string
     {
         $file = $this->sandbox.'/home/install-args';
-        $this->assertFileExists($file, 'bin/install.sh was never run');
+        $this->assertFileExists($file, 'pablo system:install was never run');
 
         return trim((string) file_get_contents($file));
     }
 
-    private function createOrigin(): string
+    /**
+     * A release directory ($path under the releases root) holding a fake
+     * binary for this machine and its sha256sums.txt.
+     */
+    private function publish(string $path, string $version, string $onInstall = 'printf \'%s\n\' "$*" > "$HOME/install-args"'): void
     {
-        $origin = $this->sandbox.'/origin';
-        mkdir($origin.'/bin', 0o777, true);
-        mkdir($origin.'/app', 0o777, true);
-        file_put_contents($origin.'/bin/install.sh', "#!/usr/bin/env bash\nprintf '%s\\n' \"\$*\" > \"\$HOME/install-args\"\n");
-        file_put_contents($origin.'/bin/uninstall.sh', "#!/usr/bin/env bash\n");
-        file_put_contents($origin.'/app/composer.json', "{}\n");
-        $this->git($origin, ['init', '-q', '-b', 'main']);
-        $this->git($origin, ['add', '.']);
-        $this->git($origin, ['commit', '-q', '-m', 'init']);
+        $dir = $this->releases.'/'.$path;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0o777, true);
+        }
+        $binary = <<<BASH
+            #!/usr/bin/env bash
+            # pablo {$version}
+            case "\$1" in
+            --version) echo "pablo {$version}" ;;
+            system:install)
+                shift
+                {$onInstall}
+                ;;
+            esac
+            BASH;
+        file_put_contents($dir.'/pablo-'.$this->target, $binary."\n");
+        file_put_contents($dir.'/sha256sums.txt', hash_file('sha256', $dir.'/pablo-'.$this->target)."  pablo-{$this->target}\n");
+    }
 
-        return $origin;
+    private static function target(): string
+    {
+        $arch = php_uname('m');
+        if ('Darwin' === \PHP_OS_FAMILY) {
+            return 'macos-'.('x86_64' === $arch ? 'x86_64' : 'arm64');
+        }
+
+        return 'linux-'.(\in_array($arch, ['aarch64', 'arm64'], true) ? 'aarch64' : 'x86_64');
     }
 }

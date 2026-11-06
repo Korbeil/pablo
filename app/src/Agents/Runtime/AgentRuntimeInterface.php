@@ -47,7 +47,7 @@ interface AgentRuntimeInterface
 
     /**
      * Where the generated agent definitions are read from by the runtime:
-     * ~/.config/opencode/agents (symlinks), ~/.pablo/claude, or
+     * ~/.config/opencode/agents (symlinks), ~/.pablo/runtime/claude, or
      * ~/.copilot/agents (symlinks).
      */
     public function installDir(): string;
