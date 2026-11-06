@@ -348,6 +348,6 @@ pre.one { display: inline-block; }
 /* Agents list */
 .agent-list { list-style: none; padding: 0; margin: 2rem 0 0; display: grid; gap: 10px; }
 .agent-list li { display: grid; grid-template-columns: 15em 10em 1fr; gap: 6px 18px; align-items: baseline; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: .8em 1.1em .7em; }
-.agent-list code { font-weight: 600; }
+.agent-list code { font-weight: 600; background: none; padding: 0; }
 .agent-list .when { font-size: .85rem; color: #6d5c07; background: var(--yellow-soft); border-radius: 999px; padding: .15em .8em; justify-self: start; }
 @media (max-width: 820px) { .agent-list li { grid-template-columns: minmax(0, 1fr); } }
