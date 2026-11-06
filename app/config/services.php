@@ -49,6 +49,7 @@ use Pablo\Support\TaskSummarizer;
 use Pablo\Task\TaskAttacher;
 use Pablo\Task\TaskStarter;
 use Pablo\Task\TaskStateChanger;
+use Pablo\Update\Updater;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
@@ -140,6 +141,9 @@ return static function (ContainerConfigurator $container): void {
     // `pablo system:install` / `system:uninstall`: the platform's background
     // services (systemd or launchd), paths resolved per call.
     $services->set(SchedulerFactory::class);
+
+    // `pablo update`: replaces the running binary with the latest release.
+    $services->set(Updater::class);
 
     // `pablo.command`, not `console.command`: every bundle now contributes to
     // the latter, and bin/pablo must keep listing PABLO subcommands only.

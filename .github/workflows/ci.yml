@@ -15,6 +15,13 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v7
+      # php-cs-fixer's parallel workers run on the PATH's php, not castor's:
+      # without this they get the runner's PHP, too old for the tool's deps.
+      - name: setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.5
+          coverage: none
       - name: setup
         uses: castor-php/setup-castor@v1
       - name: 'php-cs-fixer check'

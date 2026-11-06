@@ -66,6 +66,9 @@ php app/bin/pablo system:install            # install/update for this user (shim
                                             # the binary itself when run from it); takes
                                             # --runtime/--backend/--without-web
 php app/bin/pablo system:uninstall          # remove services, links, command, PATH block
+pablo update [--check]                      # binary only: system:update (src/Update/) — latest release via
+                                            # curl, sha256-checked, run once, renamed over the binary,
+                                            # then the new binary runs system:install
 # site/installer = the interactive `curl -fsSL https://getpablo.dev/installer | bash`
 # script (detect runtimes + ADEs, download pablo-<os>-<arch> from the latest
 # GitHub Release, verify sha256sums.txt, install ~/.local/bin/pablo, then hand
