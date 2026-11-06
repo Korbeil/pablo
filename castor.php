@@ -217,6 +217,50 @@ function build_binary(
     io()->success('dist/pablo');
 }
 
+#[AsTask(name: 'create', namespace: 'release', description: 'Publish a release of the last main commit (named after its short hash) through the Binary workflow')]
+function release_create(
+    #[AsOption(description: 'do not flag the release as the latest one (the installer and pablo update keep installing the current latest)')]
+    bool $noLatest = false,
+): int {
+    // The release is made by .github/workflows/binary.yml, not here: it only
+    // creates it once the four binaries are built, so `releases/latest`
+    // (what the installer and `pablo update` read) never points at a release
+    // without binaries.
+    run(['git', 'fetch', '--quiet', 'origin', 'main']);
+    $sha = trim(run(['git', 'rev-parse', 'origin/main'], context()->withQuiet())->getOutput());
+    // The short hash Box writes into the binaries (git-version on an untagged commit).
+    $name = trim(run(['git', 'log', '--pretty=%h', '-n1', 'origin/main'], context()->withQuiet())->getOutput());
+
+    $existing = run(['gh', 'release', 'view', $name, '--json', 'name'], context()->withQuiet()->withAllowFailure());
+    if ($existing->isSuccessful()) {
+        io()->error("A release named {$name} already exists (main has not moved since).");
+
+        return 1;
+    }
+
+    run([
+        'gh', 'workflow', 'run', 'binary.yml', '--ref', 'main',
+        '-f', 'release=true',
+        '-f', 'latest='.($noLatest ? 'false' : 'true'),
+    ]);
+
+    io()->success([
+        "Binary workflow started on main ({$sha}).",
+        "Release {$name} is published once the four builds pass".($noLatest ? ', without the latest flag.' : ', flagged latest.'),
+        'Follow it with: gh run list --workflow binary.yml   (then gh run watch <id>)',
+    ]);
+
+    return 0;
+}
+
+#[AsTask(name: 'list', namespace: 'release', description: 'List the last releases (the "Latest" one is what the installer and pablo update install)')]
+function release_list(
+    #[AsOption(description: 'how many releases to show')]
+    int $limit = 10,
+): void {
+    run(['gh', 'release', 'list', '--limit', (string) $limit]);
+}
+
 /** `box` from the PATH, else the latest box.phar, downloaded once into $tools. */
 function box_binary(string $tools): string
 {

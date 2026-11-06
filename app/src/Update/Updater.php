@@ -80,9 +80,11 @@ final class Updater
     }
 
     /**
-     * Whether $latest should replace $current: a newer release, or any
-     * release when the running binary is not one (a local build reports a
-     * commit hash).
+     * Whether $latest should replace $current. Releases are named after the
+     * short hash of their commit (`castor release:create`), which carries no
+     * order: any other name than the running one is installed, so moving the
+     * "latest" flag back to an older release rolls everyone back. Only
+     * semver-looking names (vX.Y.Z) are compared, never to downgrade.
      */
     public static function isNewer(string $latest, string $current): bool
     {

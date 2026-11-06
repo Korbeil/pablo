@@ -58,6 +58,9 @@ castor site:serve                           # build + preview it on http://127.0
 (cd app && composer test)                   # same as castor qa:test
 (cd app && composer exec phpunit tests/StateMachineTest.php)  # one file
 castor build:binary [--micro=<micro.sfx> --spc=<spc>]  # dist/pablo.phar (+ dist/pablo, the static binary)
+castor release:create [--no-latest]         # release main's last commit (named after its short hash)
+                                            # via binary.yml (workflow_dispatch release=true)
+castor release:list [--limit=10]            # last releases (gh release list)
 php app/bin/pablo --help                    # engine subcommands, from the checkout
 php app/bin/pablo web                       # read-only dashboard on 127.0.0.1:8321 (Pablo\Web\Server)
 php app/bin/console cache:clear             # framework CLI: cache:clear, lint:twig, debug:router,
@@ -66,7 +69,7 @@ php app/bin/pablo system:install            # install/update for this user (shim
                                             # the binary itself when run from it); takes
                                             # --runtime/--backend/--without-web
 php app/bin/pablo system:uninstall          # remove services, links, command, PATH block
-pablo update [--check]                      # binary only: system:update (src/Update/) — latest release via
+pablo update [<release>] [--check]          # binary only (a named release may be older): system:update (src/Update/) — latest release via
                                             # curl, sha256-checked, run once, renamed over the binary,
                                             # then the new binary runs system:install
 # site/installer = the interactive `curl -fsSL https://getpablo.dev/installer | bash`
@@ -295,9 +298,15 @@ packs `app/{src,config,templates,assets,public,vendor}` + `opencode/`,
 vendor, `asset-map:compile`) so the checkout's vendor and
 `app/public/assets/` stay untouched, then `spc micro:combine`s it when given
 `--micro`. `.github/workflows/binary.yml` does the same per OS/arch
-(linux-x86_64/aarch64, macos-arm64/x86_64), smoke-tests (Linux: in a
-`debian:stable-slim` container without PHP) and on `v*` tags publishes the
-binaries + `sha256sums.txt` to the GitHub Release. micro extensions:
+(linux-x86_64/aarch64, macos-arm64/x86_64) and smoke-tests (Linux: in a
+`debian:stable-slim` container without PHP) on PRs and on demand. Releases
+come from `castor release:create`, which dispatches it on `main` with
+`release=true`: only after the four builds pass does its release job create
+the GitHub Release — tag and title = the commit's short hash (what Box's
+`git-version` writes into the binaries), binaries + `sha256sums.txt`, flagged
+latest unless `--no-latest` — so `releases/latest` never lacks binaries.
+`pablo update` installs the latest-flagged release whenever its name differs
+from the running version (no ordering between hashes). micro extensions:
 `phar,ctype,iconv,mbstring,tokenizer,filter,posix,pcntl,dom,xml,zlib,openssl`
 (keep `castor.php` and the workflow in step). No `opcache.enable_cli=1`: it
 segfaults PHP 8.5 micro at startup.
