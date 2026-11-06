@@ -381,6 +381,46 @@ final class PollerTest extends TestCase
         $this->assertSame(['pr-feedback'], $this->agents->launch);
     }
 
+    public function testRequestChangesSelfHealsToWaitingReviewWhenFeedbackAddressed(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::RequestChanges));
+        $this->setLaunch($store, 'pr-feedback', finishedAt: '2026-07-22T00:00:00+00:00', reported: true);
+        $this->stubs['verdict'] = null; // comment review cleared: all threads resolved
+        $this->poll($cfg, $store);
+        // ready-to-review is momentary: PR marked ready, task settles in waiting-review.
+        $this->assertSame(State::WaitingReview, $this->taskOrFail($store)->state);
+        $this->assertSame([7], $this->gh->readies);
+    }
+
+    public function testRequestChangesStaysWhenPrFeedbackStillRunning(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::RequestChanges));
+        $this->setLaunch($store, 'pr-feedback', finishedAt: null);
+        $this->stubs['verdict'] = null;
+        $this->poll($cfg, $store);
+        $this->assertSame(State::RequestChanges, $this->taskOrFail($store)->state);
+        $this->assertSame([], $this->gh->readies);
+    }
+
+    public function testRequestChangesStaysWhenUnresolvedFeedbackRemains(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::RequestChanges));
+        $this->setLaunch($store, 'pr-feedback', finishedAt: '2026-07-22T00:00:00+00:00', reported: true);
+        $this->stubs['verdict'] = 'changes';
+        $this->poll($cfg, $store);
+        $this->assertSame(State::RequestChanges, $this->taskOrFail($store)->state);
+        $this->assertSame([], $this->gh->readies);
+    }
+
     public function testNeedsTestingSignalBaselineAndHandledDedupe(): void
     {
         $e = $this->newEnv();

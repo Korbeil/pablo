@@ -95,10 +95,10 @@ final class FakeGhPr implements GhPrInterface
         return new \Pablo\Provider\Gh\PrReviews('', []);
     }
 
-    public function evaluateReviews(array $reviews, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
+    public function evaluateReviews(array $reviews, array $threads, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
     {
         if (null !== $this->evaluateReviewsOverride) {
-            return ($this->evaluateReviewsOverride)($reviews, $anchor, $author, $botWhitelist);
+            return ($this->evaluateReviewsOverride)($reviews, $threads, $anchor, $author, $botWhitelist);
         }
 
         return null;

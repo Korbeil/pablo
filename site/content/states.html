@@ -13,6 +13,7 @@
   <g class="edge">
     <path d="M290 62 H316"/><path d="M470 62 H496"/><path d="M650 62 H676"/><path d="M810 62 H836"/>
     <path d="M270 84 V196"/><path d="M372 200 V88"/><path d="M530 84 Q520 205 394 220"/><path d="M610 84 V196"/><path d="M908 84 V196"/>
+    <path d="M505 200 Q452 148 432 88"/>
   </g>
   <g class="edge edge-cmd">
     <path d="M150 62 H174"/>
@@ -51,7 +52,7 @@
     <tr><td>👀 <code>waiting-review</code></td><td>right after <code>ready-to-review</code></td><td>— (the task waits for reviewers)</td></tr>
     <tr><td>✅ <code>approved</code></td><td>poller: the review is approved</td><td>move straight to <code>needs-testing</code>, unless the project has no QA step: then it stays here until merged</td></tr>
     <tr><td>🧪 <code>needs-testing</code></td><td>right after <code>approved</code></td><td>record the time, as the baseline for QA signals</td></tr>
-    <tr><td>🔁 <code>request-changes</code></td><td>poller: changes requested or a comment review</td><td>launch <b>pr-feedback</b>; when it finishes, put the pull request back in draft</td></tr>
+    <tr><td>🔁 <code>request-changes</code></td><td>poller: changes requested or a comment review</td><td>launch <b>pr-feedback</b>; when it finishes, put the pull request back in draft — and once every review signal is addressed (see <a href="#reviews">Reviews</a>), back to review</td></tr>
     <tr><td>🚨 <code>testing-failed</code></td><td>poller: QA's failure signal</td><td>launch <b>task-feedback</b>; when it finishes, put the pull request back in draft</td></tr>
   </tbody>
 </table>
@@ -72,6 +73,7 @@
     <tr><td><code>draft</code></td><td>CI red, CI green</td></tr>
     <tr><td><code>ci-red</code></td><td>CI green</td></tr>
     <tr><td><code>waiting-review</code></td><td>CI red, reviews</td></tr>
+    <tr><td><code>request-changes</code></td><td>reviews (feedback-addressed check)</td></tr>
     <tr><td><code>approved</code></td><td>CI red</td></tr>
     <tr><td><code>needs-testing</code></td><td>QA failure signal</td></tr>
     <tr><td>any state</td><td>merge (even <code>waiting</code>)</td></tr>
@@ -97,7 +99,9 @@
   <li><b>Bots are ignored</b>, unless listed in <a href="page:configuration#project-files"><code>review.bot_whitelist</code></a>.</li>
   <li><b>Only reviews after GitHub's last “ready for review” event count.</b> An approval from a previous round doesn't leak into this one. (GitHub's summary verdict is not used: it has no timestamp.)</li>
   <li><b>The latest review of each reviewer wins.</b></li>
+  <li><b>Resolved comments clear a comment review.</b> A review whose comment threads were all resolved, and that carries no top-level body text, no longer counts as a changes signal — resolving is the reviewer's way of saying "addressed". A non-empty review body without a thread to resolve keeps counting, and resolving threads never withdraws an explicit “changes requested” verdict.</li>
   <li><b>Any “changes requested” or plain comment review beats every approval.</b> If someone took the time to write, you read it before QA.</li>
+  <li><b>Re-enters review when everything is addressed (🔁 only).</b> While in <code>request-changes</code>, once <b>pr-feedback</b> has finished and no review signal stands anymore (every comment review resolved-cleared, no “changes requested”, no approval pending), the poller puts the pull request back to review itself: it marks it ready on GitHub and settles the task in <code>waiting-review</code>. Nothing is committed or pushed — address the feedback in the worktree and let the reviewers look again.</li>
 </ul>
 
 <h3>QA failure signal</h3>

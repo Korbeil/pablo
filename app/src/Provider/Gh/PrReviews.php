@@ -15,6 +15,8 @@ final readonly class PrReviews
     public function __construct(
         public string $author,
         public array $reviews,
+        /** @var list<ReviewThread> */
+        public array $threads = [],
     ) {
     }
 }

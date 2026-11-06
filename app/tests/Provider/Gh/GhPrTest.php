@@ -23,9 +23,14 @@ final class GhPrTest extends TestCase
     }
     private const ANCHOR = '2026-07-20T12:00:00+00:00';
 
-    private static function review(string $login, string $state, string $when, string $typename = 'User'): \Pablo\Provider\Gh\ReviewNode
+    private static function review(string $login, string $state, string $when, string $typename = 'User', string $id = '', string $body = ''): \Pablo\Provider\Gh\ReviewNode
     {
-        return new \Pablo\Provider\Gh\ReviewNode($login, $typename, $state, $when);
+        return new \Pablo\Provider\Gh\ReviewNode($login, $typename, $state, $when, $id, $body);
+    }
+
+    private static function thread(bool $resolved, string ...$reviewIds): \Pablo\Provider\Gh\ReviewThread
+    {
+        return new \Pablo\Provider\Gh\ReviewThread($resolved, array_values($reviewIds));
     }
 
     public function testPrsForBranchesMatchesMultipleBranchesFromOneCall(): void
@@ -152,20 +157,20 @@ final class GhPrTest extends TestCase
     public function testReviewsExcludeAuthor(): void
     {
         $reviews = [self::review('me', 'CHANGES_REQUESTED', '2026-07-21T10:00:00Z')];
-        $this->assertNull($this->svc()->evaluateReviews($reviews, new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertNull($this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testReviewsExcludeBotUnlessWhitelisted(): void
     {
         $reviews = [self::review('sonar[bot]', 'COMMENTED', '2026-07-21T10:00:00Z', 'Bot')];
-        $this->assertNull($this->svc()->evaluateReviews($reviews, new \DateTimeImmutable(self::ANCHOR), 'me', []));
-        $this->assertSame('changes', $this->svc()->evaluateReviews($reviews, new \DateTimeImmutable(self::ANCHOR), 'me', ['sonar[bot]']));
+        $this->assertNull($this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertSame('changes', $this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', ['sonar[bot]']));
     }
 
     public function testReviewsBeforeAnchorIgnored(): void
     {
         $reviews = [self::review('alice', 'CHANGES_REQUESTED', '2026-07-19T10:00:00Z')];
-        $this->assertNull($this->svc()->evaluateReviews($reviews, new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertNull($this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testLatestPerReviewerWins(): void
@@ -174,7 +179,7 @@ final class GhPrTest extends TestCase
             self::review('alice', 'CHANGES_REQUESTED', '2026-07-21T10:00:00Z'),
             self::review('alice', 'APPROVED', '2026-07-22T10:00:00Z'),
         ];
-        $this->assertSame('approved', $this->svc()->evaluateReviews($reviews, new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertSame('approved', $this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testMixedVerdictsChangesWins(): void
@@ -183,24 +188,70 @@ final class GhPrTest extends TestCase
             self::review('alice', 'APPROVED', '2026-07-21T10:00:00Z'),
             self::review('bob', 'CHANGES_REQUESTED', '2026-07-21T11:00:00Z'),
         ];
-        $this->assertSame('changes', $this->svc()->evaluateReviews($reviews, new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertSame('changes', $this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testCommentReviewCountsAsChanges(): void
     {
         $reviews = [self::review('alice', 'COMMENTED', '2026-07-21T10:00:00Z')];
-        $this->assertSame('changes', $this->svc()->evaluateReviews($reviews, new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertSame('changes', $this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+    }
+
+    public function testResolvedOnlyCommentReviewStoppedCounting(): void
+    {
+        // #974: alice reviewed with inline comments, every thread got resolved
+        // afterwards — the review no longer counts as a changes signal.
+        $reviews = [self::review('alice', 'COMMENTED', '2026-07-21T10:00:00Z', id: 'r1')];
+        $this->assertNull($this->svc()->evaluateReviews(
+            $reviews,
+            [self::thread(true, 'r1')],
+            new \DateTimeImmutable(self::ANCHOR), 'me', [],
+        ));
+    }
+
+    public function testUnresolvedThreadKeepsCommentReviewCounting(): void
+    {
+        $reviews = [self::review('alice', 'COMMENTED', '2026-07-21T10:00:00Z', id: 'r1')];
+        $this->assertSame('changes', $this->svc()->evaluateReviews(
+            $reviews,
+            [self::thread(false, 'r1')],
+            new \DateTimeImmutable(self::ANCHOR), 'me', [],
+        ));
+    }
+
+    public function testBodyOnlyCommentReviewStillCounts(): void
+    {
+        // Top-level feedback ("please fix the naming") has no thread to
+        // resolve: an empty thread story never clears it.
+        $reviews = [self::review('alice', 'COMMENTED', '2026-07-21T10:00:00Z', id: 'r1', body: 'Please fix the naming.')];
+        $this->assertSame('changes', $this->svc()->evaluateReviews(
+            $reviews,
+            [self::thread(true, 'r1')],
+            new \DateTimeImmutable(self::ANCHOR), 'me', [],
+        ));
+    }
+
+    public function testChangesRequestedKeepsCountingWhenThreadsResolved(): void
+    {
+        // CHANGES_REQUESTED is an explicit verdict of its own: resolving the
+        // threads does not withdraw it, a new review from the reviewer does.
+        $reviews = [self::review('alice', 'CHANGES_REQUESTED', '2026-07-21T10:00:00Z', id: 'r1')];
+        $this->assertSame('changes', $this->svc()->evaluateReviews(
+            $reviews,
+            [self::thread(true, 'r1')],
+            new \DateTimeImmutable(self::ANCHOR), 'me', [],
+        ));
     }
 
     public function testDismissedReviewsIgnored(): void
     {
         $reviews = [self::review('alice', 'DISMISSED', '2026-07-21T10:00:00Z')];
-        $this->assertNull($this->svc()->evaluateReviews($reviews, new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertNull($this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testNoReviewsReturnsNull(): void
     {
-        $this->assertNull($this->svc()->evaluateReviews([], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertNull($this->svc()->evaluateReviews([], [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testRerunCiRerunsLatestPerWorkflow(): void

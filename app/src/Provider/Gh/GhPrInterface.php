@@ -43,10 +43,14 @@ interface GhPrInterface
     public function fetchReviews(string $repoSlug, int $prNumber): PrReviews;
 
     /**
-     * @param list<ReviewNode> $reviews
-     * @param list<string>     $botWhitelist
+     * @param list<ReviewNode>   $reviews
+     * @param list<ReviewThread> $threads      — unresolved threads keep a comment
+     *                                         review counting as changes; a comment review whose
+     *                                         threads are all resolved and whose body is empty
+     *                                         counts as addressed
+     * @param list<string>       $botWhitelist
      */
-    public function evaluateReviews(array $reviews, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string;
+    public function evaluateReviews(array $reviews, array $threads, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string;
 
     public function markReady(string $repoSlug, int $prNumber): void;
 

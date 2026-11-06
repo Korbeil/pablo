@@ -36,9 +36,19 @@ query($owner: String!, $repo: String!, $pr: Int!) {
       author { login }
       reviews(first: 100) {
         nodes {
+          id
           author { login __typename }
           state
           submittedAt
+          body
+        }
+      }
+      reviewThreads(first: 100) {
+        nodes {
+          isResolved
+          comments(first: 100) {
+            nodes { pullRequestReview { id } }
+          }
         }
       }
     }
@@ -246,11 +256,13 @@ GQL;
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
         $pr = $data['data']['repository']['pullRequest'];
-        $nodes = array_values(array_filter($pr['reviews']['nodes'] ?? [], static fn ($n) => null !== $n));
+        $reviews = array_values(array_filter($pr['reviews']['nodes'] ?? [], static fn ($n) => null !== $n));
+        $threads = array_values(array_filter($pr['reviewThreads']['nodes'] ?? [], static fn ($n) => null !== $n));
 
         return new PrReviews(
             (string) $pr['author']['login'],
-            array_map(ReviewNode::fromNode(...), $nodes),
+            array_map(ReviewNode::fromNode(...), $reviews),
+            array_map(ReviewThread::fromNode(...), $threads),
         );
     }
 
@@ -258,7 +270,12 @@ GQL;
      * @param list<ReviewNode> $reviews
      * @param list<string>     $botWhitelist
      */
-    public function evaluateReviews(array $reviews, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
+    /**
+     * @param list<ReviewNode>   $reviews
+     * @param list<ReviewThread> $threads
+     * @param list<string>       $botWhitelist
+     */
+    public function evaluateReviews(array $reviews, array $threads, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
     {
         $latest = [];
         foreach ($reviews as $node) {
@@ -281,8 +298,27 @@ GQL;
                 $latest[$reviewAuthor] = $node;
             }
         }
+        // A comment review only counts while it still carries feedback: a
+        // non-empty review body (no thread to resolve) or at least one comment
+        // in an unresolved thread. When every thread is resolved, the review
+        // counts as addressed. CHANGES_REQUESTED is an explicit verdict on its
+        // own and ignores thread state. An unknown review id (never in
+        // production) keeps counting rather than silently dropping the signal.
+        $unresolved = [];
+        foreach ($threads as $thread) {
+            if ($thread->resolved) {
+                continue;
+            }
+            foreach ($thread->reviewIds as $reviewId) {
+                $unresolved[$reviewId] = true;
+            }
+        }
         $verdicts = [];
         foreach ($latest as $node) {
+            if ('COMMENTED' === $node->state && '' === $node->body && '' !== $node->id
+                && !isset($unresolved[$node->id])) {
+                continue;
+            }
             $verdicts[$node->state] = true;
         }
         if (isset($verdicts['CHANGES_REQUESTED']) || isset($verdicts['COMMENTED'])) {

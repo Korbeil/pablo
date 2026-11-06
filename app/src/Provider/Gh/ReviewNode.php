@@ -14,6 +14,10 @@ final readonly class ReviewNode
         public string $typename,
         public string $state,
         public ?string $submittedAt,
+        /** GitHub node id of the review — empty when unknown (never in production). */
+        public string $id = '',
+        /** Top-level comment body of the review (inline comments live in threads). */
+        public string $body = '',
     ) {
     }
 
@@ -27,6 +31,8 @@ final readonly class ReviewNode
             (string) ($node['author']['__typename'] ?? ''),
             (string) ($node['state'] ?? ''),
             isset($node['submittedAt']) ? (string) $node['submittedAt'] : null,
+            (string) ($node['id'] ?? ''),
+            (string) ($node['body'] ?? ''),
         );
     }
 

@@ -11,6 +11,7 @@ use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\NullAnalytics;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Config\ProjectConfig;
+use Pablo\Domain\Agent;
 use Pablo\Domain\AgentActivity;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\DisplayCache;
@@ -43,6 +44,7 @@ final class Poller
         State::WaitingReview->value => ['checkCiRed', 'checkReviews'],
         State::Approved->value => ['checkCiRed'],
         State::NeedsTesting->value => ['checkFailureSignal'],
+        State::RequestChanges->value => ['checkFeedbackAddressed'],
     ];
 
     public function __construct(
@@ -96,7 +98,7 @@ final class Poller
         }
         $anchor = $this->gh->readyAnchor($slug, $prNumber);
         $prReviews = $this->gh->fetchReviews($slug, $prNumber);
-        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $anchor, $prReviews->author, $ctx->cfg->botWhitelist);
+        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $ctx->cfg->botWhitelist);
         if ('approved' === $verdict) {
             return State::Approved;
         }
@@ -105,6 +107,36 @@ final class Poller
         }
 
         return null;
+    }
+
+    /**
+     * The request-changes self-heal exit: a comment review whose threads were
+     * all resolved is feedback addressed, so once pr-feedback has finished
+     * and no unresolved signal remains, the pull request goes back to review
+     * (ready-to-review marks it ready on GitHub, resetting the review anchor).
+     * Deliberately NOT the /pablo-commit-and-pr path: nothing is committed or
+     * pushed here, the git work stays whatever the worktree holds.
+     *
+     * @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle
+     */
+    public function checkFeedbackAddressed(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    {
+        $prNumber = $ctx->task->prNumber;
+        if (null === $prNumber) {
+            return null;
+        }
+        $record = $ctx->task->agentLaunches[Agent::PrFeedback->value] ?? null;
+        if (null === $record || null === $record->finishedAt) {
+            return null; // pr-feedback still running or never launched
+        }
+        $anchor = $this->gh->readyAnchor($slug, $prNumber);
+        $prReviews = $this->gh->fetchReviews($slug, $prNumber);
+        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $ctx->cfg->botWhitelist);
+        if ('changes' === $verdict) {
+            return null; // an unresolved signal still stands
+        }
+
+        return State::ReadyToReview;
     }
 
     /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
