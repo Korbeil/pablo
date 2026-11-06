@@ -1,17 +1,17 @@
 <h1>Quickstart</h1>
 
-<p>From nothing to your first task in four commands. Each step links to its full page when you want the details.</p>
+<p>From nothing to your first task in four steps.</p>
 
 <h2>Before you start</h2>
 
-<p>You need <b>git</b>, <b>PHP 8.4</b> with <b>Composer</b>, <a href="https://opencode.ai"><b>OpenCode</b></a> <a href="https://code.claude.com/docs"><b>Claude Code</b></a> or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli"><b>GitHub Copilot CLI</b></a>, and the GitHub CLI <a href="https://cli.github.com/"><code>gh</code></a>, logged in with <code>gh auth login</code>. An agent environment, <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a>, is where you'll read the agents' work. Using Jira or Linear? See <a href="page:installation#prerequisites">Prerequisites</a>.</p>
+<p>You need <b>git</b>, <b>PHP 8.4</b> with <b>Composer</b>, <a href="https://opencode.ai"><b>OpenCode</b></a>, <a href="https://code.claude.com/docs"><b>Claude Code</b></a> or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli"><b>GitHub Copilot CLI</b></a>, and the GitHub CLI <a href="https://cli.github.com/"><code>gh</code></a> (<code>gh auth login</code>). An agent environment, <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a>, is where you read the agents' work. Using Jira or Linear? See <a href="page:installation#prerequisites">Prerequisites</a>.</p>
 
 <h2>1. Install</h2>
 
 <pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash
 </code></pre>
 
-<p>It asks where to install PABLO, which agent runtime and which agent environment to use among the ones it finds on your machine, then puts the <code>pablo</code> command on your <code>PATH</code>, starts the background scheduler and the dashboard, checks your tools, and prints what to do next. Open a new terminal if it tells you to. If a check fails, <code>pablo system:setup</code> walks you through each fix. More in <a href="page:installation">Installation</a>.</p>
+<p>It picks the agent runtime and environment it finds on your machine, puts <code>pablo</code> on your <code>PATH</code>, starts the scheduler and the dashboard, and checks your tools. If a check fails, <code>pablo system:setup</code> walks you through each fix. More in <a href="page:installation">Installation</a>.</p>
 
 <h2>2. Add your project</h2>
 
@@ -19,7 +19,7 @@
 pablo project:new
 </code></pre>
 
-<p>A short wizard: it detects the repository, asks for the issue tracker, and writes the project file. Agents use GLM 5.3 Flash through OpenCode Go by default, or Claude Sonnet when the installer set you up with <a href="page:configuration#claude-code">Claude Code</a> or <a href="page:configuration#copilot">Copilot</a>; <a href="page:configuration#choose-the-agent-model">pick another model</a> in <code>~/.pablo/config.yaml</code>. More in <a href="page:first-project">Your first project</a>.</p>
+<p>A short wizard: it detects the repository, asks for the issue tracker, and writes the project file. With Orca, also run <code>orca repo add .</code> once so agents show up as Orca terminals. Prefer YAML, want another model, or need to remove a project? See <a href="page:configuration#add-a-project">Add a project</a>.</p>
 
 <h2>3. Start a task</h2>
 
@@ -28,8 +28,21 @@ pablo project:new
 pablo task:start --project your-repo "fix callback verification"
 </code></pre>
 
-<p>PABLO creates a branch and a worktree, and the <b>task-analyst</b> agent starts reading the issue and the code to write an action plan.</p>
+<p>PABLO creates a branch and a worktree, and the <b>task-analyst</b> agent reads the issue and the code to write an action plan. Check on it with <code>pablo task:list</code> or the dashboard at <a href="http://127.0.0.1:8321"><code>http://127.0.0.1:8321</code></a>.</p>
 
-<h2>4. Follow it</h2>
+<h2>4. Ship it, then let PABLO follow</h2>
 
-<p>Open <a href="http://127.0.0.1:8321"><code>http://127.0.0.1:8321</code></a>, or run <code>pablo task:list</code>. When the plan is ready, read it in Orca or OpenChamber, write the code, then run <code>/pablo-commit-and-pr</code> in OpenCode, Claude Code or Copilot to open the pull request. From there PABLO follows CI, reviews and QA, and launches the right agent when something needs you. The whole loop is in <a href="page:first-task">Your first task</a>.</p>
+<p>Read the plan, write the code, then run <code>/pablo-commit-and-pr</code> in your agent session inside the worktree: it commits, pushes and opens a <b>draft</b> pull request. From there:</p>
+
+<table>
+  <thead><tr><th>When…</th><th>PABLO…</th></tr></thead>
+  <tbody>
+    <tr><td>CI fails</td><td>moves the task to <code>ci-red</code> and runs <b>ci-analyst</b></td></tr>
+    <tr><td>CI passes</td><td>takes the PR out of draft</td></tr>
+    <tr><td>a reviewer asks for changes</td><td>runs <b>pr-feedback</b> to turn comments into a checklist</td></tr>
+    <tr><td>QA flags a problem</td><td>runs <b>task-feedback</b> to triage it</td></tr>
+    <tr><td>you merge</td><td>closes the task and removes the worktree</td></tr>
+  </tbody>
+</table>
+
+<p>After each fix, run <code>/pablo-commit-and-pr</code> again. Every state is on <a href="page:states">Task states</a>; everything you can do with a task is on <a href="page:tasks">Managing tasks</a>.</p>

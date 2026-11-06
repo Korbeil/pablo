@@ -1,23 +1,11 @@
 <h1>Documentation</h1>
 
-<p>Everything about installing, using and understanding PABLO, the orchestrator that watches your pull requests and launches the right AI agent, in the right worktree, when something needs doing.</p>
+<p><b>PABLO watches your pull requests, CI and reviews, and launches the right AI agent, in the right worktree, when something needs you.</b> You stop checking; you read the analysis that's already waiting.</p>
 
 <div class="quickstart">
   <a class="quick quick-wide" href="page:quickstart">
     <span class="quick-num">⚡</span>
-    <span><b>Quickstart</b> In a hurry? Install, add a project and start a task, all on one page.</span>
-  </a>
-  <a class="quick" href="page:installation">
-    <span class="quick-num">1</span>
-    <span><b>Install PABLO</b> One script, then a doctor that tells you what's missing.</span>
-  </a>
-  <a class="quick" href="page:first-project">
-    <span class="quick-num">2</span>
-    <span><b>Add a project</b> Point PABLO at a repository and its issue tracker.</span>
-  </a>
-  <a class="quick" href="page:first-task">
-    <span class="quick-num">3</span>
-    <span><b>Start a task</b> From an issue link to a merged PR, step by step.</span>
+    <span><b>Quickstart</b> Install, add a project and start a task, all on one page.</span>
   </a>
 </div>
 
@@ -29,6 +17,7 @@
   <li><a href="page:tasks#see-your-tasks">see what needs me right now</a>, in the <a href="page:tasks#see-your-tasks">terminal</a> or <a href="page:dashboard">in the browser</a></li>
   <li><a href="page:tasks#pause-a-task">pause a task</a> or <a href="page:tasks#force-a-state">force it into another state</a></li>
   <li><a href="page:tasks#adopt-an-existing-worktree">adopt a branch I started without PABLO</a></li>
+  <li><a href="page:configuration#add-a-project">add or remove a project</a></li>
   <li><a href="page:configuration#choose-the-agent-model">choose which AI model the agents use</a></li>
   <li><a href="page:configuration#ci-ignore-checks">ignore a CI check that never finishes</a></li>
   <li><a href="page:sync">understand how my branches are kept up to date</a></li>
@@ -36,4 +25,16 @@
   <li><a href="page:troubleshooting">fix something that doesn't work</a></li>
 </ul>
 
-<p>Looking for something specific? Press <kbd>/</kbd> anywhere on the site to search.</p>
+<h2>Is it for me?</h2>
+
+<p>PABLO fits if you use OpenCode, Claude Code or GitHub Copilot CLI, work with GitHub pull requests (issues in GitHub, Jira or Linear), run Linux or macOS, and juggle several tasks at once. It's a personal tool that runs on your machine: no server, no account, no telemetry.</p>
+
+<h2>What it never does</h2>
+
+<ul>
+  <li><b>Write your code.</b> Analysis agents are read-only by permission. The one exception, the <a href="page:sync">rebase-conflict resolver</a>, can't act on your behalf on GitHub.</li>
+  <li><b>Commit or push on its own.</b> Work goes into a pull request only when you run <code>/pablo-commit-and-pr</code>.</li>
+  <li><b>Change your issue tracker</b>, or <b>store tokens</b>: it uses the CLIs you're already logged into.</li>
+</ul>
+
+<p>The exact rules are in <a href="page:how-it-works#what-pablo-may-change">What PABLO may change</a>. Press <kbd>/</kbd> anywhere on the site to search.</p>

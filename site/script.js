@@ -89,74 +89,14 @@
     setTimeout(tick, 1400);
   }
 
-  /* ------------------------------------------------------------------ *
-   * State machine explorer
-   * ------------------------------------------------------------------ */
-  const DETAILS = {
-    'in-progress': {
-      trigger: 'you · pablo task:start <issue-url | prompt>',
-      agent: 'task-analyst',
-      body: 'A branch and worktree are created off <code>origin/main</code>. <b>task-analyst</b> reads the ticket, its parents, linked PRs and the code, and writes a plan. It runs once per task. Your project\'s startup script runs alongside it.',
-    },
-    'draft': {
-      trigger: 'you · /pablo-commit-and-pr',
-      body: 'The only way in is a command you type. It commits, pushes and opens the PR <b>as a draft</b>. From there the poller watches CI.',
-    },
-    'ci-red': {
-      trigger: 'poller · a check failed',
-      agent: 'ci-analyst',
-      body: '<b>ci-analyst</b> fetches the failing checks and their logs, links each failure to the code, and proposes a fix. Checks you\'ve told PABLO to ignore (e.g. manual approval gates) don\'t count.',
-    },
-    'ready-to-review': {
-      trigger: 'poller · CI is green',
-      body: 'PABLO takes the PR out of draft on GitHub and moves the task straight on to <code>waiting-review</code>.',
-    },
-    'waiting-review': {
-      trigger: 'chained from ready-to-review',
-      body: 'Nothing runs here. This is where a task waits for humans. The poller keeps checking reviews and CI. Your own replies and bots don\'t count as reviews, and an approval from an earlier round doesn\'t carry over.',
-    },
-    'approved': {
-      trigger: 'poller · review approved',
-      body: 'Moves straight on to <code>needs-testing</code>. If the project has no QA step, the task stays here until it\'s merged.',
-    },
-    'needs-testing': {
-      trigger: 'chained from approved',
-      body: 'Records a timestamp as the QA baseline, then watches the tracker for a failure signal that comes after it.',
-    },
-    'request-changes': {
-      trigger: 'poller · a reviewer asked for changes',
-      agent: 'pr-feedback',
-      body: 'The PR goes back to draft on GitHub. <b>pr-feedback</b> turns the review comments into a checklist so you don\'t have to dig through the thread.',
-    },
-    'testing-failed': {
-      trigger: 'poller · QA found an issue',
-      agent: 'task-feedback',
-      body: 'The PR goes back to draft. <b>task-feedback</b> checks the QA feedback against the PR one point at a time, and drafts a reply for the ticket.',
-    },
-    'waiting': {
-      trigger: 'you · pablo task:waiting',
-      body: 'A manual pause: polling stops until you run the command again, then the task goes back to the state it was in. You can\'t pause from <code>request-changes</code> or <code>testing-failed</code>, because those already need you.',
-    },
-  };
-
-  const panel = document.getElementById('sm-panel');
-  const nodes = document.querySelectorAll('.node[data-state]');
-
-  function select(state) {
-    const d = DETAILS[state];
-    if (!d || !panel) return;
-    nodes.forEach((n) => n.classList.toggle('active', n.dataset.state === state));
-    panel.innerHTML = `<h3>${state}</h3><div class="trig">${esc(d.trigger)}</div><p>${d.body}</p>`
-      + (d.agent ? `<span class="agent">launches → ${d.agent}</span>` : '');
-  }
-
-  nodes.forEach((n) => {
-    n.addEventListener('click', () => select(n.dataset.state));
-    n.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(n.dataset.state); }
+  document.querySelectorAll('[data-copy]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard?.writeText(btn.dataset.copy).then(() => {
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      });
     });
   });
 
-  select('in-progress');
   runTerminal();
 })();

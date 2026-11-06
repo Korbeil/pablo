@@ -129,6 +129,57 @@ pablo system:doctor         # checks copilot and the generated files
 
 <p>How the agent permissions translate is on <a href="page:agents#copilot">Agents</a>; what gets installed where is on <a href="page:installation#copilot">Installation</a>.</p>
 
+<h2 id="add-a-project">Add a project</h2>
+
+<p>Run the wizard (it detects the repository if you run it inside one):</p>
+
+<pre><code class="language-bash">pablo project:new
+</code></pre>
+
+<p>It asks for the repository path, a name, the type (<code>work</code>, <code>open-source</code> or <code>personal</code>, used to filter tasks and pick models), the issue tracker and its details, whether you have a QA step, and an optional branch prefix. It shows the YAML and writes it to <code>~/.pablo/projects/</code> once you confirm. Or write the file by hand; the smallest useful one, for GitHub:</p>
+
+<pre><code class="language-yaml"># ~/.pablo/projects/wallet-kit.yaml
+name: wallet-kit
+type: open-source
+repo:
+  path: ~/dev/wallet-kit
+  primary_branch: main
+issue_tracker:
+  provider: github
+  identity: your-github-login
+  project_key: WK        # GitHub has no issue keys: this becomes the branch prefix (wk-45)
+</code></pre>
+
+<p>And a Jira project with a QA step and a CI gate to ignore:</p>
+
+<pre><code class="language-yaml"># ~/.pablo/projects/acme-pim.yaml
+name: acme-pim
+type: work
+repo:
+  path: ~/Sites/acme/pim
+  primary_branch: main
+issue_tracker:
+  provider: jira
+  identity: you@acme.example
+  project_key: PIM
+  site: acme.atlassian.net
+sync:
+  auto_apply: true
+testing:
+  failure_signal: "A FIX"      # the Jira status QA moves the ticket to when it fails
+ci:
+  ignore_checks: ["approval"]  # manual deploy gates that never finish
+</code></pre>
+
+<p>Check it with <code>pablo project:list</code> and <code>pablo system:doctor</code> (which now also checks the tracker's command-line tool). With <b>Orca</b>, register the repository once with <code>orca repo add ~/dev/wallet-kit</code>; with <b>OpenChamber</b> there's nothing to do. Skip it with Orca and agents still run, headless. Both examples are in the repository: <a href="repo:examples/acme-pim.yaml"><code>examples/acme-pim.yaml</code></a> and <a href="repo:examples/config.yaml"><code>examples/config.yaml</code></a>.</p>
+
+<h3>Remove a project</h3>
+
+<pre><code class="language-bash">pablo project:remove wallet-kit
+</code></pre>
+
+<p>It refuses while the project still has active tasks (close them first with <code>pablo task:close</code>). It deletes only the YAML file: worktrees and the rest of <code>~/.pablo/</code> stay. It also regenerates the agents, so a tracker no project uses any more stops being taught to them.</p>
+
 <h2 id="project-files">Project files</h2>
 
 <p>One YAML file per project in <code>~/.pablo/projects/</code>, any file name. Create one with <code>pablo project:new</code> or by hand. Every key:</p>
