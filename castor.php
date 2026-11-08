@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+defined('CASTOR_USE_CHDIR') || define('CASTOR_USE_CHDIR', false);
+
 use Castor\Attribute\AsOption;
 use Castor\Attribute\AsTask;
 use Symfony\Component\Finder\Finder;
