@@ -67,12 +67,13 @@ final class UninstallCommand extends Command
             }
         }
 
-        if (PabloCommand::removeIfOurs(InstallPaths::binPath(), PabloPaths::pharPath())) {
-            $info('removed '.InstallPaths::binPath());
-        }
-
         foreach (PathRc::remove(PabloPaths::home(), getenv('ZDOTDIR') ?: null) as $line) {
             $info($line);
+        }
+
+        // Last: when it is the running binary, it goes when this process exits.
+        if (PabloCommand::removeIfOurs(InstallPaths::binPath(), PabloPaths::pharPath())) {
+            $info('removed '.InstallPaths::binPath());
         }
 
         $info('done. ~/.pablo (config, projects, state, stamps, worktrees, logs) was left in place.');
