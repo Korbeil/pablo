@@ -23,6 +23,8 @@ PABLO_RELEASES_URL="${PABLO_RELEASES_URL:-https://github.com/Korbeil/pablo/relea
 PREREQUISITES_URL="https://getpablo.dev/docs/installation/#prerequisites"
 BIN_DIR="${HOME}/.local/bin"
 BIN="${BIN_DIR}/pablo"
+# The dashboard's port when ~/.pablo/config.yaml sets none (PABLO_INSTALLER_DEFAULT_PORT: tests).
+DEFAULT_PORT="${PABLO_INSTALLER_DEFAULT_PORT:-8321}"
 
 # Where the answers are read from. With `curl | bash` stdin is the script
 # itself, so questions go through the terminal. PABLO_INSTALLER_TTY lets the
@@ -99,6 +101,8 @@ Usage: installer [options]
   --runtime <name>      opencode, claude-code or copilot
   --backend <name>      orca, openchamber or headless (OpenChamber: OpenCode only)
   --without-web         do not install the dashboard service
+  --port <port>         port of the dashboard (default: 8321, or the next free
+                        one when another program uses it)
   --no-interaction      never ask: use the options, then what is detected
   -h, --help            show this help
 
@@ -161,6 +165,14 @@ ask_choice() { # ask_choice <title> <default-value> <value|label>...  -> CHOICE
         fi
         warn "Answer with a number between 1 and $n."
     done
+}
+
+ask_text() { # ask_text <question> <default>  -> ANSWER
+    printf '\n%s [%s]: ' "$1" "$2"
+    read_answer
+    if [ -z "$ANSWER" ]; then
+        ANSWER="$2"
+    fi
 }
 
 ask_yes_no() { # ask_yes_no <question> <y|n>  -> status 0 for yes
@@ -427,6 +439,79 @@ choose_backend() {
     BACKEND="$CHOICE"
 }
 
+# Dashboard port --------------------------------------------------------------
+
+is_port() { # is_port <value>: a number between 1 and 65535
+    case "$1" in
+    "" | *[!0-9]*) return 1 ;;
+    esac
+    [ "$1" -ge 1 ] && [ "$1" -le 65535 ]
+}
+
+port_in_use() { # port_in_use <port>: something accepts connections on it
+    (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null
+}
+
+is_pablo_dashboard() { # is_pablo_dashboard <port>: PABLO's own dashboard answers there
+    curl -fsS -m 3 "http://127.0.0.1:$1/" 2>/dev/null | grep -q '<meta name="application-name" content="PABLO">'
+}
+
+port_available() { # port_available <port>: free, or already PABLO's dashboard (a re-install)
+    ! port_in_use "$1" || is_pablo_dashboard "$1"
+}
+
+next_free_port() { # next_free_port <from>
+    local port="$1"
+    while [ "$port" -le 65535 ]; do
+        if ! port_in_use "$port"; then
+            echo "$port"
+            return 0
+        fi
+        port=$((port + 1))
+    done
+    return 1
+}
+
+# Sets PORT: --port as given, else the configured (or default) port when it is
+# free or PABLO's own dashboard already uses it, else another one: the next
+# free port, which the user can change.
+choose_port() {
+    local suggestion
+    CONFIGURED_PORT="$(config_value dashboard_port)"
+    CONFIGURED_PORT="${CONFIGURED_PORT:-$DEFAULT_PORT}"
+
+    if [ -n "$PORT" ]; then
+        if ! port_available "$PORT"; then
+            warn "Port $PORT is already used by another program: the dashboard will not start until it is free."
+        fi
+        return 0
+    fi
+
+    if port_available "$CONFIGURED_PORT"; then
+        PORT="$CONFIGURED_PORT"
+        return 0
+    fi
+
+    suggestion="$(next_free_port $((CONFIGURED_PORT + 1)))" || fail "No free port found for the dashboard: pass one with --port."
+    warn "Port $CONFIGURED_PORT is already used by another program."
+    if ! $INTERACTIVE; then
+        PORT="$suggestion"
+        warn "The dashboard will use port $PORT instead (choose another with --port)."
+        return 0
+    fi
+    while true; do
+        ask_text "Which port should the dashboard use?" "$suggestion"
+        if ! is_port "$ANSWER"; then
+            warn "Answer with a port number between 1 and 65535."
+        elif ! port_available "$ANSWER"; then
+            warn "Port $ANSWER is already used by another program."
+        else
+            PORT="$ANSWER"
+            return 0
+        fi
+    done
+}
+
 # Download --------------------------------------------------------------------
 
 download() {
@@ -472,6 +557,8 @@ run_install() {
     set -- --runtime "$RUNTIME" --backend "$BACKEND"
     if ! $WITH_WEB; then
         set -- "$@" --without-web
+    elif [ "$PORT" != "$CONFIGURED_PORT" ]; then
+        set -- "$@" --port "$PORT"
     fi
     if ! "$BIN" system:install "$@" </dev/null; then
         fail "pablo system:install failed. Fix the error above, then run: $BIN system:install $*"
@@ -485,6 +572,8 @@ main() {
     RUNTIME=""
     BACKEND=""
     WITH_WEB=true
+    PORT=""
+    CONFIGURED_PORT=""
     NO_INTERACTION=false
 
     while [ $# -gt 0 ]; do
@@ -505,6 +594,12 @@ main() {
         --backend)
             [ $# -ge 2 ] || fail "--backend needs a value"
             BACKEND="$2"
+            shift
+            ;;
+        --port=*) PORT="${1#*=}" ;;
+        --port)
+            [ $# -ge 2 ] || fail "--port needs a value"
+            PORT="$2"
             shift
             ;;
         --without-web) WITH_WEB=false ;;
@@ -530,6 +625,9 @@ main() {
     "" | orca | openchamber | headless) ;;
     *) fail "Unknown --backend '$BACKEND' (expected orca, openchamber or headless)." ;;
     esac
+    if [ -n "$PORT" ] && ! is_port "$PORT"; then
+        fail "Invalid --port '$PORT' (expected a number between 1 and 65535)."
+    fi
 
     detect_existing
     setup_interaction
@@ -538,9 +636,12 @@ main() {
     choose_backend
 
     if $INTERACTIVE && $WITH_WEB; then
-        if ! ask_yes_no "Install the dashboard service (http://127.0.0.1:8321, restarts on its own)?" y; then
+        if ! ask_yes_no "Install the dashboard service (a local web page on 127.0.0.1, restarts on its own)?" y; then
             WITH_WEB=false
         fi
+    fi
+    if $WITH_WEB; then
+        choose_port
     fi
 
     output "\nSummary" heading
@@ -549,7 +650,7 @@ main() {
     output "  Agent runtime      $(runtime_label "$RUNTIME")"
     output "  Agent environment  $(backend_label "$BACKEND")"
     if $WITH_WEB; then
-        output "  Dashboard service  yes"
+        output "  Dashboard service  yes, on http://127.0.0.1:$PORT"
     else
         output "  Dashboard service  no"
     fi

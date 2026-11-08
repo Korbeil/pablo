@@ -75,6 +75,36 @@ final class GlobalConfig
             'branch_prefix' => isset($data['branch_prefix']) ? (string) $data['branch_prefix'] : null,
             'agent_backend' => isset($data['agent_backend']) ? (string) $data['agent_backend'] : null,
             'agent_runtime' => isset($data['agent_runtime']) ? (string) $data['agent_runtime'] : null,
+            'dashboard_port' => $data['dashboard_port'] ?? null,
         ];
+    }
+
+    /**
+     * The port of the dashboard (`pablo web`, and its service): dashboard_port,
+     * else $default. Read per call, like every other key.
+     *
+     * @throws PabloError when dashboard_port is not a port number
+     */
+    public function dashboardPort(int $default): int
+    {
+        $port = $this->defaults()['dashboard_port'] ?? null;
+        if (null === $port) {
+            return $default;
+        }
+        if (!self::isPort($port)) {
+            throw new PabloError('config.yaml: dashboard_port must be a port number (1-65535), got '.var_export($port, true));
+        }
+
+        return (int) $port;
+    }
+
+    /** A TCP port: an integer (or digits) between 1 and 65535. */
+    public static function isPort(mixed $value): bool
+    {
+        if (\is_int($value)) {
+            return $value >= 1 && $value <= 65535;
+        }
+
+        return \is_string($value) && 1 === preg_match('/^\d+$/', $value) && (int) $value >= 1 && (int) $value <= 65535;
     }
 }

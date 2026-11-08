@@ -26,6 +26,14 @@ final class InstallerTest extends TestCase
     private string $releases;
     private string $target;
 
+    /** The dashboard's default port for these runs: free, whatever runs on 8321 here. */
+    private int $defaultPort;
+
+    /** @var list<resource> */
+    private array $listeners = [];
+
+    private ?Process $dashboard = null;
+
     protected function setUp(): void
     {
         $this->installer = \dirname(__DIR__, 3).'/site/installer';
@@ -33,10 +41,17 @@ final class InstallerTest extends TestCase
         $this->target = self::target();
         $this->releases = $this->sandbox.'/releases';
         $this->publish('latest/download', 'v9.9.9');
+        $this->defaultPort = self::freePort();
     }
 
     protected function tearDown(): void
     {
+        foreach ($this->listeners as $listener) {
+            fclose($listener);
+        }
+        if (null !== $this->dashboard && $this->dashboard->isRunning()) {
+            $this->dashboard->stop(5);
+        }
         $this->removeSandbox();
     }
 
@@ -328,6 +343,104 @@ final class InstallerTest extends TestCase
         $this->assertSame(['pablo'], array_values(array_diff(scandir($this->sandbox.'/home/.local/bin') ?: [], ['.', '..'])));
     }
 
+    public function testAFreeDefaultPortIsKeptWithoutAsking(): void
+    {
+        $this->fakeTool('claude');
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString("Dashboard service  yes, on http://127.0.0.1:{$this->defaultPort}", $this->outputOf($process));
+        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+    }
+
+    public function testABusyPortGetsTheNextFreeOneWithoutInteraction(): void
+    {
+        $this->fakeTool('claude');
+        $this->occupy($this->defaultPort);
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString("Port {$this->defaultPort} is already used by another program", $this->outputOf($process));
+        if (1 !== preg_match('/--port (\d+)$/', $this->installArguments(), $m)) {
+            $this->fail('no --port in: '.$this->installArguments());
+        }
+        $this->assertGreaterThan($this->defaultPort, (int) $m[1]);
+    }
+
+    public function testABusyPortAsksForAnotherWithTheNextFreeOneAsDefault(): void
+    {
+        $this->fakeTool('claude');
+        $this->occupy($this->defaultPort);
+        $mine = self::freePort();
+
+        // environment: default, dashboard: yes, port: abc (refused), then mine, go
+        $process = $this->interactive("\n\nabc\n{$mine}\n\n");
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString('Which port should the dashboard use?', $this->outputOf($process));
+        $this->assertStringContainsString('Answer with a port number', $this->outputOf($process));
+        $this->assertStringEndsWith("--port {$mine}", $this->installArguments());
+    }
+
+    public function testThePortOfARunningPabloDashboardIsKept(): void
+    {
+        $this->fakeTool('claude');
+        $root = $this->sandbox.'/dashboard';
+        mkdir($root);
+        file_put_contents($root.'/index.php', '<!DOCTYPE html><meta name="application-name" content="PABLO"><title>PABLO</title>');
+        $this->dashboard = new Process([\PHP_BINARY, '-S', '127.0.0.1:'.$this->defaultPort, '-t', $root]);
+        $this->dashboard->start();
+        $this->dashboard->waitUntil(static fn (string $type, string $output): bool => str_contains($output, 'started'));
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringNotContainsString('already used', $this->outputOf($process));
+        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+    }
+
+    public function testTheConfiguredPortIsTheOneChecked(): void
+    {
+        $this->fakeTool('claude');
+        $configured = self::freePort();
+        mkdir($this->sandbox.'/home/.pablo', 0o777, true);
+        file_put_contents($this->sandbox.'/home/.pablo/config.yaml', "dashboard_port: {$configured}\n");
+        $this->occupy($this->defaultPort);
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString("http://127.0.0.1:{$configured}", $this->outputOf($process));
+        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments(), 'nothing to change');
+    }
+
+    public function testAnExplicitPortIsForwardedAndAnInvalidOneRefused(): void
+    {
+        $this->fakeTool('claude');
+        $mine = self::freePort();
+
+        $ok = $this->install(['--no-interaction', '--port', (string) $mine]);
+        $bad = $this->install(['--no-interaction', '--port', '99999']);
+
+        $this->assertSame(0, $ok->getExitCode(), $this->outputOf($ok));
+        $this->assertStringEndsWith("--port {$mine}", $this->installArguments());
+        $this->assertNotSame(0, $bad->getExitCode());
+        $this->assertStringContainsString("Invalid --port '99999'", $this->outputOf($bad));
+    }
+
+    public function testWithoutWebNoPortIsChecked(): void
+    {
+        $this->fakeTool('claude');
+        $this->occupy($this->defaultPort);
+
+        $process = $this->install(['--no-interaction', '--without-web']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringNotContainsString('already used', $this->outputOf($process));
+    }
+
     public function testSystemInstallFailureIsReported(): void
     {
         $this->fakeTool('claude');
@@ -421,7 +534,7 @@ final class InstallerTest extends TestCase
     {
         return $this->runInSandbox(
             [$this->realTool('bash'), $this->installer, ...$arguments],
-            ['PABLO_RELEASES_URL' => 'file://'.$this->releases],
+            ['PABLO_RELEASES_URL' => 'file://'.$this->releases, 'PABLO_INSTALLER_DEFAULT_PORT' => (string) $this->defaultPort],
         );
     }
 
@@ -431,7 +544,7 @@ final class InstallerTest extends TestCase
 
         return $this->runInSandbox(
             [$this->realTool('bash'), $this->installer],
-            ['PABLO_RELEASES_URL' => 'file://'.$this->releases, 'PABLO_INSTALLER_TTY' => $this->sandbox.'/answers'],
+            ['PABLO_RELEASES_URL' => 'file://'.$this->releases, 'PABLO_INSTALLER_TTY' => $this->sandbox.'/answers', 'PABLO_INSTALLER_DEFAULT_PORT' => (string) $this->defaultPort],
         );
     }
 
@@ -471,6 +584,24 @@ final class InstallerTest extends TestCase
             BASH;
         file_put_contents($dir.'/pablo-'.$this->target, $binary."\n");
         file_put_contents($dir.'/sha256sums.txt', hash_file('sha256', $dir.'/pablo-'.$this->target)."  pablo-{$this->target}\n");
+    }
+
+    /** Something else listening on $port, for as long as the test runs. */
+    private function occupy(int $port): void
+    {
+        $listener = stream_socket_server('tcp://127.0.0.1:'.$port);
+        $this->assertNotFalse($listener, "port {$port} could not be taken");
+        $this->listeners[] = $listener;
+    }
+
+    private static function freePort(): int
+    {
+        $probe = stream_socket_server('tcp://127.0.0.1:0');
+        self::assertNotFalse($probe);
+        $name = (string) stream_socket_get_name($probe, false);
+        fclose($probe);
+
+        return (int) substr($name, (int) strrpos($name, ':') + 1);
     }
 
     private static function target(): string

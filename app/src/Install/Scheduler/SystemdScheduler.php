@@ -51,7 +51,7 @@ final class SystemdScheduler implements SchedulerInterface
             $this->systemctl(['enable', '--now', self::WEB_UNIT]);
             // A running dashboard keeps serving the old binary until restarted.
             $this->systemctl(['restart', self::WEB_UNIT]);
-            $info('pablo-web.service enabled (dashboard on http://127.0.0.1:8321; logs: journalctl --user -u pablo-web.service)');
+            $info('pablo-web.service enabled (the dashboard; logs: journalctl --user -u pablo-web.service)');
         } elseif (ServiceFiles::isOurs($web, self::WEB_UNIT)) {
             $this->runner->probe(['systemctl', '--user', 'disable', '--now', self::WEB_UNIT]);
             ServiceFiles::removeIfOurs($web, self::WEB_UNIT);

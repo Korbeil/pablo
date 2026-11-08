@@ -321,6 +321,28 @@ final class InstallCommandTest extends TestCase
         $this->assertSame("old unit\n", file_get_contents($clone.'/systemd/pablo-dispatch.service'));
     }
 
+    public function testThePortIsRecordedForTheDashboardAndShownInTheNextSteps(): void
+    {
+        $tester = $this->install(['--runtime' => 'opencode', '--port' => '8400']);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertSame('8400', $this->configValue('dashboard_port'));
+        $this->assertStringContainsString('watch it on http://127.0.0.1:8400', $tester->getDisplay());
+        $this->assertStringContainsString('ExecStart=%h/.local/bin/pablo web', (string) file_get_contents($this->home.'/.config/systemd/user/pablo-web.service'), 'the unit reads the port from the config');
+
+        $this->assertSame(0, $this->install(['--runtime' => 'opencode'])->getStatusCode());
+        $this->assertSame('8400', $this->configValue('dashboard_port'), 'kept by a later install');
+    }
+
+    public function testAnInvalidPortIsRefusedBeforeTouchingAnything(): void
+    {
+        $tester = $this->install(['--port' => '70000']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('invalid --port 70000', $tester->getDisplay());
+        $this->assertFileDoesNotExist($this->home.'/.pablo/config.yaml');
+    }
+
     public function testPathIsAddedForTheUsersShellOnlyWhenMissing(): void
     {
         putenv('SHELL=/usr/bin/zsh');

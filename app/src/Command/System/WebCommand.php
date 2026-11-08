@@ -8,6 +8,7 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Web\PhpServer;
@@ -38,6 +39,7 @@ final class WebCommand extends Command
         AgentLauncherInterface $agents,
         #[Autowire('%kernel.environment%')]
         private readonly string $environment = 'dev',
+        private readonly GlobalConfig $globalConfig = new GlobalConfig(),
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
@@ -45,7 +47,7 @@ final class WebCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('port', 'p', InputOption::VALUE_REQUIRED, 'port to listen on', (string) self::DEFAULT_PORT)
+            ->addOption('port', 'p', InputOption::VALUE_REQUIRED, 'port to listen on (default: dashboard_port in ~/.pablo/config.yaml, else '.self::DEFAULT_PORT.')')
             ->addOption('open', null, InputOption::VALUE_NONE, 'open the dashboard in your browser');
     }
 
@@ -87,11 +89,15 @@ final class WebCommand extends Command
         return self::SUCCESS;
     }
 
+    /** --port, else dashboard_port (what the service runs with), else 8321. */
     private function port(InputInterface $input): int
     {
-        $raw = (string) $input->getOption('port');
-        if (1 !== preg_match('/^\d+$/', $raw) || (int) $raw < 1 || (int) $raw > 65535) {
-            throw new PabloError("invalid --port {$raw}: expected a number between 1 and 65535");
+        $raw = $input->getOption('port');
+        if (null === $raw) {
+            return $this->globalConfig->dashboardPort(self::DEFAULT_PORT);
+        }
+        if (!GlobalConfig::isPort($raw)) {
+            throw new PabloError('invalid --port '.(string) $raw.': expected a number between 1 and 65535');
         }
 
         return (int) $raw;

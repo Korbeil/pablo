@@ -12,7 +12,6 @@ use Pablo\Store\Store;
 use Pablo\Tests\FakeAgents;
 use Pablo\Web\PhpServer;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\Attributes\RequiresFunction;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
@@ -78,7 +77,25 @@ final class WebCommandTest extends TestCase
         $this->assertStringContainsString('invalid --port', $tester->getDisplay());
     }
 
-    #[RequiresFunction('pcntl_fork')]
+    public function testAnInvalidDashboardPortInTheConfigIsReported(): void
+    {
+        $previous = getenv('PABLO_CONFIG');
+        $config = sys_get_temp_dir().'/pablo-web-config-'.bin2hex(random_bytes(4)).'.yaml';
+        file_put_contents($config, "dashboard_port: nope\n");
+        putenv('PABLO_CONFIG='.$config);
+
+        try {
+            $tester = new CommandTester($this->command());
+            $tester->execute([]);
+        } finally {
+            putenv(false === $previous ? 'PABLO_CONFIG' : 'PABLO_CONFIG='.$previous);
+            @unlink($config);
+        }
+
+        $this->assertSame(Command::FAILURE, $tester->getStatusCode());
+        $this->assertStringContainsString('dashboard_port must be a port number', $tester->getDisplay());
+    }
+
     public function testServesTheDashboardAndItsAssetsWithoutCallingExternalTools(): void
     {
         $port = $this->start();
@@ -123,7 +140,9 @@ final class WebCommandTest extends TestCase
         fclose($probe);
 
         $home = $this->tmp.'/home';
-        $this->process = new Process([\PHP_BINARY, \dirname(__DIR__, 3).'/bin/pablo', 'web', '--port', (string) $port], null, [
+        // No --port: `pablo web` takes dashboard_port, as the service does.
+        file_put_contents($home.'/.pablo/config.yaml', "dashboard_port: {$port}\n");
+        $this->process = new Process([\PHP_BINARY, \dirname(__DIR__, 3).'/bin/pablo', 'web'], null, [
             'HOME' => $home,
             'PATH' => $this->tmp.'/bin:/usr/bin:/bin',
             'PABLO_ENV' => 'test',
