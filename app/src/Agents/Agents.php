@@ -6,6 +6,7 @@ namespace Pablo\Agents;
 
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Domain\Time;
+use Pablo\Install\ClaudeTrust;
 use Pablo\Store\Store;
 use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
@@ -13,8 +14,10 @@ use Pablo\Support\ProcessRunnerInterface;
 /**
  * Launching agents on worktrees and querying their activity.
  *
- * Primary path is the Orca CLI, running the selected runtime's one-shot
- * command (`opencode run`, `claude -p` or `copilot -p`) in an Orca terminal. When Orca
+ * Primary path is the Orca CLI, running the selected runtime in an Orca
+ * terminal: its interactive session when it has one (Claude Code, so the user
+ * sees the conversation), else its one-shot command (`opencode run`,
+ * `copilot -p`). When Orca
  * refuses (e.g. selector_not_found for an unregistered repo) or is
  * unreachable, PABLO falls back to running that same command headless,
  * tracked via pidfiles under ~/.pablo/agents/.
@@ -23,6 +26,8 @@ final class Agents extends AbstractAgentLauncher
 {
     public const ORCA_CALL_TIMEOUT_S = 60;
     public const ORCA_ADOPT_WAIT_S = 15;
+    /** How long one `orca terminal wait` lasts between two looks at a done marker. */
+    public const DONE_POLL_MS = 15_000;
     public const RUNNING_STATES = ['working', 'running'];
     public const FINISHED_STATES = ['done', 'completed'];
 
@@ -130,7 +135,15 @@ final class Agents extends AbstractAgentLauncher
         // fallback so `claude --resume` / `copilot --resume` and analytics find
         // the run either way.
         $sessionId = $this->runtime->newSessionId();
-        $command = 'cd '.escapeshellarg($worktree).'; '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId);
+        $doneMarker = $this->agentsDir().'/done/'.($sessionId ?? bin2hex(random_bytes(8)));
+        $interactive = $this->runtime->interactiveCommand($agent, $prompt, $model, $sessionId, $doneMarker);
+        if (null !== $interactive && AgentRuntimeInterface::CLAUDE_CODE === $this->runtime->name()) {
+            // Usually covered since `system:install` trusted the worktrees
+            // folder; checked again in case a running session saved its own
+            // copy of ~/.claude.json over that entry since.
+            ClaudeTrust::trust([$worktree]);
+        }
+        $command = 'cd '.escapeshellarg($worktree).'; '.($interactive ?? $this->runtime->launchCommand($agent, $prompt, $model, $sessionId));
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
             if (null === OrcaCli::find()) {
                 return new OrcaCall(null, self::NO_ORCA);
@@ -151,6 +164,10 @@ final class Agents extends AbstractAgentLauncher
         if (null !== $result) {
             $handle = $result['handle'] ?? $result['agentTerminalHandle'] ?? ($result['startupTerminal']['handle'] ?? null) ?? ($result['terminal']['handle'] ?? null);
             if (null !== $handle) {
+                if (null !== $interactive) {
+                    $this->recordDoneMarker((string) $handle, $doneMarker);
+                }
+
                 return (string) $handle;
             }
         }
@@ -316,15 +333,59 @@ final class Agents extends AbstractAgentLauncher
         return false;
     }
 
+    /**
+     * An interactive session never exits on its own: its run ends when it
+     * creates its done marker. The watcher (another process) finds the marker
+     * through the handle.
+     */
+    private function recordDoneMarker(string $handle, string $doneMarker): void
+    {
+        $dir = \dirname($doneMarker);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0o777, true);
+        }
+        @file_put_contents($this->handleFile($handle), $doneMarker);
+    }
+
+    private function handleFile(string $handle): string
+    {
+        return $this->agentsDir().'/done/'.(preg_replace('/[^a-zA-Z0-9_-]/', '_', $handle) ?: 'handle').'.marker';
+    }
+
     protected function waitForBackendHandle(string $handle, int $timeoutS): void
     {
-        try {
-            $this->runner->run([
-                OrcaCli::command(), 'terminal', 'wait', '--terminal', $handle,
-                '--for', 'exit', '--timeout-ms', (string) ($timeoutS * 1000), '--json',
-            ], check: false, timeout: $timeoutS + 120);
-        } catch (\Throwable) {
-            // orca gone/hung: treat the run as finished rather than wedging
+        $handleFile = $this->handleFile($handle);
+        $marker = is_file($handleFile) ? trim((string) file_get_contents($handleFile)) : '';
+        if ('' === $marker) {
+            $this->waitForExit($handle, $timeoutS * 1000); // a one-shot command
+
+            return;
         }
+        // The session answered (marker) or the user closed it (exit).
+        $deadline = microtime(true) + $timeoutS;
+        while (!is_file($marker) && microtime(true) < $deadline) {
+            $left = (int) (($deadline - microtime(true)) * 1000);
+            if (!$this->waitForExit($handle, max(1, min(self::DONE_POLL_MS, $left)))) {
+                break;
+            }
+        }
+        @unlink($marker);
+        @unlink($handleFile);
+    }
+
+    /** Whether the wait merely timed out (the terminal is still there). */
+    private function waitForExit(string $handle, int $timeoutMs): bool
+    {
+        try {
+            $out = $this->runner->run([
+                OrcaCli::command(), 'terminal', 'wait', '--terminal', $handle,
+                '--for', 'exit', '--timeout-ms', (string) $timeoutMs, '--json',
+            ], check: false, timeout: $timeoutMs / 1000 + 120);
+        } catch (\Throwable) {
+            return false; // orca gone/hung: treat the run as finished rather than wedging
+        }
+        $data = json_decode($out, true);
+
+        return \is_array($data) && 'timeout' === ($data['error']['code'] ?? null);
     }
 }

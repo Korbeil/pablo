@@ -7,7 +7,8 @@ namespace Pablo\Agents\Runtime;
 use Pablo\Support\PabloPaths;
 
 /**
- * Claude Code: `claude -p` with PABLO's agents passed at launch through
+ * Claude Code: `claude -p` (headless) or an interactive `claude` session (in
+ * an Orca terminal, so the user watches the conversation) with PABLO's agents passed at launch through
  * `--agents ~/.pablo/runtime/claude/agents.json`. They are also linked into
  * ~/.claude/agents as pablo-<agent> (see ClaudeCodeAgents::renderAgentFiles)
  * so the user's own sessions list them; those files carry tool-level limits
@@ -87,7 +88,29 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
 
     public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string
     {
-        $argv = ['claude', '-p', '--agents', $this->agentsFile(), '--agent', $agent];
+        return $this->command(['claude', '-p'], $agent, $prompt, $model, $sessionId);
+    }
+
+    /**
+     * The same session without -p: Claude's own interface, which stays open
+     * for the user once the agent has answered. A Stop hook (merged with the
+     * user's own hooks by --settings) creates $doneMarker when the agent
+     * finishes answering, the run's end for PABLO's watcher.
+     */
+    public function interactiveCommand(string $agent, string $prompt, ?string $model, ?string $sessionId, string $doneMarker): string
+    {
+        $settings = ['hooks' => ['Stop' => [['hooks' => [[
+            'type' => 'command',
+            'command' => 'touch '.escapeshellarg($doneMarker),
+        ]]]]]];
+
+        return $this->command(['claude', '--settings', json_encode($settings, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES)], $agent, $prompt, $model, $sessionId);
+    }
+
+    /** @param list<string> $head */
+    private function command(array $head, string $agent, string $prompt, ?string $model, ?string $sessionId): string
+    {
+        $argv = [...$head, '--agents', $this->agentsFile(), '--agent', $agent];
         if (null !== $model) {
             $argv[] = '--model';
             $argv[] = $model;

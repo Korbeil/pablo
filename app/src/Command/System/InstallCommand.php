@@ -15,6 +15,7 @@ use Pablo\App\Kernel;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
+use Pablo\Install\ClaudeTrust;
 use Pablo\Install\ConfigSeeder;
 use Pablo\Install\InstallPaths;
 use Pablo\Install\Links;
@@ -175,6 +176,11 @@ final class InstallCommand extends Command
             foreach ($skills as $skill) {
                 $info($links->link($skill, InstallPaths::claudeDir().'/skills/'.basename($skill)));
             }
+            // Interactive sessions (Orca) would otherwise ask, for every new
+            // worktree, whether Claude Code may trust it.
+            foreach (ClaudeTrust::trust($this->worktreeRoots()) as $line) {
+                $info($line);
+            }
 
             return;
         }
@@ -204,6 +210,25 @@ final class InstallCommand extends Command
         foreach ($skills as $skill) {
             $info($links->link($skill, InstallPaths::opencodeDir().'/skill/'.basename($skill)));
         }
+    }
+
+    /**
+     * ~/.pablo/worktrees, and every project's own worktrees_root.
+     *
+     * @return list<string>
+     */
+    private function worktreeRoots(): array
+    {
+        $roots = [ClaudeTrust::defaultRoot()];
+        try {
+            foreach ($this->projectsLoader->loadProjects() as $project) {
+                $roots[] = $project->worktreesRoot;
+            }
+        } catch (\Throwable) {
+            // a broken project file is reported elsewhere (doctor, dispatch)
+        }
+
+        return $roots;
     }
 
     /**

@@ -115,6 +115,115 @@ final class AgentsTest extends TestCase
         $this->assertStringContainsString("--model 'litellm/anthropic/claude-opus'", $command);
     }
 
+    private function claudeAgents(): Agents
+    {
+        $runtime = new \Pablo\Agents\Runtime\ClaudeCodeRuntime(
+            new \Pablo\Agents\Runtime\ClaudeCodeAgents(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()))),
+            $this->tmp.'/claude',
+        );
+
+        return new Agents($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo', $runtime);
+    }
+
+    /** Launch a Claude agent in Orca; returns the terminal command and the done marker. */
+    private function launchClaude(Agents $agents): string
+    {
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+
+            return $this->orcaOk(['handle' => 'term_7']);
+        });
+        $this->assertSame('term_7', $agents->doLaunchAgent($this->tmp, 'task-analyst', 'Analyze issue #45'));
+        $key = array_search('--command', $calls[1], true);
+        $this->assertIsInt($key);
+
+        return $calls[1][$key + 1];
+    }
+
+    /** In Orca, Claude Code runs its own interface, so the user sees the conversation. */
+    public function testClaudeRunsInteractivelyInOrca(): void
+    {
+        $command = $this->launchClaude($this->claudeAgents());
+
+        $this->assertStringStartsWith('cd ', $command);
+        $this->assertStringNotContainsString('claude -p', $command);
+        $this->assertStringContainsString("claude --settings '", $command);
+        $this->assertStringContainsString('--agent task-analyst', $command);
+        $this->assertStringContainsString('--permission-mode dontAsk', $command, 'same permissions as headless');
+        $this->assertMatchesRegularExpression('/--session-id [0-9a-f-]{36}/', $command);
+        $this->assertStringContainsString('"Stop"', $command);
+        $this->assertStringContainsString($this->agentsDir.'/done/', $command);
+    }
+
+    public function testTheWorktreeIsTrustedBeforeAnInteractiveLaunch(): void
+    {
+        $file = $this->tmp.'/.claude.json';
+        file_put_contents($file, '{"projects":{}}');
+        putenv('PABLO_CLAUDE_JSON='.$file);
+        try {
+            $this->launchClaude($this->claudeAgents());
+        } finally {
+            putenv('PABLO_CLAUDE_JSON=/nonexistent/pablo-tests/.claude.json');
+        }
+
+        $this->assertSame(['projects' => [$this->tmp => ['hasTrustDialogAccepted' => true]]], json_decode((string) file_get_contents($file), true));
+    }
+
+    public function testAnInteractiveRunEndsWhenItsStopHookFires(): void
+    {
+        $agents = $this->claudeAgents();
+        $this->launchClaude($agents);
+        $markers = glob($this->agentsDir.'/done/*.marker') ?: [];
+        $this->assertCount(1, $markers);
+        $doneMarker = (string) file_get_contents($markers[0]);
+
+        $waits = 0;
+        $this->startRunner(function (array $argv) use (&$waits, $doneMarker): string {
+            $this->assertSame(['orca', 'terminal', 'wait', '--terminal', 'term_7', '--for', 'exit'], \array_slice($argv, 0, 7));
+            if (2 === ++$waits) {
+                touch($doneMarker); // the agent answered, the terminal stays open
+            }
+
+            return $this->orcaErr('timeout');
+        });
+        $agents->waitForHandle('term_7', 60);
+
+        $this->assertSame(2, $waits);
+        $this->assertFileDoesNotExist($doneMarker);
+        $this->assertSame([], glob($this->agentsDir.'/done/*') ?: []);
+    }
+
+    public function testAnInteractiveRunEndsWhenTheUserClosesIt(): void
+    {
+        $agents = $this->claudeAgents();
+        $this->launchClaude($agents);
+
+        $waits = 0;
+        $this->startRunner(function () use (&$waits): string {
+            ++$waits;
+
+            return $this->orcaOk(['satisfied' => true]);
+        });
+        $agents->waitForHandle('term_7', 60);
+
+        $this->assertSame(1, $waits);
+    }
+
+    public function testAOneShotRunWaitsForItsTerminalToExit(): void
+    {
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+
+            return $this->orcaErr('timeout');
+        });
+        $this->agents->waitForHandle('term_9', 60);
+
+        $this->assertCount(1, $calls, 'one wait, for the whole timeout');
+        $this->assertContains('60000', $calls[0]);
+    }
+
     public function testOrcaSessionsMapAgentStates(): void
     {
         $ps = [

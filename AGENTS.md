@@ -210,7 +210,10 @@ workers before opening it.
 idempotent; never touches a pre-existing non-PABLO file in
 `~/.config/opencode`, `~/.claude`, `~/.copilot` (a link is PABLO's when it
 points into `~/.pablo/runtime` or into a PABLO checkout — the clone install's
-links, taken over on migration); systemd units / launchd plists are bundled
+links, taken over on migration) — the one exception being `ClaudeTrust`, which
+adds `hasTrustDialogAccepted` for the worktrees folder to `~/.claude.json`
+(Claude Code runtime; also checked per worktree before each interactive Orca
+launch; tests pin `PABLO_CLAUDE_JSON` to a missing file in `phpunit.xml`); systemd units / launchd plists are bundled
 and **written** (marker line, never symlinked), pointing at
 `~/.local/bin/pablo`; the dashboard's port is `dashboard_port` in
 `~/.pablo/config.yaml` (default 8321, read by `pablo web`, so never baked into
@@ -231,7 +234,9 @@ as the command's working directory for
 repos not registered in Orca. *What* runs is the agent **runtime**
 (`src/Agents/Runtime/`, `agent_runtime` / `PABLO_AGENT_RUNTIME`, resolved per
 call by `AgentRuntimeResolver`): `opencode run` (default), `claude -p`
-(Claude Code: agents passed with `--agents ~/.pablo/runtime/claude/agents.json`, and
+(Claude Code; in an Orca terminal an interactive `claude` with the same flags,
+its run ending on a `Stop` hook marker in `~/.pablo/agents/done/` —
+`interactiveCommand()`; agents passed with `--agents ~/.pablo/runtime/claude/agents.json`, and
 also rendered as `pablo-<agent>.md` into `~/.pablo/runtime/claude/agents/`,
 linked into `~/.claude/agents` for `/agents` and the `@` picker — tool-level
 limits only; permissions translated from the same templates by `ClaudeCodeAgents`, every

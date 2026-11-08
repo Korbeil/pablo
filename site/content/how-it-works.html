@@ -38,7 +38,7 @@
 
 <p>PABLO doesn't run agents itself. It hands them to an agent backend, exactly the way you would, and asks it which agents are busy.</p>
 
-<p>The backend decides <em>where</em> an agent runs; the <a href="page:configuration#claude-code">agent runtime</a> (<code>agent_runtime</code>) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/runtime/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code, or <code>copilot --agent pablo-&lt;agent&gt; --session-id &lt;uuid&gt; … -p '&lt;prompt&gt;'</code> with <a href="page:configuration#copilot">Copilot</a>. Orca and the headless fallback run either; OpenChamber only runs OpenCode.</p>
+<p>The backend decides <em>where</em> an agent runs; the <a href="page:configuration#claude-code">agent runtime</a> (<code>agent_runtime</code>) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/runtime/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code (without <code>-p</code> in Orca, see below), or <code>copilot --agent pablo-&lt;agent&gt; --session-id &lt;uuid&gt; … -p '&lt;prompt&gt;'</code> with <a href="page:configuration#copilot">Copilot</a>. Orca and the headless fallback run either; OpenChamber only runs OpenCode.</p>
 
 <h3>Orca (default)</h3>
 
@@ -51,7 +51,9 @@ orca terminal wait --terminal &lt;handle&gt; --for exit --timeout-ms 3600000 --j
 orca worktree ps --limit 200 --json
 </code></pre>
 
-<p>An agent that is <code>working</code> or <code>running</code> counts as 🏃 busy; anything else (idle, waiting for input) counts as 💭 waiting for you. Orca only knows repositories registered with <code>orca repo add</code>. Under Claude Code the terminal runs <code>claude -p</code> instead (<code>copilot -p</code> under Copilot), and Orca follows it through the hooks it installs in your Claude Code settings, as it does for your own sessions.</p>
+<p>An agent that is <code>working</code> or <code>running</code> counts as 🏃 busy; anything else (idle, waiting for input) counts as 💭 waiting for you. Orca only knows repositories registered with <code>orca repo add</code>. Under Copilot the terminal runs <code>copilot -p</code> instead.</p>
+
+<p>Under Claude Code the terminal runs an interactive <code>claude</code> session, with the same agent, model, session id and permissions as <code>claude -p</code>, so you watch the conversation in Orca and can keep talking to the agent once it has answered. Orca follows it through the hooks it installs in your Claude Code settings, as it does for your own sessions. Since that session stays open, the run ends for PABLO when the agent finishes its first answer: a <code>Stop</code> hook passed with <code>--settings</code> (added to your own hooks) leaves a marker in <code>~/.pablo/agents/done/</code>. Closing the terminal ends the run too. Claude Code asks whether you trust a folder it has never seen, so <code>pablo system:install</code> marks <code>~/.pablo/worktrees</code> as trusted in <code>~/.claude.json</code>, and each launch makes sure its worktree is still covered.</p>
 
 <h3>OpenChamber</h3>
 
