@@ -65,9 +65,11 @@ final class InstallCommandTest extends TestCase
         $this->assertSame($this->home.'/.pablo/runtime/opencode/skills/pablo-task', readlink($this->home.'/.claude/skills/pablo-task'));
     }
 
-    public function testClaudeCodeTrustsTheWorktreesFolder(): void
+    public function testClaudeCodeTrustsTheTasksWorktrees(): void
     {
         file_put_contents($this->home.'/.claude.json', '{"projects":{}}');
+        $worktree = $this->home.'/.pablo/worktrees/jane/fix-ci';
+        (new \Pablo\Store\Store())->save(new \Pablo\Domain\Task('jane', 'fix-ci', $worktree, \Pablo\Domain\State::InProgress));
         putenv('PABLO_CLAUDE_JSON');
 
         try {
@@ -78,7 +80,7 @@ final class InstallCommandTest extends TestCase
 
         $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
         $config = json_decode((string) file_get_contents($this->home.'/.claude.json'), true);
-        $this->assertSame(['hasTrustDialogAccepted' => true], $config['projects'][$this->home.'/.pablo/worktrees'] ?? null);
+        $this->assertSame([$worktree => ['hasTrustDialogAccepted' => true]], $config['projects']);
         $this->assertSame(0, $this->install(['--runtime' => 'claude-code'])->getStatusCode(), 'idempotent');
     }
 

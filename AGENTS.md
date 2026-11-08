@@ -211,9 +211,9 @@ idempotent; never touches a pre-existing non-PABLO file in
 `~/.config/opencode`, `~/.claude`, `~/.copilot` (a link is PABLO's when it
 points into `~/.pablo/runtime` or into a PABLO checkout — the clone install's
 links, taken over on migration) — the one exception being `ClaudeTrust`, which
-adds `hasTrustDialogAccepted` for the worktrees folder to `~/.claude.json`
-(Claude Code runtime; also checked per worktree before each interactive Orca
-launch; tests pin `PABLO_CLAUDE_JSON` to a missing file in `phpunit.xml`); systemd units / launchd plists are bundled
+adds `hasTrustDialogAccepted` for each worktree to `~/.claude.json` (a
+trusted parent doesn't cover a git checkout): before each interactive Orca
+launch, and for existing tasks at install (Claude Code runtime; tests pin `PABLO_CLAUDE_JSON` to a missing file in `phpunit.xml`); systemd units / launchd plists are bundled
 and **written** (marker line, never symlinked), pointing at
 `~/.local/bin/pablo`; the dashboard's port is `dashboard_port` in
 `~/.pablo/config.yaml` (default 8321, read by `pablo web`, so never baked into

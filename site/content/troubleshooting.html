@@ -62,7 +62,7 @@ pablo sync:log          # what the last sync did, per project
 
 <h3>A Claude Code agent waits in Orca without doing anything</h3>
 
-<p>It is probably asking whether you trust the worktree: answer it in the terminal. PABLO normally prevents that question by marking the worktrees folder as trusted in <code>~/.claude.json</code> (at install and before each launch), but it can't when that file doesn't exist yet (Claude Code never ran) or isn't valid JSON; <code>pablo system:install</code> says so. Run <code>claude</code> once, then <code>pablo system:install</code> again.</p>
+<p>It is probably asking whether you trust the worktree: answer it in the terminal. PABLO normally prevents that question by marking the worktree as trusted in <code>~/.claude.json</code> just before the agent starts, but it can't when that file doesn't exist yet (Claude Code never ran) or isn't valid JSON; <code>pablo system:install</code> says so. Run <code>claude</code> once, then <code>pablo task:relaunch</code>.</p>
 
 <h3>Agents run headless instead of in Orca</h3>
 

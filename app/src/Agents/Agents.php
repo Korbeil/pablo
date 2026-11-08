@@ -138,9 +138,8 @@ final class Agents extends AbstractAgentLauncher
         $doneMarker = $this->agentsDir().'/done/'.($sessionId ?? bin2hex(random_bytes(8)));
         $interactive = $this->runtime->interactiveCommand($agent, $prompt, $model, $sessionId, $doneMarker);
         if (null !== $interactive && AgentRuntimeInterface::CLAUDE_CODE === $this->runtime->name()) {
-            // Usually covered since `system:install` trusted the worktrees
-            // folder; checked again in case a running session saved its own
-            // copy of ~/.claude.json over that entry since.
+            // Else Claude Code asks whether it may trust this new worktree
+            // (a trusted parent folder does not cover a git checkout).
             ClaudeTrust::trust([$worktree]);
         }
         // Orca sources the command in a shell that outlives it, so a session
