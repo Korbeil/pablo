@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Internal;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Command\Command;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -16,7 +17,7 @@ final class InternalRunStartupScriptCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('backend', null, InputOption::VALUE_REQUIRED, '', 'orca')
+            ->addOption('backend', null, InputOption::VALUE_REQUIRED, '', AdeRegistry::DEFAULT)
             ->addOption('worktree', null, InputOption::VALUE_REQUIRED)
             ->addOption('script', null, InputOption::VALUE_REQUIRED)
             ->addOption('project', null, InputOption::VALUE_REQUIRED)

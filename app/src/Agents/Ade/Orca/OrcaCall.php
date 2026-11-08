@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Agents;
+namespace Pablo\Agents\Ade\Orca;
 
 /**
  * Outcome of one `orca --json` call: the decoded `result` payload on success

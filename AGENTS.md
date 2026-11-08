@@ -128,10 +128,9 @@ store + per-task flock) · `src/Poller/` (state polling) ·
 `src/Provider/` (all external integrations): `Gh/` (`gh` PR/CI),
 `Git/` (worktrees, lease-safe sync), `Confluence/` (`acli`),
 `Tracker/` (`ProviderInterface` + `Github`/`Jira`/`Linear`) ·
-`src/Agents/` (agent launchers: Orca + headless `Agents`, optional
-`OpenChamber`, `AbstractAgentLauncher` base, `AgentLauncher` factory
-selected via `agent_backend`/`PABLO_AGENT_BACKEND`; `Runtime/` holds the agent
-runtimes, one folder each — see "Agent execution") · `src/Listing/` (terminal tables) ·
+`src/Agents/` (`AgentLauncherInterface` + the `AgentLauncherFactory`;
+`Ade/` holds the ADEs — Orca, OpenChamber, headless — and `Runtime/` the
+agent runtimes, one folder each — see "Agent execution") · `src/Listing/` (terminal tables) ·
 `src/Analytics/` (append-only JSONL analytics under `~/.pablo/analytics/`:
 task lifetimes, state transitions, agent runs with token/cost usage
 harvested from the selected runtime's own storage; best-effort, never throws into task
@@ -219,11 +218,18 @@ a unit; `system:install --port` writes it, and `site/installer` picks a free
 one when another program holds 8321). `SystemdScheduler` is the one file `PortabilityTest`
 lets name `systemctl` (built only on Linux by `SchedulerFactory`).
 
-**Agent execution**: via the Orca CLI (`orca terminal create` /
-`orca terminal wait` / `orca worktree ps`), same path as the user's other
-Orca agents. Falls back to a headless run executed with the worktree
-as the command's working directory for
-repos not registered in Orca. *What* runs is the agent **runtime**
+**Agent execution**: *where* an agent runs is the **ADE** (agent
+development environment: `agent_backend` / `PABLO_AGENT_BACKEND`, resolved
+per call by `AdeRegistry` — the one place listing them): Orca (default: the
+Orca CLI, `orca terminal create` / `orca terminal wait` / `orca worktree ps`,
+same path as the user's other Orca agents), OpenChamber (the
+directory-based `openchamber` CLI — no repo registration, adoption wait, or
+display-name step; OpenCode only) or headless (`agent_backend: headless`:
+every run detached in the background, tracked by pidfiles). Headless is also
+every other ADE's fallback (`HeadlessRunner`, owned by
+`AbstractAgentLauncher`) for
+repos not registered in Orca, and what Sync launches the conflict resolver
+with. *What* runs is the agent **runtime**
 (`agent_runtime` / `PABLO_AGENT_RUNTIME`, resolved per call by
 `AgentRuntimeRegistry` — the one place listing them): `opencode run`
 (default), `claude -p` (Claude Code: agents passed with `--agents
@@ -245,27 +251,35 @@ lookup — `SessionRef` dispatches a recorded handle across all runtimes),
 uninstall paths, doctor staleness, legacy cleanup), `usage()` (the
 `UsageHarvesterInterface` reading token/cost back), `oneShot()`
 (`RuntimeOneShotInterface`: the task summarizer's throwaway call), `probe()`
-(`RuntimeProbe`: doctor check/install/docs), plus `defaultModel()`,
-`modelError()` and `backendError()`. Every runtime starts from the shared
+(`Doctor\CliProbe`: doctor check/install/docs), plus `defaultModel()` and
+`modelError()`. Every runtime starts from the shared
 render in `AgentTemplates::renderedDir()` (`~/.pablo/runtime/opencode`, name
 kept so existing links stay valid). `tests/Agents/Runtime/RuntimeConfinementTest.php`
 fails on a concrete runtime class or a runtime/CLI name string anywhere else
 in `src/`; `RuntimeContractTest` runs every registered runtime through the
 interfaces. New runtime: a folder implementing the interfaces, listed in
 `AgentRuntimeRegistry` (`NAMES`, `build()`, `sessionStrategies()`).
-A backend that cannot run the runtime (OpenChamber + anything but OpenCode)
-is refused (factory, doctor, dispatch). An optional `OpenChamber` backend
-(`agent_backend=openchamber` in `~/.pablo/config.yaml` or
-`PABLO_AGENT_BACKEND`) replaces Orca with the directory-based `openchamber`
-CLI — no repo registration, adoption wait, or display-name step.
+
+⚠️ **ADE-specific code is likewise confined to `src/Agents/Ade/<Ade>/`**
+(`Orca/`, `OpenChamber/`, `Headless/`), reached only through `AdeInterface`:
+`launcher()` (its `AbstractAgentLauncher`), `runtimeError()` (OpenChamber
+refuses anything but OpenCode — the one ADE allowed to name a concrete
+runtime, see `RuntimeConfinementTest::EXEMPT`; refused by factory, doctor,
+dispatch and `system:install`), `probe()` (a soft `Doctor\CliProbe`, null for
+headless), `takesLaunchContext()`, `usage()` (OpenChamber's own session
+totals, asked before the runtime's), `backup()`/`restore()` (Orca's
+repository list) and `followHint()`. `tests/Agents/Ade/AdeConfinementTest.php`
+and `AdeContractTest` mirror the runtime ones. New ADE: a folder
+implementing `AdeInterface` + an `AbstractAgentLauncher`, listed in
+`AdeRegistry` (`NAMES`, `build()`).
 
 ## Testing
 
 Tests live under `app/tests/` mirroring `app/src/` (e.g. `app/src/Store/Store.php`
 is covered by `app/tests/Store/StoreTest.php`) so a test is found next to its
 subject. `tests/FakeAgents.php` is injected through `AgentLauncherInterface`
-wherever a test could otherwise reach a real `Agents` — this stops a forgotten
-real `Agents` from starting a real `opencode run` (a real LLM call) during
+wherever a test could otherwise reach a real launcher (`OrcaLauncher`, …) —
+this stops a forgotten real one from starting a real `opencode run` (a real LLM call) during
 PHPUnit. Never remove it or widen the exemption. The engine is DI-based: every
 former static class (`GhPr`, `GitRepo`, `Proc`, `Config`, `StateMachine`, …) is
 a constructor-injected service behind an interface where tests need fakes

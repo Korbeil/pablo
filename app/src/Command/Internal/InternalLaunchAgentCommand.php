@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Internal;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\LaunchContext;
@@ -44,7 +45,7 @@ final class InternalLaunchAgentCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('backend', null, InputOption::VALUE_REQUIRED, '', 'orca')
+            ->addOption('backend', null, InputOption::VALUE_REQUIRED, '', AdeRegistry::DEFAULT)
             ->addOption('worktree', null, InputOption::VALUE_REQUIRED)
             ->addOption('agent', null, InputOption::VALUE_REQUIRED)
             ->addOption('prompt', null, InputOption::VALUE_REQUIRED)
@@ -86,16 +87,16 @@ final class InternalLaunchAgentCommand extends Command
     }
 
     /**
-     * Append the pre-fetched context (see LaunchContext). Skipped for Orca,
-     * whose prompt travels inside a terminal command line rather than as an
-     * argv entry. Best-effort: any failure launches with the plain prompt.
+     * Append the pre-fetched context (see LaunchContext), unless the ADE
+     * cannot carry it (AdeInterface::takesLaunchContext()). Best-effort: any
+     * failure launches with the plain prompt.
      */
     private function withLaunchContext(string $backend, string $agent, string $project, string $branch, string $prompt): string
     {
-        if ('orca' === $backend) {
-            return $prompt;
-        }
         try {
+            if (!$this->agentLaunchers->ades()->resolve($backend)->takesLaunchContext()) {
+                return $prompt;
+            }
             $agentEnum = Agent::tryByName($agent);
             $cfg = $this->projectsLoader->loadProjects()[$project] ?? null;
             $task = $this->store()->get($project, $branch);

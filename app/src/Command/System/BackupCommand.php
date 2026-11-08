@@ -51,7 +51,7 @@ final class BackupCommand extends Command
         $path = $this->backup->writeArchive($pabloRoot, $projectsDir, $projects, $store, $dest);
 
         $output->writeln("backup written: {$path}");
-        $output->writeln("included state, stamps, logs, cache, project configs and Orca repo list from {$pabloRoot} (agents/ excluded)");
+        $output->writeln("included state, stamps, logs, cache, project configs and ADE state (e.g. its repository list) from {$pabloRoot} (agents/ excluded)");
         foreach ($projects as $cfg) {
             $branches = array_map(
                 static fn (Task $t) => $t->branch,

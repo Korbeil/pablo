@@ -69,7 +69,7 @@ final class Listing
      * concluded (`Task::hasFinishedAgent()`, stamped by the watch-agent/backfill),
      * or a live/waiting session is currently reported on its worktree. That
      * union keeps existing behaviour while adding the PABLO-owned signal, which
-     * is what surfaces an agent Orca has already evicted from its list.
+     * is what surfaces an agent the ADE has already evicted from its list.
      *
      * A task with an agent currently working on it (🏃) never qualifies: the
      * ball is not with the user yet, however many earlier runs have concluded.

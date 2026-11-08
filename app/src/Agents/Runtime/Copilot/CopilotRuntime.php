@@ -7,10 +7,10 @@ namespace Pablo\Agents\Runtime\Copilot;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
 use Pablo\Agents\Runtime\RuntimeOneShotInterface;
-use Pablo\Agents\Runtime\RuntimeProbe;
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
 use Pablo\Agents\Runtime\RuntimeSupport;
 use Pablo\Analytics\UsageHarvesterInterface;
+use Pablo\Doctor\CliProbe;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -123,11 +123,6 @@ final class CopilotRuntime implements AgentRuntimeInterface
         return null;
     }
 
-    public function backendError(string $backend): ?string
-    {
-        return RuntimeSupport::openCodeOnlyBackend($backend, self::NAME);
-    }
-
     public function sessions(): RuntimeSessionsInterface
     {
         return new CopilotSessions();
@@ -148,9 +143,9 @@ final class CopilotRuntime implements AgentRuntimeInterface
         return new CopilotOneShot();
     }
 
-    public function probe(): RuntimeProbe
+    public function probe(): CliProbe
     {
-        return new RuntimeProbe(
+        return new CliProbe(
             cli: 'copilot',
             // Copilot has no non-interactive login check: --version only proves
             // the install; `copilot login` is documented as the next step.

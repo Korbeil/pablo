@@ -228,7 +228,7 @@ final class Poller
                 // PABLO gave up retrying a PABLO-triggered agent, it launched a
                 // while back and the task hasn't moved: its run has concluded and
                 // the ball is with the user (review the plan, commit-and-pr).
-                // PABLO-owned, so it never depends on Orca reporting the agent.
+                // PABLO-owned, so it never depends on the ADE reporting the agent.
                 $finishedAt = $this->time->utcnow();
                 $events[] = "{$task->branch}: {$record->agent->value} finished → waiting for feedback";
             }
@@ -276,7 +276,7 @@ final class Poller
         if ([] !== $sessions) {
             return;
         }
-        if ($ctx->agents->hasAnyOrcaAgent($task->worktreePath)) {
+        if ($ctx->agents->hasAnyAgent($task->worktreePath)) {
             return;
         }
         if (null !== $task->issue) {

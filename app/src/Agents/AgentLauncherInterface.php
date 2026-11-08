@@ -19,28 +19,27 @@ interface AgentLauncherInterface
     public function runStartupScript(string $worktree, string $script, string $project, string $branch): string;
 
     /**
-     * Run the agent launch synchronously and return a backend handle (Orca
-     * terminal id, OpenChamber session id, or "pid:N"). Only ever runs inside
+     * Run the agent launch synchronously and return an ADE handle (e.g. a
+     * terminal or session id, or "pid:N" for a headless run). Only ever runs inside
      * the detached internal:launch-agent subprocess. $model overrides the
      * agent file's frontmatter model (null = frontmatter fallback).
      */
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string;
 
-    /** Run the startup script synchronously and return a backend handle. */
+    /** Run the startup script synchronously and return an ADE handle. */
     public function doRunStartupScript(string $worktree, string $script): string;
 
     /** @return array<int, SessionInfo> */
     public function activeSessions(string $worktree): array;
 
-    /** @param array<int, string> $worktrees @return array<string, array<int, SessionInfo>> */
     /** @param list<string> $worktrees
      * @return array<string, list<SessionInfo>>
      */
     public function bulkActiveSessions(array $worktrees): array;
 
     /**
-     * Sessions for display/rendering, counting a finished (orca "done") analyst
-     * as waiting so the "💭 Waiting for feedback" split surfaces it.
+     * Sessions for display/rendering, counting a finished analyst as waiting
+     * so the "💭 Waiting for feedback" split surfaces it.
      *
      * @return array<int, SessionInfo>
      */
@@ -74,5 +73,6 @@ interface AgentLauncherInterface
      */
     public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string;
 
-    public function hasAnyOrcaAgent(string $worktree): bool;
+    /** Whether the ADE holds any agent for $worktree, finished ones included. */
+    public function hasAnyAgent(string $worktree): bool;
 }

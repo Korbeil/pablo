@@ -12,11 +12,18 @@ use PHPUnit\Framework\TestCase;
  * AgentRuntimeRegistry and the interfaces — it never names a concrete
  * runtime class nor spells a runtime or CLI name as a string. Comments are
  * not code: they may name runtimes freely.
+ *
+ * The one exception is an ADE built on a single runtime (EXEMPT).
  */
 final class RuntimeConfinementTest extends TestCase
 {
     /** Concrete runtime namespaces. */
     private const FORBIDDEN_NAMESPACE = '/^\\\\?Pablo\\\\Agents\\\\Runtime\\\\(OpenCode|ClaudeCode|Copilot)\\\\/';
+
+    /** Relative to src/ => why it may name a concrete runtime. */
+    private const EXEMPT = [
+        'Agents/Ade/OpenChamber/' => 'OpenChamber drives its own OpenCode server: it only runs that runtime',
+    ];
 
     /** Runtime names and their CLI binaries, as whole string literals. */
     private const FORBIDDEN_STRINGS = ['opencode', 'claude-code', 'claude', 'copilot'];
@@ -33,6 +40,11 @@ final class RuntimeConfinementTest extends TestCase
             $relative = substr($file->getPathname(), \strlen($src) + 1);
             if ('php' !== $file->getExtension() || str_starts_with($relative, 'Agents/Runtime/')) {
                 continue;
+            }
+            foreach (array_keys(self::EXEMPT) as $exempt) {
+                if (str_starts_with($relative, $exempt)) {
+                    continue 2;
+                }
             }
             ++$scanned;
             foreach (token_get_all((string) file_get_contents($file->getPathname())) as $token) {

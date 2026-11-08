@@ -75,7 +75,6 @@ final class RuntimeContractTest extends TestCase
         $this->assertSame($name, $runtime->name());
         $this->assertNotSame('', $runtime->label());
         $this->assertNull($runtime->modelError($runtime->defaultModel()), 'the default model must be valid');
-        $this->assertNull($runtime->backendError('orca'), 'Orca runs every runtime');
 
         $probe = $runtime->probe();
         $this->assertSame($runtime->binary(), $probe->cli);

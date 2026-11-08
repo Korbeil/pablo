@@ -2,24 +2,27 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Agents;
+namespace Pablo\Agents\Ade\Orca;
 
+use Pablo\Agents\Ade\AbstractAgentLauncher;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
 use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
- * Launching agents on worktrees and querying their activity.
+ * The Orca ADE's launcher: launching agents on worktrees and querying their
+ * activity.
  *
  * Primary path is the Orca CLI, running the selected runtime's one-shot
  * command (AgentRuntimeInterface::launchCommand()) in an Orca terminal. When Orca
  * refuses (e.g. selector_not_found for an unregistered repo) or is
- * unreachable, PABLO falls back to running that same command headless,
- * tracked via pidfiles under ~/.pablo/agents/.
+ * unreachable, PABLO falls back to running that same command headless
+ * (HeadlessRunner), tracked via pidfiles under ~/.pablo/agents/.
  */
-final class Agents extends AbstractAgentLauncher
+final class OrcaLauncher extends AbstractAgentLauncher
 {
     public const ORCA_CALL_TIMEOUT_S = 60;
     public const ORCA_ADOPT_WAIT_S = 15;
@@ -33,10 +36,9 @@ final class Agents extends AbstractAgentLauncher
         ?string $shimPath = null,
         ?AgentRuntimeInterface $runtime = null,
     ) {
-        parent::__construct($runner ?? new ProcessRunner(), $time ?? new Time(), $store, $shimPath, 'orca', $runtime);
+        parent::__construct(OrcaAde::NAME, $runner ?? new ProcessRunner(), $time ?? new Time(), $store, $shimPath, $runtime);
     }
 
-    /** @return array{0: ?array, 1: ?string} (result, reason) */
     /**
      * @param list<string> $argv
      */
@@ -54,19 +56,6 @@ final class Agents extends AbstractAgentLauncher
         }
 
         return new OrcaCall(\is_array($data['result'] ?? null) ? $data['result'] : [], null);
-    }
-
-    private function logOrcaFallback(string $worktree, string $label, ?string $reason): void
-    {
-        $logs = $this->agentsDir().'/logs';
-        if (!is_dir($logs)) {
-            @mkdir($logs, 0o777, true);
-        }
-        file_put_contents(
-            $logs.'/orca-fallback.log',
-            $this->time->utcnow()." worktree={$worktree} label={$label} reason={$reason}\n",
-            \FILE_APPEND,
-        );
     }
 
     /**
@@ -142,7 +131,7 @@ final class Agents extends AbstractAgentLauncher
                 return (string) $handle;
             }
         }
-        $this->logOrcaFallback($worktree, $agent, $reason);
+        $this->logFallback($worktree, $agent, $reason);
 
         return $this->launchHeadless($worktree, $agent, $prompt, $model, $sessionId);
     }
@@ -170,9 +159,9 @@ final class Agents extends AbstractAgentLauncher
                 return (string) $handle;
             }
         }
-        $this->logOrcaFallback($worktree, 'startup-script', $reason);
+        $this->logFallback($worktree, 'startup-script', $reason);
 
-        return $this->launchHeadlessCommand($worktree, 'startup-script', $command);
+        return $this->headless->launchCommand($worktree, 'startup-script', $command);
     }
 
     public function setWorktreeDisplayName(string $worktree, string $name, ?string $issueNumber = null): void
@@ -185,7 +174,6 @@ final class Agents extends AbstractAgentLauncher
         ], perCallTimeout: self::ORCA_CALL_TIMEOUT_S);
     }
 
-    /** @return array<string, array<int, SessionInfo>> */
     /**
      * @param list<array<string, mixed>> $orcaWorktrees
      *
@@ -224,7 +212,6 @@ final class Agents extends AbstractAgentLauncher
         return $this->sessionsForWorktree($worktree, false);
     }
 
-    /** @param array<int, string> $worktrees @return array<string, array<int, SessionInfo>> */
     /**
      * @param list<string> $worktrees
      *
@@ -264,7 +251,7 @@ final class Agents extends AbstractAgentLauncher
         $result = $this->orca(['worktree', 'ps', '--limit', '200'])->payload;
         $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? [], $includeFinishedAsWaiting) : [];
         $sessions = $orcaGrouped[$worktree] ?? [];
-        $sessions = array_merge($sessions, $this->headlessSessionsByWorktree()[$worktree] ?? []);
+        $sessions = array_merge($sessions, $this->headless->sessionsByWorktree()[$worktree] ?? []);
 
         return $sessions;
     }
@@ -277,7 +264,7 @@ final class Agents extends AbstractAgentLauncher
         $wanted = array_fill_keys($worktrees, true);
         $result = $this->orca(['worktree', 'ps', '--limit', '200'])->payload;
         $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? [], $includeFinishedAsWaiting) : [];
-        $headlessGrouped = $this->headlessSessionsByWorktree();
+        $headlessGrouped = $this->headless->sessionsByWorktree();
         $out = [];
         foreach ($wanted as $wt => $_) {
             $out[$wt] = array_merge($orcaGrouped[$wt] ?? [], $headlessGrouped[$wt] ?? []);
@@ -286,7 +273,7 @@ final class Agents extends AbstractAgentLauncher
         return $out;
     }
 
-    public function hasAnyOrcaAgent(string $worktree): bool
+    public function hasAnyAgent(string $worktree): bool
     {
         $result = $this->orca(['worktree', 'ps', '--limit', '200'])->payload;
         if (null === $result) {
@@ -301,7 +288,7 @@ final class Agents extends AbstractAgentLauncher
         return false;
     }
 
-    protected function waitForBackendHandle(string $handle, int $timeoutS): void
+    protected function waitForAdeHandle(string $handle, int $timeoutS): void
     {
         try {
             $this->runner->run([

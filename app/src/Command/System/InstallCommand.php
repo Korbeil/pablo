@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
@@ -67,7 +68,7 @@ final class InstallCommand extends Command
     {
         $this
             ->addOption('runtime', null, InputOption::VALUE_REQUIRED, implode(' | ', AgentRuntimeRegistry::NAMES).': record it in ~/.pablo/config.yaml')
-            ->addOption('backend', null, InputOption::VALUE_REQUIRED, 'orca | openchamber | headless: record it in ~/.pablo/config.yaml')
+            ->addOption('backend', null, InputOption::VALUE_REQUIRED, implode(' | ', AdeRegistry::NAMES).': record it in ~/.pablo/config.yaml')
             ->addOption('without-web', null, InputOption::VALUE_NONE, 'do not install the dashboard service (and remove a previously installed one)')
             ->addOption('port', null, InputOption::VALUE_REQUIRED, 'port of the dashboard: record it in ~/.pablo/config.yaml (dashboard_port)');
     }

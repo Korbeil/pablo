@@ -77,18 +77,4 @@ final class RuntimeSupport
             ."investigation to fit it and, at the latest on step {$steps}, stop\n"
             ."calling tools and write the deliverable with what you have.\n";
     }
-
-    /**
-     * The message for a backend that only drives OpenCode (OpenChamber runs
-     * its own OpenCode server).
-     */
-    public static function openCodeOnlyBackend(string $backend, string $runtime): ?string
-    {
-        if ('openchamber' !== $backend) {
-            return null;
-        }
-
-        return "OpenChamber only works with OpenCode: agent_runtime {$runtime} cannot run on agent_backend openchamber. "
-            .'Switch to agent_backend: orca, or to agent_runtime: opencode.';
-    }
 }

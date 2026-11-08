@@ -26,10 +26,11 @@ final class Dispatch
     /**
      * Provider CLIs that are soft requirements: a failure here warns but does
      * not abort the run — only the affected project's sync/poll degrades (the
-     * per-project failure path already handles that). gh and the selected
-     * runtime's CLI stay hard.
+     * per-project failure path already handles that). So are the ADEs' CLIs
+     * (agents fall back to a headless run, see Doctor::isSoft()); gh and the
+     * selected runtime's CLI stay hard.
      */
-    private const SOFT_CLIS = ['orca', 'openchamber', 'acli', 'acli-confluence', 'linear'];
+    private const SOFT_CLIS = ['acli', 'acli-confluence', 'linear'];
 
     /**
      * How often the scheduler fires this dispatcher. Per-project cadence is
@@ -62,18 +63,18 @@ final class Dispatch
      */
     public function preflightErrors(array $projects): array
     {
-        // An impossible agent setup (a backend that cannot run the runtime) would only
+        // An impossible agent setup (an ADE that cannot run the runtime) would only
         // fail every launch: stop here, loud, before touching any project.
         $errors = $this->doctor->configErrors();
         foreach ($this->doctor->checkAll($projects) as $result) {
             if ($result->ok()) {
                 continue;
             }
-            // Provider CLIs are soft requirements: warn and continue. orca's
-            // agent runner falls back to a headless run; a dead acli/linear
-            // only degrades the projects that use that provider (they fail
-            // per-project at runtime), it never blocks the whole run.
-            if (\in_array($result->cli, self::SOFT_CLIS, true)) {
+            // Soft requirements: warn and continue. An ADE's launcher falls
+            // back to a headless run; a dead acli/linear only degrades the
+            // projects that use that provider (they fail per-project at
+            // runtime), it never blocks the whole run.
+            if (\in_array($result->cli, self::SOFT_CLIS, true) || $this->doctor->isSoft($result->cli)) {
                 echo "pablo dispatch: warning: {$result->cli} not usable ({$result->detail}); affected projects only\n";
                 continue;
             }
