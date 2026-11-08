@@ -53,6 +53,11 @@ final class LaunchdScheduler implements SchedulerInterface
         }
     }
 
+    public function hasWebService(): bool
+    {
+        return ServiceFiles::isOurs($this->plist(self::WEB), self::WEB);
+    }
+
     /** @throws PabloError */
     private function load(string $label, string $pabloBin): void
     {

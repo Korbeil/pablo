@@ -141,6 +141,8 @@ const BINARY_INI = ['memory_limit=512M'];
 function build_binary(
     #[AsOption(description: 'micro.sfx built by static-php-cli (spc build ... --build-micro); without it only the phar is built')]
     string $micro = '',
+    #[AsOption(description: 'static PHP CLI built alongside micro.sfx (spc build ... --build-cli): embedded so `pablo web` can run php -S')]
+    string $phpCli = '',
     #[AsOption(description: 'static-php-cli binary used for micro:combine')]
     string $spc = 'spc',
     #[AsOption(description: 'Box binary (default: box on the PATH, else a box.phar downloaded into dist/tools)')]
@@ -176,21 +178,21 @@ function build_binary(
     io()->section('asset-map:compile');
     run(['php', 'bin/console', 'asset-map:compile', '--env=prod', '--no-debug'], context()->withWorkingDirectory($stage . '/app'));
 
-    // Box's `git-version` needs a git repository at its base path, which the
-    // stage is not: compute the same value (the tag on HEAD, else the short
-    // hash) from the checkout and pass it as a plain replacement.
-    $version = trim(run(['git', 'describe', '--tags', '--exact-match', 'HEAD'], context()->withQuiet()->withAllowFailure())->getOutput());
-    if ('' === $version) {
-        $version = trim(run(['git', 'log', '--pretty=%h', '-n1', 'HEAD'], context()->withQuiet())->getOutput());
-    }
+    // The version is the release name: the first 7 characters of the commit
+    // SHA, as in .github/workflows/binary.yml (never `git describe`, which
+    // would report <last release>-N-g<hash> once a release tag exists).
+    $version = release_name('HEAD');
     $config = json_decode((string) file_get_contents(__DIR__ . '/app/box.json'), true, flags: \JSON_THROW_ON_ERROR);
-    unset($config['git-version']);
     $config['replacements'] = ['package_version' => $version];
     file_put_contents($stage . '/app/box.json', json_encode($config, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
 
     io()->section("box compile (version {$version})");
     $box = '' !== $box ? $box : box_binary($dist . '/tools');
     run(['php', '-d', 'phar.readonly=0', $box, 'compile', '--no-interaction', '--config', $stage . '/app/box.json'], context()->withWorkingDirectory($stage . '/app'));
+    if ('' !== $phpCli) {
+        io()->section('Embedding the PHP CLI (bin/php)');
+        embed_php_cli($stage . '/dist/pablo.phar', $phpCli);
+    }
     fs()->copy($stage . '/dist/pablo.phar', $dist . '/pablo.phar', true);
     io()->success('dist/pablo.phar');
 
@@ -199,10 +201,15 @@ function build_binary(
             'No --micro given: only the phar was built (it needs a PHP to run).',
             'Build a micro.sfx with static-php-cli, then pass it with --micro:',
             '  spc download --for-extensions=' . BINARY_EXTENSIONS . ' --with-php=8.5 --prefer-pre-built',
-            '  spc build ' . BINARY_EXTENSIONS . ' --build-micro   # -> buildroot/bin/micro.sfx',
+            '  spc build ' . BINARY_EXTENSIONS . ' --build-micro --build-cli   # -> buildroot/bin/micro.sfx, buildroot/bin/php',
+            'then: castor build:binary --micro=buildroot/bin/micro.sfx --php-cli=buildroot/bin/php --spc=spc',
         ]);
 
         return;
+    }
+
+    if ('' === $phpCli) {
+        io()->warning('No --php-cli: `pablo web` will need a php on the PATH (micro has no php -S).');
     }
 
     io()->section('spc micro:combine');
@@ -217,7 +224,7 @@ function build_binary(
     io()->success('dist/pablo');
 }
 
-#[AsTask(name: 'create', namespace: 'release', description: 'Publish a release of the last main commit (named after its short hash) through the Binary workflow')]
+#[AsTask(name: 'create', namespace: 'release', description: 'Publish a release of the last main commit (named after its SHA\'s first 7 characters) through the Binary workflow')]
 function release_create(
     #[AsOption(description: 'do not flag the release as the latest one (the installer and pablo update keep installing the current latest)')]
     bool $noLatest = false,
@@ -228,8 +235,7 @@ function release_create(
     // without binaries.
     run(['git', 'fetch', '--quiet', 'origin', 'main']);
     $sha = trim(run(['git', 'rev-parse', 'origin/main'], context()->withQuiet())->getOutput());
-    // The short hash Box writes into the binaries (git-version on an untagged commit).
-    $name = trim(run(['git', 'log', '--pretty=%h', '-n1', 'origin/main'], context()->withQuiet())->getOutput());
+    $name = release_name('origin/main');
 
     $existing = run(['gh', 'release', 'view', $name, '--json', 'name'], context()->withQuiet()->withAllowFailure());
     if ($existing->isSuccessful()) {
@@ -259,6 +265,32 @@ function release_list(
     int $limit = 10,
 ): void {
     run(['gh', 'release', 'list', '--limit', (string) $limit]);
+}
+
+/**
+ * Add the static PHP CLI to the phar as bin/php: `pablo web` extracts it to
+ * run php -S, which the micro SAPI does not have (see Pablo\Web\PhpServer).
+ * The CLI does it itself: phar.readonly can only be lifted at startup, and the
+ * PHP running castor may be a static binary too. Keep in step with
+ * .github/workflows/binary.yml.
+ */
+function embed_php_cli(string $phar, string $phpCli): void
+{
+    run([
+        $phpCli, '-n', '-d', 'phar.readonly=0', '-r',
+        '$p = new Phar($argv[1]); $p->addFile($argv[2], "bin/php"); $p["bin/php"]->compress(Phar::GZ);',
+        '--', $phar, $phpCli,
+    ]);
+}
+
+/**
+ * A release name, also the version its binaries report: the first 7
+ * characters of the commit SHA. A fixed length, unlike `%h`, whose length
+ * depends on the clone — the workflow computes the same with ${GITHUB_SHA::7}.
+ */
+function release_name(string $ref): string
+{
+    return substr(trim(run(['git', 'rev-parse', $ref], context()->withQuiet())->getOutput()), 0, 7);
 }
 
 /** `box` from the PATH, else the latest box.phar, downloaded once into $tools. */

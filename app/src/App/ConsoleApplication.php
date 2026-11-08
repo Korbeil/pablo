@@ -16,8 +16,10 @@ final class ConsoleApplication extends SymfonyApplication
     public const CHECKOUT_VERSION = 'dev';
 
     /**
-     * Replaced by Box when the binary is built (app/box.json `git-version`:
-     * the tag, or the short commit hash off a tag). Left as is in a checkout.
+     * Replaced by Box when the binary is built (a `replacements` entry set by
+     * castor build:binary and .github/workflows/binary.yml): the first 7
+     * characters of the commit SHA, which is also the release name. Left as
+     * is in a checkout.
      * A property, not a constant, so the check below is not constant-folded.
      */
     private static string $buildVersion = '@package_version@';

@@ -191,46 +191,72 @@ config_value() { # config_value <key>: a top-level key of an existing ~/.pablo/c
     fi
 }
 
-# What is already there: nothing, a clone install to migrate (CHECKOUT set),
-# a PABLO binary to update (CURRENT set), or a foreign `pablo` (stop).
-detect_existing() {
-    local existing="" target=""
-    CHECKOUT=""
-    CURRENT=""
-    if [ -e "$BIN" ]; then
-        existing="$BIN"
-    elif command -v pablo >/dev/null 2>&1; then
-        existing="$(command -v pablo)"
-    else
-        return 0
-    fi
-
+# What a `pablo` command is: "shim <checkout>" (the clone install's php shim),
+# "pablo <version>" (a PABLO binary) or "foreign".
+classify_pablo() { # classify_pablo <path>
+    local target="" version=""
     # The clone install's shim: exec php '<checkout>/app/bin/pablo' "$@"
-    if [ -f "$existing" ]; then
-        target="$(sed -n "s/^exec php '\(.*\)' .*\$/\1/p" "$existing" 2>/dev/null | head -n 1)"
+    if [ -f "$1" ]; then
+        target="$(sed -n "s/^exec php '\(.*\)' .*\$/\1/p" "$1" 2>/dev/null | head -n 1)"
     fi
     case "$target" in
     */app/bin/pablo)
-        CHECKOUT="${target%/app/bin/pablo}"
-        output "\nPABLO is installed from a checkout in $CHECKOUT (command: $existing)."
-        output "  It will be replaced by the standalone binary; the checkout itself is left alone."
+        echo "shim ${target%/app/bin/pablo}"
         return 0
         ;;
     esac
+    version="$("$1" --version 2>/dev/null | head -n 1 || true)"
+    case "$version" in
+    "pablo "*) echo "$version" ;;
+    *) echo foreign ;;
+    esac
+}
 
-    if [ "$existing" = "$BIN" ]; then
-        CURRENT="$("$existing" --version 2>/dev/null | head -n 1 || true)"
-        case "$CURRENT" in
-        "pablo "*)
-            output "\n${CURRENT#pablo } is installed in $BIN: it will be updated."
-            return 0
+not_pablo() { # not_pablo <path>
+    output "\nA pablo command already exists at $1 and is not PABLO." error >&2
+    output "  Move it out of the way, then run this installer again." >&2
+    exit 1
+}
+
+# What is already there, in ~/.local/bin (where this installs) and on the
+# PATH: nothing, a clone install to migrate (CHECKOUT set), a PABLO binary to
+# update (CURRENT set), or a foreign `pablo` (stop). Another PABLO elsewhere on
+# the PATH is only warned about: it would shadow, or be shadowed by, this one.
+detect_existing() {
+    local kind="" on_path=""
+    CHECKOUT=""
+    CURRENT=""
+
+    if [ -e "$BIN" ]; then
+        kind="$(classify_pablo "$BIN")"
+        case "$kind" in
+        "shim "*)
+            CHECKOUT="${kind#shim }"
+            output "\nPABLO is installed from a checkout in $CHECKOUT (command: $BIN)."
+            output "  It will be replaced by the standalone binary; the checkout itself is left alone."
             ;;
+        "pablo "*)
+            CURRENT="$kind"
+            output "\n${CURRENT#pablo } is installed in $BIN: it will be updated."
+            ;;
+        *) not_pablo "$BIN" ;;
         esac
     fi
 
-    output "\nA pablo command already exists at $existing and is not PABLO." error >&2
-    output "  Move it out of the way, then run this installer again." >&2
-    exit 1
+    on_path="$(command -v pablo 2>/dev/null || true)"
+    if [ -z "$on_path" ] || [ "$on_path" = "$BIN" ]; then
+        return 0
+    fi
+    kind="$(classify_pablo "$on_path")"
+    case "$kind" in
+    "shim "* | "pablo "*)
+        warn "Another PABLO is on your PATH at $on_path (${kind}): remove it, or \`pablo\` may not run the one installed in $BIN."
+        if [ -z "$CHECKOUT" ] && [ "${kind%% *}" = shim ]; then
+            CHECKOUT="${kind#shim }"
+        fi
+        ;;
+    *) not_pablo "$on_path" ;;
+    esac
 }
 
 check_environment() {
@@ -413,7 +439,11 @@ download() {
         base="$PABLO_RELEASES_URL/latest/download"
     fi
 
-    tmp="$(mktemp -d)"
+    # Downloaded next to its destination, so the final mv is an atomic rename
+    # (from /tmp, often another filesystem, it would be a copy that a
+    # scheduler tick could run half-written).
+    mkdir -p "$BIN_DIR"
+    tmp="$(mktemp -d "$BIN_DIR/.pablo-install.XXXXXX")"
     # shellcheck disable=SC2064 # expand $tmp now
     trap "rm -rf '$tmp'" EXIT
 
@@ -432,7 +462,6 @@ download() {
     ok "sha256 verified"
 
     chmod +x "$tmp/$asset"
-    mkdir -p "$BIN_DIR"
     # Replaces a clone install's shim, or the previous binary.
     mv -f "$tmp/$asset" "$BIN"
     ok "installed $BIN"

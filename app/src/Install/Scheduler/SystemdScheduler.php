@@ -72,6 +72,11 @@ final class SystemdScheduler implements SchedulerInterface
         $this->runner->probe(['systemctl', '--user', 'daemon-reload']);
     }
 
+    public function hasWebService(): bool
+    {
+        return ServiceFiles::isOurs($this->unitDir.'/'.self::WEB_UNIT, self::WEB_UNIT);
+    }
+
     private function writeUnit(string $unit): void
     {
         ServiceFiles::write($this->unitDir.'/'.$unit, $unit, ServiceFiles::bundled($this->sourceDir.'/'.$unit));

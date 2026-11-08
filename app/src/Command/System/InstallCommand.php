@@ -89,10 +89,7 @@ final class InstallCommand extends Command
         // 1. Config.
         $runtime = (new ConfigSeeder($this->globalConfig, $this->projectsLoader))->apply($runtimeOption, $backendOption, $info);
 
-        // 2. Container cache (binary: drop the containers of other versions).
-        $this->pruneContainers($info);
-
-        // 3. pablo on the PATH.
+        // 2. pablo on the PATH.
         $info(PabloCommand::place(InstallPaths::binPath(), PabloPaths::pharPath(), PabloPaths::resourcesDir().'/app/bin/pablo'));
         $rc = PathRc::add(
             InstallPaths::binDir(),
@@ -101,7 +98,7 @@ final class InstallCommand extends Command
         );
         $info($rc['message']);
 
-        // 4. Agents, commands and skills: rendered into ~/.pablo/runtime, then linked.
+        // 3. Agents, commands and skills: rendered into ~/.pablo/runtime, then linked.
         $info("generating the {$runtime} agent definitions into ".PabloPaths::runtimeDir());
         $generated = $this->runCommand('system:generate-agents', ['--runtime' => $runtime], $output);
         if (self::SUCCESS !== $generated) {
@@ -110,10 +107,14 @@ final class InstallCommand extends Command
         $this->link($runtime, $info);
         $this->dropLegacyClaudeDir($info);
 
-        // 5. Background services.
+        // 4. Background services, then the containers of other versions: only
+        //    once the services restarted on this binary (`pablo update` also
+        //    holds the dispatch lock meanwhile), so no running process of an
+        //    older binary loses the container it reads its services from.
         $scheduler->install(InstallPaths::binPath(), $withWeb, $info);
+        $this->pruneContainers($info);
 
-        // 6. Preflight.
+        // 5. Preflight.
         $info('running pablo system:doctor (a failure here is a warning at install time —');
         $info('projects may not be configured yet):');
         $doctorOk = self::SUCCESS === $this->runCommand('system:doctor', [], $output);

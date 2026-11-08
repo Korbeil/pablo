@@ -11,7 +11,7 @@ use Symfony\Component\HttpKernel\Kernel as BaseKernel;
 /**
  * The single PABLO kernel, shared by every entry point: bin/pablo (the
  * user-facing CLI), bin/console (framework maintenance commands) and the
- * dashboard (`pablo web`, served by Pablo\Web\Server).
+ * dashboard (`pablo web`: php -S, see Pablo\Web\PhpServer).
  *
  * The project dir is app/, so config/, templates/ and var/ resolve under it;
  * MicroKernelTrait's default configureContainer()/configureRoutes() are used
@@ -42,8 +42,7 @@ final class Kernel extends BaseKernel
     public function getCacheDir(): string
     {
         if (PabloPaths::isPhar()) {
-            return self::binaryCacheRoot().'/'.ConsoleApplication::version().'/'
-                .$this->environment.'-'.substr(hash('sha256', PabloPaths::pharPath().'|'.(int) @filemtime(PabloPaths::pharPath())), 0, 12);
+            return self::binaryVersionDir().'/'.$this->environment.'-'.self::binaryHash(PabloPaths::pharPath());
         }
 
         return $this->getProjectDir().'/var/cache/'.$this->environment;
@@ -62,6 +61,18 @@ final class Kernel extends BaseKernel
     public static function binaryCacheRoot(): string
     {
         return PabloPaths::pabloDir().'/cache/container';
+    }
+
+    /** ~/.pablo/cache/container/<version>: everything this version of the binary caches. */
+    public static function binaryVersionDir(): string
+    {
+        return self::binaryCacheRoot().'/'.ConsoleApplication::version();
+    }
+
+    /** Tells two copies (or two local builds of one commit) of the binary apart. */
+    public static function binaryHash(string $pharPath): string
+    {
+        return substr(hash('sha256', $pharPath.'|'.(int) @filemtime($pharPath)), 0, 12);
     }
 
     /**

@@ -10,7 +10,7 @@
 pablo web --port 9000 --open   # another port, and open the browser
 </code></pre>
 
-<p>The <code>pablo</code> binary serves it itself: no PHP, no Docker, nothing else to install. Its small built-in server only listens on <code>127.0.0.1</code> (the dashboard has no login), runs four worker processes so the live parts of the page never wait on each other, and restarts a worker that dies. The installer keeps it running in the background as a service, even after a reboot; opt out with the installer's <code>--without-web</code> option (see <a href="page:installation#the-dashboard-service">Installation</a>).</p>
+<p>It runs on PHP's built-in web server, with four workers so the live parts of the page never wait on each other: no Docker, nothing else to install. The <code>pablo</code> binary carries its own PHP for it (extracted once per version under <code>~/.pablo/cache/container/</code>), so you don't need PHP either. It only listens on <code>127.0.0.1</code>: the dashboard has no login. The installer keeps it running in the background as a service, even after a reboot; opt out with the installer's <code>--without-web</code> option (see <a href="page:installation#the-dashboard-service">Installation</a>).</p>
 
 <h2>What you see</h2>
 

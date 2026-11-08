@@ -52,7 +52,10 @@ final class UpdaterTest extends TestCase
                 return new ProbeResult(0, '');
             }
             if ('env' === $argv[0]) {
-                return new ProbeResult(0, (string) shell_exec(escapeshellarg($argv[2]).' --version'));
+                $out = [];
+                exec(escapeshellarg($argv[2]).' --version', $out, $code);
+
+                return new ProbeResult($code, implode("\n", $out));
             }
 
             return new ProbeResult(0, 'installed');
