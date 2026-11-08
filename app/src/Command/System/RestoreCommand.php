@@ -207,7 +207,7 @@ final class RestoreCommand extends Command
     {
         foreach ($repoPaths as $repoPath) {
             try {
-                $this->runner->run(['orca', 'repo', 'add', '--path', $repoPath, '--json'], true, 30);
+                $this->runner->run([\Pablo\Agents\OrcaCli::command(), 'repo', 'add', '--path', $repoPath, '--json'], true, 30);
                 $output->writeln("  ✔ orca: registered {$repoPath}");
             } catch (\Throwable) {
                 $output->writeln("  ⚠ orca: could not register {$repoPath} (Orca may not be running — run `orca repo add --path {$repoPath}` manually)");

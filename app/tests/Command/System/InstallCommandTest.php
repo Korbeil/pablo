@@ -150,6 +150,18 @@ final class InstallCommandTest extends TestCase
         $this->assertSame('openchamber', $this->configValue('agent_backend'));
     }
 
+    public function testGnomesScreenReaderDoesNotCountAsOrca(): void
+    {
+        $this->fakeTool('opencode');
+        $this->fakeTool('openchamber');
+        file_put_contents($this->sandbox.'/bin/orca', "#!/usr/bin/python3\nimport orca\n");
+        chmod($this->sandbox.'/bin/orca', 0o755);
+
+        $this->assertSame(0, $this->install()->getStatusCode());
+
+        $this->assertSame('openchamber', $this->configValue('agent_backend'), 'no Orca here: OpenChamber is picked');
+    }
+
     public function testOpenChamberWithAnotherRuntimeIsRefusedBeforeTouchingAnything(): void
     {
         $tester = $this->install(['--runtime' => 'claude-code', '--backend' => 'openchamber']);

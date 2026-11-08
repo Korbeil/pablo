@@ -220,7 +220,13 @@ lets name `systemctl` (built only on Linux by `SchedulerFactory`).
 
 **Agent execution**: via the Orca CLI (`orca terminal create` /
 `orca terminal wait` / `orca worktree ps`), same path as the user's other
-Orca agents. Falls back to a headless run executed with the worktree
+Orca agents. Never run a bare `orca`: on Linux it can be GNOME's screen
+reader (Orca's own `orca` dispatcher defers to it outside an Orca terminal)
+— `Agents\OrcaCli` resolves `PABLO_ORCA_BIN`, `orca-ide`, Orca's Linux shim,
+then a non-screen-reader `orca` (tests pin `PABLO_ORCA_BIN=orca` in
+`phpunit.xml`). Headless runs go through `AbstractAgentLauncher::detach()` +
+`inWorktree()`: the script does its own `exec` (an `exec cd …` makes bash exit
+before running anything, which once silently killed every headless fallback). Falls back to a headless run executed with the worktree
 as the command's working directory for
 repos not registered in Orca. *What* runs is the agent **runtime**
 (`src/Agents/Runtime/`, `agent_runtime` / `PABLO_AGENT_RUNTIME`, resolved per

@@ -26,6 +26,9 @@ final class Agents extends AbstractAgentLauncher
     public const RUNNING_STATES = ['working', 'running'];
     public const FINISHED_STATES = ['done', 'completed'];
 
+    /** Why an agent ran headless when no Orca CLI is installed. */
+    public const NO_ORCA = 'no Orca CLI found (orca-ide, or an orca that is not GNOME\'s screen reader)';
+
     public function __construct(
         ?ProcessRunnerInterface $runner = null,
         ?Time $time = null,
@@ -42,9 +45,15 @@ final class Agents extends AbstractAgentLauncher
      */
     private function orca(array $argv, float $perCallTimeout = self::ORCA_CALL_TIMEOUT_S): OrcaCall
     {
+        // Never run whatever answers to `orca` blindly: it may be GNOME's
+        // screen reader (see OrcaCli).
+        $orca = OrcaCli::find();
+        if (null === $orca) {
+            return new OrcaCall(null, self::NO_ORCA);
+        }
         $out = '';
         try {
-            $out = $this->runner->run(['orca', ...$argv, '--json'], check: false, timeout: $perCallTimeout);
+            $out = $this->runner->run([$orca, ...$argv, '--json'], check: false, timeout: $perCallTimeout);
             $data = json_decode($out, true);
         } catch (\Throwable $e) {
             return new OrcaCall(null, $e::class.': '.$e->getMessage().'; raw_stdout='.var_export($out, true));
@@ -123,6 +132,9 @@ final class Agents extends AbstractAgentLauncher
         $sessionId = $this->runtime->newSessionId();
         $command = 'cd '.escapeshellarg($worktree).'; '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId);
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
+            if (null === OrcaCli::find()) {
+                return new OrcaCall(null, self::NO_ORCA);
+            }
             if (!$this->waitForOrcaAdoption($worktree)) {
                 return new OrcaCall(null, 'orca adoption timeout for '.$worktree);
             }
@@ -151,6 +163,9 @@ final class Agents extends AbstractAgentLauncher
     {
         $command = 'bash '.escapeshellarg($script).'; exec bash';
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $command) {
+            if (null === OrcaCli::find()) {
+                return new OrcaCall(null, self::NO_ORCA);
+            }
             if (!$this->waitForOrcaAdoption($worktree)) {
                 return new OrcaCall(null, 'orca adoption timeout for '.$worktree);
             }
@@ -305,7 +320,7 @@ final class Agents extends AbstractAgentLauncher
     {
         try {
             $this->runner->run([
-                'orca', 'terminal', 'wait', '--terminal', $handle,
+                OrcaCli::command(), 'terminal', 'wait', '--terminal', $handle,
                 '--for', 'exit', '--timeout-ms', (string) ($timeoutS * 1000), '--json',
             ], check: false, timeout: $timeoutS + 120);
         } catch (\Throwable) {

@@ -84,6 +84,34 @@ runtime_label() {
     esac
 }
 
+# The Orca IDE's CLI: `orca-ide`, Orca's Linux shim, or an `orca` that is not
+# GNOME's screen reader (a Python script with the same name, which Orca's own
+# `orca` dispatcher hands over to outside an Orca terminal).
+orca_cli() {
+    local found=""
+    if command -v orca-ide >/dev/null 2>&1; then
+        command -v orca-ide
+        return 0
+    fi
+    if [ -x "$HOME/.config/orca/linux-orca-cli-shim/orca" ]; then
+        echo "$HOME/.config/orca/linux-orca-cli-shim/orca"
+        return 0
+    fi
+    found="$(command -v orca 2>/dev/null || true)"
+    if [ -n "$found" ] && ! head -n 1 "$found" 2>/dev/null | grep -q python; then
+        echo "$found"
+        return 0
+    fi
+    return 1
+}
+
+backend_path() { # backend_path <orca|openchamber>: where it is installed, or nothing
+    case "$1" in
+    orca) orca_cli ;;
+    *) command -v "$1" 2>/dev/null ;;
+    esac
+}
+
 backend_label() {
     case "$1" in
     orca) echo "Orca" ;;
@@ -379,10 +407,10 @@ choose_backend() {
 
     output "\nAgent development environments" heading
     for b in orca openchamber; do
-        if command -v "$b" >/dev/null 2>&1; then
+        if backend_path "$b" >/dev/null; then
             if has_word "$candidates" "$b"; then
                 found="$found $b"
-                ok "$(backend_label "$b") found ($(command -v "$b"))"
+                ok "$(backend_label "$b") found ($(backend_path "$b"))"
             else
                 output "  [ ] $(backend_label "$b") found, but it cannot run $(runtime_label "$RUNTIME") (OpenCode only)" muted
             fi
@@ -395,7 +423,7 @@ choose_backend() {
         if [ "$BACKEND" = openchamber ] && [ "$RUNTIME" != opencode ]; then
             fail "OpenChamber only works with OpenCode: --backend openchamber cannot run $(runtime_label "$RUNTIME")."
         fi
-        if [ "$BACKEND" != headless ] && ! command -v "$BACKEND" >/dev/null 2>&1; then
+        if [ "$BACKEND" != headless ] && ! backend_path "$BACKEND" >/dev/null; then
             warn "$(backend_label "$BACKEND") was asked for but '$BACKEND' is not on your PATH"
         fi
         return 0

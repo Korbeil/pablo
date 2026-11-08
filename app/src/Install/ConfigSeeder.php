@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Install;
 
+use Pablo\Agents\OrcaCli;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
@@ -186,6 +187,8 @@ final class ConfigSeeder
         $info("wrote default {$file} (edit it to set your default agent model, PR locale, sync strategy, ...)");
 
         $has = $this->hasCommand;
+        // Orca the IDE, not GNOME's screen reader of the same name (OrcaCli).
+        $hasOrca = null !== OrcaCli::find(static fn (string $bin): ?string => $has($bin) ? (InstallPaths::which($bin) ?? $bin) : null, verifyOverride: true);
         // Pick the agent runtime the user actually has: OpenCode is the
         // default, so only switch when it is missing.
         if (!$has('opencode') && $has('claude')) {
@@ -199,10 +202,10 @@ final class ConfigSeeder
         }
         // Same for the backend: Orca is the default — and OpenChamber only
         // runs OpenCode.
-        if (!$has('orca') && $has('openchamber') && $has('opencode')) {
+        if (!$hasOrca && $has('openchamber') && $has('opencode')) {
             self::set($file, 'agent_backend', 'openchamber');
             $info('OpenChamber found (and no Orca): set agent_backend: openchamber');
-        } elseif (!$has('orca')) {
+        } elseif (!$hasOrca) {
             $info('⚠ neither Orca nor OpenChamber found: agents will run headless until you install one');
         }
     }
