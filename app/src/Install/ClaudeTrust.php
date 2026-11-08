@@ -8,13 +8,14 @@ use Pablo\Agents\Runtime\ClaudeCodeRuntime;
 use Pablo\Support\PabloPaths;
 
 /**
- * Marks the folders PABLO creates worktrees in as trusted by Claude Code.
+ * Marks PABLO's worktrees as trusted by Claude Code.
  *
  * In an Orca terminal, agents run as an interactive `claude` session, which
  * first asks whether you trust a folder it has never seen — and every task is
- * a new worktree. Trusting their parent folder covers them all, so this adds
- * `{"hasTrustDialogAccepted": true}` for it to Claude Code's ~/.claude.json,
- * unless that folder or one of its parents is trusted already.
+ * a new worktree. A trusted parent folder does not cover a git checkout (it
+ * only covers plain subfolders), so each worktree gets its own
+ * `{"hasTrustDialogAccepted": true}` entry in Claude Code's ~/.claude.json:
+ * before each interactive launch, and for the existing tasks at install.
  *
  * Only that key of that entry is ever written; the rest of the file is kept.
  * A missing or unreadable file is left alone (Claude Code creates it on its
@@ -39,12 +40,6 @@ final class ClaudeTrust
             : PabloPaths::home().'/.claude.json';
     }
 
-    /** The default worktrees root, ~/.pablo/worktrees. */
-    public static function defaultRoot(): string
-    {
-        return PabloPaths::home().'/.pablo/worktrees';
-    }
-
     /**
      * Trust $dirs; returns one line per folder added, or why nothing was.
      *
@@ -56,13 +51,13 @@ final class ClaudeTrust
     {
         $file ??= self::file();
         if (!is_file($file)) {
-            return ["{$file} not found: Claude Code will ask once whether you trust the worktrees folder"];
+            return ["{$file} not found: Claude Code will ask whether you trust each worktree"];
         }
         $raw = @file_get_contents($file);
         // Objects stay objects (an empty {} must not come back as []).
         $config = false !== $raw ? json_decode($raw, false) : null;
         if (!$config instanceof \stdClass) {
-            return ["{$file} is not a JSON object: worktrees folder not marked as trusted"];
+            return ["{$file} is not a JSON object: worktrees not marked as trusted"];
         }
         if (!isset($config->projects) || !$config->projects instanceof \stdClass) {
             $config->projects = new \stdClass();
@@ -71,10 +66,10 @@ final class ClaudeTrust
 
         $added = [];
         foreach (array_unique(array_map(static fn (string $d): string => rtrim($d, '/'), $dirs)) as $dir) {
-            if ('' === $dir || self::trusted($projects, $dir)) {
+            $entry = isset($projects->{$dir}) && $projects->{$dir} instanceof \stdClass ? $projects->{$dir} : new \stdClass();
+            if ('' === $dir || true === ($entry->hasTrustDialogAccepted ?? null)) {
                 continue;
             }
-            $entry = isset($projects->{$dir}) && $projects->{$dir} instanceof \stdClass ? $projects->{$dir} : new \stdClass();
             $entry->hasTrustDialogAccepted = true;
             $projects->{$dir} = $entry;
             $added[] = $dir;
@@ -88,29 +83,16 @@ final class ClaudeTrust
         if (false === $json || false === @file_put_contents($tmp, $json."\n")) {
             @unlink($tmp);
 
-            return ["could not write {$file}: worktrees folder not marked as trusted"];
+            return ["could not write {$file}: worktrees not marked as trusted"];
         }
         $perms = @fileperms($file);
         @chmod($tmp, false !== $perms ? $perms & 0o777 : 0o600);
         if (!@rename($tmp, $file)) {
             @unlink($tmp);
 
-            return ["could not replace {$file}: worktrees folder not marked as trusted"];
+            return ["could not replace {$file}: worktrees not marked as trusted"];
         }
 
         return array_map(static fn (string $dir): string => "Claude Code now trusts {$dir} (in {$file})", $added);
-    }
-
-    /** Whether $dir or one of its parents is trusted already. */
-    private static function trusted(\stdClass $projects, string $dir): bool
-    {
-        for ($path = $dir; '' !== $path && '/' !== $path && '.' !== $path; $path = \dirname($path)) {
-            $entry = $projects->{$path} ?? null;
-            if ($entry instanceof \stdClass && true === ($entry->hasTrustDialogAccepted ?? null)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

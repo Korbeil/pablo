@@ -24,17 +24,17 @@ final class ClaudeTrustTest extends TestCase
         exec('rm -rf '.escapeshellarg($this->tmp));
     }
 
-    public function testTheWorktreesFolderIsTrustedAndTheRestOfTheFileKept(): void
+    public function testTheWorktreesAreTrustedAndTheRestOfTheFileKept(): void
     {
         $original = '{"numStartups": 12, "ratio": 1.0, "tipsHistory": {}, "list": [], "projects": {"/home/u/app": {"allowedTools": [], "hasTrustDialogAccepted": true, "mcpServers": {}}}, "userID": "abc"}';
         file_put_contents($this->file, $original);
         chmod($this->file, 0o600);
 
-        $lines = ClaudeTrust::trust(['/home/u/.pablo/worktrees/', '/home/u/.pablo/worktrees/app'], $this->file);
+        $lines = ClaudeTrust::trust(['/home/u/.pablo/worktrees/app/fix-1/', '/home/u/app'], $this->file);
 
-        $this->assertSame(['Claude Code now trusts /home/u/.pablo/worktrees (in '.$this->file.')'], $lines, 'a project root under it is covered already');
+        $this->assertSame(['Claude Code now trusts /home/u/.pablo/worktrees/app/fix-1 (in '.$this->file.')'], $lines, '/home/u/app is trusted already');
         $expected = json_decode($original, true);
-        $expected['projects']['/home/u/.pablo/worktrees'] = ['hasTrustDialogAccepted' => true];
+        $expected['projects']['/home/u/.pablo/worktrees/app/fix-1'] = ['hasTrustDialogAccepted' => true];
         $raw = (string) file_get_contents($this->file);
         $this->assertSame($expected, json_decode($raw, true));
         $this->assertStringContainsString('"tipsHistory": {}', $raw, 'empty objects stay objects');
@@ -43,13 +43,21 @@ final class ClaudeTrustTest extends TestCase
         $this->assertSame([], glob($this->tmp.'/.claude.json.pablo-*') ?: []);
     }
 
-    public function testAFolderUnderATrustedParentIsLeftAlone(): void
+    public function testATrustedWorktreeIsNotRewritten(): void
     {
-        $original = '{"projects":{"/home/u":{"hasTrustDialogAccepted":true}}}';
+        $original = '{"projects":{"/w":{"hasTrustDialogAccepted":true}}}';
         file_put_contents($this->file, $original);
 
-        $this->assertSame([], ClaudeTrust::trust(['/home/u/.pablo/worktrees'], $this->file));
-        $this->assertSame($original, file_get_contents($this->file), 'not rewritten');
+        $this->assertSame([], ClaudeTrust::trust(['/w'], $this->file));
+        $this->assertSame($original, file_get_contents($this->file));
+    }
+
+    /** Claude Code still asks in a git checkout under a trusted folder. */
+    public function testATrustedParentDoesNotCoverAWorktree(): void
+    {
+        file_put_contents($this->file, '{"projects":{"/home/u/.pablo/worktrees":{"hasTrustDialogAccepted":true}}}');
+
+        $this->assertCount(1, ClaudeTrust::trust(['/home/u/.pablo/worktrees/app/fix-1'], $this->file));
     }
 
     public function testAnUntrustedEntryIsCompletedNotReplaced(): void

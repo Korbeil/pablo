@@ -77,12 +77,12 @@
   <li>makes sure <code>~/.local/bin/pablo</code> is this binary and, if that directory isn't on your <code>PATH</code> yet, adds it (see below);</li>
   <li>renders the agents for your <a href="page:configuration#global-only-keys">agent runtime</a>, and extracts the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, into <code>~/.pablo/runtime/</code>;</li>
   <li>links them into <code>~/.config/opencode/</code> (OpenCode), <code>~/.claude/</code> (Claude Code) or <code>~/.copilot/</code> (Copilot);</li>
-  <li>under Claude Code, marks <code>~/.pablo/worktrees</code> (and any project's own <code>worktrees_root</code>) as trusted in <code>~/.claude.json</code>, so the agents' interactive sessions in Orca don't stop on Claude Code's “Do you trust this folder?” question for each new worktree;</li>
+  <li>under Claude Code, marks your tasks' worktrees as trusted in <code>~/.claude.json</code>, so the agents' interactive sessions in Orca don't stop on Claude Code's “Do you trust this folder?” question (new worktrees are marked when their agent starts);</li>
   <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary);</li>
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
 </ol>
 
-<aside class="callout note"><p>Your own OpenCode, Claude Code and Copilot files are never touched, except for that one trust entry in <code>~/.claude.json</code>: PABLO adds <code>"hasTrustDialogAccepted": true</code> for the worktrees folder when neither it nor a parent folder is trusted yet, and keeps the rest of the file as it is. Otherwise PABLO only creates <em>new</em> symlinks, all pointing into <code>~/.pablo/runtime/</code>, and refuses to replace any file in <code>~/.config/opencode/</code>, <code>~/.claude/</code> or <code>~/.copilot/</code> that isn't already one of its links. The same goes for the scheduler files: one without PABLO's <code>marker:</code> line is never overwritten.</p></aside>
+<aside class="callout note"><p>Your own OpenCode, Claude Code and Copilot files are never touched, except for the trust entries in <code>~/.claude.json</code>: PABLO adds <code>"hasTrustDialogAccepted": true</code> for each of its worktrees not trusted yet, and keeps the rest of the file as it is. Otherwise PABLO only creates <em>new</em> symlinks, all pointing into <code>~/.pablo/runtime/</code>, and refuses to replace any file in <code>~/.config/opencode/</code>, <code>~/.claude/</code> or <code>~/.copilot/</code> that isn't already one of its links. The same goes for the scheduler files: one without PABLO's <code>marker:</code> line is never overwritten.</p></aside>
 
 <h3>From a checkout (contributors)</h3>
 
