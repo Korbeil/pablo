@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Doctor;
 
 use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\OrcaCli;
 use Pablo\Config\ProjectConfig;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
@@ -229,7 +230,10 @@ final class Doctor
         $results = [];
         foreach ($cliIds as $cliName) {
             [$probeArgv, $hint] = self::CLI_PROBES[$cliName];
-            if (null === $this->which(self::binaryFor($cliName))) {
+            $binary = 'orca' === $cliName
+                ? OrcaCli::find(fn (string $bin): ?string => $this->which($bin), verifyOverride: true)
+                : $this->which(self::binaryFor($cliName));
+            if (null === $binary) {
                 $results[] = new CheckResult(
                     cli: $cliName,
                     installed: false,
@@ -238,6 +242,10 @@ final class Doctor
                     hint: $hint,
                 );
                 continue;
+            }
+            if ('orca' === $cliName) {
+                // orca-ide (or PABLO_ORCA_BIN as given), never GNOME's screen reader.
+                $probeArgv[0] = OrcaCli::command(fn (string $bin): ?string => $this->which($bin));
             }
             $probe = $this->runner->probe($probeArgv, self::PROBE_TIMEOUT_S);
             $lines = preg_split('/\r?\n/', $probe->output) ?: [];

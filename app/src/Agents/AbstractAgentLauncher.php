@@ -88,16 +88,30 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     }
 
     /**
-     * Build a detached background command that closes every inherited fd > 2
-     * before exec, so a long-lived agent process never keeps the global
-     * dispatch flock (or any other parent fd) alive after the run ends. bash
-     * closes already-closed fds gracefully, unlike POSIX sh.
+     * Build a detached background command running the bash $script, after
+     * closing every inherited fd > 2 so a long-lived agent process never keeps
+     * the global dispatch flock (or any other parent fd) alive after the run
+     * ends. bash closes already-closed fds gracefully, unlike POSIX sh.
+     *
+     * $script is complete: it does its own `exec`. (Prefixing it with one
+     * turned `cd <worktree>; …` into `exec cd`, which fails — a non-interactive
+     * bash then exits without running anything, not even the redirection to
+     * the log, and every headless fallback silently never started.)
      */
-    private function detach(string $inner): string
+    public static function detach(string $script): string
     {
         $close = implode('; ', array_map(static fn (int $n) => "exec {$n}>&-", range(3, 255)));
 
-        return 'setsid bash -c '.escapeshellarg($close.'; exec '.$inner).' </dev/null >/dev/null 2>&1 & echo $!';
+        return 'setsid bash -c '.escapeshellarg($close.'; '.$script).' </dev/null >/dev/null 2>&1 & echo $!';
+    }
+
+    /**
+     * The bash script running $command in $worktree with all its output — a
+     * failing `cd` included — appended to $log.
+     */
+    public static function inWorktree(string $worktree, string $command, string $log): string
+    {
+        return 'exec >>'.escapeshellarg($log).' 2>&1; cd '.escapeshellarg($worktree).' && exec '.$command;
     }
 
     /** Spawn a detached process via setsid and capture its pid. */
@@ -108,7 +122,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     {
         $inner = implode(' ', array_map(static fn ($a) => escapeshellarg((string) $a), $argv));
 
-        return (int) trim((string) shell_exec($this->detach($inner)));
+        return (int) trim((string) shell_exec(self::detach('exec '.$inner)));
     }
 
     protected function logFor(string $label): string
@@ -235,7 +249,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     {
         $log = $this->logFor($label);
         $out = [];
-        exec($this->detach($command.' >>'.escapeshellarg($log).' 2>&1'), $out);
+        exec(self::detach(self::inWorktree($worktree, $command, $log)), $out);
         $pid = (int) trim((string) ($out[0] ?? ''));
         $this->writePidfile($pid, $worktree, $label);
 
@@ -247,15 +261,10 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         $sessionId ??= $this->runtime->newSessionId();
         $log = $this->logFor($agent);
         $out = [];
-        // Both runtimes attach the session to the working directory (OpenCode
-        // v2 removed `run --dir`), so the detached subshell cd's into the
-        // worktree before exec'ing the agent CLI.
-        exec(
-            $this->detach('cd '.escapeshellarg($worktree).'; exec '
-                .$this->runtime->launchCommand($agent, $prompt, $model, $sessionId)
-                .' >>'.escapeshellarg($log).' 2>&1'),
-            $out,
-        );
+        // Every runtime attaches the session to the working directory (OpenCode
+        // v2 removed `run --dir`), so the detached shell cd's into the worktree
+        // before exec'ing the agent CLI.
+        exec(self::detach(self::inWorktree($worktree, $this->runtime->launchCommand($agent, $prompt, $model, $sessionId), $log)), $out);
         $pid = (int) trim((string) ($out[0] ?? ''));
         $this->writePidfile($pid, $worktree, $agent, $sessionId);
 

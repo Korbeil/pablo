@@ -198,6 +198,34 @@ final class InstallerTest extends TestCase
         $this->assertSame('--runtime opencode --backend openchamber', $this->installArguments());
     }
 
+    /** GNOME's screen reader is also called orca: it is not Orca. */
+    public function testGnomesScreenReaderIsNotTakenForOrca(): void
+    {
+        $this->fakeTool('claude');
+        $this->fakeTool('orca', "# python3 screen reader stand-in\nexit 0");
+        file_put_contents($this->sandbox.'/path/orca', "#!/usr/bin/python3\nimport orca\n");
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString('Orca not found', $this->outputOf($process));
+        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+    }
+
+    public function testOrcaIdeIsFoundEvenWhenOrcaIsTheScreenReader(): void
+    {
+        $this->fakeTool('claude');
+        $this->fakeTool('orca-ide');
+        file_put_contents($this->sandbox.'/path/orca', "#!/usr/bin/python3\nimport orca\n");
+        chmod($this->sandbox.'/path/orca', 0o755);
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString('Orca found ('.$this->sandbox.'/path/orca-ide)', $this->outputOf($process));
+        $this->assertSame('--runtime claude-code --backend orca', $this->installArguments());
+    }
+
     public function testOpenChamberIsNotOfferedWithClaudeCode(): void
     {
         $this->fakeTool('claude');

@@ -51,12 +51,18 @@ final class InstallPaths
     /** Whether $name is an executable file in one of the PATH directories. */
     public static function hasCommand(string $name): bool
     {
+        return null !== self::which($name);
+    }
+
+    /** The path of $name in the PATH, or null. */
+    public static function which(string $name): ?string
+    {
         foreach (explode(\PATH_SEPARATOR, (string) getenv('PATH')) as $dir) {
             if ('' !== $dir && is_file($dir.'/'.$name) && is_executable($dir.'/'.$name)) {
-                return true;
+                return $dir.'/'.$name;
             }
         }
 
-        return false;
+        return null;
     }
 }

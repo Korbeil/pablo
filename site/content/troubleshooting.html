@@ -62,7 +62,14 @@ pablo sync:log          # what the last sync did, per project
 
 <h3>Agents run headless instead of in Orca</h3>
 
-<p>Orca only sees repositories registered with it. Run <code>orca repo add &lt;repo path&gt;</code> for the project. Until then, PABLO runs the agents in the background; open those sessions with <code>opencode -s &lt;session&gt;</code>, <code>claude --resume &lt;session&gt;</code> in the worktree under Claude Code, or <code>copilot --resume=&lt;session&gt;</code> under Copilot (the session id is in the pid file in <code>~/.pablo/agents/</code>).</p>
+<p>The reason is in <code>~/.pablo/agents/logs/orca-fallback.log</code>, one line per launch.</p>
+
+<ul>
+  <li><b><code>orca adoption timeout</code> or <code>no Orca CLI found</code> on Linux</b>: GNOME's screen reader is also called <code>orca</code> (<code>/usr/bin/orca</code>), and outside an Orca terminal Orca's own <code>orca</code> command hands over to it. PABLO calls <code>orca-ide</code> instead, which Orca installs next to <code>orca</code>; if yours is elsewhere, point <code>PABLO_ORCA_BIN</code> at it. <code>orca --version</code> printing “Orca version 49…, AT-SPI2…” is the screen reader.</li>
+  <li><b><code>selector_not_found</code></b>: Orca only sees repositories registered with it. Run <code>orca-ide repo add &lt;repo path&gt;</code> for the project.</li>
+</ul>
+
+<p>Meanwhile PABLO runs the agents in the background (their output goes to <code>~/.pablo/agents/logs/</code>); open those sessions with <code>opencode -s &lt;session&gt;</code>, <code>claude --resume &lt;session&gt;</code> in the worktree under Claude Code, or <code>copilot --resume=&lt;session&gt;</code> under Copilot (the session id is in the pid file in <code>~/.pablo/agents/</code>).</p>
 
 <h3>The agents use the wrong model</h3>
 

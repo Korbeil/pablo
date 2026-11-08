@@ -281,7 +281,7 @@ final class Backup
     private function captureOrcaRepos(): ?string
     {
         try {
-            return $this->runner->run(['orca', 'repo', 'list', '--json'], false, 30);
+            return $this->runner->run([\Pablo\Agents\OrcaCli::command(), 'repo', 'list', '--json'], false, 30);
         } catch (\Throwable) {
             return null;
         }
