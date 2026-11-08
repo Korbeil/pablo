@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Doctor;
+namespace Pablo\Tests\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\AgentTemplates;
-use Pablo\Agents\Runtime\ClaudeCodeAgents;
+use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeAgentFiles;
+use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeAgents;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\AgentFileState;
@@ -17,7 +18,7 @@ use PHPUnit\Framework\TestCase;
  * Doctor's agent check under agent_runtime: claude-code — agents.json in
  * ~/.pablo/runtime/claude, the command and skill symlinks in ~/.claude.
  */
-final class ClaudeCodeStalenessTest extends TestCase
+final class ClaudeCodeAgentFilesTest extends TestCase
 {
     use UsesGlobalConfig;
 
@@ -86,12 +87,19 @@ final class ClaudeCodeStalenessTest extends TestCase
         return $states;
     }
 
+    /** @return list<\Pablo\Doctor\AgentFileStatus> */
+    private function staleness(): array
+    {
+        $files = new ClaudeCodeAgentFiles(new ClaudeCodeAgents($this->templates), $this->tmp.'/pablo-claude', $this->tmp.'/claude');
+
+        return $files->staleness($this->templates->templatesDir(), $this->templates->enabledProviders());
+    }
+
     /** @return array<string, AgentFileState> */
     private function states(): array
     {
-        $staleness = new AgentStaleness($this->templates);
         $states = [];
-        foreach ($staleness->checkClaudeCode($this->tmp.'/pablo-claude', $this->tmp.'/claude') as $result) {
+        foreach ($this->staleness() as $result) {
             $states[$result->agent] = $result->state;
         }
 
@@ -131,7 +139,7 @@ final class ClaudeCodeStalenessTest extends TestCase
         $this->assertSame(AgentFileState::Missing, $states['/pablo-commit-and-pr']);
         $this->assertSame(AgentFileState::Missing, $states['skill pablo-task']);
         $staleness = new AgentStaleness($this->templates);
-        $this->assertTrue($staleness->hasHardFailure($staleness->checkClaudeCode($this->tmp.'/pablo-claude', $this->tmp.'/claude')));
+        $this->assertTrue($staleness->hasHardFailure($this->staleness()));
     }
 
     public function testOutdatedFilesAreStaleAndForeignFilesAreReported(): void

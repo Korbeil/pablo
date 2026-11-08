@@ -8,7 +8,7 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\LaunchContext;
 use Pablo\Analytics\AnalyticsInterface;
-use Pablo\Analytics\OpenCodeUsage;
+use Pablo\Analytics\PromptFingerprint;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Domain\Agent;
@@ -79,7 +79,7 @@ final class InternalLaunchAgentCommand extends Command
         // agent file's frontmatter model.
         $agents = $this->agentLaunchers->create($backend);
         $handle = $agents->doLaunchAgent($worktree, $agent, $prompt, $this->modelFor($project));
-        $agents->spawnWatcher($project, $branch, $handle, $agent, '', null, $runId, OpenCodeUsage::fingerprint($prompt));
+        $agents->spawnWatcher($project, $branch, $handle, $agent, '', null, $runId, PromptFingerprint::of($prompt));
         $agents->refreshAgentDisplayCache($project, $branch, $worktree);
 
         return self::SUCCESS;

@@ -13,7 +13,7 @@ interface UsageHarvesterInterface
 {
     /**
      * @param string      $launchedAt  UTC ISO-8601 launch time
-     * @param string|null $fingerprint OpenCodeUsage::fingerprint() of the prompt sent, when known
+     * @param string|null $fingerprint PromptFingerprint::of() the prompt sent, when known
      */
     public function harvest(string $worktree, string $launchedAt, ?string $fingerprint): ?UsageSnapshot;
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents;
 
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Agents\Runtime\OpenCodeRuntime;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
@@ -67,7 +67,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         ?string $backend = null,
         ?AgentRuntimeInterface $runtime = null,
     ) {
-        $this->runtime = $runtime ?? new OpenCodeRuntime();
+        $this->runtime = $runtime ?? (new AgentRuntimeRegistry())->resolve(AgentRuntimeRegistry::DEFAULT);
         $this->store = $store ?? new Store();
         $this->shimPath = $shimPath ?? self::defaultShimPath();
         $this->backend = $backend ?? 'orca';

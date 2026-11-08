@@ -8,10 +8,10 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\Agents;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Agents\Runtime\AgentRuntimeResolver;
-use Pablo\Agents\Runtime\ClaudeCodeAgents;
-use Pablo\Agents\Runtime\ClaudeCodeRuntime;
-use Pablo\Agents\Runtime\OpenCodeRuntime;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
+use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeAgents;
+use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeRuntime;
+use Pablo\Agents\Runtime\OpenCode\OpenCodeRuntime;
 use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
@@ -74,7 +74,7 @@ final class AgentRuntimeTest extends TestCase
         $this->assertSame("opencode run --model 'a/b' --agent task-analyst 'Analyze #1'", $runtime->launchCommand('task-analyst', 'Analyze #1', 'a/b'));
         $this->assertSame("opencode run --agent task-analyst 'x'", $runtime->launchCommand('task-analyst', 'x', null));
         $this->assertNull($runtime->newSessionId());
-        $this->assertSame('opencode -s ses_1', $runtime->sessionRef('ses_1'));
+        $this->assertSame('opencode -s ses_1', $runtime->sessions()->resumeCommand('ses_1'));
         $this->assertNull($runtime->modelError('opencode-go/glm-5.3-flash'));
     }
 
@@ -82,7 +82,7 @@ final class AgentRuntimeTest extends TestCase
     {
         $runtime = $this->claude();
         $sid = $runtime->newSessionId();
-        $this->assertTrue(SessionRef::isClaudeSession($sid));
+        $this->assertTrue((new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeSessions())->owns($sid));
 
         $command = $runtime->launchCommand('task-analyst', "Analyze issue #45 — it's urgent", 'sonnet', $sid);
         $this->assertStringStartsWith("claude -p --agents '/home/u/.pablo/runtime/claude/agents.json' --agent task-analyst --model sonnet --session-id {$sid} --strict-mcp-config --permission-mode dontAsk --allowedTools ", $command);
@@ -103,14 +103,14 @@ final class AgentRuntimeTest extends TestCase
         $this->assertNull($runtime->modelError('sonnet'));
         $this->assertNull($runtime->modelError('claude-opus-5-5'));
         $this->assertStringContainsString('OpenCode provider/model id', (string) $runtime->modelError('opencode-go/glm-5.3-flash'));
-        $this->assertSame('claude --resume 0fc45506-985b-4296-be02-a1039fb8be47', $runtime->sessionRef('0fc45506-985b-4296-be02-a1039fb8be47'));
+        $this->assertSame('claude --resume 0fc45506-985b-4296-be02-a1039fb8be47', $runtime->sessions()->resumeCommand('0fc45506-985b-4296-be02-a1039fb8be47'));
         // The id itself decides, so a log written under the other runtime still reads right.
-        $this->assertSame('opencode -s ses_9', $runtime->sessionRef('ses_9'));
+        $this->assertSame('opencode -s ses_9', SessionRef::command('ses_9'));
     }
 
     public function testResolverOrder(): void
     {
-        $resolver = new AgentRuntimeResolver(new GlobalConfig());
+        $resolver = new AgentRuntimeRegistry(new GlobalConfig());
         $this->writeGlobalConfig("{}\n");
         $this->assertSame('opencode', $resolver->resolveName());
         $this->assertInstanceOf(OpenCodeRuntime::class, $resolver->resolve());
@@ -128,7 +128,7 @@ final class AgentRuntimeTest extends TestCase
         $this->writeGlobalConfig("agent_runtime: codex\n");
         $this->expectException(PabloError::class);
         $this->expectExceptionMessage("unknown agent_runtime 'codex'");
-        (new AgentRuntimeResolver(new GlobalConfig()))->resolveName();
+        (new AgentRuntimeRegistry(new GlobalConfig()))->resolveName();
     }
 
     public function testFactoryRefusesOpenChamberWithClaudeCode(): void
@@ -144,8 +144,8 @@ final class AgentRuntimeTest extends TestCase
         // Orca runs either runtime.
         $launcher = $factory->create('orca');
         $this->assertInstanceOf(Agents::class, $launcher);
-        $this->assertSame(AgentRuntimeInterface::CLAUDE_CODE, $launcher->runtime()->name());
-        $this->assertNull(AgentLauncherFactory::incompatibility('openchamber', 'opencode'));
+        $this->assertSame(ClaudeCodeRuntime::NAME, $launcher->runtime()->name());
+        $this->assertNull((new OpenCodeRuntime())->backendError('openchamber'));
     }
 
     public function testOrcaLaunchesTheClaudeCommandInTheWorktree(): void
@@ -200,14 +200,39 @@ final class AgentRuntimeTest extends TestCase
                 return 'true';
             }
 
-            public function sessionRef(string $handle): string
+            public function label(): string
             {
-                return $handle;
+                return 'Fake';
             }
 
-            public function installDir(): string
+            public function backendError(string $backend): ?string
             {
-                return '/nowhere';
+                return null;
+            }
+
+            public function sessions(): \Pablo\Agents\Runtime\RuntimeSessionsInterface
+            {
+                return new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeSessions();
+            }
+
+            public function agentFiles(): \Pablo\Agents\Runtime\RuntimeAgentFilesInterface
+            {
+                return (new OpenCodeRuntime())->agentFiles();
+            }
+
+            public function usage(\Pablo\Support\ProcessRunnerInterface $runner): \Pablo\Analytics\UsageHarvesterInterface
+            {
+                return (new OpenCodeRuntime())->usage($runner);
+            }
+
+            public function oneShot(): \Pablo\Agents\Runtime\RuntimeOneShotInterface
+            {
+                return (new OpenCodeRuntime())->oneShot();
+            }
+
+            public function probe(): \Pablo\Agents\Runtime\RuntimeProbe
+            {
+                return (new OpenCodeRuntime())->probe();
             }
 
             public function modelError(string $model): ?string

@@ -168,7 +168,7 @@ final class PollerTest extends TestCase
         $time = new \Pablo\Domain\Time();
         $sm = new StateMachine($this->gh, $this->providers, $repoSlug, $time);
 
-        return new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, $analytics, new \Pablo\Analytics\OpenCodeUsage($this->runner));
+        return new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, $analytics, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner));
     }
 
     protected function tearDown(): void

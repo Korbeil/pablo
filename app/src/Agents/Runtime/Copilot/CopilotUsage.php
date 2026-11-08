@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Analytics;
+namespace Pablo\Agents\Runtime\Copilot;
 
-use Pablo\Agents\Runtime\CopilotRuntime;
+use Pablo\Analytics\PromptFingerprint;
+use Pablo\Analytics\UsageHarvesterInterface;
+use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
 
 /**
@@ -123,7 +125,7 @@ final class CopilotUsage implements UsageHarvesterInterface
                     $cwd ??= self::cwdOf($data);
                 }
                 if ('user.message' === $type && '' === $fingerprint && \is_string($data['content'] ?? null)) {
-                    $fingerprint = OpenCodeUsage::fingerprint($data['content']);
+                    $fingerprint = PromptFingerprint::of($data['content']);
                 }
                 if (\in_array($type, self::USAGE_EVENTS, true) && \is_array($data['modelMetrics'] ?? null)) {
                     $metrics = $data['modelMetrics'];

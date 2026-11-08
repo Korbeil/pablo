@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace Pablo\Install;
 
-use Pablo\Agents\Runtime\ClaudeCodeRuntime;
-use Pablo\Agents\Runtime\CopilotRuntime;
 use Pablo\Support\PabloPaths;
 
 /**
- * Where `pablo system:install` puts things, resolved per call from HOME and
- * the runtimes' own overrides (CLAUDE_CONFIG_DIR, COPILOT_HOME) — never at
- * container compile time.
+ * Where `pablo system:install` puts things, resolved per call from HOME —
+ * never at container compile time. The runtimes' own directories come from
+ * RuntimeAgentFilesInterface.
  */
 final class InstallPaths
 {
@@ -24,28 +22,6 @@ final class InstallPaths
     public static function binPath(): string
     {
         return self::binDir().'/pablo';
-    }
-
-    /** OpenCode's user config dir: agents/, commands/, skill/. */
-    public static function opencodeDir(): string
-    {
-        return PabloPaths::home().'/.config/opencode';
-    }
-
-    public static function claudeDir(): string
-    {
-        return ClaudeCodeRuntime::userConfigDir();
-    }
-
-    public static function copilotDir(): string
-    {
-        return CopilotRuntime::userConfigDir();
-    }
-
-    /** The legacy (clone install) location of the Claude Code `--agents` file. */
-    public static function legacyClaudeDir(): string
-    {
-        return PabloPaths::pabloDir().'/claude';
     }
 
     /** Whether $name is an executable file in one of the PATH directories. */

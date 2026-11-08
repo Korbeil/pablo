@@ -167,7 +167,7 @@ final class InstallCommandTest extends TestCase
         $tester = $this->install(['--runtime' => 'copilot']);
 
         $this->assertSame(1, $tester->getStatusCode());
-        $this->assertStringContainsString('agent_backend: openchamber only works with OpenCode', $tester->getDisplay());
+        $this->assertStringContainsString('OpenChamber only works with OpenCode', $tester->getDisplay());
 
         $this->assertSame(0, $this->install(['--runtime' => 'copilot', '--backend' => 'orca'])->getStatusCode());
         $this->assertSame('orca', $this->configValue('agent_backend'));

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Agents\Runtime;
+namespace Pablo\Agents\Runtime\Copilot;
 
 /**
  * One PABLO agent translated to GitHub Copilot CLI: its `.agent.md` file

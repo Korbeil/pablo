@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Analytics;
+namespace Pablo\Tests\Agents\Runtime\ClaudeCode;
 
-use Pablo\Analytics\ClaudeCodeUsage;
-use Pablo\Analytics\OpenCodeUsage;
+use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeUsage;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -87,7 +86,7 @@ final class ClaudeCodeUsageTest extends TestCase
             ['input_tokens' => 1000, 'output_tokens' => 1000], ['input_tokens' => 1000, 'output_tokens' => 1000], 'claude-haiku-5-5',
         );
 
-        $snapshot = $this->usage()->harvest(self::WORKTREE, '2026-11-02T10:00:00+00:00', OpenCodeUsage::fingerprint('Analyze issue #45'));
+        $snapshot = $this->usage()->harvest(self::WORKTREE, '2026-11-02T10:00:00+00:00', \Pablo\Analytics\PromptFingerprint::of('Analyze issue #45'));
         $this->assertNotNull($snapshot);
         $this->assertSame('exact', $snapshot->quality);
         $this->assertSame(self::SESSION, $snapshot->sessionId);

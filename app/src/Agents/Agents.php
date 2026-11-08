@@ -14,7 +14,7 @@ use Pablo\Support\ProcessRunnerInterface;
  * Launching agents on worktrees and querying their activity.
  *
  * Primary path is the Orca CLI, running the selected runtime's one-shot
- * command (`opencode run`, `claude -p` or `copilot -p`) in an Orca terminal. When Orca
+ * command (AgentRuntimeInterface::launchCommand()) in an Orca terminal. When Orca
  * refuses (e.g. selector_not_found for an unregistered repo) or is
  * unreachable, PABLO falls back to running that same command headless,
  * tracked via pidfiles under ~/.pablo/agents/.

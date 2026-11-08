@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Analytics;
+namespace Pablo\Tests\Agents\Runtime\OpenCode;
 
-use Pablo\Analytics\OpenCodeUsage;
+use Pablo\Agents\Runtime\OpenCode\OpenCodeUsage;
 use Pablo\Domain\Time;
 use Pablo\Support\ProbeResult;
 use Pablo\Support\ProcessRunnerInterface;

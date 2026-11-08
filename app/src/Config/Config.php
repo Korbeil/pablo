@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Config;
 
-use Pablo\Agents\Runtime\AgentRuntimeResolver;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Support\PabloError;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
@@ -210,8 +210,8 @@ final class Config
         }
         $defaultModel = (string) $defaultModel;
         // The model id format depends on the runtime that receives it:
-        // OpenCode wants provider/model, Claude Code an alias or model id.
-        $modelError = (new AgentRuntimeResolver($this->global))->resolve(AgentRuntimeResolver::nameFrom($defaults))->modelError($defaultModel);
+        // each runtime says what it accepts.
+        $modelError = (new AgentRuntimeRegistry($this->global))->resolve(AgentRuntimeRegistry::nameFrom($defaults))->modelError($defaultModel);
         if (null !== $modelError) {
             throw new PabloError("{$name}: default_model {$modelError}");
         }

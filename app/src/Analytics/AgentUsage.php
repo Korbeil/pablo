@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Pablo\Analytics;
 
-use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Agents\Runtime\AgentRuntimeResolver;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Support\ProcessRunner;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Usage harvesting for whichever agent runtime is selected, resolved on
@@ -15,26 +15,18 @@ use Pablo\Support\ProcessRunner;
 final class AgentUsage implements UsageHarvesterInterface
 {
     public function __construct(
-        private readonly AgentRuntimeResolver $runtimes = new AgentRuntimeResolver(),
-        private readonly OpenCodeUsage $openCode = new OpenCodeUsage(new ProcessRunner()),
-        private readonly ClaudeCodeUsage $claudeCode = new ClaudeCodeUsage(),
-        private readonly CopilotUsage $copilot = new CopilotUsage(),
+        private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
+        private readonly ProcessRunnerInterface $runner = new ProcessRunner(),
     ) {
     }
 
     public function harvest(string $worktree, string $launchedAt, ?string $fingerprint): ?UsageSnapshot
     {
         try {
-            $runtime = $this->runtimes->resolveName();
+            $harvester = $this->runtimes->resolve()->usage($this->runner);
         } catch (\Throwable) {
             return null;
         }
-
-        $harvester = match ($runtime) {
-            AgentRuntimeInterface::CLAUDE_CODE => $this->claudeCode,
-            AgentRuntimeInterface::COPILOT => $this->copilot,
-            default => $this->openCode,
-        };
 
         return $harvester->harvest($worktree, $launchedAt, $fingerprint);
     }

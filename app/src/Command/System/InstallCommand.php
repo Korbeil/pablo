@@ -7,9 +7,8 @@ namespace Pablo\Command\System;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
-use Pablo\Agents\Runtime\ClaudeCodeAgents;
-use Pablo\Agents\Runtime\ClaudeCodeRuntime;
-use Pablo\Agents\Runtime\CopilotAgents;
+use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\App\ConsoleApplication;
 use Pablo\App\Kernel;
 use Pablo\Command\Command;
@@ -40,8 +39,8 @@ use Symfony\Component\Console\Output\OutputInterface;
  *  2. ~/.local/bin/pablo: this binary (or, from a checkout, a shim), and
  *     ~/.local/bin on the PATH;
  *  3. the agents, commands and skills rendered into ~/.pablo/runtime and
- *     linked into ~/.config/opencode, ~/.claude or ~/.copilot — never over a
- *     pre-existing file that is not PABLO's;
+ *     linked into the selected runtime's user directory (~/.config/opencode,
+ *     ~/.claude, …) — never over a pre-existing file that is not PABLO's;
  *  4. the dispatcher (and the dashboard, unless --without-web) as systemd
  *     user units or launchd agents, written from the bundled files;
  *  5. a `pablo system:doctor` run.
@@ -67,7 +66,7 @@ final class InstallCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('runtime', null, InputOption::VALUE_REQUIRED, 'opencode | claude-code | copilot: record it in ~/.pablo/config.yaml')
+            ->addOption('runtime', null, InputOption::VALUE_REQUIRED, implode(' | ', AgentRuntimeRegistry::NAMES).': record it in ~/.pablo/config.yaml')
             ->addOption('backend', null, InputOption::VALUE_REQUIRED, 'orca | openchamber | headless: record it in ~/.pablo/config.yaml')
             ->addOption('without-web', null, InputOption::VALUE_NONE, 'do not install the dashboard service (and remove a previously installed one)')
             ->addOption('port', null, InputOption::VALUE_REQUIRED, 'port of the dashboard: record it in ~/.pablo/config.yaml (dashboard_port)');
@@ -92,7 +91,9 @@ final class InstallCommand extends Command
         $scheduler = $this->schedulers->create();
 
         // 1. Config.
-        $runtime = (new ConfigSeeder($this->globalConfig, $this->projectsLoader))->apply($runtimeOption, $backendOption, $info);
+        $runtime = $this->agentLaunchers->runtimes()->resolve(
+            (new ConfigSeeder($this->globalConfig, $this->projectsLoader))->apply($runtimeOption, $backendOption, $info),
+        );
         if (null !== $portOption) {
             // `pablo web` (and so the service) reads it: no port in the unit files.
             ConfigSeeder::set($this->globalConfig->configPath(), 'dashboard_port', (string) (int) $portOption);
@@ -109,13 +110,15 @@ final class InstallCommand extends Command
         $info($rc['message']);
 
         // 3. Agents, commands and skills: rendered into ~/.pablo/runtime, then linked.
-        $info("generating the {$runtime} agent definitions into ".PabloPaths::runtimeDir());
-        $generated = $this->runCommand('system:generate-agents', ['--runtime' => $runtime], $output);
+        $info("generating the {$runtime->name()} agent definitions into ".PabloPaths::runtimeDir());
+        $generated = $this->runCommand('system:generate-agents', ['--runtime' => $runtime->name()], $output);
         if (self::SUCCESS !== $generated) {
             throw new PabloError('system:generate-agents failed (see above)');
         }
         $this->link($runtime, $info);
-        $this->dropLegacyClaudeDir($info);
+        foreach ($this->agentLaunchers->runtimes()->all() as $any) {
+            array_map($info, $any->agentFiles()->cleanupLegacy());
+        }
 
         // 4. Background services, then the containers of other versions: only
         //    once the services restarted on this binary (`pablo update` also
@@ -151,76 +154,14 @@ final class InstallCommand extends Command
      *
      * @throws PabloError
      */
-    private function link(string $runtime, \Closure $info): void
+    private function link(AgentRuntimeInterface $runtime, \Closure $info): void
     {
         $links = new Links(PabloPaths::runtimeDir());
-        $opencode = AgentTemplates::opencodeRuntimeDir();
-        $skills = Files::list($opencode.'/skills', '*', dirsOnly: true);
-
-        if ('claude-code' === $runtime) {
-            // PABLO's own launches pass agents.json with --agents; the agents
-            // are also linked into ~/.claude/agents as pablo-<agent>, so they
-            // show in /agents and the @ picker of your own sessions.
-            $claude = ClaudeCodeRuntime::defaultDir();
-            if (!is_file($claude.'/agents.json')) {
-                throw new PabloError("{$claude}/agents.json was not generated — run: pablo system:generate-agents --runtime claude-code");
-            }
-            foreach (AgentTemplates::AGENT_NAMES as $name) {
-                $file = ClaudeCodeAgents::agentId($name).'.md';
-                $info($links->link($claude.'/agents/'.$file, InstallPaths::claudeDir().'/agents/'.$file));
-            }
-            foreach (Files::list($claude.'/commands', '*.md') as $command) {
-                $info($links->link($command, InstallPaths::claudeDir().'/commands/'.basename($command)));
-            }
-            foreach ($skills as $skill) {
-                $info($links->link($skill, InstallPaths::claudeDir().'/skills/'.basename($skill)));
-            }
-
-            return;
+        $files = $runtime->agentFiles();
+        foreach ($files->links(AgentTemplates::renderedDir()) as $link => $target) {
+            $info($links->link($target, $link));
         }
-
-        if ('copilot' === $runtime) {
-            // pablo-<agent> in ~/.copilot/agents (usable in your own Copilot
-            // sessions too); /pablo-commit-and-pr and pablo-task as skills.
-            $copilot = AgentTemplates::copilotRuntimeDir();
-            foreach (AgentTemplates::AGENT_NAMES as $name) {
-                $file = CopilotAgents::agentId($name).'.agent.md';
-                $info($links->link($copilot.'/agents/'.$file, InstallPaths::copilotDir().'/agents/'.$file));
-            }
-            foreach ([...Files::list($copilot.'/skills', '*', dirsOnly: true), ...$skills] as $skill) {
-                $info($links->link($skill, InstallPaths::copilotDir().'/skills/'.basename($skill)));
-            }
-            $info("Copilot: log in once with 'copilot login' if you have not already");
-
-            return;
-        }
-
-        foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $info($links->link($opencode.'/agents/'.$name.'.md', InstallPaths::opencodeDir().'/agents/'.$name.'.md'));
-        }
-        foreach (Files::list($opencode.'/commands', '*.md') as $command) {
-            $info($links->link($command, InstallPaths::opencodeDir().'/commands/'.basename($command)));
-        }
-        foreach ($skills as $skill) {
-            $info($links->link($skill, InstallPaths::opencodeDir().'/skill/'.basename($skill)));
-        }
-    }
-
-    /**
-     * The clone install kept the Claude Code `--agents` file in ~/.pablo/claude;
-     * it now lives in ~/.pablo/runtime/claude.
-     *
-     * @param \Closure(string): void $info
-     */
-    private function dropLegacyClaudeDir(\Closure $info): void
-    {
-        $legacy = InstallPaths::legacyClaudeDir();
-        if (!is_file($legacy.'/agents.json') || $legacy === ClaudeCodeRuntime::defaultDir()) {
-            return;
-        }
-        @unlink($legacy.'/agents.json');
-        @rmdir($legacy);
-        $info("removed {$legacy}/agents.json (now in ".ClaudeCodeRuntime::defaultDir().')');
+        array_map($info, $files->installNotes());
     }
 
     /**

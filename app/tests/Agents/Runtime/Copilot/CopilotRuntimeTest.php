@@ -2,16 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Agents\Runtime;
+namespace Pablo\Tests\Agents\Runtime\Copilot;
 
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\Agents;
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
-use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Agents\Runtime\AgentRuntimeResolver;
-use Pablo\Agents\Runtime\CopilotAgents;
-use Pablo\Agents\Runtime\CopilotRuntime;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
+use Pablo\Agents\Runtime\Copilot\CopilotAgents;
+use Pablo\Agents\Runtime\Copilot\CopilotRuntime;
 use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
@@ -153,7 +152,7 @@ final class CopilotRuntimeTest extends TestCase
     {
         $runtime = $this->runtime();
         $sid = $runtime->newSessionId();
-        $this->assertTrue(SessionRef::isClaudeSession($sid), 'a UUID');
+        $this->assertTrue((new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeSessions())->owns($sid), 'a UUID');
 
         $command = $runtime->launchCommand('task-analyst', "Analyze issue #45 — it's urgent", 'claude-sonnet-5.5', $sid);
         $this->assertStringStartsWith("copilot --agent pablo-task-analyst --model claude-sonnet-5.5 --session-id {$sid} --no-ask-user --no-auto-update --no-color --disable-builtin-mcps --available-tools 'view,grep,glob,web_fetch,bash' --allow-tool read --allow-tool shell --allow-all-urls --deny-tool write ", $command);
@@ -176,26 +175,26 @@ final class CopilotRuntimeTest extends TestCase
         $this->assertStringContainsString('claude-sonnet-5.5', (string) $runtime->modelError('claude-sonnet-5-5'));
 
         $sid = '0fc45506-985b-4296-be02-a1039fb8be47';
-        $this->assertSame('copilot --resume='.$sid, $runtime->sessionRef($sid));
-        $handle = SessionRef::handle(AgentRuntimeInterface::COPILOT, $sid);
+        $this->assertSame('copilot --resume='.$sid, $runtime->sessions()->resumeCommand($sid));
+        $handle = (new \Pablo\Agents\Runtime\Copilot\CopilotSessions())->handle($sid);
         $this->assertSame('copilot:'.$sid, $handle);
         // Every runtime's handle still reads right, whichever runtime is selected now.
         $this->assertSame('copilot --resume='.$sid, SessionRef::command($handle));
-        $this->assertSame('claude --resume '.$sid, SessionRef::command(SessionRef::handle(AgentRuntimeInterface::CLAUDE_CODE, $sid)));
+        $this->assertSame('claude --resume '.$sid, SessionRef::command((new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeSessions())->handle($sid)));
         $this->assertSame('opencode -s ses_9', SessionRef::command('ses_9'));
     }
 
     public function testResolverAndFactory(): void
     {
         $this->writeGlobalConfig("agent_runtime: copilot\n");
-        $resolver = new AgentRuntimeResolver(new GlobalConfig());
+        $resolver = new AgentRuntimeRegistry(new GlobalConfig());
         $this->assertSame('copilot', $resolver->resolveName());
         $this->assertInstanceOf(CopilotRuntime::class, $resolver->resolve());
 
         $factory = new AgentLauncherFactory(new GlobalConfig());
         $launcher = $factory->create('orca');
         $this->assertInstanceOf(Agents::class, $launcher);
-        $this->assertSame(AgentRuntimeInterface::COPILOT, $launcher->runtime()->name());
+        $this->assertSame(CopilotRuntime::NAME, $launcher->runtime()->name());
 
         $this->writeGlobalConfig("agent_runtime: copilot\nagent_backend: openchamber\n");
         try {

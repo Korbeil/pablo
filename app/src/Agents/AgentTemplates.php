@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents;
 
 use Pablo\Config\Config;
+use Pablo\Support\Files;
 use Pablo\Support\PabloPaths;
 
 /**
@@ -15,8 +16,7 @@ use Pablo\Support\PabloPaths;
  * (compares a fresh render against what is installed under
  * ~/.config/opencode) so the two can never
  * drift apart. Reads only — never writes. These renders are also the source
- * of the Claude Code and Copilot translations (Runtime\ClaudeCodeAgents,
- * Runtime\CopilotAgents).
+ * every other runtime translates (see Runtime\RuntimeAgentFilesInterface).
  */
 final class AgentTemplates
 {
@@ -55,24 +55,37 @@ final class AgentTemplates
     }
 
     /**
-     * ~/.pablo/runtime/opencode: the rendered OpenCode agents (agents/) plus
-     * the commands and skills extracted from the bundle (commands/, skills/) —
-     * a symlink cannot point into the binary, so `pablo system:install` links
-     * ~/.config/opencode (and the skills under ~/.claude / ~/.copilot) here.
+     * ~/.pablo/runtime/opencode: the shared render every runtime starts from —
+     * the rendered agents (agents/) plus the commands and skills extracted
+     * from the bundle (commands/, skills/). A symlink cannot point into the
+     * binary, so the links `pablo system:install` creates lead here (or to a
+     * runtime's own translation, see RuntimeAgentFilesInterface). Its name
+     * predates the other runtimes and is kept so existing links stay valid.
      * Resolved per call.
      */
-    public static function opencodeRuntimeDir(): string
+    public static function renderedDir(): string
     {
         return PabloPaths::runtimeDir().'/opencode';
     }
 
     /**
-     * ~/.pablo/runtime/copilot: agents/ (pablo-<agent>.agent.md) and skills/
-     * (the commands as skills), linked into ~/.copilot by `pablo system:install`.
+     * Names of the bundled commands next to $agentsDir.
+     *
+     * @return list<string>
      */
-    public static function copilotRuntimeDir(): string
+    public static function commandNames(string $agentsDir): array
     {
-        return PabloPaths::runtimeDir().'/copilot';
+        return array_map(static fn (string $path): string => basename($path, '.md'), Files::list(self::commandsDirFor($agentsDir), '*.md'));
+    }
+
+    /**
+     * Names of the bundled skills next to $agentsDir.
+     *
+     * @return list<string>
+     */
+    public static function skillNames(string $agentsDir): array
+    {
+        return array_map(basename(...), Files::list(self::skillsDirFor($agentsDir), '*', dirsOnly: true));
     }
 
     /**

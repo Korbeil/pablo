@@ -130,10 +130,11 @@ store + per-task flock) · `src/Poller/` (state polling) ·
 `Tracker/` (`ProviderInterface` + `Github`/`Jira`/`Linear`) ·
 `src/Agents/` (agent launchers: Orca + headless `Agents`, optional
 `OpenChamber`, `AbstractAgentLauncher` base, `AgentLauncher` factory
-selected via `agent_backend`/`PABLO_AGENT_BACKEND`) · `src/Listing/` (terminal tables) ·
+selected via `agent_backend`/`PABLO_AGENT_BACKEND`; `Runtime/` holds the agent
+runtimes, one folder each — see "Agent execution") · `src/Listing/` (terminal tables) ·
 `src/Analytics/` (append-only JSONL analytics under `~/.pablo/analytics/`:
 task lifetimes, state transitions, agent runs with token/cost usage
-harvested from the local OpenCode CLI; best-effort, never throws into task
+harvested from the selected runtime's own storage; best-effort, never throws into task
 flows, never persists prompt content — see `site/content/analytics.html`) ·
 `src/Doctor/` (preflight checks) · `src/Dispatch/` (cron entry point) ·
 `src/Support/` (`PabloError`, `Proc`, `Naming`, `RepoSlug`).
@@ -223,17 +224,36 @@ lets name `systemctl` (built only on Linux by `SchedulerFactory`).
 Orca agents. Falls back to a headless run executed with the worktree
 as the command's working directory for
 repos not registered in Orca. *What* runs is the agent **runtime**
-(`src/Agents/Runtime/`, `agent_runtime` / `PABLO_AGENT_RUNTIME`, resolved per
-call by `AgentRuntimeResolver`): `opencode run` (default), `claude -p`
-(Claude Code: agents passed with `--agents ~/.pablo/runtime/claude/agents.json`, and
-also rendered as `pablo-<agent>.md` into `~/.pablo/runtime/claude/agents/`,
-linked into `~/.claude/agents` for `/agents` and the `@` picker — tool-level
-limits only; permissions translated from the same templates by `ClaudeCodeAgents`, every
-shell deny doubled in its `rtk`-prefixed form) or `copilot -p` (GitHub
-Copilot CLI: `pablo-<agent>.agent.md` files rendered by `CopilotAgents` into
-`~/.pablo/runtime/copilot/` and linked into `~/.copilot/agents`, policy
-repeated as `--available-tools`/`--allow-tool`/`--deny-tool` flags, session
-handles recorded as `copilot:<uuid>`). OpenChamber + anything but OpenCode
+(`agent_runtime` / `PABLO_AGENT_RUNTIME`, resolved per call by
+`AgentRuntimeRegistry` — the one place listing them): `opencode run`
+(default), `claude -p` (Claude Code: agents passed with `--agents
+~/.pablo/runtime/claude/agents.json`, and also rendered as `pablo-<agent>.md`
+into `~/.pablo/runtime/claude/agents/`, linked into `~/.claude/agents` for
+`/agents` and the `@` picker — tool-level limits only; every shell deny
+doubled in its `rtk`-prefixed form) or `copilot -p` (GitHub Copilot CLI:
+`pablo-<agent>.agent.md` files rendered into `~/.pablo/runtime/copilot/` and
+linked into `~/.copilot/agents`, policy repeated as
+`--available-tools`/`--allow-tool`/`--deny-tool` flags, session handles
+recorded as `copilot:<uuid>`).
+
+⚠️ **Runtime-specific code is confined to `src/Agents/Runtime/<Runtime>/`**
+(`OpenCode/`, `ClaudeCode/`, `Copilot/`). Shared code only goes through
+`AgentRuntimeInterface` and the role interfaces it hands out:
+`sessions()` (`RuntimeSessionsInterface`: handle, resume command, session
+lookup — `SessionRef` dispatches a recorded handle across all runtimes),
+`agentFiles()` (`RuntimeAgentFilesInterface`: generate, install links,
+uninstall paths, doctor staleness, legacy cleanup), `usage()` (the
+`UsageHarvesterInterface` reading token/cost back), `oneShot()`
+(`RuntimeOneShotInterface`: the task summarizer's throwaway call), `probe()`
+(`RuntimeProbe`: doctor check/install/docs), plus `defaultModel()`,
+`modelError()` and `backendError()`. Every runtime starts from the shared
+render in `AgentTemplates::renderedDir()` (`~/.pablo/runtime/opencode`, name
+kept so existing links stay valid). `tests/Agents/Runtime/RuntimeConfinementTest.php`
+fails on a concrete runtime class or a runtime/CLI name string anywhere else
+in `src/`; `RuntimeContractTest` runs every registered runtime through the
+interfaces. New runtime: a folder implementing the interfaces, listed in
+`AgentRuntimeRegistry` (`NAMES`, `build()`, `sessionStrategies()`).
+A backend that cannot run the runtime (OpenChamber + anything but OpenCode)
 is refused (factory, doctor, dispatch). An optional `OpenChamber` backend
 (`agent_backend=openchamber` in `~/.pablo/config.yaml` or
 `PABLO_AGENT_BACKEND`) replaces Orca with the directory-based `openchamber`

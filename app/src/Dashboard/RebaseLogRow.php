@@ -22,7 +22,7 @@ final readonly class RebaseLogRow
     ) {
     }
 
-    /** `opencode -s <id>`, `claude --resume <id>` or `copilot --resume=<id>` for the conflict-fix agent. */
+    /** How to resume the conflict-fix agent's session (see SessionRef), e.g. `opencode -s <id>`. */
     public function agentSessionRef(): string
     {
         return SessionRef::command($this->report->agentHandle);

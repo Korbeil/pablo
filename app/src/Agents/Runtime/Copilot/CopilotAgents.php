@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Agents\Runtime;
+namespace Pablo\Agents\Runtime\Copilot;
 
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\RuntimeSupport;
 
 /**
  * Translates PABLO's agents and its commit command to GitHub Copilot CLI.
@@ -86,7 +87,7 @@ final class CopilotAgents
      */
     public static function profileFromMarkdown(string $markdown, string $agent): CopilotAgentProfile
     {
-        [$front, $body] = ClaudeCodeAgents::splitFrontmatter($markdown, $agent);
+        [$front, $body] = RuntimeSupport::splitFrontmatter($markdown, $agent);
         $rules = $front['permissions'] ?? [];
         if (!\is_array($rules)) {
             throw new AgentTemplateError("{$agent}: permissions must be a list");
@@ -157,7 +158,7 @@ final class CopilotAgents
         return new CopilotAgentProfile(
             id: self::agentId($agent),
             description: trim((string) ($front['description'] ?? '')),
-            prompt: ClaudeCodeAgents::withStepBudget(trim($body), $steps),
+            prompt: RuntimeSupport::withStepBudget(trim($body), $steps),
             toolAliases: array_keys($aliases),
             availableTools: array_keys($available),
             allowed: array_keys($allowed),
@@ -187,7 +188,7 @@ final class CopilotAgents
         }
 
         $rules = [];
-        foreach ([$prefix, ClaudeCodeAgents::RTK_PREFIX.$prefix] as $command) {
+        foreach ([$prefix, RuntimeSupport::RTK_PREFIX.$prefix] as $command) {
             $rules[] = 'shell('.$command.')';
             $rules[] = 'shell('.$command.':*)';
         }
@@ -210,7 +211,7 @@ final class CopilotAgents
             throw new AgentTemplateError("Cannot read command: {$commandPath}");
         }
         $name = basename($commandPath, '.md');
-        [$front, $body] = ClaudeCodeAgents::splitFrontmatter($markdown, $name);
+        [$front, $body] = RuntimeSupport::splitFrontmatter($markdown, $name);
 
         $flags = \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE;
         $frontmatter = "---\n"

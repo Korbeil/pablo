@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Agents\Runtime;
+namespace Pablo\Tests\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
-use Pablo\Agents\Runtime\ClaudeCodeAgents;
+use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeAgents;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use PHPUnit\Framework\TestCase;
@@ -167,16 +167,16 @@ final class ClaudeCodeAgentsTest extends TestCase
             array_keys($files),
         );
         foreach ($files as $file => $content) {
-            [$front, $body] = ClaudeCodeAgents::splitFrontmatter($content, $file);
+            [$front, $body] = \Pablo\Agents\Runtime\RuntimeSupport::splitFrontmatter($content, $file);
             $this->assertSame(basename($file, '.md'), $front['name'], $file);
             $this->assertNotSame('', $front['description'], $file);
             $this->assertArrayHasKey('tools', $front, $file);
             $this->assertArrayNotHasKey('model', $front, $file);
             $this->assertStringNotContainsString('{{', $body, $file);
         }
-        $resolver = ClaudeCodeAgents::splitFrontmatter($files['pablo-rebase-conflict-resolver.md'], 'r')[0];
+        $resolver = \Pablo\Agents\Runtime\RuntimeSupport::splitFrontmatter($files['pablo-rebase-conflict-resolver.md'], 'r')[0];
         $this->assertStringContainsString('Edit', $resolver['tools']);
-        $analyst = ClaudeCodeAgents::splitFrontmatter($files['pablo-task-analyst.md'], 'a')[0];
+        $analyst = \Pablo\Agents\Runtime\RuntimeSupport::splitFrontmatter($files['pablo-task-analyst.md'], 'a')[0];
         $this->assertStringNotContainsString('Edit', $analyst['tools']);
     }
 

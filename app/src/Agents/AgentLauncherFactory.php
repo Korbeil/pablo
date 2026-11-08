@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents;
 
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Agents\Runtime\AgentRuntimeResolver;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Config\GlobalConfig;
 use Pablo\Domain\Time;
 use Pablo\Support\PabloError;
@@ -14,7 +14,7 @@ use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Creates the agent launcher for a backend ('orca' | 'openchamber'), running
- * the selected agent runtime ('opencode' | 'claude-code' | 'copilot').
+ * the selected agent runtime (see AgentRuntimeRegistry).
  *
  * Backend and runtime are resolved per call — env override first, then the
  * global config — never at container compile time (the compiled container is
@@ -29,18 +29,18 @@ final class AgentLauncherFactory
         private readonly GlobalConfig $globalConfig,
         private readonly ProcessRunnerInterface $runner = new ProcessRunner(),
         private readonly Time $time = new Time(),
-        private ?AgentRuntimeResolver $runtimes = null,
+        private ?AgentRuntimeRegistry $runtimes = null,
     ) {
     }
 
     /**
-     * @throws PabloError for an unknown backend, or OpenChamber with a runtime other than OpenCode
+     * @throws PabloError for an unknown backend, or one that cannot run the selected runtime
      */
     public function create(?string $backend = null): AgentLauncherInterface
     {
         $backend ??= $this->resolveBackend();
         $runtime = $this->runtime();
-        if (null !== ($error = self::incompatibility($backend, $runtime->name()))) {
+        if (null !== ($error = $runtime->backendError($backend))) {
             throw new PabloError($error);
         }
 
@@ -56,23 +56,9 @@ final class AgentLauncherFactory
         return $this->runtimes()->resolve();
     }
 
-    public function runtimes(): AgentRuntimeResolver
+    public function runtimes(): AgentRuntimeRegistry
     {
-        return $this->runtimes ??= new AgentRuntimeResolver($this->globalConfig);
-    }
-
-    /**
-     * Why $backend cannot run $runtime, or null when it can. OpenChamber
-     * drives its own OpenCode server, so it only ever runs OpenCode.
-     */
-    public static function incompatibility(string $backend, string $runtime): ?string
-    {
-        if ('openchamber' === $backend && AgentRuntimeInterface::OPENCODE !== $runtime) {
-            return "OpenChamber only works with OpenCode: agent_runtime {$runtime} cannot run on agent_backend openchamber. "
-                .'Switch to agent_backend: orca, or to agent_runtime: opencode.';
-        }
-
-        return null;
+        return $this->runtimes ??= new AgentRuntimeRegistry($this->globalConfig);
     }
 
     public function resolveBackend(): string
