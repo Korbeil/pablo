@@ -126,6 +126,11 @@ jobs:
       # embedded as bin/php, for `pablo web`: micro has no php -S.
       - name: build micro.sfx and the PHP CLI
         working-directory: ${{ runner.temp }}/spc
+        # spc lists static-php-cli-hosted's releases through the GitHub API:
+        # anonymous, that call shares the runner's 60 requests/hour and fails
+        # with a 403 on a cold cache (every new PR scope starts cold).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -f buildroot/bin/micro.sfx ] && [ -f buildroot/bin/php ]; then
             echo "micro.sfx and php restored from cache"
