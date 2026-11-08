@@ -117,6 +117,8 @@ final class AgentsTest extends TestCase
 
     private function claudeAgents(): Agents
     {
+        @mkdir($this->tmp.'/claude', 0o777, true);
+        file_put_contents($this->tmp.'/claude/agents.json', '{"task-analyst":{"description":"Analyze","prompt":"Read-only."}}');
         $runtime = new \Pablo\Agents\Runtime\ClaudeCodeRuntime(
             new \Pablo\Agents\Runtime\ClaudeCodeAgents(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()))),
             $this->tmp.'/claude',

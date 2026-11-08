@@ -143,7 +143,12 @@ final class Agents extends AbstractAgentLauncher
             // copy of ~/.claude.json over that entry since.
             ClaudeTrust::trust([$worktree]);
         }
-        $command = 'cd '.escapeshellarg($worktree).'; '.($interactive ?? $this->runtime->launchCommand($agent, $prompt, $model, $sessionId));
+        // Orca sources the command in a shell that outlives it, so a session
+        // that exits — on an error too — also leaves the marker, and the
+        // shell stays open to show why.
+        $command = 'cd '.escapeshellarg($worktree).'; '.(null !== $interactive
+            ? $interactive.'; touch '.escapeshellarg($doneMarker)
+            : $this->runtime->launchCommand($agent, $prompt, $model, $sessionId));
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
             if (null === OrcaCli::find()) {
                 return new OrcaCall(null, self::NO_ORCA);

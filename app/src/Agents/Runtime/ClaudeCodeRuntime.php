@@ -88,7 +88,7 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
 
     public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string
     {
-        return $this->command(['claude', '-p'], $agent, $prompt, $model, $sessionId);
+        return $this->command(['claude', '-p'], $this->agentsFile(), $agent, $prompt, $model, $sessionId);
     }
 
     /**
@@ -96,21 +96,34 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
      * for the user once the agent has answered. A Stop hook (merged with the
      * user's own hooks by --settings) creates $doneMarker when the agent
      * finishes answering, the run's end for PABLO's watcher.
+     *
+     * Interactive `claude` only takes --agents as inline JSON (a file path
+     * needs -p), so the agent's own definition is read from agents.json and
+     * passed inline; null (one-shot instead) when it cannot be.
      */
-    public function interactiveCommand(string $agent, string $prompt, ?string $model, ?string $sessionId, string $doneMarker): string
+    public function interactiveCommand(string $agent, string $prompt, ?string $model, ?string $sessionId, string $doneMarker): ?string
     {
+        $raw = @file_get_contents($this->agentsFile());
+        $agents = false !== $raw ? json_decode($raw, true) : null;
+        if (!\is_array($agents) || !\is_array($agents[$agent] ?? null)) {
+            return null;
+        }
+        $inline = json_encode([$agent => $agents[$agent]], \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR);
         $settings = ['hooks' => ['Stop' => [['hooks' => [[
             'type' => 'command',
             'command' => 'touch '.escapeshellarg($doneMarker),
         ]]]]]];
 
-        return $this->command(['claude', '--settings', json_encode($settings, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES)], $agent, $prompt, $model, $sessionId);
+        return $this->command(['claude', '--settings', json_encode($settings, \JSON_THROW_ON_ERROR | \JSON_UNESCAPED_SLASHES)], $inline, $agent, $prompt, $model, $sessionId);
     }
 
-    /** @param list<string> $head */
-    private function command(array $head, string $agent, string $prompt, ?string $model, ?string $sessionId): string
+    /**
+     * @param list<string> $head
+     * @param string       $agents agents.json's path (-p), or the agent inline
+     */
+    private function command(array $head, string $agents, string $agent, string $prompt, ?string $model, ?string $sessionId): string
     {
-        $argv = [...$head, '--agents', $this->agentsFile(), '--agent', $agent];
+        $argv = [...$head, '--agents', $agents, '--agent', $agent];
         if (null !== $model) {
             $argv[] = '--model';
             $argv[] = $model;
