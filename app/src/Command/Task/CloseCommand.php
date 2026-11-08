@@ -12,6 +12,7 @@ use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Task;
+use Pablo\Install\ClaudeTrust;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
@@ -57,6 +58,7 @@ final class CloseCommand extends Command
             chdir($cfg->repoPath);
             $hadWorktree = is_dir($task->worktreePath);
             $this->git->removeWorktree($cfg->repoPath, $task->worktreePath, $task->branch);
+            ClaudeTrust::forget([$task->worktreePath]);
             // Before the record disappears: the close event is what preserves
             // the task's final metadata for analytics.
             $this->analytics->taskClosed($task);

@@ -18,6 +18,7 @@ use Pablo\Domain\DisplayCache;
 use Pablo\Domain\PrBadge;
 use Pablo\Domain\State;
 use Pablo\Domain\Time;
+use Pablo\Install\ClaudeTrust;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
@@ -192,6 +193,7 @@ final class Poller
         } catch (PabloError $e) {
             $events[] = "{$ctx->task->branch}: PR merged → task closed (worktree already gone: {$e->getMessage()})";
         }
+        ClaudeTrust::forget([$ctx->task->worktreePath]); // only once the folder is gone
         // Before the record disappears: the close event is what preserves the
         // task's final metadata for analytics (merge auto-close path).
         $this->analytics->taskClosed($ctx->task);

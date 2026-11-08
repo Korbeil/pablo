@@ -82,7 +82,7 @@
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
 </ol>
 
-<aside class="callout note"><p>Your own OpenCode, Claude Code and Copilot files are never touched, except for the trust entries in <code>~/.claude.json</code>: PABLO adds <code>"hasTrustDialogAccepted": true</code> for each of its worktrees not trusted yet, and keeps the rest of the file as it is. Otherwise PABLO only creates <em>new</em> symlinks, all pointing into <code>~/.pablo/runtime/</code>, and refuses to replace any file in <code>~/.config/opencode/</code>, <code>~/.claude/</code> or <code>~/.copilot/</code> that isn't already one of its links. The same goes for the scheduler files: one without PABLO's <code>marker:</code> line is never overwritten.</p></aside>
+<aside class="callout note"><p>Your own OpenCode, Claude Code and Copilot files are never touched, except for the trust entries in <code>~/.claude.json</code>: PABLO adds <code>"hasTrustDialogAccepted": true</code> for each of its worktrees not trusted yet, removes a worktree's entry once its task is closed and the folder gone, and keeps the rest of the file as it is. Otherwise PABLO only creates <em>new</em> symlinks, all pointing into <code>~/.pablo/runtime/</code>, and refuses to replace any file in <code>~/.config/opencode/</code>, <code>~/.claude/</code> or <code>~/.copilot/</code> that isn't already one of its links. The same goes for the scheduler files: one without PABLO's <code>marker:</code> line is never overwritten.</p></aside>
 
 <h3>From a checkout (contributors)</h3>
 

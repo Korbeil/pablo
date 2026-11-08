@@ -90,6 +90,23 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
     }
 
+    public function testCloseForgetsTheWorktreeInClaudeCode(): void
+    {
+        $claudeJson = $this->tmp.'/.claude.json';
+        file_put_contents($claudeJson, json_encode(['projects' => [$this->wt => ['hasTrustDialogAccepted' => true]]], \JSON_THROW_ON_ERROR));
+        chdir($this->tmp);
+        exec('rm -rf '.escapeshellarg($this->wt)); // what `git worktree remove` does
+        putenv('PABLO_CLAUDE_JSON='.$claudeJson);
+        try {
+            $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
+        } finally {
+            putenv('PABLO_CLAUDE_JSON=/nonexistent/pablo-tests/.claude.json');
+        }
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertSame(['projects' => []], json_decode((string) file_get_contents($claudeJson), true));
+    }
+
     public function testCloseByBranchFromAnywhere(): void
     {
         chdir($this->tmp);
