@@ -69,7 +69,8 @@ final class InstallCommand extends Command
         $this
             ->addOption('runtime', null, InputOption::VALUE_REQUIRED, 'opencode | claude-code | copilot: record it in ~/.pablo/config.yaml')
             ->addOption('backend', null, InputOption::VALUE_REQUIRED, 'orca | openchamber | headless: record it in ~/.pablo/config.yaml')
-            ->addOption('without-web', null, InputOption::VALUE_NONE, 'do not install the dashboard service (and remove a previously installed one)');
+            ->addOption('without-web', null, InputOption::VALUE_NONE, 'do not install the dashboard service (and remove a previously installed one)')
+            ->addOption('port', null, InputOption::VALUE_REQUIRED, 'port of the dashboard: record it in ~/.pablo/config.yaml (dashboard_port)');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
@@ -79,15 +80,24 @@ final class InstallCommand extends Command
         };
         $runtimeOption = self::option($input, 'runtime');
         $backendOption = self::option($input, 'backend');
+        $portOption = self::option($input, 'port');
         $withWeb = !$input->getOption('without-web');
 
         // 0. Bad options are refused before anything is touched; so is a
         //    platform without a scheduler.
         ConfigSeeder::validate($runtimeOption, $backendOption);
+        if (null !== $portOption && !GlobalConfig::isPort($portOption)) {
+            throw new PabloError("invalid --port {$portOption}: expected a number between 1 and 65535");
+        }
         $scheduler = $this->schedulers->create();
 
         // 1. Config.
         $runtime = (new ConfigSeeder($this->globalConfig, $this->projectsLoader))->apply($runtimeOption, $backendOption, $info);
+        if (null !== $portOption) {
+            // `pablo web` (and so the service) reads it: no port in the unit files.
+            ConfigSeeder::set($this->globalConfig->configPath(), 'dashboard_port', (string) (int) $portOption);
+            $info('dashboard port: '.(int) $portOption);
+        }
 
         // 2. pablo on the PATH.
         $info(PabloCommand::place(InstallPaths::binPath(), PabloPaths::pharPath(), PabloPaths::resourcesDir().'/app/bin/pablo'));
@@ -129,7 +139,9 @@ final class InstallCommand extends Command
         }
         $output->writeln('   1. pablo project:new               # run it inside your repository');
         $output->writeln('   2. pablo task:start <issue-url>    # or: pablo task:start --project <name> "what to do"');
-        $output->writeln($withWeb ? '   3. watch it on http://127.0.0.1:8321' : '   3. pablo task:list (or pablo web for the dashboard)');
+        $output->writeln($withWeb
+            ? '   3. watch it on http://127.0.0.1:'.$this->globalConfig->dashboardPort(WebCommand::DEFAULT_PORT)
+            : '   3. pablo task:list (or pablo web for the dashboard)');
 
         return self::SUCCESS;
     }

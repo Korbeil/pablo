@@ -57,6 +57,8 @@ ci:
   <dd><code>orca</code> (default) or <code>openchamber</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command instead of <code>orca</code>. A first install sets it for you when it finds OpenChamber but no Orca. OpenChamber only runs OpenCode: with <code>agent_runtime: claude-code</code> or <code>copilot</code> it is refused. See <a href="page:how-it-works#agent-backends">Agent backends</a>.</dd>
   <dt><code>default_model_by_type</code></dt>
   <dd>A model per project type; see below.</dd>
+  <dt><code>dashboard_port</code></dt>
+  <dd>The port of the <a href="page:dashboard">dashboard</a> (default <code>8321</code>): <code>pablo web</code> and its background service listen on <code>127.0.0.1:&lt;dashboard_port&gt;</code>. The installer sets it when 8321 is taken by another program; change it with <code>pablo system:install --port &lt;port&gt;</code> (or edit it here and restart the service).</dd>
 </dl>
 
 <h2 id="choose-the-agent-model">Choose the agent model</h2>

@@ -212,7 +212,10 @@ idempotent; never touches a pre-existing non-PABLO file in
 points into `~/.pablo/runtime` or into a PABLO checkout — the clone install's
 links, taken over on migration); systemd units / launchd plists are bundled
 and **written** (marker line, never symlinked), pointing at
-`~/.local/bin/pablo`. `SystemdScheduler` is the one file `PortabilityTest`
+`~/.local/bin/pablo`; the dashboard's port is `dashboard_port` in
+`~/.pablo/config.yaml` (default 8321, read by `pablo web`, so never baked into
+a unit; `system:install --port` writes it, and `site/installer` picks a free
+one when another program holds 8321). `SystemdScheduler` is the one file `PortabilityTest`
 lets name `systemctl` (built only on Linux by `SchedulerFactory`).
 
 **Agent execution**: via the Orca CLI (`orca terminal create` /

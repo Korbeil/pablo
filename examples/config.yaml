@@ -15,6 +15,7 @@ ci:
 # Copilot model id (dotted, e.g. claude-sonnet-5.5) for Copilot.
 default_model: opencode-go/glm-5.3-flash
 pr_description_locale: en
+# dashboard_port: 8321   # the port of `pablo web` and its service (127.0.0.1 only)
 # agent_runtime: opencode | claude-code | copilot  (default: opencode)
 # The program that runs the agents. With claude-code, PABLO launches
 # `claude -p` with its agents from ~/.pablo/runtime/claude/agents.json, links the

@@ -43,7 +43,7 @@
   <li>checks that <code>git</code> and <code>curl</code> are there, and which binary your OS and processor need;</li>
   <li>looks for the <a href="#choose-an-agent-runtime">agent runtimes</a> you have (OpenCode, Claude Code, GitHub Copilot CLI) and asks which one to use;</li>
   <li>looks for the <a href="#choose-an-agent-backend">agent development environments</a> you have (Orca, OpenChamber) and asks which one to use. It only offers the ones that can run your runtime;</li>
-  <li>asks whether to install the <a href="#the-dashboard-service">dashboard service</a> and shows a summary;</li>
+  <li>asks whether to install the <a href="#the-dashboard-service">dashboard service</a>. If another program already uses its port (8321, or the <code>dashboard_port</code> of your config), it suggests the next free port and lets you type another; without a terminal it takes the suggestion. A port already used by PABLO's own dashboard (a re-install) is kept. Then it shows a summary;</li>
   <li>downloads <code>pablo-&lt;os&gt;-&lt;arch&gt;</code> from the latest <a href="https://github.com/Korbeil/pablo/releases">GitHub release</a>, checks it against the release's <code>sha256sums.txt</code> (a mismatch installs nothing), installs it as <code>~/.local/bin/pablo</code>, then runs <a href="#what-pablo-system-install-does"><code>pablo system:install</code></a> with your answers.</li>
 </ol>
 
@@ -61,6 +61,7 @@
     <tr><td><code>--runtime &lt;name&gt;</code></td><td><code>opencode</code>, <code>claude-code</code> or <code>copilot</code></td></tr>
     <tr><td><code>--backend &lt;name&gt;</code></td><td><code>orca</code>, <code>openchamber</code> (OpenCode only) or <code>headless</code></td></tr>
     <tr><td><code>--without-web</code></td><td>skip the dashboard service</td></tr>
+    <tr><td><code>--port &lt;port&gt;</code></td><td>the dashboard's port, instead of 8321 (or the next free one)</td></tr>
     <tr><td><code>--no-interaction</code></td><td>never ask: use the options, then what it detected. It is also what happens when there is no terminal</td></tr>
   </tbody>
 </table>
@@ -69,7 +70,7 @@
 
 <h3 id="what-pablo-system-install-does">What <code>pablo system:install</code> does</h3>
 
-<p>The installer hands over to <code>pablo system:install</code>, which you can also run yourself at any time: it is safe to run again. Without options it keeps the choices already in <code>~/.pablo/config.yaml</code>, or on a first install picks the tools it finds. Two options record a choice there instead: <code>--runtime opencode|claude-code|copilot</code> and <code>--backend orca|openchamber|headless</code>. Changing the runtime also resets <code>default_model</code> to a model of that runtime. <code>--without-web</code> skips (and removes) the dashboard service. It:</p>
+<p>The installer hands over to <code>pablo system:install</code>, which you can also run yourself at any time: it is safe to run again. Without options it keeps the choices already in <code>~/.pablo/config.yaml</code>, or on a first install picks the tools it finds. Two options record a choice there instead: <code>--runtime opencode|claude-code|copilot</code> and <code>--backend orca|openchamber|headless</code>. Changing the runtime also resets <code>default_model</code> to a model of that runtime. <code>--without-web</code> skips (and removes) the dashboard service, and <code>--port &lt;port&gt;</code> records the dashboard's port (<code>dashboard_port</code>). It:</p>
 
 <ol>
   <li>creates <code>~/.pablo/</code> and, if you don't have one yet, a default <a href="page:configuration#global-defaults">global config</a> in <code>~/.pablo/config.yaml</code>, set to the tools you have installed (Claude Code when it finds Claude Code but no OpenCode, Copilot when it finds Copilot CLI but neither, OpenChamber when it finds OpenChamber but no Orca);</li>

@@ -35,7 +35,7 @@ final class LaunchdScheduler implements SchedulerInterface
 
         if ($withWeb) {
             $this->load(self::WEB, $pabloBin);
-            $info(self::WEB." loaded (dashboard on http://127.0.0.1:8321; logs: {$this->logDir}/web.log)");
+            $info(self::WEB." loaded (the dashboard; logs: {$this->logDir}/web.log)");
         } elseif (ServiceFiles::isOurs($this->plist(self::WEB), self::WEB)) {
             $this->runner->probe(['launchctl', 'bootout', $this->domain().'/'.self::WEB]);
             ServiceFiles::removeIfOurs($this->plist(self::WEB), self::WEB);

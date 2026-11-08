@@ -81,6 +81,7 @@ trait ShellSandbox
             'PABLO_CONFIG' => false,
             'PABLO_PROJECTS_DIR' => false,
             'PABLO_RELEASES_URL' => false,
+            'PABLO_INSTALLER_DEFAULT_PORT' => false,
             'PABLO_INSTALLER_TTY' => false,
             'CLAUDE_CONFIG_DIR' => false,
             'COPILOT_HOME' => false,
