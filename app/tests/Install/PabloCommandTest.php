@@ -58,10 +58,28 @@ final class PabloCommandTest extends TestCase
         $this->assertFileExists($this->tmp.'/bin/pablo');
     }
 
-    public function testTheRunningBinaryIsRemoved(): void
+    public function testTheRunningBinaryIsRemovedOnlyOnExit(): void
     {
         file_put_contents($this->tmp.'/bin/pablo', "BINARY\n");
 
         $this->assertTrue(PabloCommand::removeIfOurs($this->tmp.'/bin/pablo', $this->tmp.'/bin/pablo'));
+        // Still there: the rest of the run loads its classes from it.
+        $this->assertFileExists($this->tmp.'/bin/pablo');
+    }
+
+    public function testTheRunningBinaryIsGoneOnceTheProcessExits(): void
+    {
+        $bin = $this->tmp.'/bin/pablo';
+        file_put_contents($bin, "BINARY\n");
+        $quoted = var_export($bin, true);
+        $script = 'require '.var_export(\dirname(__DIR__, 2).'/vendor/autoload.php', true).';'
+            ."var_export(Pablo\\Install\\PabloCommand::removeIfOurs({$quoted}, {$quoted}));"
+            ."echo file_exists({$quoted}) ? ' present' : ' gone';";
+
+        exec(escapeshellarg(\PHP_BINARY).' -r '.escapeshellarg($script), $out, $code);
+
+        $this->assertSame(0, $code);
+        $this->assertSame(['true present'], $out);
+        $this->assertFileDoesNotExist($bin);
     }
 }

@@ -62,11 +62,23 @@ final class PabloCommand
 
     /**
      * Remove $path when it is PABLO's: the running binary, or a shim.
+     *
+     * The running binary is only removed when this process exits: the phar
+     * loads its classes lazily, reopening the file by path, so deleting it
+     * now would make the next class the run needs (and Symfony's error
+     * handler with it) fail to load.
      */
     public static function removeIfOurs(string $path, string $binaryPath): bool
     {
-        $isBinary = '' !== $binaryPath && false !== realpath($path) && realpath($path) === realpath($binaryPath);
-        if (!$isBinary && null === self::shimCheckout($path)) {
+        $real = realpath($path);
+        if ('' !== $binaryPath && false !== $real && $real === realpath($binaryPath)) {
+            register_shutdown_function(static function () use ($path): void {
+                @unlink($path);
+            });
+
+            return true;
+        }
+        if (null === self::shimCheckout($path)) {
             return false;
         }
 
