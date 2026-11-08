@@ -401,6 +401,24 @@ final class InstallerTest extends TestCase
         $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
     }
 
+    /** A clone install's dashboard predates the tag: its title is enough. */
+    public function testTheDashboardOfAnOlderPabloIsRecognisedToo(): void
+    {
+        $this->fakeTool('claude');
+        $root = $this->sandbox.'/old-dashboard';
+        mkdir($root);
+        file_put_contents($root.'/index.php', "<!DOCTYPE html>\n<html><head><title>PABLO dashboard</title></head></html>");
+        $this->dashboard = new Process([\PHP_BINARY, '-S', '127.0.0.1:'.$this->defaultPort, '-t', $root]);
+        $this->dashboard->start();
+        $this->dashboard->waitUntil(static fn (string $type, string $output): bool => str_contains($output, 'started'));
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringNotContainsString('already used', $this->outputOf($process));
+        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+    }
+
     public function testTheConfiguredPortIsTheOneChecked(): void
     {
         $this->fakeTool('claude');

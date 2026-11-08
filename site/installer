@@ -453,7 +453,10 @@ port_in_use() { # port_in_use <port>: something accepts connections on it
 }
 
 is_pablo_dashboard() { # is_pablo_dashboard <port>: PABLO's own dashboard answers there
-    curl -fsS -m 3 "http://127.0.0.1:$1/" 2>/dev/null | grep -q '<meta name="application-name" content="PABLO">'
+    # The tag, or the title of dashboards from before it (a clone install's,
+    # which this install restarts on the binary).
+    curl -fsS -m 3 "http://127.0.0.1:$1/" 2>/dev/null |
+        grep -qE '<meta name="application-name" content="PABLO">|<title>PABLO( [^<]*)?</title>'
 }
 
 port_available() { # port_available <port>: free, or already PABLO's dashboard (a re-install)
