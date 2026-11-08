@@ -84,6 +84,11 @@ final class CopilotRuntime implements AgentRuntimeInterface
         return implode(' ', array_map(OpenCodeRuntime::word(...), $argv));
     }
 
+    public function interactiveCommand(string $agent, string $prompt, ?string $model, ?string $sessionId, string $doneMarker): ?string
+    {
+        return null; // its one-shot run already streams to the terminal
+    }
+
     public function sessionRef(string $handle): string
     {
         // A bare UUID from this runtime is a Copilot session, not Claude Code's.

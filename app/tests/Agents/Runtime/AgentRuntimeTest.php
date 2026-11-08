@@ -97,6 +97,19 @@ final class AgentRuntimeTest extends TestCase
         $this->assertStringNotContainsString('--session-id', $resolver);
     }
 
+    public function testClaudeInteractiveCommandKeepsTheGuardrailsAndSignalsItsEnd(): void
+    {
+        $runtime = $this->claude();
+        $sid = $runtime->newSessionId();
+
+        $command = $runtime->interactiveCommand('task-analyst', 'Analyze #1', 'sonnet', $sid, '/home/u/.pablo/agents/done/x y');
+        $headless = $runtime->launchCommand('task-analyst', 'Analyze #1', 'sonnet', $sid);
+
+        $settings = '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"touch '."'/home/u/.pablo/agents/done/x y'".'"}]}]}}';
+        $this->assertSame('claude --settings '.escapeshellarg($settings).substr($headless, \strlen('claude -p')), $command);
+        $this->assertNull((new OpenCodeRuntime())->interactiveCommand('task-analyst', 'x', null, null, '/m'));
+    }
+
     public function testClaudeModelsAndSessionRefs(): void
     {
         $runtime = $this->claude();
@@ -163,7 +176,8 @@ final class AgentRuntimeTest extends TestCase
         $key = array_search('--command', $calls[1], true);
         $this->assertIsInt($key);
         $command = $calls[1][$key + 1];
-        $this->assertStringStartsWith('cd '.escapeshellarg($this->tmp).'; claude -p ', $command);
+        // Interactive (no -p): the conversation shows in Orca's terminal.
+        $this->assertStringStartsWith('cd '.escapeshellarg($this->tmp).'; claude --settings ', $command);
         $this->assertStringContainsString('--agent ci-analyst --model haiku --session-id ', $command);
         $this->assertStringEndsWith(" -- 'Why is CI red?'", $command);
     }
@@ -198,6 +212,11 @@ final class AgentRuntimeTest extends TestCase
                 $this->sessionSeen = $sessionId;
 
                 return 'true';
+            }
+
+            public function interactiveCommand(string $agent, string $prompt, ?string $model, ?string $sessionId, string $doneMarker): ?string
+            {
+                return null;
             }
 
             public function sessionRef(string $handle): string

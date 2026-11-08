@@ -12,6 +12,8 @@
         <!-- The Orca CLI as tests expect it, whatever this machine has
              installed (Pablo\Agents\OrcaCli; OrcaCliTest unsets it). -->
         <env name="PABLO_ORCA_BIN" value="orca"/>
+        <!-- Never the real ~/.claude.json (Pablo\Install\ClaudeTrust). -->
+        <env name="PABLO_CLAUDE_JSON" value="/nonexistent/pablo-tests/.claude.json"/>
     </php>
     <testsuites>
         <testsuite name="pablo">

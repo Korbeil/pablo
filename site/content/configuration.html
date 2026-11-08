@@ -99,7 +99,7 @@ pablo system:doctor         # checks claude and the generated files
 
 <ul>
   <li><b>Global only.</b> Every project uses the same runtime; there is no per-project setting.</li>
-  <li><b>Orca or headless.</b> Agents run as <code>claude -p</code>, in an Orca terminal or headless, exactly where OpenCode would run. <b>OpenChamber is not supported</b>: it drives its own OpenCode server. <code>pablo system:doctor</code> reports the combination as an error and the dispatcher refuses to run with it; switch to <code>agent_backend: orca</code> or back to <code>agent_runtime: opencode</code>.</li>
+  <li><b>Orca or headless.</b> Agents run exactly where OpenCode would run: as an interactive <code>claude</code> session in an Orca terminal, or as <code>claude -p</code> headless. <b>OpenChamber is not supported</b>: it drives its own OpenCode server. <code>pablo system:doctor</code> reports the combination as an error and the dispatcher refuses to run with it; switch to <code>agent_backend: orca</code> or back to <code>agent_runtime: opencode</code>.</li>
   <li><b>Your account and quota.</b> Agents run with your own Claude Code login. With a Pro or Max subscription they share its usage limits with your interactive sessions, so keep an eye on them with busy projects.</li>
   <li><b>Your settings, not your MCP servers.</b> Agents load your Claude Code settings and hooks (Orca's, RTK's) but none of your MCP servers (<code>--strict-mcp-config</code>).</li>
   <li><b>Sessions you can resume.</b> Each run gets a session id chosen by PABLO; <code>claude --resume &lt;id&gt;</code> in the worktree reopens it.</li>

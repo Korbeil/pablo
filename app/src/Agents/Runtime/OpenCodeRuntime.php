@@ -45,6 +45,11 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
         return 1 === preg_match('/^[\w.-]+$/', $value) ? $value : escapeshellarg($value);
     }
 
+    public function interactiveCommand(string $agent, string $prompt, ?string $model, ?string $sessionId, string $doneMarker): ?string
+    {
+        return null; // its one-shot run already streams to the terminal
+    }
+
     public function sessionRef(string $handle): string
     {
         return SessionRef::command($handle);

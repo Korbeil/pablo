@@ -6,7 +6,7 @@ namespace Pablo\Agents\Runtime;
 
 /**
  * The agent CLI that actually runs PABLO's agents: OpenCode (`opencode run`),
- * Claude Code (`claude -p`) or GitHub Copilot CLI (`copilot -p`). Orthogonal to the agent *backend* (Orca,
+ * Claude Code (`claude -p`, interactive `claude` in Orca) or GitHub Copilot CLI (`copilot -p`). Orthogonal to the agent *backend* (Orca,
  * OpenChamber, headless), which only decides where that command runs.
  *
  * Selected globally (`agent_runtime` in ~/.pablo/config.yaml, overridable by
@@ -41,6 +41,16 @@ interface AgentRuntimeInterface
      * non-interactively, on $prompt. Every argument is shell-escaped.
      */
     public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string;
+
+    /**
+     * Shell command (no `cd`, no redirection) starting $agent as an
+     * interactive session on $prompt, for a terminal the user watches (Orca),
+     * with the same agent, model, session id and permissions as
+     * launchCommand(). The session stays open once it has answered, so it
+     * creates the file $doneMarker when its first answer is complete. Null
+     * when the runtime has no such mode: launchCommand() runs instead.
+     */
+    public function interactiveCommand(string $agent, string $prompt, ?string $model, ?string $sessionId, string $doneMarker): ?string;
 
     /** How the user resumes the session behind $handle, e.g. `opencode -s <id>`. */
     public function sessionRef(string $handle): string;
