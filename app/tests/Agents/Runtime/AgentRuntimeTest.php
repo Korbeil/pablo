@@ -63,6 +63,18 @@ final class AgentRuntimeTest extends TestCase
         @rmdir($dir);
     }
 
+    /** A Claude runtime whose agents.json exists (interactive launches read it). */
+    private function claudeWithAgentsFile(): ClaudeCodeRuntime
+    {
+        mkdir($this->tmp.'/claude', 0o777, true);
+        file_put_contents($this->tmp.'/claude/agents.json', json_encode([
+            'task-analyst' => ['description' => 'Analyze', 'prompt' => "It's read-only."],
+            'ci-analyst' => ['description' => 'CI', 'prompt' => 'Why red?'],
+        ], \JSON_THROW_ON_ERROR));
+
+        return new ClaudeCodeRuntime(new ClaudeCodeAgents(new AgentTemplates(new Config(new GlobalConfig()))), $this->tmp.'/claude');
+    }
+
     private function claude(): ClaudeCodeRuntime
     {
         return new ClaudeCodeRuntime(new ClaudeCodeAgents(new AgentTemplates(new Config(new GlobalConfig()))), '/home/u/.pablo/runtime/claude');
@@ -99,15 +111,22 @@ final class AgentRuntimeTest extends TestCase
 
     public function testClaudeInteractiveCommandKeepsTheGuardrailsAndSignalsItsEnd(): void
     {
-        $runtime = $this->claude();
+        $runtime = $this->claudeWithAgentsFile();
         $sid = $runtime->newSessionId();
 
         $command = $runtime->interactiveCommand('task-analyst', 'Analyze #1', 'sonnet', $sid, '/home/u/.pablo/agents/done/x y');
         $headless = $runtime->launchCommand('task-analyst', 'Analyze #1', 'sonnet', $sid);
 
+        // Interactive `claude` refuses an --agents file: only this agent, inline.
         $settings = '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"touch '."'/home/u/.pablo/agents/done/x y'".'"}]}]}}';
-        $this->assertSame('claude --settings '.escapeshellarg($settings).substr($headless, \strlen('claude -p')), $command);
+        $inline = '{"task-analyst":{"description":"Analyze","prompt":"It\'s read-only."}}';
+        $this->assertSame(
+            'claude --settings '.escapeshellarg($settings).' --agents '.escapeshellarg($inline)
+                .substr($headless, \strlen("claude -p --agents '{$this->tmp}/claude/agents.json'")),
+            $command,
+        );
         $this->assertNull((new OpenCodeRuntime())->interactiveCommand('task-analyst', 'x', null, null, '/m'));
+        $this->assertNull($this->claude()->interactiveCommand('task-analyst', 'x', null, null, '/m'), 'no agents.json: one-shot instead');
     }
 
     public function testClaudeModelsAndSessionRefs(): void
@@ -170,7 +189,7 @@ final class AgentRuntimeTest extends TestCase
 
             return json_encode(['id' => 'x', 'ok' => true, 'result' => ['handle' => 'term_9']], \JSON_THROW_ON_ERROR);
         };
-        $agents = new Agents($runner, new \Pablo\Domain\Time(), null, '/x/pablo', $this->claude());
+        $agents = new Agents($runner, new \Pablo\Domain\Time(), null, '/x/pablo', $this->claudeWithAgentsFile());
 
         $this->assertSame('term_9', $agents->doLaunchAgent($this->tmp, 'ci-analyst', 'Why is CI red?', 'haiku'));
         $key = array_search('--command', $calls[1], true);
@@ -179,7 +198,8 @@ final class AgentRuntimeTest extends TestCase
         // Interactive (no -p): the conversation shows in Orca's terminal.
         $this->assertStringStartsWith('cd '.escapeshellarg($this->tmp).'; claude --settings ', $command);
         $this->assertStringContainsString('--agent ci-analyst --model haiku --session-id ', $command);
-        $this->assertStringEndsWith(" -- 'Why is CI red?'", $command);
+        // Orca's shell outlives the session: its exit (an error too) ends the run.
+        $this->assertMatchesRegularExpression("/ -- 'Why is CI red\\?'; touch '[^']+\\/done\\/[0-9a-f-]{36}'$/", $command);
     }
 
     public function testHeadlessLaunchRecordsTheSessionId(): void

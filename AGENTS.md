@@ -234,8 +234,9 @@ as the command's working directory for
 repos not registered in Orca. *What* runs is the agent **runtime**
 (`src/Agents/Runtime/`, `agent_runtime` / `PABLO_AGENT_RUNTIME`, resolved per
 call by `AgentRuntimeResolver`): `opencode run` (default), `claude -p`
-(Claude Code; in an Orca terminal an interactive `claude` with the same flags,
-its run ending on a `Stop` hook marker in `~/.pablo/agents/done/` —
+(Claude Code; in an Orca terminal an interactive `claude` with the same flags
+but its agent's definition inline — interactive `claude` refuses an `--agents`
+file — its run ending on a `Stop` hook marker in `~/.pablo/agents/done/` —
 `interactiveCommand()`; agents passed with `--agents ~/.pablo/runtime/claude/agents.json`, and
 also rendered as `pablo-<agent>.md` into `~/.pablo/runtime/claude/agents/`,
 linked into `~/.claude/agents` for `/agents` and the `@` picker — tool-level

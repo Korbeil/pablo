@@ -74,7 +74,7 @@
 
 <ul>
   <li><b>Where the agents live.</b> <code>pablo system:generate-agents</code> writes all five into <code>~/.pablo/runtime/claude/agents.json</code>, which every launch passes with <code>--agents</code>. The same agents are also rendered as <code>pablo-&lt;agent&gt;.md</code> files in <code>~/.pablo/runtime/claude/agents/</code> and linked into <code>~/.claude/agents</code> by the installer, so they show up in <code>/agents</code> and the <code>@</code> picker of your own sessions. Those files only carry tool-level limits: the per-command shell denies (such as <code>git push</code>) are launch flags and apply only to PABLO's own launches.</li>
-  <li><b>How they launch.</b> <code>claude -p --agents … --agent &lt;name&gt; --model &lt;default_model&gt; --session-id &lt;id&gt; --strict-mcp-config</code>, plus the permission flags below. In an Orca terminal, the same command without <code>-p</code>: an interactive session you can watch and continue (see <a href="page:how-it-works">How it works</a>).</li>
+  <li><b>How they launch.</b> <code>claude -p --agents … --agent &lt;name&gt; --model &lt;default_model&gt; --session-id &lt;id&gt; --strict-mcp-config</code>, plus the permission flags below. In an Orca terminal, the same command without <code>-p</code>, the agent's definition passed inline to <code>--agents</code> (an interactive <code>claude</code> only reads that file with <code>-p</code>): an interactive session you can watch and continue (see <a href="page:how-it-works">How it works</a>).</li>
   <li><b>No permission prompts.</b> The analysts run with <code>--permission-mode dontAsk</code> (anything not allowed is denied), the resolver with <code>acceptEdits</code>.</li>
 </ul>
 
