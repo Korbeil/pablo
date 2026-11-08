@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
@@ -110,6 +111,7 @@ return static function (ContainerConfigurator $container): void {
     // commands get the factory; a default-behaviour launcher is exposed as
     // the interface for consumers that never need an explicit backend.
     $services->set(AgentRuntimeRegistry::class);
+    $services->set(AdeRegistry::class);
     $services->set(AgentLauncherFactory::class);
     // Lazy: every command is constructed up front to build the CLI, and
     // create() refuses an incompatible backend/runtime pair (OpenChamber +

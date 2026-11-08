@@ -35,7 +35,7 @@ final class FakeAgents implements AgentLauncherInterface
     /** @var list<array{run_id: ?string, fingerprint: ?string}> every spawnWatcher() invocation */
     public array $watchers = [];
 
-    public bool $hasAnyOrcaAgent = false;
+    public bool $hasAnyAgent = false;
 
     public ?string $workingTreeSessionsKey = null;
 
@@ -132,8 +132,8 @@ final class FakeAgents implements AgentLauncherInterface
         return 'pid:0';
     }
 
-    public function hasAnyOrcaAgent(string $worktree): bool
+    public function hasAnyAgent(string $worktree): bool
     {
-        return $this->hasAnyOrcaAgent;
+        return $this->hasAnyAgent;
     }
 }

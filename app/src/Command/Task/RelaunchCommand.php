@@ -67,7 +67,7 @@ final class RelaunchCommand extends Command
 
             return self::SUCCESS;
         }
-        $output->writeln("{$ctx->task->branch}: re-launched ".implode(', ', $fired).' — check Orca for the new terminal tab');
+        $output->writeln("{$ctx->task->branch}: re-launched ".implode(', ', $fired).' — '.$this->agentLaunchers->ades()->resolveOrDefault()->followHint());
 
         return self::SUCCESS;
     }

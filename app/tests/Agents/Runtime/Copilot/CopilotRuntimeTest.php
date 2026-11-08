@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Agents\Runtime\Copilot;
 
+use Pablo\Agents\Ade\Orca\OrcaLauncher;
 use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\Agents;
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
@@ -193,7 +193,7 @@ final class CopilotRuntimeTest extends TestCase
 
         $factory = new AgentLauncherFactory(new GlobalConfig());
         $launcher = $factory->create('orca');
-        $this->assertInstanceOf(Agents::class, $launcher);
+        $this->assertInstanceOf(OrcaLauncher::class, $launcher);
         $this->assertSame(CopilotRuntime::NAME, $launcher->runtime()->name());
 
         $this->writeGlobalConfig("agent_runtime: copilot\nagent_backend: openchamber\n");
@@ -215,7 +215,7 @@ final class CopilotRuntimeTest extends TestCase
             return json_encode(['id' => 'x', 'ok' => true, 'result' => ['handle' => 'term_9']], \JSON_THROW_ON_ERROR);
         };
         $wt = sys_get_temp_dir();
-        $agents = new Agents($runner, new \Pablo\Domain\Time(), null, '/x/pablo', $this->runtime());
+        $agents = new OrcaLauncher($runner, new \Pablo\Domain\Time(), null, '/x/pablo', $this->runtime());
 
         $this->assertSame('term_9', $agents->doLaunchAgent($wt, 'ci-analyst', 'Why is CI red?', 'gpt-5.3-codex'));
         $key = array_search('--command', $calls[1], true);

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Agents;
+namespace Pablo\Tests\Agents\Ade\OpenChamber;
 
-use Pablo\Agents\OpenChamber;
+use Pablo\Agents\Ade\OpenChamber\OpenChamberLauncher;
 use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
  * seam (like AgentsTest) — never a live openchamber daemon and never a real
  * `opencode run`.
  */
-final class OpenChamberTest extends TestCase
+final class OpenChamberLauncherTest extends TestCase
 {
     protected FakeProcessRunner $runner;
 
@@ -26,7 +26,7 @@ final class OpenChamberTest extends TestCase
     }
     private string $tmp;
     private string $agentsDir;
-    private OpenChamber $agents;
+    private OpenChamberLauncher $agents;
 
     protected function setUp(): void
     {
@@ -37,7 +37,7 @@ final class OpenChamberTest extends TestCase
         $this->agentFilesDir = $this->tmp.'/agent-files';
         mkdir($this->agentFilesDir, 0o777, true);
         $this->runner = new FakeProcessRunner();
-        $this->agents = new OpenChamber($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo', $this->agentFilesDir);
+        $this->agents = new OpenChamberLauncher($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo', $this->agentFilesDir);
     }
 
     private string $agentFilesDir;

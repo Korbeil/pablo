@@ -405,6 +405,7 @@ choose_backend() {
         warn "No agent development environment found: agents can run headless in the background."
         warn "Install Orca or OpenChamber to read and chat with them. See $PREREQUISITES_URL"
         BACKEND=headless
+        BACKEND_FALLBACK=true
         if $INTERACTIVE; then
             ask_choice "How should PABLO run the agents?" headless \
                 "headless|$(backend_label headless)" \
@@ -557,7 +558,10 @@ download() {
 
 run_install() {
     output "\nInstall" heading
-    set -- --runtime "$RUNTIME" --backend "$BACKEND"
+    set -- --runtime "$RUNTIME"
+    if ! $BACKEND_FALLBACK; then
+        set -- "$@" --backend "$BACKEND"
+    fi
     if ! $WITH_WEB; then
         set -- "$@" --without-web
     elif [ "$PORT" != "$CONFIGURED_PORT" ]; then
@@ -574,6 +578,10 @@ main() {
     VERSION=""
     RUNTIME=""
     BACKEND=""
+    # true when headless was only picked because no ADE was found: the
+    # backend is then left to pablo (Orca by default), so an ADE installed
+    # later is used without re-running the installer.
+    BACKEND_FALLBACK=false
     WITH_WEB=true
     PORT=""
     CONFIGURED_PORT=""

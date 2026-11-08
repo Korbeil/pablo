@@ -9,7 +9,7 @@ use Symfony\Component\Process\Exception\RuntimeException as ProcessRuntimeExcept
 use Symfony\Component\Process\Process;
 
 /**
- * Runs external CLIs (gh/acli/linear/orca) via Symfony Process. Injected as
+ * Runs external CLIs (gh, the trackers', the runtimes' and the ADEs' CLIs) via Symfony Process. Injected as
  * ProcessRunnerInterface; tests provide fakes instead of shelling out.
  */
 final class ProcessRunner implements ProcessRunnerInterface

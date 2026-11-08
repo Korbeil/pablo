@@ -7,10 +7,10 @@ namespace Pablo\Agents\Runtime\ClaudeCode;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
 use Pablo\Agents\Runtime\RuntimeOneShotInterface;
-use Pablo\Agents\Runtime\RuntimeProbe;
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
 use Pablo\Agents\Runtime\RuntimeSupport;
 use Pablo\Analytics\UsageHarvesterInterface;
+use Pablo\Doctor\CliProbe;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -130,11 +130,6 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
         return null;
     }
 
-    public function backendError(string $backend): ?string
-    {
-        return RuntimeSupport::openCodeOnlyBackend($backend, self::NAME);
-    }
-
     public function sessions(): RuntimeSessionsInterface
     {
         return new ClaudeCodeSessions();
@@ -155,9 +150,9 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
         return new ClaudeCodeOneShot();
     }
 
-    public function probe(): RuntimeProbe
+    public function probe(): CliProbe
     {
-        return new RuntimeProbe(
+        return new CliProbe(
             cli: 'claude',
             argv: ['claude', 'auth', 'status', '--text'],
             hint: 'run: claude auth login',

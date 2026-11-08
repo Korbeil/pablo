@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Doctor;
 
 use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\Runtime\RuntimeProbe;
 use Pablo\Config\ProjectConfig;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
@@ -17,9 +16,8 @@ use Symfony\Component\Process\ExecutableFinder;
  * Derives the required CLI set from the configured projects. gh is always
  * required; acli (Jira) and a separate acli-confluence probe when a project
  * configures a Confluence space, only for jira projects; linear only when a
- * project uses that provider; the selected agent runtime's CLI (per
- * agent_runtime, described by its RuntimeProbe); orca or openchamber,
- * whichever the global agent_backend selects (orca by default).
+ * project uses that provider; the selected agent runtime's CLI and the
+ * selected ADE's (if it needs one), each described by its own CliProbe.
  */
 final class Doctor
 {
@@ -28,29 +26,23 @@ final class Doctor
         'acli' => [['acli', 'jira', 'auth', 'status'], 'run: acli auth login'],
         'acli-confluence' => [['acli', 'confluence', 'auth', 'status'], 'run: acli confluence auth login'],
         'linear' => [['linear', 'auth', 'status'], 'run: linear auth login (schpet/linear-cli)'],
-        'orca' => [['orca', 'status'], 'start the Orca app, or run: orca open'],
-        'openchamber' => [['openchamber', 'status'], 'install openchamber: https://github.com/openchamber/openchamber'],
     ];
 
     private const ALWAYS_REQUIRED = ['gh'];
 
     /**
-     * Wizard ordering: hard requirements first (the runtimes' CLIs go right
-     * after orca), then the per-provider trackers (only included when a
-     * project uses them).
+     * Wizard ordering: hard requirements first (the ADEs' then the runtimes'
+     * CLIs go right after gh), then the per-provider trackers (only included
+     * when a project uses them).
      */
-    private const CLI_ORDER_BEFORE_RUNTIMES = ['gh', 'orca'];
-    private const CLI_ORDER_AFTER_RUNTIMES = ['openchamber', 'acli', 'acli-confluence', 'linear'];
+    private const CLI_ORDER_BEFORE_AGENTS = ['gh'];
+    private const CLI_ORDER_AFTER_AGENTS = ['acli', 'acli-confluence', 'linear'];
 
     /** @var array<string, array<string, string>> platform => install command */
     private const INSTALL_COMMANDS = [
         'gh' => [
             'Darwin' => 'brew install gh',
             'Linux' => 'sudo apt-get install gh',
-        ],
-        'openchamber' => [
-            'Darwin' => 'curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash',
-            'Linux' => 'curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash',
         ],
         'acli' => [
             'Darwin' => 'brew tap atlassian-labs/acli && brew install acli',
@@ -68,7 +60,6 @@ final class Doctor
 
     private const DOCS_URLS = [
         'gh' => 'https://cli.github.com',
-        'openchamber' => 'https://github.com/openchamber/openchamber',
         'acli' => 'https://developer.atlassian.com/cloud/acli/',
         'acli-confluence' => 'https://developer.atlassian.com/cloud/acli/',
         'linear' => 'https://github.com/schpet/linear-cli',
@@ -109,9 +100,12 @@ final class Doctor
         if ($needsConfluence) {
             $required['acli-confluence'] = true;
         }
-        // Only the selected backend and runtime are required: an OpenChamber
-        // user need not install Orca, nor anyone the CLI of a runtime they do not use.
-        $required['openchamber' === $this->agentLaunchers->resolveBackend() ? 'openchamber' : 'orca'] = true;
+        // Only the selected ADE and runtime are required: nobody needs the CLI
+        // of an ADE or a runtime they do not use.
+        $adeProbe = $this->agentLaunchers->ades()->resolveOrDefault()->probe();
+        if (null !== $adeProbe) {
+            $required[$adeProbe->cli] = true;
+        }
         $required[$this->agentLaunchers->runtimes()->resolveOrDefault()->probe()->cli] = true;
         $list = array_keys($required);
         sort($list);
@@ -121,8 +115,8 @@ final class Doctor
 
     /**
      * Global agent settings that cannot work at all: an unknown
-     * agent_runtime, or a backend that cannot run the runtime (see
-     * AgentRuntimeInterface::backendError()). Always a hard failure — for the
+     * agent_runtime or agent_backend, or an ADE that cannot run the runtime
+     * (see AdeInterface::runtimeError()). Always a hard failure — for the
      * doctor and the dispatcher.
      *
      * @return list<string>
@@ -131,10 +125,11 @@ final class Doctor
     {
         try {
             $runtime = $this->agentLaunchers->runtime();
+            $ade = $this->agentLaunchers->ade();
         } catch (PabloError $e) {
             return [$e->getMessage()];
         }
-        $error = $runtime->backendError($this->agentLaunchers->resolveBackend());
+        $error = $ade->runtimeError($runtime);
 
         return null !== $error ? [$error] : [];
     }
@@ -148,15 +143,23 @@ final class Doctor
     /** @return list<string> */
     public function cliOrder(): array
     {
-        $runtimes = array_map(static fn (RuntimeProbe $probe): string => $probe->cli, $this->runtimeProbes());
-
-        return [...self::CLI_ORDER_BEFORE_RUNTIMES, ...array_values($runtimes), ...self::CLI_ORDER_AFTER_RUNTIMES];
+        return [...self::CLI_ORDER_BEFORE_AGENTS, ...array_keys($this->agentProbes()), ...self::CLI_ORDER_AFTER_AGENTS];
     }
 
-    /** @return array<string, RuntimeProbe> every runtime's probe, keyed by CLI id */
-    private function runtimeProbes(): array
+    /**
+     * Every ADE's then every runtime's probe, keyed by CLI id.
+     *
+     * @return array<string, CliProbe>
+     */
+    private function agentProbes(): array
     {
         $probes = [];
+        foreach ($this->agentLaunchers->ades()->all() as $ade) {
+            $probe = $ade->probe();
+            if (null !== $probe) {
+                $probes[$probe->cli] = $probe;
+            }
+        }
         foreach ($this->agentLaunchers->runtimes()->all() as $runtime) {
             $probe = $runtime->probe();
             $probes[$probe->cli] = $probe;
@@ -165,10 +168,18 @@ final class Doctor
         return $probes;
     }
 
+    /** Whether a failing $cli only degrades (agents fall back), never blocks a dispatch run. */
+    public function isSoft(string $cli): bool
+    {
+        $probe = $this->agentProbes()[$cli] ?? null;
+
+        return null !== $probe && $probe->soft;
+    }
+
     /** @return array{0: list<string>, 1: string} probe argv and failure hint */
     private function probeFor(string $cli): array
     {
-        $runtime = $this->runtimeProbes()[$cli] ?? null;
+        $runtime = $this->agentProbes()[$cli] ?? null;
         if (null !== $runtime) {
             return [$runtime->argv, $runtime->hint];
         }
@@ -181,7 +192,7 @@ final class Doctor
 
     public function installCommand(string $cli): ?string
     {
-        $runtime = $this->runtimeProbes()[$cli] ?? null;
+        $runtime = $this->agentProbes()[$cli] ?? null;
         $perOs = null !== $runtime ? $runtime->installCommands : (self::INSTALL_COMMANDS[$cli] ?? null);
         if (null === $perOs) {
             return null;
@@ -192,7 +203,7 @@ final class Doctor
 
     public function docsUrl(string $cli): ?string
     {
-        $runtime = $this->runtimeProbes()[$cli] ?? null;
+        $runtime = $this->agentProbes()[$cli] ?? null;
 
         return null !== $runtime ? $runtime->docsUrl : (self::DOCS_URLS[$cli] ?? null);
     }

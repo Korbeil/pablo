@@ -58,7 +58,7 @@ final class InstallCommandTest extends TestCase
         $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
         $this->assertSame('claude-code', $this->configValue('agent_runtime'));
         $this->assertSame('sonnet', $this->configValue('default_model'));
-        $this->assertSame('orca', $this->configValue('agent_backend'), 'headless is Orca falling back by itself');
+        $this->assertSame('headless', $this->configValue('agent_backend'), 'an explicit --backend headless is recorded');
         $this->assertFileExists($this->home.'/.pablo/runtime/claude/agents.json');
         $this->assertSame($this->home.'/.pablo/runtime/claude/agents/pablo-task-analyst.md', readlink($this->home.'/.claude/agents/pablo-task-analyst.md'));
         $this->assertSame($this->home.'/.pablo/runtime/claude/commands/pablo-commit-and-pr.md', readlink($this->home.'/.claude/commands/pablo-commit-and-pr.md'));

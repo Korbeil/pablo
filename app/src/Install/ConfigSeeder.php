@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Install;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
@@ -15,14 +16,12 @@ use Pablo\Support\PabloPaths;
  *
  * A first install seeds it from the bundled examples/config.yaml and picks
  * the tools it finds (AgentRuntimeRegistry::DEFAULT is the default runtime,
- * Orca the default backend); an existing config is never rewritten, except for the keys an
+ * AdeRegistry::DEFAULT the default ADE); an existing config is never rewritten, except for the keys an
  * explicit --runtime / --backend sets. Keys are edited line by line, so the
  * user's comments and layout survive.
  */
 final class ConfigSeeder
 {
-    public const BACKENDS = ['orca', 'openchamber', 'headless'];
-
     /** @var \Closure(string): bool */
     private readonly \Closure $hasCommand;
 
@@ -34,6 +33,7 @@ final class ConfigSeeder
         private readonly Config $config,
         ?\Closure $hasCommand = null,
         private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
+        private readonly AdeRegistry $ades = new AdeRegistry(),
     ) {
         $this->hasCommand = $hasCommand ?? InstallPaths::hasCommand(...);
     }
@@ -48,10 +48,11 @@ final class ConfigSeeder
         if (null !== $runtime) {
             AgentRuntimeRegistry::checkName($runtime, '--runtime');
         }
-        if (null !== $backend && !\in_array($backend, self::BACKENDS, true)) {
-            throw new PabloError("unknown --backend '{$backend}' (expected orca, openchamber or headless)");
+        if (null !== $backend) {
+            AdeRegistry::checkName($backend, '--backend');
         }
-        if (null !== $backend && null !== $runtime && null !== ($error = (new AgentRuntimeRegistry())->resolve($runtime)->backendError($backend))) {
+        if (null !== $backend && null !== $runtime
+            && null !== ($error = (new AdeRegistry())->resolve($backend)->runtimeError((new AgentRuntimeRegistry())->resolve($runtime)))) {
             throw new PabloError($error);
         }
     }
@@ -95,21 +96,19 @@ final class ConfigSeeder
             self::set($file, 'agent_runtime', $runtimeOption);
         }
         if (null !== $backendOption) {
-            // There is no "headless" backend value: PABLO falls back to a
-            // headless run by itself whenever Orca is missing or does not know
-            // a repository.
-            self::set($file, 'agent_backend', 'openchamber' === $backendOption ? 'openchamber' : 'orca');
-            $info('agent backend: '.('headless' === $backendOption ? 'none (agents run headless in the background)' : $backendOption));
+            self::set($file, 'agent_backend', $backendOption);
+            $info('agent backend: '.$this->ades->resolve($backendOption)->label());
         }
 
         // --runtime, else PABLO_AGENT_RUNTIME, else agent_runtime, else the default.
         $runtime = AgentRuntimeRegistry::checkName($runtimeOption ?? self::env('PABLO_AGENT_RUNTIME') ?? self::value($file, 'agent_runtime') ?? AgentRuntimeRegistry::DEFAULT);
-        // A backend (from the config, or kept from an earlier install) that
+        // An ADE (from the config, or kept from an earlier install) that
         // cannot drive this runtime: refuse now rather than fail at the first
         // launch.
         $backend = self::env('PABLO_AGENT_BACKEND') ?? self::value($file, 'agent_backend');
-        if (null !== $backend && null !== ($error = $this->runtimes->resolve($runtime)->backendError($backend))) {
-            throw new PabloError("{$error} (agent_backend is set in {$file}; or pass --backend orca)");
+        if (null !== $backend && \in_array($backend, AdeRegistry::NAMES, true)
+            && null !== ($error = $this->ades->resolve($backend)->runtimeError($this->runtimes->resolve($runtime)))) {
+            throw new PabloError("{$error} (agent_backend is set in {$file}; or pass --backend ".AdeRegistry::DEFAULT.')');
         }
         $info("agent runtime: {$runtime}");
 
@@ -197,14 +196,30 @@ final class ConfigSeeder
                 break;
             }
         }
-        // Same for the backend: Orca is the default — and OpenChamber cannot
-        // run every runtime.
-        if (!$has('orca') && $has('openchamber') && $has($runtime->binary()) && null === $runtime->backendError('openchamber')) {
-            self::set($file, 'agent_backend', 'openchamber');
-            $info('OpenChamber found (and no Orca): set agent_backend: openchamber');
-        } elseif (!$has('orca')) {
-            $info('⚠ neither Orca nor OpenChamber found: agents will run headless until you install one');
+        // Same for the ADE: the default one, else the first one found that
+        // can run the runtime. Headless needs no CLI, so it is never picked
+        // here: the default stays, and is used as soon as it is installed.
+        $default = $this->ades->resolve(AdeRegistry::DEFAULT);
+        $defaultProbe = $default->probe();
+        if (null === $defaultProbe || $has($defaultProbe->argv[0])) {
+            return;
         }
+        $missing = [$default->label()];
+        foreach ($this->ades->all() as $ade) {
+            $probe = $ade->probe();
+            if ($ade->name() === $default->name() || null === $probe) {
+                continue;
+            }
+            if (!$has($probe->argv[0]) || !$has($runtime->binary()) || null !== $ade->runtimeError($runtime)) {
+                $missing[] = $ade->label();
+                continue;
+            }
+            self::set($file, 'agent_backend', $ade->name());
+            $info(\sprintf('%s found (and no %s): set agent_backend: %s', $ade->label(), implode(' or ', $missing), $ade->name()));
+
+            return;
+        }
+        $info(\sprintf('⚠ neither %s found: agents will run headless until you install one', implode(' nor ', $missing)));
     }
 
     private static function env(string $name): ?string

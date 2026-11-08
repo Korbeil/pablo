@@ -39,7 +39,7 @@
     <tr><td><code>Store/</code></td><td>the state store and per-task locks</td></tr>
     <tr><td><code>Poller/</code></td><td>state polling and merge auto-close</td></tr>
     <tr><td><code>Provider/</code></td><td>external tools: <code>Gh/</code> (pull requests, CI, reviews), <code>Git/</code> (worktrees, sync), <code>Confluence/</code>, <code>Tracker/</code> (GitHub, Jira, Linear)</td></tr>
-    <tr><td><code>Agents/</code></td><td>agent launchers (Orca, OpenChamber, headless) behind one interface, chosen by <code>agent_backend</code></td></tr>
+    <tr><td><code>Agents/</code></td><td>the agent backends in <code>Ade/</code> (Orca, OpenChamber, headless: one folder each, chosen by <code>agent_backend</code>) and the agent runtimes in <code>Runtime/</code> (chosen by <code>agent_runtime</code>), each behind its own interfaces</td></tr>
     <tr><td><code>Analytics/</code></td><td>the JSONL event log, reader and aggregator</td></tr>
     <tr><td><code>Listing/</code></td><td>the terminal tables</td></tr>
     <tr><td><code>Dashboard/</code>, <code>Controller/</code>, <code>Twig/Components/</code></td><td>the dashboard</td></tr>

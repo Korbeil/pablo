@@ -207,7 +207,7 @@ final class InstallerTest extends TestCase
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringContainsString('cannot run Claude Code', $this->outputOf($process));
-        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+        $this->assertSame('--runtime claude-code', $this->installArguments());
     }
 
     public function testNoEnvironmentFallsBackToHeadlessAndPointsToThePrerequisites(): void
@@ -219,7 +219,7 @@ final class InstallerTest extends TestCase
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringContainsString('agents can run headless', $this->outputOf($process));
         $this->assertStringContainsString(self::PREREQUISITES_URL, $this->outputOf($process));
-        $this->assertSame('--runtime copilot --backend headless', $this->installArguments());
+        $this->assertSame('--runtime copilot', $this->installArguments());
     }
 
     public function testExplicitChoicesWinOverDetection(): void
@@ -283,7 +283,7 @@ final class InstallerTest extends TestCase
         $this->assertStringContainsString("PABLO is installed from a checkout in {$this->sandbox}/old", $this->outputOf($process));
         $this->assertStringContainsString("The checkout in {$this->sandbox}/old is no longer used", $this->outputOf($process));
         $this->assertStringNotContainsString('exec php', (string) file_get_contents($this->bin()));
-        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+        $this->assertSame('--runtime claude-code', $this->installArguments());
     }
 
     public function testRunningAgainUpdatesTheBinary(): void
@@ -351,7 +351,7 @@ final class InstallerTest extends TestCase
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringContainsString("Dashboard service  yes, on http://127.0.0.1:{$this->defaultPort}", $this->outputOf($process));
-        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+        $this->assertSame('--runtime claude-code', $this->installArguments());
     }
 
     public function testABusyPortGetsTheNextFreeOneWithoutInteraction(): void
@@ -398,7 +398,7 @@ final class InstallerTest extends TestCase
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringNotContainsString('already used', $this->outputOf($process));
-        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+        $this->assertSame('--runtime claude-code', $this->installArguments());
     }
 
     /** A clone install's dashboard predates the tag: its title is enough. */
@@ -416,7 +416,7 @@ final class InstallerTest extends TestCase
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringNotContainsString('already used', $this->outputOf($process));
-        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+        $this->assertSame('--runtime claude-code', $this->installArguments());
     }
 
     public function testTheConfiguredPortIsTheOneChecked(): void
@@ -431,7 +431,7 @@ final class InstallerTest extends TestCase
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringContainsString("http://127.0.0.1:{$configured}", $this->outputOf($process));
-        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments(), 'nothing to change');
+        $this->assertSame('--runtime claude-code', $this->installArguments(), 'nothing to change');
     }
 
     public function testAnExplicitPortIsForwardedAndAnInvalidOneRefused(): void
@@ -506,7 +506,7 @@ final class InstallerTest extends TestCase
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertStringContainsString('Answer with a number between 1 and 2', $this->outputOf($process));
-        $this->assertSame('--runtime claude-code --backend headless', $this->installArguments());
+        $this->assertSame('--runtime claude-code', $this->installArguments());
     }
 
     public function testInteractiveDefaultsToTheRuntimeOfAnExistingConfig(): void
@@ -519,7 +519,7 @@ final class InstallerTest extends TestCase
         $process = $this->interactive("\n\n\n\n");
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
-        $this->assertSame('--runtime copilot --backend headless', $this->installArguments());
+        $this->assertSame('--runtime copilot', $this->installArguments());
     }
 
     public function testInteractiveWithoutEnvironmentCanStopToInstallOne(): void

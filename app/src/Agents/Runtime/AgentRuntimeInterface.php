@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime;
 
 use Pablo\Analytics\UsageHarvesterInterface;
+use Pablo\Doctor\CliProbe;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * The agent CLI that actually runs PABLO's agents (OpenCode, Claude Code,
- * GitHub Copilot CLI, …). Orthogonal to the agent *backend* (Orca,
- * OpenChamber, headless), which only decides where that command runs.
+ * GitHub Copilot CLI, …). Orthogonal to the ADE (Ade\AdeInterface), which
+ * only decides where that command runs.
  *
  * Everything that differs between runtimes lives behind this interface and
  * the role interfaces it hands out — code outside Agents\Runtime never
@@ -47,9 +48,6 @@ interface AgentRuntimeInterface
     /** Why $model cannot be used with this runtime, or null when it can. */
     public function modelError(string $model): ?string;
 
-    /** Why the agent backend $backend cannot run this runtime, or null when it can. */
-    public function backendError(string $backend): ?string;
-
     public function sessions(): RuntimeSessionsInterface;
 
     public function agentFiles(): RuntimeAgentFilesInterface;
@@ -60,5 +58,5 @@ interface AgentRuntimeInterface
     public function oneShot(): RuntimeOneShotInterface;
 
     /** How system:doctor checks, installs and documents the runtime's CLI. */
-    public function probe(): RuntimeProbe;
+    public function probe(): CliProbe;
 }

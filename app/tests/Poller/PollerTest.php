@@ -872,7 +872,7 @@ final class PollerTest extends TestCase
         $this->setLaunch($store, 'task-analyst', 1, 301);
         $this->setLaunch($store, 'startup-script', 1, 301);
         $this->agents->startupScript = &$this->stubs['startups'];
-        $this->agents->hasAnyOrcaAgent = true;
+        $this->agents->hasAnyAgent = true;
         $this->poll($cfg, $store);
         $this->assertSame([], $this->agents->launch);
         $this->assertSame([], $this->stubs['startups']);

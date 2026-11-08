@@ -53,7 +53,7 @@ pablo stats --format json                 # for scripts
 
 <ul>
   <li><b>Orca and headless runs</b>: from OpenCode's local storage. When the run's fingerprint matches a session's first message, the match is <code>exact</code>; otherwise every session created in that worktree since the launch is counted (<code>window</code>).</li>
-  <li><b>OpenChamber runs</b>: from OpenChamber's own session list for the worktree (<code>window</code>), because those sessions live in OpenChamber's server.</li>
+  <li><b>With <code>agent_backend: openchamber</code></b>: first from OpenChamber's own session list for the worktree (<code>window</code>), because those sessions live in OpenChamber's server, then from OpenCode's storage when it has nothing (a run that fell back to headless).</li>
   <li>Nothing found: usage is empty (<code>none</code>), and the timing is still recorded.</li>
 </ul>
 

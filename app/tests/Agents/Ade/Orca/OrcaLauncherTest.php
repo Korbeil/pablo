@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Agents;
+namespace Pablo\Tests\Agents\Ade\Orca;
 
-use Pablo\Agents\Agents;
+use Pablo\Agents\Ade\Orca\OrcaLauncher;
 use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
  * seam) — never the FakeAgents stub. Spawning tests are excluded because they
  * rely on subprocess.Popen interception PHP cannot provide safely.
  */
-final class AgentsTest extends TestCase
+final class OrcaLauncherTest extends TestCase
 {
     protected FakeProcessRunner $runner;
 
@@ -26,7 +26,7 @@ final class AgentsTest extends TestCase
     }
     private string $tmp;
     private string $agentsDir;
-    private Agents $agents;
+    private OrcaLauncher $agents;
 
     protected function setUp(): void
     {
@@ -35,7 +35,7 @@ final class AgentsTest extends TestCase
         $this->agentsDir = $this->tmp.'/agents';
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
         $this->runner = new FakeProcessRunner();
-        $this->agents = new Agents($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo');
+        $this->agents = new OrcaLauncher($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo');
     }
 
     protected function tearDown(): void
@@ -57,8 +57,7 @@ final class AgentsTest extends TestCase
     public function testDetachedSpawnActuallyExecutesInnerCommand(): void
     {
         $marker = $this->tmp.'/ran.txt';
-        $method = new \ReflectionMethod(Agents::class, 'detach');
-        $command = (string) $method->invoke($this->agents, 'echo DETACHED_RAN > '.$marker);
+        $command = \Pablo\Agents\Ade\Detached::command('echo DETACHED_RAN > '.$marker);
         $pid = (int) trim((string) shell_exec($command));
         $deadline = microtime(true) + 5;
         $content = '';

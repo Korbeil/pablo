@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Support;
 
 /**
- * Runs external CLIs (gh/acli/linear/orca). Abstraction over Symfony Process
+ * Runs external CLIs (gh, the trackers', the runtimes' and the ADEs' CLIs). Abstraction over Symfony Process
  * so callers stay testable: tests inject a fake implementing this interface
  * instead of executing real binaries.
  */

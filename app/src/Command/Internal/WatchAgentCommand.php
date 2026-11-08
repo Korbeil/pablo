@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Internal;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AgentRunRecord;
@@ -45,7 +46,7 @@ final class WatchAgentCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('backend', null, InputOption::VALUE_REQUIRED, '', 'orca')
+            ->addOption('backend', null, InputOption::VALUE_REQUIRED, '', AdeRegistry::DEFAULT)
             ->addOption('project', null, InputOption::VALUE_REQUIRED)
             ->addOption('branch', null, InputOption::VALUE_REQUIRED)
             ->addOption('handle', null, InputOption::VALUE_REQUIRED)
@@ -95,7 +96,7 @@ final class WatchAgentCommand extends Command
                         runId: $runId,
                         reported: true,
                     );
-                    $this->recordAgentRunFinished($task, $launch->launchedAt, $finishedAt, $runId, $launch->agent->value, (string) ($input->getOption('backend') ?: 'orca'), (string) ($input->getOption('prompt-fingerprint') ?? ''));
+                    $this->recordAgentRunFinished($task, $launch->launchedAt, $finishedAt, $runId, $launch->agent->value, (string) ($input->getOption('backend') ?: AdeRegistry::DEFAULT), (string) ($input->getOption('prompt-fingerprint') ?? ''));
                 }
             }
             $expect = null !== $input->getOption('expect-state') ? State::tryFrom((string) $input->getOption('expect-state')) : null;

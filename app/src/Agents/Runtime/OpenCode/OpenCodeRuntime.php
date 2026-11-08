@@ -8,18 +8,17 @@ use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
 use Pablo\Agents\Runtime\RuntimeOneShotInterface;
-use Pablo\Agents\Runtime\RuntimeProbe;
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
 use Pablo\Agents\Runtime\RuntimeSupport;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
+use Pablo\Doctor\CliProbe;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * OpenCode: `opencode run --agent <a> '<prompt>'`, agents installed as
- * symlinked .md files under ~/.config/opencode/agents. The default runtime,
- * and the only one OpenChamber can drive.
+ * symlinked .md files under ~/.config/opencode/agents. The default runtime.
  */
 final class OpenCodeRuntime implements AgentRuntimeInterface
 {
@@ -71,11 +70,6 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
         return null;
     }
 
-    public function backendError(string $backend): ?string
-    {
-        return null;
-    }
-
     public function sessions(): RuntimeSessionsInterface
     {
         return new OpenCodeSessions();
@@ -96,9 +90,9 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
         return new OpenCodeOneShot();
     }
 
-    public function probe(): RuntimeProbe
+    public function probe(): CliProbe
     {
-        return new RuntimeProbe(
+        return new CliProbe(
             cli: 'opencode',
             argv: ['opencode', '--version'],
             hint: 'install opencode: https://opencode.ai',

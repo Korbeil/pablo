@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Backup;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\App\ConsoleApplication;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Task;
@@ -20,11 +21,12 @@ use Pablo\Support\ProcessRunnerInterface;
  * store, poller stamps, rebase logs and cache (everything under ~/.pablo
  * except agents/ — opencode sessions are never saved) plus the embedded
  * project configs, a manifest of every task worktree, and a best-effort
- * snapshot of Orca-registered repos. Worktree contents are transient
+ * snapshot of what each ADE keeps outside ~/.pablo (AdeInterface::backup(),
+ * e.g. Orca's registered repositories). Worktree contents are transient
  * checkouts, so only their metadata (origin URL + branch) is kept;
  * restore recreates them from git by checking the remote branch back
  * out, then rewrites each task record's worktree_path and re-registers
- * repos with Orca.
+ * the repositories with the selected ADE (AdeInterface::restore()).
  */
 final class Backup
 {
@@ -39,6 +41,7 @@ final class Backup
         private readonly GitRepoInterface $git,
         private readonly ProcessRunnerInterface $runner,
         private readonly Time $time,
+        private readonly AdeRegistry $ades = new AdeRegistry(),
     ) {
     }
 
@@ -270,21 +273,14 @@ final class Backup
             json_encode($manifest->toArray(), \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n",
         );
 
-        $orcaRepos = $this->captureOrcaRepos();
-        if (null !== $orcaRepos) {
-            file_put_contents($staging.'/orca-repos.json', $orcaRepos);
+        // Whatever each ADE keeps outside ~/.pablo (e.g. a repository list).
+        foreach ($this->ades->all() as $ade) {
+            foreach ($ade->backup($this->runner) as $name => $content) {
+                file_put_contents($staging.'/'.$name, $content);
+            }
         }
 
         return $staging;
-    }
-
-    private function captureOrcaRepos(): ?string
-    {
-        try {
-            return $this->runner->run(['orca', 'repo', 'list', '--json'], false, 30);
-        } catch (\Throwable) {
-            return null;
-        }
     }
 
     private function copyDir(string $src, string $dest): void

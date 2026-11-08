@@ -45,7 +45,9 @@ final class RestoreCommand extends Command
         $this
             ->addArgument('archive', InputArgument::REQUIRED, 'path to a pablo-backup-*.tar.gz archive')
             ->addOption('skip-worktrees', null, InputOption::VALUE_NONE, 'restore state and configs only, do not recreate worktrees')
-            ->addOption('skip-orca', null, InputOption::VALUE_NONE, 'do not re-register repos with Orca')
+            ->addOption('skip-ade', null, InputOption::VALUE_NONE, 'do not re-register the repositories with the ADE')
+            // The former name, kept working for existing scripts.
+            ->addOption('skip-orca', null, InputOption::VALUE_NONE, 'deprecated alias of --skip-ade')
             ->addOption('yes', 'y', InputOption::VALUE_NONE, 'answer yes to all overwrite prompts');
     }
 
@@ -82,8 +84,10 @@ final class RestoreCommand extends Command
                 $output->writeln('worktrees skipped (--skip-worktrees) — task records keep their original paths');
             }
 
-            if ([] !== $repoPaths && !(bool) $input->getOption('skip-orca')) {
-                $this->registerOrcaRepos($output, $repoPaths);
+            if ([] !== $repoPaths && !(bool) $input->getOption('skip-ade') && !(bool) $input->getOption('skip-orca')) {
+                foreach ($this->agentLaunchers->ades()->resolveOrDefault()->restore($this->runner, $repoPaths) as $line) {
+                    $output->writeln($line);
+                }
             }
 
             $output->writeln('restore complete. Run `pablo task:list` to verify.');
@@ -197,21 +201,6 @@ final class RestoreCommand extends Command
             return $this->projects()[$name] ?? null;
         } catch (PabloError) {
             return null;
-        }
-    }
-
-    /**
-     * @param list<string> $repoPaths
-     */
-    private function registerOrcaRepos(OutputInterface $output, array $repoPaths): void
-    {
-        foreach ($repoPaths as $repoPath) {
-            try {
-                $this->runner->run(['orca', 'repo', 'add', '--path', $repoPath, '--json'], true, 30);
-                $output->writeln("  ✔ orca: registered {$repoPath}");
-            } catch (\Throwable) {
-                $output->writeln("  ⚠ orca: could not register {$repoPath} (Orca may not be running — run `orca repo add --path {$repoPath}` manually)");
-            }
         }
     }
 }

@@ -2,15 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Agents;
+namespace Pablo\Agents\Ade\OpenChamber;
 
+use Pablo\Agents\Ade\AbstractAgentLauncher;
+use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
 use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
- * OpenChamber agent backend.
+ * The OpenChamber ADE's launcher.
  *
  * OpenChamber is directory-based (unlike Orca's workspace model): sessions are
  * bound to a --dir path, there is no repo registration, no worktree "adoption"
@@ -22,13 +26,13 @@ use Pablo\Support\ProcessRunnerInterface;
  *   openchamber session send --session <id> --dir <wt> --prompt <p> --agent <a>
  *
  * A failed create or send (bad model id, daemon hiccup) is logged to
- * logs/openchamber-fallback.log and falls back to the shared headless
- * `opencode run` path instead of leaving an empty zombie session.
+ * logs/openchamber-fallback.log and falls back to the shared headless run
+ * (HeadlessRunner) instead of leaving an empty zombie session.
  *
  * Status mapping (OpenChamber `sessionStatus.type`):
  *   busy/retry -> running; idle -> waiting (display) / excluded (active).
  */
-final class OpenChamber extends AbstractAgentLauncher
+final class OpenChamberLauncher extends AbstractAgentLauncher
 {
     public const SESSION_TIMEOUT_S = 60;
 
@@ -38,8 +42,9 @@ final class OpenChamber extends AbstractAgentLauncher
         ?Store $store = null,
         ?string $shimPath = null,
         ?string $agentsDir = null,
+        ?AgentRuntimeInterface $runtime = null,
     ) {
-        parent::__construct($runner, $time, $store, $shimPath, 'openchamber');
+        parent::__construct(OpenChamberAde::NAME, $runner, $time, $store, $shimPath, $runtime);
         $this->agentFilesDir = $agentsDir;
     }
 
@@ -80,25 +85,6 @@ final class OpenChamber extends AbstractAgentLauncher
     private function openchamber(array $argv): ?array
     {
         return $this->call($argv)['payload'];
-    }
-
-    /**
-     * Append a launch fallback to logs/openchamber-fallback.log, the same way
-     * the Orca backend logs its headless fallbacks. Without this a failed
-     * `session send` (e.g. an unknown model id) would leave an empty zombie
-     * session and no trace of why the agent never ran.
-     */
-    private function logFallback(string $worktree, string $agent, string $reason): void
-    {
-        $logs = $this->agentsDir().'/logs';
-        if (!is_dir($logs)) {
-            @mkdir($logs, 0o777, true);
-        }
-        file_put_contents(
-            $logs.'/openchamber-fallback.log',
-            $this->time->utcnow()." worktree={$worktree} agent={$agent} reason={$reason}\n",
-            \FILE_APPEND,
-        );
     }
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
@@ -180,7 +166,7 @@ final class OpenChamber extends AbstractAgentLauncher
     {
         $command = 'bash '.escapeshellarg($script).'; exec bash';
 
-        return $this->launchHeadlessCommand($worktree, 'startup-script', $command);
+        return $this->headless->launchCommand($worktree, 'startup-script', $command);
     }
 
     private function writeSessionPidfile(string $sessionId, string $worktree, string $agent): void
@@ -252,7 +238,6 @@ final class OpenChamber extends AbstractAgentLauncher
         return $this->mapSessions($this->sessionsByWorktree([$worktree])[$worktree] ?? [], false);
     }
 
-    /** @param array<int, string> $worktrees @return array<string, array<int, SessionInfo>> */
     /** @param list<string> $worktrees
      * @return array<string, list<SessionInfo>>
      */
@@ -292,12 +277,12 @@ final class OpenChamber extends AbstractAgentLauncher
         // OpenChamber has no workspace display-name concept; nothing to set.
     }
 
-    public function hasAnyOrcaAgent(string $worktree): bool
+    public function hasAnyAgent(string $worktree): bool
     {
         return [] !== ($this->sessionsByWorktree([$worktree])[$worktree] ?? []);
     }
 
-    protected function waitForBackendHandle(string $handle, int $timeoutS): void
+    protected function waitForAdeHandle(string $handle, int $timeoutS): void
     {
         $worktree = $this->worktreeForSession($handle);
         if (null === $worktree) {
