@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Agents\Runtime;
+namespace Pablo\Agents\Runtime\ClaudeCode;
 
 /**
  * One PABLO agent translated to Claude Code: its definition for `--agents`

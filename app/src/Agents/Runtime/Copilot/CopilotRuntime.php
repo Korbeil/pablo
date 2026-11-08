@@ -2,7 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Agents\Runtime;
+namespace Pablo\Agents\Runtime\Copilot;
+
+use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
+use Pablo\Agents\Runtime\RuntimeOneShotInterface;
+use Pablo\Agents\Runtime\RuntimeProbe;
+use Pablo\Agents\Runtime\RuntimeSessionsInterface;
+use Pablo\Agents\Runtime\RuntimeSupport;
+use Pablo\Analytics\UsageHarvesterInterface;
+use Pablo\Support\PabloPaths;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * GitHub Copilot CLI: `copilot -p` with PABLO's agents installed as
@@ -17,8 +27,12 @@ namespace Pablo\Agents\Runtime;
  */
 final class CopilotRuntime implements AgentRuntimeInterface
 {
+    public const NAME = 'copilot';
+
     /** Claude Code model aliases, which Copilot does not know. */
     private const CLAUDE_ALIASES = ['sonnet', 'opus', 'haiku'];
+
+    private ?CopilotAgentFiles $agentFiles = null;
 
     public function __construct(private readonly CopilotAgents $agents)
     {
@@ -35,12 +49,23 @@ final class CopilotRuntime implements AgentRuntimeInterface
             return $env;
         }
 
-        return (getenv('HOME') ?: '~').'/.copilot';
+        return PabloPaths::home().'/.copilot';
+    }
+
+    /** ~/.pablo/runtime/copilot: agents/ and skills/ (the commands as skills). */
+    public static function defaultDir(): string
+    {
+        return PabloPaths::runtimeDir().'/copilot';
     }
 
     public function name(): string
     {
-        return self::COPILOT;
+        return self::NAME;
+    }
+
+    public function label(): string
+    {
+        return 'Copilot CLI';
     }
 
     public function binary(): string
@@ -55,11 +80,7 @@ final class CopilotRuntime implements AgentRuntimeInterface
 
     public function newSessionId(): string
     {
-        $bytes = random_bytes(16);
-        $bytes[6] = \chr((\ord($bytes[6]) & 0x0F) | 0x40);
-        $bytes[8] = \chr((\ord($bytes[8]) & 0x3F) | 0x80);
-
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+        return RuntimeSupport::uuid();
     }
 
     public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string
@@ -81,18 +102,7 @@ final class CopilotRuntime implements AgentRuntimeInterface
             '-p', $prompt,
         ];
 
-        return implode(' ', array_map(OpenCodeRuntime::word(...), $argv));
-    }
-
-    public function sessionRef(string $handle): string
-    {
-        // A bare UUID from this runtime is a Copilot session, not Claude Code's.
-        return SessionRef::command(SessionRef::isClaudeSession($handle) ? SessionRef::handle(self::COPILOT, $handle) : $handle);
-    }
-
-    public function installDir(): string
-    {
-        return self::userConfigDir().'/agents';
+        return RuntimeSupport::commandLine($argv);
     }
 
     public function modelError(string $model): ?string
@@ -111,5 +121,46 @@ final class CopilotRuntime implements AgentRuntimeInterface
         }
 
         return null;
+    }
+
+    public function backendError(string $backend): ?string
+    {
+        return RuntimeSupport::openCodeOnlyBackend($backend, self::NAME);
+    }
+
+    public function sessions(): RuntimeSessionsInterface
+    {
+        return new CopilotSessions();
+    }
+
+    public function agentFiles(): RuntimeAgentFilesInterface
+    {
+        return $this->agentFiles ??= new CopilotAgentFiles($this->agents);
+    }
+
+    public function usage(ProcessRunnerInterface $runner): UsageHarvesterInterface
+    {
+        return new CopilotUsage();
+    }
+
+    public function oneShot(): RuntimeOneShotInterface
+    {
+        return new CopilotOneShot();
+    }
+
+    public function probe(): RuntimeProbe
+    {
+        return new RuntimeProbe(
+            cli: 'copilot',
+            // Copilot has no non-interactive login check: --version only proves
+            // the install; `copilot login` is documented as the next step.
+            argv: ['copilot', '--version'],
+            hint: 'reinstall: npm install -g @github/copilot, then run: copilot login',
+            installCommands: [
+                'Darwin' => 'npm install -g @github/copilot',
+                'Linux' => 'npm install -g @github/copilot',
+            ],
+            docsUrl: 'https://docs.github.com/en/copilot/how-tos/copilot-cli',
+        );
     }
 }

@@ -289,7 +289,7 @@ final class SyncTest extends TestCase
         $this->assertCount(1, $agents->headless);
         $this->assertSame('rebase-conflict-resolver', $agents->headless[0]['agent']);
         $session = (string) $agents->headless[0]['session'];
-        $this->assertTrue(\Pablo\Agents\Runtime\SessionRef::isClaudeSession($session));
+        $this->assertTrue((new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeSessions())->owns($session));
         $this->assertSame($session, $report->agentHandle);
         $this->assertStringContainsString('fix agent running — claude --resume '.$session, Sync::renderReports([$report]));
     }
@@ -309,7 +309,7 @@ final class SyncTest extends TestCase
         }
 
         $session = (string) $agents->headless[0]['session'];
-        $this->assertTrue(\Pablo\Agents\Runtime\SessionRef::isClaudeSession($session), 'a bare UUID goes to the CLI');
+        $this->assertTrue((new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeSessions())->owns($session), 'a bare UUID goes to the CLI');
         $this->assertSame('copilot:'.$session, $report->agentHandle);
         $this->assertStringContainsString('fix agent running — copilot --resume='.$session, Sync::renderReports([$report]));
     }

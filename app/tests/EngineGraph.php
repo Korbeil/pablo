@@ -72,7 +72,7 @@ final class EngineGraph
             $this->stateMachine,
             $this->time,
             $this->analytics,
-            new \Pablo\Analytics\OpenCodeUsage($this->runner),
+            new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner),
         );
         $this->listing = new Listing($this->stamps, $this->gh, $this->git, $this->providers, $this->repoSlug, $this->stateMachine, $this->time);
         $this->dispatch = new Dispatch($this->doctor, $this->sync, $this->poller, $this->agentLaunchers, $this->stamps, $this->git);

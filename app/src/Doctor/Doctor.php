@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Doctor;
 
 use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\Runtime\RuntimeProbe;
 use Pablo\Config\ProjectConfig;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
@@ -16,9 +17,9 @@ use Symfony\Component\Process\ExecutableFinder;
  * Derives the required CLI set from the configured projects. gh is always
  * required; acli (Jira) and a separate acli-confluence probe when a project
  * configures a Confluence space, only for jira projects; linear only when a
- * project uses that provider; the selected agent runtime's CLI (opencode or
- * claude or copilot, per agent_runtime); orca or openchamber, whichever the global
- * agent_backend selects (orca by default).
+ * project uses that provider; the selected agent runtime's CLI (per
+ * agent_runtime, described by its RuntimeProbe); orca or openchamber,
+ * whichever the global agent_backend selects (orca by default).
  */
 final class Doctor
 {
@@ -28,39 +29,24 @@ final class Doctor
         'acli-confluence' => [['acli', 'confluence', 'auth', 'status'], 'run: acli confluence auth login'],
         'linear' => [['linear', 'auth', 'status'], 'run: linear auth login (schpet/linear-cli)'],
         'orca' => [['orca', 'status'], 'start the Orca app, or run: orca open'],
-        'opencode' => [['opencode', '--version'], 'install opencode: https://opencode.ai'],
-        'claude' => [['claude', 'auth', 'status', '--text'], 'run: claude auth login'],
-        // Copilot has no non-interactive login check: --version only proves
-        // the install; `copilot login` is documented as the next step.
-        'copilot' => [['copilot', '--version'], 'reinstall: npm install -g @github/copilot, then run: copilot login'],
         'openchamber' => [['openchamber', 'status'], 'install openchamber: https://github.com/openchamber/openchamber'],
     ];
 
     private const ALWAYS_REQUIRED = ['gh'];
 
     /**
-     * Wizard ordering: hard requirements first, then the per-provider
-     * trackers (only included when a project uses them).
+     * Wizard ordering: hard requirements first (the runtimes' CLIs go right
+     * after orca), then the per-provider trackers (only included when a
+     * project uses them).
      */
-    public const CLI_ORDER = ['gh', 'orca', 'opencode', 'claude', 'copilot', 'openchamber', 'acli', 'acli-confluence', 'linear'];
+    private const CLI_ORDER_BEFORE_RUNTIMES = ['gh', 'orca'];
+    private const CLI_ORDER_AFTER_RUNTIMES = ['openchamber', 'acli', 'acli-confluence', 'linear'];
 
     /** @var array<string, array<string, string>> platform => install command */
     private const INSTALL_COMMANDS = [
         'gh' => [
             'Darwin' => 'brew install gh',
             'Linux' => 'sudo apt-get install gh',
-        ],
-        'opencode' => [
-            'Darwin' => 'curl -fsSL https://opencode.ai/install | bash',
-            'Linux' => 'curl -fsSL https://opencode.ai/install | bash',
-        ],
-        'claude' => [
-            'Darwin' => 'curl -fsSL https://claude.ai/install.sh | bash',
-            'Linux' => 'curl -fsSL https://claude.ai/install.sh | bash',
-        ],
-        'copilot' => [
-            'Darwin' => 'npm install -g @github/copilot',
-            'Linux' => 'npm install -g @github/copilot',
         ],
         'openchamber' => [
             'Darwin' => 'curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash',
@@ -82,9 +68,6 @@ final class Doctor
 
     private const DOCS_URLS = [
         'gh' => 'https://cli.github.com',
-        'opencode' => 'https://opencode.ai',
-        'claude' => 'https://code.claude.com/docs',
-        'copilot' => 'https://docs.github.com/en/copilot/how-tos/copilot-cli',
         'openchamber' => 'https://github.com/openchamber/openchamber',
         'acli' => 'https://developer.atlassian.com/cloud/acli/',
         'acli-confluence' => 'https://developer.atlassian.com/cloud/acli/',
@@ -127,9 +110,9 @@ final class Doctor
             $required['acli-confluence'] = true;
         }
         // Only the selected backend and runtime are required: an OpenChamber
-        // user need not install Orca, a Claude Code or Copilot user need not install OpenCode.
+        // user need not install Orca, nor anyone the CLI of a runtime they do not use.
         $required['openchamber' === $this->agentLaunchers->resolveBackend() ? 'openchamber' : 'orca'] = true;
-        $required[$this->runtimeBinary()] = true;
+        $required[$this->agentLaunchers->runtimes()->resolveOrDefault()->probe()->cli] = true;
         $list = array_keys($required);
         sort($list);
 
@@ -137,33 +120,21 @@ final class Doctor
     }
 
     /**
-     * The selected runtime's CLI. An unknown runtime is reported by
-     * configErrors(); the CLI checks fall back to OpenCode meanwhile.
-     */
-    private function runtimeBinary(): string
-    {
-        try {
-            return $this->agentLaunchers->runtime()->binary();
-        } catch (PabloError) {
-            return 'opencode';
-        }
-    }
-
-    /**
      * Global agent settings that cannot work at all: an unknown
-     * agent_runtime, or a backend that cannot run the runtime (OpenChamber +
-     * anything but OpenCode). Always a hard failure — for the doctor and the dispatcher.
+     * agent_runtime, or a backend that cannot run the runtime (see
+     * AgentRuntimeInterface::backendError()). Always a hard failure — for the
+     * doctor and the dispatcher.
      *
      * @return list<string>
      */
     public function configErrors(): array
     {
         try {
-            $runtime = $this->agentLaunchers->runtimes()->resolveName();
+            $runtime = $this->agentLaunchers->runtime();
         } catch (PabloError $e) {
             return [$e->getMessage()];
         }
-        $error = AgentLauncherFactory::incompatibility($this->agentLaunchers->resolveBackend(), $runtime);
+        $error = $runtime->backendError($this->agentLaunchers->resolveBackend());
 
         return null !== $error ? [$error] : [];
     }
@@ -177,12 +148,41 @@ final class Doctor
     /** @return list<string> */
     public function cliOrder(): array
     {
-        return self::CLI_ORDER;
+        $runtimes = array_map(static fn (RuntimeProbe $probe): string => $probe->cli, $this->runtimeProbes());
+
+        return [...self::CLI_ORDER_BEFORE_RUNTIMES, ...array_values($runtimes), ...self::CLI_ORDER_AFTER_RUNTIMES];
+    }
+
+    /** @return array<string, RuntimeProbe> every runtime's probe, keyed by CLI id */
+    private function runtimeProbes(): array
+    {
+        $probes = [];
+        foreach ($this->agentLaunchers->runtimes()->all() as $runtime) {
+            $probe = $runtime->probe();
+            $probes[$probe->cli] = $probe;
+        }
+
+        return $probes;
+    }
+
+    /** @return array{0: list<string>, 1: string} probe argv and failure hint */
+    private function probeFor(string $cli): array
+    {
+        $runtime = $this->runtimeProbes()[$cli] ?? null;
+        if (null !== $runtime) {
+            return [$runtime->argv, $runtime->hint];
+        }
+        if (!isset(self::CLI_PROBES[$cli])) {
+            throw new PabloError("unknown CLI '{$cli}'");
+        }
+
+        return self::CLI_PROBES[$cli];
     }
 
     public function installCommand(string $cli): ?string
     {
-        $perOs = self::INSTALL_COMMANDS[$cli] ?? null;
+        $runtime = $this->runtimeProbes()[$cli] ?? null;
+        $perOs = null !== $runtime ? $runtime->installCommands : (self::INSTALL_COMMANDS[$cli] ?? null);
         if (null === $perOs) {
             return null;
         }
@@ -192,12 +192,9 @@ final class Doctor
 
     public function docsUrl(string $cli): ?string
     {
-        return self::DOCS_URLS[$cli] ?? null;
-    }
+        $runtime = $this->runtimeProbes()[$cli] ?? null;
 
-    private function binaryFor(string $cliName): string
-    {
-        return self::CLI_PROBES[$cliName][0][0];
+        return null !== $runtime ? $runtime->docsUrl : (self::DOCS_URLS[$cli] ?? null);
     }
 
     private function which(string $bin): ?string
@@ -228,8 +225,8 @@ final class Doctor
     {
         $results = [];
         foreach ($cliIds as $cliName) {
-            [$probeArgv, $hint] = self::CLI_PROBES[$cliName];
-            if (null === $this->which(self::binaryFor($cliName))) {
+            [$probeArgv, $hint] = $this->probeFor($cliName);
+            if (null === $this->which($probeArgv[0])) {
                 $results[] = new CheckResult(
                     cli: $cliName,
                     installed: false,

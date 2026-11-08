@@ -43,7 +43,7 @@ final class GitConfigTripwireTest extends TestCase
     public function testClaudeCodeRendersContainNoIdentityWrites(): void
     {
         $templates = new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
-        $claude = new \Pablo\Agents\Runtime\ClaudeCodeAgents($templates);
+        $claude = new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeAgents($templates);
         $renders = ['agents.json' => $claude->renderAgentsJson($templates->templatesDir(), \Pablo\Config\Config::PROVIDERS)];
         foreach (glob(\Pablo\Agents\AgentTemplates::commandsDirFor($templates->templatesDir()).'/*.md') ?: [] as $source) {
             $renders['claude/commands/'.basename($source)] = $claude->renderCommand($source);
@@ -71,7 +71,7 @@ final class GitConfigTripwireTest extends TestCase
     public function testCopilotRendersContainNoIdentityWrites(): void
     {
         $templates = new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
-        $copilot = new \Pablo\Agents\Runtime\CopilotAgents($templates);
+        $copilot = new \Pablo\Agents\Runtime\Copilot\CopilotAgents($templates);
         $renders = $copilot->renderAgentFiles($templates->templatesDir(), \Pablo\Config\Config::PROVIDERS);
         foreach (glob(\Pablo\Agents\AgentTemplates::commandsDirFor($templates->templatesDir()).'/*.md') ?: [] as $source) {
             $renders['copilot/skills/'.basename($source, '.md')] = $copilot->renderSkill($source);

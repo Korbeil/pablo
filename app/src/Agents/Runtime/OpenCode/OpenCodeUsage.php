@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Analytics;
+namespace Pablo\Agents\Runtime\OpenCode;
 
+use Pablo\Analytics\PromptFingerprint;
+use Pablo\Analytics\UsageHarvesterInterface;
+use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -31,12 +34,6 @@ final class OpenCodeUsage implements UsageHarvesterInterface
         private readonly ProcessRunnerInterface $runner,
         private readonly Time $time = new Time(),
     ) {
-    }
-
-    /** Short non-reversible prompt fingerprint used for session attribution. */
-    public static function fingerprint(string $prompt): string
-    {
-        return substr(hash('sha256', $prompt), 0, 16);
     }
 
     public function harvest(string $worktree, string $launchedAt, ?string $fingerprint): ?UsageSnapshot
@@ -320,7 +317,7 @@ final class OpenCodeUsage implements UsageHarvesterInterface
             }
             $text = self::textPartsOf(\is_array($message['parts'] ?? null) ? $message['parts'] : []);
 
-            return '' === $text ? '' : substr(hash('sha256', $text), 0, 16);
+            return '' === $text ? '' : PromptFingerprint::of($text);
         }
 
         return '';

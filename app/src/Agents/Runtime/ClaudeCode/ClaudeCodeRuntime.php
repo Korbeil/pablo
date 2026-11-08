@@ -2,16 +2,24 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Agents\Runtime;
+namespace Pablo\Agents\Runtime\ClaudeCode;
 
+use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
+use Pablo\Agents\Runtime\RuntimeOneShotInterface;
+use Pablo\Agents\Runtime\RuntimeProbe;
+use Pablo\Agents\Runtime\RuntimeSessionsInterface;
+use Pablo\Agents\Runtime\RuntimeSupport;
+use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Support\PabloPaths;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Claude Code: `claude -p` with PABLO's agents passed at launch through
  * `--agents ~/.pablo/runtime/claude/agents.json`. They are also linked into
- * ~/.claude/agents as pablo-<agent> (see ClaudeCodeAgents::renderAgentFiles)
- * so the user's own sessions list them; those files carry tool-level limits
- * only, the shell-pattern rules below exist solely as launch flags.
+ * ~/.claude/agents as pablo-<agent> (see ClaudeCodeAgentFiles) so the user's
+ * own sessions list them; those files carry tool-level limits only, the
+ * shell-pattern rules below exist solely as launch flags.
  *
  * Every launch repeats the agent's permissions as CLI flags — the only place
  * shell patterns can be expressed — runs with the user's own settings and
@@ -20,6 +28,10 @@ use Pablo\Support\PabloPaths;
  */
 final class ClaudeCodeRuntime implements AgentRuntimeInterface
 {
+    public const NAME = 'claude-code';
+
+    private ?ClaudeCodeAgentFiles $agentFiles = null;
+
     /** @param string|null $dir override of ~/.pablo/runtime/claude (tests) */
     public function __construct(
         private readonly ClaudeCodeAgents $agents,
@@ -53,12 +65,17 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
             return $env;
         }
 
-        return (getenv('HOME') ?: '~').'/.claude';
+        return PabloPaths::home().'/.claude';
     }
 
     public function name(): string
     {
-        return self::CLAUDE_CODE;
+        return self::NAME;
+    }
+
+    public function label(): string
+    {
+        return 'Claude Code';
     }
 
     public function binary(): string
@@ -73,16 +90,12 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
 
     public function newSessionId(): string
     {
-        $bytes = random_bytes(16);
-        $bytes[6] = \chr((\ord($bytes[6]) & 0x0F) | 0x40);
-        $bytes[8] = \chr((\ord($bytes[8]) & 0x3F) | 0x80);
-
-        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+        return RuntimeSupport::uuid();
     }
 
     public function agentsFile(): string
     {
-        return $this->installDir().'/agents.json';
+        return ($this->dir ?? self::defaultDir()).'/agents.json';
     }
 
     public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string
@@ -102,17 +115,7 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
         $argv[] = '--';
         $argv[] = $prompt;
 
-        return implode(' ', array_map(OpenCodeRuntime::word(...), $argv));
-    }
-
-    public function sessionRef(string $handle): string
-    {
-        return SessionRef::command($handle);
-    }
-
-    public function installDir(): string
-    {
-        return $this->dir ?? self::defaultDir();
+        return RuntimeSupport::commandLine($argv);
     }
 
     public function modelError(string $model): ?string
@@ -125,5 +128,44 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
         }
 
         return null;
+    }
+
+    public function backendError(string $backend): ?string
+    {
+        return RuntimeSupport::openCodeOnlyBackend($backend, self::NAME);
+    }
+
+    public function sessions(): RuntimeSessionsInterface
+    {
+        return new ClaudeCodeSessions();
+    }
+
+    public function agentFiles(): RuntimeAgentFilesInterface
+    {
+        return $this->agentFiles ??= new ClaudeCodeAgentFiles($this->agents, $this->dir);
+    }
+
+    public function usage(ProcessRunnerInterface $runner): UsageHarvesterInterface
+    {
+        return new ClaudeCodeUsage();
+    }
+
+    public function oneShot(): RuntimeOneShotInterface
+    {
+        return new ClaudeCodeOneShot();
+    }
+
+    public function probe(): RuntimeProbe
+    {
+        return new RuntimeProbe(
+            cli: 'claude',
+            argv: ['claude', 'auth', 'status', '--text'],
+            hint: 'run: claude auth login',
+            installCommands: [
+                'Darwin' => 'curl -fsSL https://claude.ai/install.sh | bash',
+                'Linux' => 'curl -fsSL https://claude.ai/install.sh | bash',
+            ],
+            docsUrl: 'https://code.claude.com/docs',
+        );
     }
 }

@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Doctor;
+namespace Pablo\Tests\Agents\Runtime\Copilot;
 
 use Pablo\Agents\AgentTemplates;
-use Pablo\Agents\Runtime\CopilotAgents;
+use Pablo\Agents\Runtime\Copilot\CopilotAgentFiles;
+use Pablo\Agents\Runtime\Copilot\CopilotAgents;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\AgentFileState;
@@ -17,7 +18,7 @@ use PHPUnit\Framework\TestCase;
  * Doctor's agent check under agent_runtime: copilot — the pablo-<agent>
  * symlinks in ~/.copilot/agents and the skill symlinks in ~/.copilot/skills.
  */
-final class CopilotStalenessTest extends TestCase
+final class CopilotAgentFilesTest extends TestCase
 {
     use UsesGlobalConfig;
 
@@ -76,11 +77,19 @@ final class CopilotStalenessTest extends TestCase
         symlink(\dirname($agentsDir).'/skills/pablo-task', $this->tmp.'/copilot/skills/pablo-task');
     }
 
+    /** @return list<\Pablo\Doctor\AgentFileStatus> */
+    private function staleness(): array
+    {
+        $files = new CopilotAgentFiles(new CopilotAgents($this->templates), null, $this->tmp.'/copilot');
+
+        return $files->staleness($this->templates->templatesDir(), $this->templates->enabledProviders());
+    }
+
     /** @return array<string, AgentFileState> */
     private function states(): array
     {
         $states = [];
-        foreach ((new AgentStaleness($this->templates))->checkCopilot($this->tmp.'/copilot') as $result) {
+        foreach ($this->staleness() as $result) {
             $states[$result->agent] = $result->state;
         }
 
@@ -110,7 +119,7 @@ final class CopilotStalenessTest extends TestCase
     public function testMissingStaleAndForeignAreReported(): void
     {
         $staleness = new AgentStaleness($this->templates);
-        $this->assertTrue($staleness->hasHardFailure($staleness->checkCopilot($this->tmp.'/copilot')));
+        $this->assertTrue($staleness->hasHardFailure($this->staleness()));
         $this->assertSame(AgentFileState::Missing, $this->states()['pablo-ci-analyst']);
 
         $this->install();

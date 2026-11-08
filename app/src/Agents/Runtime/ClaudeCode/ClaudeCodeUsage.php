@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Analytics;
+namespace Pablo\Agents\Runtime\ClaudeCode;
 
-use Pablo\Agents\Runtime\ClaudeCodeRuntime;
+use Pablo\Analytics\PromptFingerprint;
+use Pablo\Analytics\UsageHarvesterInterface;
+use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
 
 /**
@@ -119,7 +121,7 @@ final class ClaudeCodeUsage implements UsageHarvesterInterface
                         continue; // a tool result, not a prompt
                     }
                     $startedS = (int) floor($tsMs / 1000);
-                    $fingerprint = '' === $text ? '' : OpenCodeUsage::fingerprint($text);
+                    $fingerprint = '' === $text ? '' : PromptFingerprint::of($text);
                 }
                 if ('assistant' === $type && \is_array($message['usage'] ?? null)) {
                     $id = (string) ($message['id'] ?? $row['uuid'] ?? \count($messages));

@@ -161,7 +161,7 @@ final class OpenChamber extends AbstractAgentLauncher
      */
     private function agentModel(string $agent): ?string
     {
-        $path = ($this->agentFilesDir ?? AgentTemplates::opencodeRuntimeDir().'/agents').'/'.$agent.'.md';
+        $path = ($this->agentFilesDir ?? AgentTemplates::renderedDir().'/agents').'/'.$agent.'.md';
         if (!is_file($path)) {
             return null;
         }

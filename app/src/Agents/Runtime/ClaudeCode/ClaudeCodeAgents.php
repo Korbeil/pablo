@@ -2,12 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Agents\Runtime;
+namespace Pablo\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
-use Symfony\Component\Yaml\Exception\ParseException;
-use Symfony\Component\Yaml\Yaml;
+use Pablo\Agents\Runtime\RuntimeSupport;
 
 /**
  * Translates PABLO's agents and its commit command to Claude Code.
@@ -36,9 +35,6 @@ final class ClaudeCodeAgents
         'write' => ['Write'],
         'skill' => ['Skill'],
     ];
-
-    /** Prefix the RTK hook puts in front of a rewritten command. */
-    public const RTK_PREFIX = 'rtk ';
 
     /**
      * Shell commands the commit command's `!` context injection needs on top
@@ -121,7 +117,7 @@ final class ClaudeCodeAgents
      */
     public static function profileFromMarkdown(string $markdown, string $agent): ClaudeAgentProfile
     {
-        [$front, $body] = self::splitFrontmatter($markdown, $agent);
+        [$front, $body] = RuntimeSupport::splitFrontmatter($markdown, $agent);
         $rules = $front['permissions'] ?? [];
         if (!\is_array($rules)) {
             throw new AgentTemplateError("{$agent}: permissions must be a list");
@@ -173,7 +169,7 @@ final class ClaudeCodeAgents
 
         return new ClaudeAgentProfile(
             description: trim((string) ($front['description'] ?? '')),
-            prompt: self::withStepBudget(trim($body), $steps),
+            prompt: RuntimeSupport::withStepBudget(trim($body), $steps),
             tools: $tools,
             deniedTools: array_keys($deniedTools),
             allowedPatterns: array_keys($allowedPatterns),
@@ -195,24 +191,7 @@ final class ClaudeCodeAgents
      */
     public static function shellRules(string $pattern): array
     {
-        return ['Bash('.$pattern.')', 'Bash('.self::RTK_PREFIX.$pattern.')'];
-    }
-
-    /**
-     * OpenCode caps analysts with a hard `steps:` limit; Claude Code has no
-     * per-agent equivalent, so the budget becomes an instruction (the 1 h
-     * watcher timeout stays the hard backstop).
-     */
-    public static function withStepBudget(string $prompt, ?int $steps): string
-    {
-        if (null === $steps) {
-            return $prompt;
-        }
-
-        return $prompt."\n\n## Step budget\n\n"
-            ."You have a budget of {$steps} tool steps for this run. Plan your\n"
-            ."investigation to fit it and, at the latest on step {$steps}, stop\n"
-            ."calling tools and write the deliverable with what you have.\n";
+        return ['Bash('.$pattern.')', 'Bash('.RuntimeSupport::RTK_PREFIX.$pattern.')'];
     }
 
     /**
@@ -230,7 +209,7 @@ final class ClaudeCodeAgents
             throw new AgentTemplateError("Cannot read command: {$commandPath}");
         }
         $name = basename($commandPath, '.md');
-        [$front, $body] = self::splitFrontmatter($markdown, $name);
+        [$front, $body] = RuntimeSupport::splitFrontmatter($markdown, $name);
 
         $tools = [];
         $permission = \is_array($front['permission'] ?? null) ? $front['permission'] : [];
@@ -278,27 +257,5 @@ final class ClaudeCodeAgents
         $body = preg_replace('/^## Hard rules\R\R/m', "## Hard rules\n\n".$noEdits, $body, 1) ?? $body;
 
         return $frontmatter.$body;
-    }
-
-    /**
-     * @return array{0: array<string, mixed>, 1: string}
-     *
-     * @throws AgentTemplateError
-     */
-    public static function splitFrontmatter(string $markdown, string $name): array
-    {
-        if (1 !== preg_match('/\A---\R(.*?)\R---\R?(.*)\z/s', $markdown, $m)) {
-            throw new AgentTemplateError("{$name}: no frontmatter");
-        }
-        try {
-            $front = Yaml::parse($m[1]);
-        } catch (ParseException $e) {
-            throw new AgentTemplateError("{$name}: invalid frontmatter: ".$e->getMessage());
-        }
-        if (!\is_array($front)) {
-            throw new AgentTemplateError("{$name}: frontmatter is not a mapping");
-        }
-
-        return [$front, $m[2]];
     }
 }

@@ -68,9 +68,9 @@ interface AgentLauncherInterface
     public function refreshAgentDisplayCache(string $project, string $branch, string $worktree): void;
 
     /**
-     * $sessionId: a session id assigned up front (Claude Code, Copilot); null
-     * lets the runtime pick one (a new one for Claude Code and Copilot,
-     * OpenCode's own otherwise).
+     * $sessionId: a session id assigned up front; null lets the runtime pick
+     * one (AgentRuntimeInterface::newSessionId(), or the runtime's own id when
+     * that is null).
      */
     public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string;
 

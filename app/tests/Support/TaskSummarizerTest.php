@@ -60,9 +60,9 @@ final class TaskSummarizerTest extends TestCase
 
     public function testClaudeErrorResultFallsBack(): void
     {
-        $this->assertNull(TaskSummarizer::parseClaude('{"type":"result","is_error":true,"result":"Not logged in"}'));
-        $this->assertNull(TaskSummarizer::parseClaude('not json'));
-        $this->assertSame('ok', TaskSummarizer::parseClaude('{"result":"ok"}'));
+        $this->assertNull(\Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeOneShot::parse('{"type":"result","is_error":true,"result":"Not logged in"}'));
+        $this->assertNull(\Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeOneShot::parse('not json'));
+        $this->assertSame('ok', \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeOneShot::parse('{"result":"ok"}'));
     }
 
     public function testSummarizesViaOpencodeBigPickle(): void
@@ -130,7 +130,7 @@ final class TaskSummarizerTest extends TestCase
 
     public function testParseExtractsTextAndSessionId(): void
     {
-        $parsed = TaskSummarizer::parse(self::validEvents('fix webhooks retry.'));
+        $parsed = \Pablo\Agents\Runtime\OpenCode\OpenCodeOneShot::parse(self::validEvents('fix webhooks retry.'));
 
         $this->assertSame('fix webhooks retry.', $parsed['text']);
         $this->assertSame('ses_test', $parsed['session']);
@@ -143,7 +143,7 @@ final class TaskSummarizerTest extends TestCase
             .json_encode(['type' => 'step_start', 'sessionID' => 'ses_test', 'part' => ['type' => 'step-start']])."\n"
             .json_encode(['type' => 'text', 'sessionID' => 'ses_test', 'part' => ['type' => 'text', 'text' => 'hi']]);
 
-        $parsed = TaskSummarizer::parse($raw);
+        $parsed = \Pablo\Agents\Runtime\OpenCode\OpenCodeOneShot::parse($raw);
 
         $this->assertSame('ses_test', $parsed['session']);
         $this->assertSame('hi', $parsed['text']);

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Provider\Git;
 
 use Pablo\Agents\AgentLauncherInterface;
-use Pablo\Agents\Runtime\AgentRuntimeResolver;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Time;
@@ -43,7 +43,7 @@ final class Sync
         private readonly RepoSlug $repoSlug,
         private readonly ProcessRunnerInterface $runner,
         private readonly Time $time,
-        private readonly AgentRuntimeResolver $runtimes = new AgentRuntimeResolver(),
+        private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
     ) {
     }
 
@@ -154,16 +154,16 @@ final class Sync
         foreach ($reports as $report) {
             if ('conflict' === $report->action && $effectiveApply && null !== $agents) {
                 $prompt = $this->buildConflictAgentPrompt($report, $cfg);
-                // Claude Code and Copilot take a PABLO-assigned session id;
-                // OpenCode picks its own, found back from its session list.
+                // Most runtimes take a PABLO-assigned session id; one that
+                // picks its own finds it back once the run started.
                 $runtime = $this->runtimes->resolve();
                 $sessionId = $runtime->newSessionId();
                 $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->defaultModel, $sessionId);
                 if (null === $sessionId) {
                     sleep(1);
-                    $sessionId = $this->findRecentSession($report->worktree, 'rebase-conflict-resolver');
+                    $sessionId = $runtime->sessions()->findSession($this->runner, $report->worktree);
                 }
-                $report->agentHandle = null !== $sessionId ? SessionRef::handle($runtime->name(), $sessionId) : 'launched';
+                $report->agentHandle = null !== $sessionId ? $runtime->sessions()->handle($sessionId) : 'launched';
             }
         }
         $this->saveLastLog($cfg->name, $cfg->syncStrategy, $reports);
@@ -232,44 +232,6 @@ final class Sync
         $lines[] = '';
 
         return implode("\n", $lines);
-    }
-
-    /**
-     * Returns the most recent opencode session id for the $worktree, or null.
-     * OpenCode v2 removed the `db` subcommand (this used to query the sqlite
-     * store directly, filtered by agent); `session list` only exposes a
-     * directory — the worktree's newest session is a right-enough hint for
-     * the "fix agent running" display, since the resolver runs right after
-     * the conflict and nothing else is concurrent there.
-     */
-    private function findRecentSession(string $worktree, string $agent): ?string
-    {
-        $probe = $this->runner->probe([
-            'opencode', 'session', 'list', '--format', 'json', '--max-count', '50',
-        ], timeout: 5, cwd: $worktree);
-        if (0 !== $probe->exitCode) {
-            return null;
-        }
-        $rows = json_decode($probe->output, true);
-        if (!\is_array($rows)) {
-            return null;
-        }
-        $wanted = rtrim($worktree, '/');
-        usort($rows, static fn (array $a, array $b) => (int) ($b['created'] ?? 0) <=> (int) ($a['created'] ?? 0));
-        foreach ($rows as $row) {
-            if (!\is_array($row)) {
-                continue;
-            }
-            if (rtrim((string) ($row['directory'] ?? ''), '/') !== $wanted) {
-                continue;
-            }
-            $id = (string) ($row['id'] ?? '');
-            if ('' !== $id) {
-                return $id;
-            }
-        }
-
-        return null;
     }
 
     public function loadLastLog(string $projectName): ?RebaseLog

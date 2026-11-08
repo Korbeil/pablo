@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Analytics;
+namespace Pablo\Tests\Agents\Runtime\Copilot;
 
-use Pablo\Analytics\CopilotUsage;
-use Pablo\Analytics\OpenCodeUsage;
+use Pablo\Agents\Runtime\Copilot\CopilotUsage;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -68,7 +67,7 @@ final class CopilotUsageTest extends TestCase
         $this->writeSession(self::SESSION, 'Analyze issue #45', $now);
         $this->writeSession('11111111-2222-4333-8444-555555555555', 'something else', $now);
 
-        $snapshot = $this->usage()->harvest(self::WORKTREE, $now, OpenCodeUsage::fingerprint('Analyze issue #45'));
+        $snapshot = $this->usage()->harvest(self::WORKTREE, $now, \Pablo\Analytics\PromptFingerprint::of('Analyze issue #45'));
 
         $this->assertNotNull($snapshot);
         $this->assertSame('exact', $snapshot->quality);
@@ -89,7 +88,7 @@ final class CopilotUsageTest extends TestCase
         $this->writeSession(self::SESSION, 'p', $now, '/somewhere/else');
         $this->writeSession('11111111-2222-4333-8444-555555555555', 'p', gmdate('Y-m-d\TH:i:s\Z', time() - 3600));
 
-        $this->assertNull($this->usage()->harvest(self::WORKTREE, $now, OpenCodeUsage::fingerprint('p')));
+        $this->assertNull($this->usage()->harvest(self::WORKTREE, $now, \Pablo\Analytics\PromptFingerprint::of('p')));
     }
 
     public function testWithoutFingerprintOnlySessionsKnownToRunInTheWorktreeCount(): void

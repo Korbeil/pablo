@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace Pablo\Support;
 
-use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Agents\Runtime\AgentRuntimeResolver;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 
 /**
  * Produces a very short task summary for prompt-started tasks by asking a
- * small LLM instead of truncating the prompt: the free `opencode/big-pickle`
- * under OpenCode, `haiku` under Claude Code (one throwaway `claude -p`, no
- * tools, no MCP servers, nothing persisted), `claude-haiku-5.5` under Copilot
- * (one `copilot -p` with shell and writes denied and no MCP servers; Copilot
- * cannot skip saving the session, so it stays in its session list).
+ * small LLM instead of truncating the prompt: one throwaway call through the
+ * selected runtime's RuntimeOneShotInterface (which picks the model and keeps
+ * the call tool-less).
  *
  * Best-effort: any failure (missing CLI, timeout, empty/odd output) yields
  * null so the caller can fall back to plain word truncation. Runs through
@@ -22,33 +19,22 @@ use Pablo\Agents\Runtime\AgentRuntimeResolver;
  */
 final class TaskSummarizer
 {
-    /** Free opencode model used for the one-shot summary. */
-    public const MODEL = 'opencode/big-pickle';
-
-    /** Claude Code model used for the one-shot summary. */
-    public const CLAUDE_MODEL = 'haiku';
-
-    /** Copilot model used for the one-shot summary. */
-    public const COPILOT_MODEL = 'claude-haiku-5.5';
-
     /** Hard cap on words in the returned summary. */
     public const MAX_WORDS = 7;
 
     private const TIMEOUT_S = 60.0;
 
-    private const DELETE_TIMEOUT_S = 15.0;
-
     public function __construct(
         private readonly ProcessRunnerInterface $runner,
-        private readonly AgentRuntimeResolver $runtimes = new AgentRuntimeResolver(),
+        private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
     ) {
     }
 
-    private static function instruction(string $prompt): string
+    public static function instruction(string $prompt): string
     {
         // The hard wording (label semantics + explicit "output nothing except
-        // the summary, then stop") is deliberate: big-pickle occasionally
-        // appends a conversational follow-up ("I'm ready to help…") to softer
+        // the summary, then stop") is deliberate: small models occasionally
+        // append a conversational follow-up ("I'm ready to help…") to softer
         // phrasings, which would end up in the branch name.
         return 'You label tasks with a short branch name. Reply with only the summary of the task: '
             .'at most '.self::MAX_WORDS.' words, plain lowercase text, no quotes, no list, no code block. '
@@ -56,138 +42,21 @@ final class TaskSummarizer
             ."do not offer help.\n\nTask:\n".$prompt;
     }
 
-    /** @return list<string> argv for the summarizing opencode call */
-    public static function argv(string $prompt): array
-    {
-        return ['opencode', 'run', '-m', self::MODEL, '--format', 'json', self::instruction($prompt)];
-    }
-
-    /**
-     * @return list<string> argv for the summarizing Claude Code call: no
-     *                      tools, no MCP servers, no transcript left behind
-     */
-    public static function claudeArgv(string $prompt): array
-    {
-        return [
-            'claude', '-p', '--model', self::CLAUDE_MODEL, '--output-format', 'json',
-            '--no-session-persistence', '--strict-mcp-config', '--tools', '',
-            // `--`: the variadic --tools would otherwise swallow the prompt.
-            '--', self::instruction($prompt),
-        ];
-    }
-
-    /**
-     * @return list<string> argv for the summarizing Copilot call: plain-text
-     *                      answer (-s), no shell, no writes, no MCP servers
-     */
-    public static function copilotArgv(string $prompt): array
-    {
-        return [
-            'copilot', '--model', self::COPILOT_MODEL, '-s', '--no-color', '--no-ask-user', '--no-auto-update',
-            '--no-custom-instructions', '--disable-builtin-mcps', '--deny-tool', 'shell', '--deny-tool', 'write',
-            '-p', self::instruction($prompt),
-        ];
-    }
-
     public function summarize(string $repoPath, string $prompt): ?string
     {
         try {
-            $runtime = $this->runtimes->resolveName();
+            $oneShot = $this->runtimes->resolve()->oneShot();
         } catch (\Throwable) {
             return null;
         }
-        if (AgentRuntimeInterface::COPILOT === $runtime) {
-            try {
-                $out = $this->runner->run(self::copilotArgv($prompt), check: false, timeout: self::TIMEOUT_S, cwd: $repoPath);
-            } catch (\Throwable) {
-                return null;
-            }
+        $answer = $oneShot->ask($this->runner, $repoPath, self::instruction($prompt), self::TIMEOUT_S);
 
-            return self::clean($out);
-        }
-        if (AgentRuntimeInterface::CLAUDE_CODE === $runtime) {
-            try {
-                $out = $this->runner->run(self::claudeArgv($prompt), check: false, timeout: self::TIMEOUT_S, cwd: $repoPath);
-            } catch (\Throwable) {
-                return null;
-            }
-
-            return self::clean(self::parseClaude($out) ?? '');
-        }
-
-        // OpenCode v2 removed `run --dir`; running from $repoPath's working
-        // directory attaches the one-shot session to that project instead of
-        // to whatever project the pablo process itself sits in.
-        try {
-            $out = $this->runner->run(self::argv($prompt), check: false, timeout: self::TIMEOUT_S, cwd: $repoPath);
-        } catch (\Throwable) {
-            return null;
-        }
-
-        $result = self::parse($out);
-
-        // The one-shot session would otherwise pollute the shared opencode
-        // store (and thus OpenChamber's session list) — delete it after the
-        // answer is in, best-effort, whether or not the summary is usable.
-        if (null !== $result['session']) {
-            try {
-                $this->runner->run(['opencode', 'session', 'delete', $result['session']], check: false, timeout: self::DELETE_TIMEOUT_S);
-            } catch (\Throwable) {
-            }
-        }
-
-        return self::clean($result['text'] ?? '');
-    }
-
-    /**
-     * Splits `opencode run --format json` output into the answer text
-     * (concatenated `text` event parts) and the session id carried by
-     * every event. Tolerates noise: non-JSON lines are skipped.
-     *
-     * @return array{text: ?string, session: ?string}
-     */
-    public static function parse(string $raw): array
-    {
-        $text = null;
-        $session = null;
-        foreach (explode("\n", $raw) as $line) {
-            $line = trim($line);
-            if ('' === $line || '{' !== $line[0]) {
-                continue;
-            }
-            $ev = json_decode($line, true);
-            if (!\is_array($ev)) {
-                continue;
-            }
-            if (\is_string($ev['sessionID'] ?? null) && '' !== $ev['sessionID']) {
-                $session = $ev['sessionID'];
-            }
-            if ('text' === ($ev['type'] ?? null) && \is_string($ev['part']['text'] ?? null)) {
-                $text = ($text ?? '').$ev['part']['text'];
-            }
-        }
-
-        return ['text' => $text, 'session' => $session];
-    }
-
-    /**
-     * The answer from `claude -p --output-format json`: one JSON object whose
-     * `result` holds the text (null on an error result or odd output).
-     */
-    public static function parseClaude(string $raw): ?string
-    {
-        $data = json_decode(trim($raw), true);
-        if (!\is_array($data) || true === ($data['is_error'] ?? false) || !\is_string($data['result'] ?? null)) {
-            return null;
-        }
-
-        return $data['result'];
+        return null !== $answer ? self::clean($answer) : null;
     }
 
     public static function clean(string $raw): ?string
     {
-        // The answer comes from the parsed JSON event stream (see parse())
-        // concatenated; ANSI noise is stripped anyway, then capped to MAX_WORDS.
+        // ANSI noise is stripped, then the answer is capped to MAX_WORDS.
         $text = preg_replace('/\s+/', ' ', trim($raw)) ?? '';
         $text = preg_replace('/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -\/]*[@-~])/', '', $text) ?? '';
         $text = trim($text, " \t\"'`*_");

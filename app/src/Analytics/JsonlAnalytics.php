@@ -73,7 +73,7 @@ final class JsonlAnalytics implements AnalyticsInterface
             'launched_at' => $launchedAt,
             // sha256 prefix of the launch prompt — lets the watcher attribute
             // the right OpenCode session without persisting any prompt text.
-            'prompt_fingerprint' => OpenCodeUsage::fingerprint($prompt),
+            'prompt_fingerprint' => PromptFingerprint::of($prompt),
             'prompt_len' => mb_strlen($prompt),
         ]);
     }

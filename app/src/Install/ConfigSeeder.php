@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Install;
 
-use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Support\PabloError;
@@ -14,21 +14,14 @@ use Pablo\Support\PabloPaths;
  * The ~/.pablo/config.yaml part of `pablo system:install`.
  *
  * A first install seeds it from the bundled examples/config.yaml and picks
- * the tools it finds (OpenCode is the default runtime, Orca the default
- * backend); an existing config is never rewritten, except for the keys an
+ * the tools it finds (AgentRuntimeRegistry::DEFAULT is the default runtime,
+ * Orca the default backend); an existing config is never rewritten, except for the keys an
  * explicit --runtime / --backend sets. Keys are edited line by line, so the
  * user's comments and layout survive.
  */
 final class ConfigSeeder
 {
-    public const RUNTIMES = ['opencode', 'claude-code', 'copilot'];
     public const BACKENDS = ['orca', 'openchamber', 'headless'];
-
-    /** The model a runtime switch writes; OpenCode's comes from the bundled example. */
-    private const MODEL_BY_RUNTIME = [
-        'claude-code' => 'sonnet',
-        'copilot' => 'claude-sonnet-5.5',
-    ];
 
     /** @var \Closure(string): bool */
     private readonly \Closure $hasCommand;
@@ -40,6 +33,7 @@ final class ConfigSeeder
         private readonly GlobalConfig $global,
         private readonly Config $config,
         ?\Closure $hasCommand = null,
+        private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
     ) {
         $this->hasCommand = $hasCommand ?? InstallPaths::hasCommand(...);
     }
@@ -51,14 +45,14 @@ final class ConfigSeeder
      */
     public static function validate(?string $runtime, ?string $backend): void
     {
-        if (null !== $runtime && !\in_array($runtime, self::RUNTIMES, true)) {
-            throw new PabloError("unknown --runtime '{$runtime}' (expected opencode, claude-code or copilot)");
+        if (null !== $runtime) {
+            AgentRuntimeRegistry::checkName($runtime, '--runtime');
         }
         if (null !== $backend && !\in_array($backend, self::BACKENDS, true)) {
             throw new PabloError("unknown --backend '{$backend}' (expected orca, openchamber or headless)");
         }
-        if ('openchamber' === $backend && null !== $runtime && 'opencode' !== $runtime) {
-            throw new PabloError("OpenChamber only works with OpenCode: --backend openchamber cannot run --runtime {$runtime}");
+        if (null !== $backend && null !== $runtime && null !== ($error = (new AgentRuntimeRegistry())->resolve($runtime)->backendError($backend))) {
+            throw new PabloError($error);
         }
     }
 
@@ -91,10 +85,10 @@ final class ConfigSeeder
 
         // Explicit choices (--runtime / --backend) win over what the config says.
         if (null !== $runtimeOption) {
-            $current = self::value($file, 'agent_runtime') ?? 'opencode';
+            $current = self::value($file, 'agent_runtime') ?? AgentRuntimeRegistry::DEFAULT;
             if ($runtimeOption !== $current) {
                 // The model id format follows the runtime, so it changes with it.
-                $model = self::MODEL_BY_RUNTIME[$runtimeOption] ?? (self::value(self::example(), 'default_model') ?? '');
+                $model = $this->runtimes->resolve($runtimeOption)->defaultModel();
                 self::set($file, 'default_model', $model);
                 $info("agent runtime {$current} -> {$runtimeOption}: set default_model: {$model}");
             }
@@ -108,17 +102,14 @@ final class ConfigSeeder
             $info('agent backend: '.('headless' === $backendOption ? 'none (agents run headless in the background)' : $backendOption));
         }
 
-        // --runtime, else PABLO_AGENT_RUNTIME, else agent_runtime, else opencode.
-        $runtime = $runtimeOption ?? self::env('PABLO_AGENT_RUNTIME') ?? self::value($file, 'agent_runtime') ?? AgentRuntimeInterface::OPENCODE;
-        if (!\in_array($runtime, self::RUNTIMES, true)) {
-            throw new PabloError("unknown agent_runtime '{$runtime}' (expected opencode, claude-code or copilot)");
-        }
-        // An OpenChamber backend (from the config, or kept from an earlier
-        // install) cannot drive another runtime: refuse now rather than fail
-        // at the first launch.
+        // --runtime, else PABLO_AGENT_RUNTIME, else agent_runtime, else the default.
+        $runtime = AgentRuntimeRegistry::checkName($runtimeOption ?? self::env('PABLO_AGENT_RUNTIME') ?? self::value($file, 'agent_runtime') ?? AgentRuntimeRegistry::DEFAULT);
+        // A backend (from the config, or kept from an earlier install) that
+        // cannot drive this runtime: refuse now rather than fail at the first
+        // launch.
         $backend = self::env('PABLO_AGENT_BACKEND') ?? self::value($file, 'agent_backend');
-        if ('openchamber' === $backend && 'opencode' !== $runtime) {
-            throw new PabloError("agent_backend: openchamber only works with OpenCode, not {$runtime}. Pass --backend orca (or edit {$file}).");
+        if (null !== $backend && null !== ($error = $this->runtimes->resolve($runtime)->backendError($backend))) {
+            throw new PabloError("{$error} (agent_backend is set in {$file}; or pass --backend orca)");
         }
         $info("agent runtime: {$runtime}");
 
@@ -186,20 +177,29 @@ final class ConfigSeeder
         $info("wrote default {$file} (edit it to set your default agent model, PR locale, sync strategy, ...)");
 
         $has = $this->hasCommand;
-        // Pick the agent runtime the user actually has: OpenCode is the
-        // default, so only switch when it is missing.
-        if (!$has('opencode') && $has('claude')) {
-            self::set($file, 'default_model', 'sonnet');
-            self::set($file, 'agent_runtime', 'claude-code');
-            $info('Claude Code found (and no OpenCode): set agent_runtime: claude-code, default_model: sonnet');
-        } elseif (!$has('opencode') && $has('copilot')) {
-            self::set($file, 'default_model', 'claude-sonnet-5.5');
-            self::set($file, 'agent_runtime', 'copilot');
-            $info('Copilot CLI found (and no OpenCode or Claude Code): set agent_runtime: copilot, default_model: claude-sonnet-5.5');
+        // Pick the agent runtime the user actually has: the default one,
+        // else the first one found in detection order.
+        $runtime = $this->runtimes->resolve(AgentRuntimeRegistry::DEFAULT);
+        if (!$has($runtime->binary())) {
+            $missing = [$runtime->label()];
+            foreach ($this->runtimes->all() as $candidate) {
+                if ($candidate->name() === $runtime->name()) {
+                    continue;
+                }
+                if (!$has($candidate->binary())) {
+                    $missing[] = $candidate->label();
+                    continue;
+                }
+                $runtime = $candidate;
+                self::set($file, 'default_model', $runtime->defaultModel());
+                self::set($file, 'agent_runtime', $runtime->name());
+                $info(\sprintf('%s found (and no %s): set agent_runtime: %s, default_model: %s', $runtime->label(), implode(' or ', $missing), $runtime->name(), $runtime->defaultModel()));
+                break;
+            }
         }
-        // Same for the backend: Orca is the default — and OpenChamber only
-        // runs OpenCode.
-        if (!$has('orca') && $has('openchamber') && $has('opencode')) {
+        // Same for the backend: Orca is the default — and OpenChamber cannot
+        // run every runtime.
+        if (!$has('orca') && $has('openchamber') && $has($runtime->binary()) && null === $runtime->backendError('openchamber')) {
             self::set($file, 'agent_backend', 'openchamber');
             $info('OpenChamber found (and no Orca): set agent_backend: openchamber');
         } elseif (!$has('orca')) {

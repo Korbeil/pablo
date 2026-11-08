@@ -7,8 +7,6 @@ namespace Pablo\Command\System;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
-use Pablo\Agents\Runtime\ClaudeCodeAgents;
-use Pablo\Agents\Runtime\CopilotAgents;
 use Pablo\App\Kernel;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
@@ -26,8 +24,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * Removes what `pablo system:install` created — the background services, the
- * links PABLO owns under ~/.config/opencode, ~/.claude and ~/.copilot (links
- * of a clone install included), the `pablo` command, the PATH block — plus
+ * links PABLO owns in every runtime's user directory (links of a clone
+ * install included), the `pablo` command, the PATH block — plus
  * the generated ~/.pablo/runtime and container caches. Runtime data in
  * ~/.pablo (config, projects, state, stamps, worktrees, logs) is kept.
  */
@@ -60,7 +58,10 @@ final class UninstallCommand extends Command
             }
         }
 
-        foreach ([PabloPaths::runtimeDir(), Kernel::binaryCacheRoot(), InstallPaths::legacyClaudeDir()] as $generated) {
+        foreach ($this->agentLaunchers->runtimes()->all() as $runtime) {
+            array_map($info, $runtime->agentFiles()->cleanupLegacy());
+        }
+        foreach ([PabloPaths::runtimeDir(), Kernel::binaryCacheRoot()] as $generated) {
             if (is_dir($generated)) {
                 Files::remove($generated);
                 $info("removed {$generated}");
@@ -90,28 +91,9 @@ final class UninstallCommand extends Command
     private function candidates(): array
     {
         $sources = $this->agentTemplates->templatesDir();
-        $commands = array_map(static fn (string $path): string => basename($path, '.md'), Files::list(AgentTemplates::commandsDirFor($sources), '*.md'));
-        $skills = array_map('basename', Files::list(AgentTemplates::skillsDirFor($sources), '*', dirsOnly: true));
-
-        $opencode = InstallPaths::opencodeDir();
-        $claude = InstallPaths::claudeDir();
-        $copilot = InstallPaths::copilotDir();
-
         $paths = [];
-        foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $paths[] = $opencode.'/agents/'.$name.'.md';
-            $paths[] = $claude.'/agents/'.ClaudeCodeAgents::agentId($name).'.md';
-            $paths[] = $copilot.'/agents/'.CopilotAgents::agentId($name).'.agent.md';
-        }
-        foreach ($commands as $command) {
-            $paths[] = $opencode.'/commands/'.$command.'.md';
-            $paths[] = $claude.'/commands/'.$command.'.md';
-            $paths[] = $copilot.'/skills/'.$command;
-        }
-        foreach ($skills as $skill) {
-            $paths[] = $opencode.'/skill/'.$skill;
-            $paths[] = $claude.'/skills/'.$skill;
-            $paths[] = $copilot.'/skills/'.$skill;
+        foreach ($this->agentLaunchers->runtimes()->all() as $runtime) {
+            $paths = [...$paths, ...$runtime->agentFiles()->installedPaths($sources)];
         }
 
         return $paths;

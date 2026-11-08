@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Analytics;
 
-use Pablo\Analytics\OpenCodeUsage;
+use Pablo\Agents\Runtime\OpenCode\OpenCodeUsage;
 use Pablo\Command\Internal\WatchAgentCommand;
 use Pablo\Command\Task\CloseCommand;
 use Pablo\Command\Task\StartCommand;
