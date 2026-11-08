@@ -597,6 +597,25 @@ final class PollerTest extends TestCase
         $this->assertSame(7, $analytics->closed[0]->prNumber);
     }
 
+    public function testMergeCloseForgetsTheWorktreeInClaudeCode(): void
+    {
+        $e = $this->newEnv();
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'])); // its worktree folder does not exist
+        $this->stubs['merged'] = true;
+        $claudeJson = $e['tmp'].'/.claude.json';
+        file_put_contents($claudeJson, json_encode(['projects' => [$e['tmp'].'/wt/pr-1' => ['hasTrustDialogAccepted' => true]]], \JSON_THROW_ON_ERROR));
+        putenv('PABLO_CLAUDE_JSON='.$claudeJson);
+        try {
+            $this->analyticsPoller(new FakeAnalytics())->pollProject($this->cfg($e['tmp']), $store, $this->agents);
+        } finally {
+            putenv('PABLO_CLAUDE_JSON=/nonexistent/pablo-tests/.claude.json');
+        }
+
+        $this->assertNull($this->getTask($store));
+        $this->assertSame(['projects' => []], json_decode((string) file_get_contents($claudeJson), true));
+    }
+
     public function testPrNumberDiscoveredForDraft(): void
     {
         $e = $this->newEnv();

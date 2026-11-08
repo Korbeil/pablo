@@ -69,6 +69,21 @@ final class ClaudeTrustTest extends TestCase
         $this->assertSame(['projects' => ['/w' => ['hasTrustDialogAccepted' => true, 'history' => [1]]]], json_decode((string) file_get_contents($this->file), true));
     }
 
+    /** A closed task's worktree: its entry goes, an existing folder's stays. */
+    public function testForgetDropsOnlyEntriesOfFoldersThatAreGone(): void
+    {
+        file_put_contents($this->file, json_encode(['userID' => 'u', 'projects' => [
+            $this->tmp.'/gone' => ['hasTrustDialogAccepted' => true, 'history' => [1]],
+            $this->tmp => ['hasTrustDialogAccepted' => true],
+        ]], \JSON_THROW_ON_ERROR));
+
+        $this->assertTrue(ClaudeTrust::forget([$this->tmp.'/gone/', $this->tmp], $this->file));
+        $this->assertSame(['userID' => 'u', 'projects' => [$this->tmp => ['hasTrustDialogAccepted' => true]]], json_decode((string) file_get_contents($this->file), true));
+
+        $this->assertFalse(ClaudeTrust::forget([$this->tmp.'/gone'], $this->file), 'nothing left to drop');
+        $this->assertFalse(ClaudeTrust::forget(['/x'], $this->tmp.'/missing.json'));
+    }
+
     public function testAMissingOrBrokenFileIsNeverWritten(): void
     {
         $this->assertStringContainsString('not found', ClaudeTrust::trust(['/w'], $this->file)[0]);
