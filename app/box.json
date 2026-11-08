@@ -24,6 +24,5 @@
     "dump-autoload": false,
     "exclude-composer-files": false,
     "check-requirements": false,
-    "compression": "GZ",
-    "git-version": "package_version"
+    "compression": "GZ"
 }

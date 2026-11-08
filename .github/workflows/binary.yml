@@ -5,7 +5,7 @@ name: Binary
 #
 # Releases: `castor release:create` dispatches this workflow on main with
 # release=true. Only once the four builds pass does the release job create a
-# GitHub Release named after the commit's short hash (tag and title), with
+# GitHub Release named after the commit's SHA, first 7 characters (tag and title), with
 # the binaries and their sha256sums.txt, flagged "latest" unless latest=false.
 # Creating the release last means `releases/latest` (what
 # https://getpablo.dev/installer and `pablo update` read) never points at a
@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Publish a GitHub Release named after the commit's short hash (main only)"
+        description: "Publish a GitHub Release named after the commit SHA's first 7 characters (main only)"
         type: boolean
         default: false
       latest:
@@ -63,9 +63,6 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v7
-        with:
-          # Box's git-version needs the tags (else it falls back to the commit hash).
-          fetch-depth: 0
 
       - name: setup PHP (build only)
         uses: shivammathur/setup-php@v2
@@ -83,6 +80,18 @@ jobs:
       - name: compile the dashboard assets
         working-directory: app
         run: php bin/console asset-map:compile --env=prod --no-debug
+
+      # The version written into the binary is the release name: the first
+      # 7 characters of the commit SHA (fixed length, unlike %h or
+      # `git describe`). Same value as castor.php and the release job.
+      - name: version
+        run: |
+          php -r '
+            $config = json_decode(file_get_contents("app/box.json"), true, flags: JSON_THROW_ON_ERROR);
+            $config["replacements"] = ["package_version" => substr(getenv("GITHUB_SHA"), 0, 7)];
+            file_put_contents("app/box.json", json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+          '
+          grep -A2 replacements app/box.json
 
       - name: box compile
         working-directory: app
@@ -103,7 +112,7 @@ jobs:
       # actions/cache keys cannot contain commas: the extension list goes in with dashes.
       - name: static-php-cli cache key
         id: spc-key
-        run: echo "key=spc-${{ matrix.target }}-php${PHP_VERSION}-$(printf '%s' "$EXTENSIONS" | tr ',' '-')" >> "$GITHUB_OUTPUT"
+        run: echo "key=spc-${{ matrix.target }}-php${PHP_VERSION}-$(printf '%s' "$EXTENSIONS" | tr ',' '-')-micro-cli" >> "$GITHUB_OUTPUT"
 
       - name: cache static-php-cli downloads and build
         uses: actions/cache@v6
@@ -113,16 +122,24 @@ jobs:
             ${{ runner.temp }}/spc/buildroot
           key: ${{ steps.spc-key.outputs.key }}
 
-      - name: build micro.sfx
+      # micro.sfx runs PABLO; the PHP CLI (same version and extensions) is
+      # embedded as bin/php, for `pablo web`: micro has no php -S.
+      - name: build micro.sfx and the PHP CLI
         working-directory: ${{ runner.temp }}/spc
         run: |
-          if [ -f buildroot/bin/micro.sfx ]; then
-            echo "micro.sfx restored from cache"
+          if [ -f buildroot/bin/micro.sfx ] && [ -f buildroot/bin/php ]; then
+            echo "micro.sfx and php restored from cache"
             exit 0
           fi
           ./spc doctor --auto-fix
-          ./spc download --for-extensions="$EXTENSIONS" --with-php="$PHP_VERSION" --prefer-pre-built
-          ./spc build "$EXTENSIONS" --build-micro
+          ./spc download --for-extensions="$EXTENSIONS" --with-php="$PHP_VERSION" --prefer-pre-built --retry=3
+          ./spc build "$EXTENSIONS" --build-micro --build-cli
+
+      # Same as embed_php_cli() in castor.php.
+      - name: embed the PHP CLI
+        run: |
+          php_cli="$RUNNER_TEMP/spc/buildroot/bin/php"
+          "$php_cli" -n -d phar.readonly=0 -r '$p = new Phar($argv[1]); $p->addFile($argv[2], "bin/php"); $p["bin/php"]->compress(Phar::GZ);' -- dist/pablo.phar "$php_cli"
 
       - name: micro:combine
         working-directory: ${{ runner.temp }}/spc
@@ -136,10 +153,22 @@ jobs:
       - name: smoke test (Linux, no PHP installed)
         if: startsWith(matrix.target, 'linux-')
         run: |
-          docker run --rm -v "$GITHUB_WORKSPACE/dist:/dist:ro" -e HOME=/tmp debian:stable-slim sh -euc '
+          docker run --rm -v "$GITHUB_WORKSPACE/dist:/dist:ro" -e HOME=/tmp debian:stable-slim bash -euc '
             if command -v php >/dev/null 2>&1; then echo "php must not be installed here" >&2; exit 1; fi
-            /dist/pablo-${{ matrix.target }} --version
-            /dist/pablo-${{ matrix.target }} list
+            pablo=/dist/pablo-${{ matrix.target }}
+            $pablo --version
+            $pablo list
+            # The dashboard, from the PHP CLI the binary carries; parallel
+            # requests too, as a browser loading the page and its assets sends.
+            mkdir -p /tmp/.pablo/projects
+            $pablo web --port 18321 > /tmp/web.log 2>&1 &
+            get() { exec 3<>/dev/tcp/127.0.0.1/18321 && printf "GET $1 HTTP/1.0\r\nHost: 127.0.0.1\r\n\r\n" >&3 && head -n 1 <&3; }
+            for i in $(seq 1 60); do (exec 3<>/dev/tcp/127.0.0.1/18321) 2>/dev/null && break; sleep 0.5; done
+            pids=""
+            for i in $(seq 1 12); do get / > /tmp/status-$i & pids="$pids $!"; done
+            for pid in $pids; do wait $pid || true; done
+            cat /tmp/status-*
+            if grep -L " 200 " /tmp/status-* | grep -q .; then cat /tmp/web.log; exit 1; fi
           '
 
       - name: smoke test (macOS)
@@ -149,6 +178,15 @@ jobs:
           mkdir -p "$HOME"
           dist/pablo-${{ matrix.target }} --version
           dist/pablo-${{ matrix.target }} list
+          mkdir -p "$HOME/.pablo/projects"
+          dist/pablo-${{ matrix.target }} web --port 18321 > "$RUNNER_TEMP/web.log" 2>&1 &
+          for i in $(seq 1 60); do curl -fs -o /dev/null http://127.0.0.1:18321/ && break; sleep 0.5; done
+          pids=""
+          for i in $(seq 1 12); do curl -fs -o /dev/null -w '%{http_code}\n' http://127.0.0.1:18321/ & pids="$pids $!"; done
+          failed=0
+          for pid in $pids; do wait "$pid" || failed=1; done
+          kill %1
+          if [ "$failed" = 1 ]; then cat "$RUNNER_TEMP/web.log"; exit 1; fi
 
       - name: upload
         uses: actions/upload-artifact@v5
@@ -165,17 +203,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: checkout
-        uses: actions/checkout@v7
-        with:
-          # Full history, as in the build job: %h's length depends on it.
-          fetch-depth: 0
-
-      # The same short hash Box wrote into the binaries (`git-version` falls
-      # back to `git log --pretty=%h` on an untagged commit).
+      # The same 7-character SHA the build job wrote into the binaries.
       - name: release name
         id: name
-        run: echo "tag=$(git log --pretty=%h -n1 HEAD)" >> "$GITHUB_OUTPUT"
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: download the binaries
         uses: actions/download-artifact@v5
@@ -190,6 +221,16 @@ jobs:
           chmod +x pablo-*
           sha256sum pablo-* > sha256sums.txt
           cat sha256sums.txt
+
+      # `pablo update` compares this output with the release name: they must match.
+      - name: the binaries report the release name
+        env:
+          TAG: ${{ steps.name.outputs.tag }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/home"
+          version="$(HOME="$RUNNER_TEMP/home" release/pablo-linux-x86_64 --version)"
+          echo "$version"
+          [ "$version" = "pablo $TAG" ] || { echo "expected: pablo $TAG" >&2; exit 1; }
 
       - name: publish
         env:

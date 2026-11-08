@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Update;
 
 use Pablo\App\ConsoleApplication;
+use Pablo\Dispatch\Dispatch;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProbeResult;
@@ -26,6 +27,9 @@ final class Updater
     public const DEFAULT_RELEASES_URL = 'https://github.com/Korbeil/pablo/releases';
 
     private const DOWNLOAD_TIMEOUT_S = 300.0;
+
+    /** A dispatch run is stopped by its service after 10 minutes (TimeoutStartSec). */
+    public const DISPATCH_WAIT_S = 600.0;
 
     /**
      * @param string|null $binaryPath override of the running binary (tests); '' outside one
@@ -81,7 +85,7 @@ final class Updater
 
     /**
      * Whether $latest should replace $current. Releases are named after the
-     * short hash of their commit (`castor release:create`), which carries no
+     * first 7 characters of their commit SHA (`castor release:create`), which carries no
      * order: any other name than the running one is installed, so moving the
      * "latest" flag back to an older release rolls everyone back. Only
      * semver-looking names (vX.Y.Z) are compared, never to downgrade.
@@ -144,8 +148,14 @@ final class Updater
             // container cache does not land in ~/.pablo/cache.
             @mkdir($tmp.'/home', 0o700);
             $check = $this->runner->probe(['env', 'HOME='.$tmp.'/home', $tmp.'/'.$asset, '--version'], 120.0);
-            if (0 !== $check->exitCode || !str_contains($check->output, 'pablo')) {
+            if (0 !== $check->exitCode) {
                 throw new PabloError("the downloaded binary does not run: {$check->output}");
+            }
+            // It must report the release it was downloaded as, or every later
+            // `pablo update` would see a different name and reinstall it.
+            $reported = trim(strtok($check->output, "\n") ?: '');
+            if ("pablo {$version}" !== $reported) {
+                throw new PabloError("the downloaded binary reports '{$reported}', not 'pablo {$version}': nothing was changed");
             }
 
             if (!@rename($tmp.'/'.$asset, $binary)) {
@@ -158,12 +168,57 @@ final class Updater
     }
 
     /**
-     * `system:install` run by the (new) binary, so its own templates, units
-     * and container are used.
+     * Take the global dispatch lock, waiting for a running dispatch (sync,
+     * poll, main update) to finish: swapping the binary and pruning the old
+     * version's container under a run of the old binary would crash it. While
+     * the lock is held, scheduler ticks skip. Release it with fclose().
+     *
+     * @param \Closure(string): void $info
+     *
+     * @return resource
+     *
+     * @throws PabloError when the lock cannot be had within $timeoutS
      */
-    public function runInstall(): ProbeResult
+    public function lockDispatch(\Closure $info, float $timeoutS = self::DISPATCH_WAIT_S, float $pollS = 2.0)
     {
-        return $this->runner->probe([$this->binaryPath(), 'system:install', '--no-interaction'], 900.0);
+        $path = Dispatch::lockPath();
+        $dir = \dirname($path);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0o777, true);
+        }
+        $fd = @fopen($path, 'c+');
+        if (false === $fd) {
+            throw new PabloError("cannot open {$path}");
+        }
+        $deadline = microtime(true) + $timeoutS;
+        $waiting = false;
+        while (!flock($fd, \LOCK_EX | \LOCK_NB)) {
+            if (microtime(true) >= $deadline) {
+                fclose($fd);
+                throw new PabloError('a PABLO dispatch run is still in progress: try pablo update again in a few minutes');
+            }
+            if (!$waiting) {
+                $info('waiting for the running dispatch (sync/poll) to finish…');
+                $waiting = true;
+            }
+            usleep((int) ($pollS * 1_000_000));
+        }
+
+        return $fd;
+    }
+
+    /**
+     * `system:install` run by the (new) binary, so its own templates, units
+     * and container are used. $withWeb keeps a `--without-web` choice.
+     */
+    public function runInstall(bool $withWeb = true): ProbeResult
+    {
+        $argv = [$this->binaryPath(), 'system:install', '--no-interaction'];
+        if (!$withWeb) {
+            $argv[] = '--without-web';
+        }
+
+        return $this->runner->probe($argv, 900.0);
     }
 
     /** The sha256 of $asset in a `sha256sum` listing, or null. */

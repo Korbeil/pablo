@@ -65,7 +65,7 @@
   </tbody>
 </table>
 
-<p>Run it again to <a href="#update">update</a>. It stops only when a <code>pablo</code> command that is not PABLO is in the way. An older install made from a clone of the repository is <a href="#migrating-from-a-clone-install">migrated</a>.</p>
+<p>Run it again to <a href="#update">update</a>. It stops only when a <code>pablo</code> command that is not PABLO is in the way, in <code>~/.local/bin</code> or on your <code>PATH</code>; another PABLO elsewhere on your <code>PATH</code> is only warned about, since it may shadow the new one. An older install made from a clone of the repository is <a href="#migrating-from-a-clone-install">migrated</a>.</p>
 
 <h3 id="what-pablo-system-install-does">What <code>pablo system:install</code> does</h3>
 
@@ -206,7 +206,7 @@ pablo update --check   # only tell whether a newer release exists
 pablo update 5b34e92   # install that release instead (an older one too)
 </code></pre>
 
-<p>PABLO updates itself: it finds the <a href="https://github.com/Korbeil/pablo/releases">release</a> flagged <em>latest</em> (releases are named after the commit they were built from) and, when it is not the one you run, downloads its binary for your OS and processor with <code>curl</code>, checks it against the release's <code>sha256sums.txt</code>, runs it once, then swaps it in place of the current one (a failed check changes nothing). It then runs <code>pablo system:install</code> with the new binary, which picks up new agents and links and restarts the dashboard; <code>--no-install</code> skips that step. Your choices in <code>~/.pablo/config.yaml</code> and your data in <code>~/.pablo/</code> are kept. Each version compiles its own cache in <code>~/.pablo/cache/container/&lt;version&gt;/</code>; the install removes the ones of other versions.</p>
+<p>PABLO updates itself: it finds the <a href="https://github.com/Korbeil/pablo/releases">release</a> flagged <em>latest</em> (releases are named after the commit they were built from) and, when it is not the one you run, downloads its binary for your OS and processor with <code>curl</code>, checks it against the release's <code>sha256sums.txt</code>, runs it once, then swaps it in place of the current one (a failed check changes nothing). It then runs <code>pablo system:install</code> with the new binary, which picks up new agents and links and restarts the dashboard; <code>--no-install</code> skips that step. A dashboard you opted out of (<code>--without-web</code>) stays off. If the background job is running (a sync or a poll), the update first waits for it to finish, up to 10 minutes, and no new run starts until the update is done. Your choices in <code>~/.pablo/config.yaml</code> and your data in <code>~/.pablo/</code> are kept. Each version compiles its own cache in <code>~/.pablo/cache/container/&lt;version&gt;/</code>; the install removes the ones of other versions.</p>
 
 <p>Running the installer again (<code>curl -fsSL https://getpablo.dev/installer | bash</code>) does the same, and also takes a release with <code>--version</code>. The releases are listed on <a href="https://github.com/Korbeil/pablo/releases">GitHub</a>.</p>
 

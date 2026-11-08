@@ -8,6 +8,7 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Update\Updater;
@@ -29,6 +30,7 @@ final class UpdateCommand extends Command
 {
     public function __construct(
         private readonly Updater $updater,
+        private readonly SchedulerFactory $schedulers,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -84,25 +86,36 @@ final class UpdateCommand extends Command
             return self::SUCCESS;
         }
 
+        // Read before anything changes: a --without-web install stays without.
+        $withWeb = $this->schedulers->create()->hasWebService();
+
+        // No dispatch run of the old binary may overlap the swap and the
+        // pruning of its container; ticks skip while this is held.
+        $lock = $this->updater->lockDispatch($info);
         try {
-            $this->updater->update($target, $info);
-        } catch (PabloError $e) {
-            throw null !== $requested ? new PabloError($e->getMessage()." (is {$target} a PABLO release? See castor release:list or https://github.com/Korbeil/pablo/releases)") : $e;
+            try {
+                $this->updater->update($target, $info);
+            } catch (PabloError $e) {
+                throw null !== $requested ? new PabloError($e->getMessage()." (is {$target} a PABLO release? See castor release:list or https://github.com/Korbeil/pablo/releases)") : $e;
+            }
+            $output->writeln("PABLO updated: {$current} → <info>{$target}</info>");
+
+            if ($input->getOption('no-install')) {
+                $output->writeln('Run <info>pablo system:install</info> to refresh the agents and restart the services.');
+
+                return self::SUCCESS;
+            }
+
+            // The new binary, not this process: it brings its own templates and units.
+            $info("running {$binary} system:install".($withWeb ? '' : ' --without-web'));
+            $result = $this->updater->runInstall($withWeb);
+        } finally {
+            fclose($lock);
         }
-        $output->writeln("PABLO updated: {$current} → <info>{$target}</info>");
 
-        if ($input->getOption('no-install')) {
-            $output->writeln('Run <info>pablo system:install</info> to refresh the agents and restart the services.');
-
-            return self::SUCCESS;
-        }
-
-        // The new binary, not this process: it brings its own templates and units.
-        $info("running {$binary} system:install");
-        $result = $this->updater->runInstall();
         $output->writeln($result->output);
         if (0 !== $result->exitCode) {
-            $output->writeln("<error>system:install failed: fix the error above, then run: {$binary} system:install</error>");
+            $output->writeln("<error>system:install failed: fix the error above, then run: {$binary} system:install".($withWeb ? '' : ' --without-web').'</error>');
 
             return self::FAILURE;
         }

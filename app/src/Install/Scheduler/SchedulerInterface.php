@@ -26,4 +26,10 @@ interface SchedulerInterface
 
     /** @param \Closure(string): void $info */
     public function uninstall(\Closure $info): void;
+
+    /**
+     * Whether PABLO's dashboard service is installed — false after
+     * `--without-web`, which `pablo update` must keep.
+     */
+    public function hasWebService(): bool;
 }

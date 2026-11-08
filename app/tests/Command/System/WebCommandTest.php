@@ -10,13 +10,12 @@ use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Store\Store;
 use Pablo\Tests\FakeAgents;
-use Pablo\Web\Server;
+use Pablo\Web\PhpServer;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresFunction;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
-use Symfony\Component\Console\Output\NullOutput;
 use Symfony\Component\Console\Tester\CommandTester;
 use Symfony\Component\Process\Process;
 
@@ -43,22 +42,20 @@ final class WebCommandTest extends TestCase
     public function testNeverBindsBeyondLoopback(): void
     {
         $this->assertSame('127.0.0.1', WebCommand::HOST);
-        $this->assertSame('127.0.0.1', Server::HOST);
+        foreach ([80, 8321, 65535] as $port) {
+            $this->assertSame('127.0.0.1:'.$port, (new PhpServer())->command($port)[2]);
+        }
     }
 
-    public function testServesTheAppPublicDir(): void
+    /** From a checkout: the PHP running PABLO, serving app/public through its front controller. */
+    public function testFromACheckoutItRunsThePhpBuiltInServerOnAppPublic(): void
     {
-        $this->assertSame(realpath(\dirname(__DIR__, 3).'/public'), realpath(WebCommand::publicDir()));
-        $this->assertInstanceOf(Server::class, $this->command()->server(new NullOutput()));
-    }
+        $command = (new PhpServer())->command(9000);
 
-    /** No `php -S` anywhere: the standalone binary has no built-in server. */
-    public function testDoesNotShellOutToThePhpBuiltInServer(): void
-    {
-        $source = (string) file_get_contents((new \ReflectionClass(WebCommand::class))->getFileName() ?: '');
-
-        $this->assertStringNotContainsString('PHP_BINARY', $source);
-        $this->assertStringNotContainsString("'-S'", $source);
+        $this->assertSame([\PHP_BINARY, '-S', '127.0.0.1:9000', '-t'], \array_slice($command, 0, 4));
+        $this->assertSame(realpath(\dirname(__DIR__, 3).'/public'), realpath($command[4]));
+        $this->assertSame(realpath(\dirname(__DIR__, 3).'/public/index.php'), realpath($command[5]));
+        $this->assertSame(['PHP_CLI_SERVER_WORKERS' => '4', 'PABLO_ENV' => 'prod'], PhpServer::environment('prod'));
     }
 
     /** @return iterable<string, array{string}> */
@@ -141,7 +138,14 @@ final class WebCommandTest extends TestCase
         $this->process->setTimeout(120);
         $this->process->start();
         $this->process->waitUntil(static fn (string $type, string $output): bool => str_contains($output, 'ctrl-c'));
-        $this->assertTrue($this->process->isRunning(), $this->process->getErrorOutput());
+        // `pablo web` prints its banner before `php -S` is listening.
+        $deadline = microtime(true) + 20;
+        while (false === ($probe = @stream_socket_client('tcp://127.0.0.1:'.$port, $errno, $errstr, 1))) {
+            $this->assertTrue($this->process->isRunning(), $this->process->getOutput().$this->process->getErrorOutput());
+            $this->assertLessThan($deadline, microtime(true), 'php -S never started listening');
+            usleep(100_000);
+        }
+        fclose($probe);
 
         return $port;
     }

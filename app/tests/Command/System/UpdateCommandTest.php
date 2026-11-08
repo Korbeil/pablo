@@ -8,6 +8,8 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Command\System\UpdateCommand;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
+use Pablo\Dispatch\Dispatch;
+use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Store\Store;
 use Pablo\Support\ProbeResult;
 use Pablo\Tests\FakeAgents;
@@ -25,12 +27,24 @@ final class UpdateCommandTest extends TestCase
     private string $latest = 'v2.0.0';
     private int $installExit = 0;
 
+    /** The release the fake curl last downloaded: what the fake new binary reports. */
+    private string $downloaded = '';
+
+    /** @var array<string, string|false> */
+    private array $savedEnv = [];
+
     protected function setUp(): void
     {
         $this->tmp = sys_get_temp_dir().'/pablo-update-cmd-'.bin2hex(random_bytes(4));
         mkdir($this->tmp, 0o777, true);
         $this->binary = $this->tmp.'/pablo';
         file_put_contents($this->binary, "OLD\n");
+        foreach (['HOME', 'PABLO_STAMPS_DIR'] as $name) {
+            $this->savedEnv[$name] = getenv($name);
+        }
+        putenv('HOME='.$this->tmp.'/home');
+        putenv('PABLO_STAMPS_DIR='.$this->tmp.'/stamps');
+        $this->withWebService(true);
 
         $new = "#!/bin/sh\necho 'pablo v2.0.0'\n";
         $this->runner = new FakeProcessRunner();
@@ -39,12 +53,15 @@ final class UpdateCommandTest extends TestCase
                 return new ProbeResult(0, Updater::DEFAULT_RELEASES_URL.'/tag/'.$this->latest);
             }
             if ('curl' === $argv[0]) {
+                if (1 === preg_match('#/download/([^/]+)/#', $argv[4], $m)) {
+                    $this->downloaded = $m[1];
+                }
                 file_put_contents($argv[3], str_ends_with($argv[4], 'sha256sums.txt') ? hash('sha256', $new)."  pablo-linux-x86_64\n" : $new);
 
                 return new ProbeResult(0, '');
             }
             if ('env' === $argv[0]) {
-                return new ProbeResult(0, 'pablo v2.0.0');
+                return new ProbeResult(0, 'pablo '.$this->downloaded);
             }
 
             return new ProbeResult($this->installExit, 'install output');
@@ -53,6 +70,9 @@ final class UpdateCommandTest extends TestCase
 
     protected function tearDown(): void
     {
+        foreach ($this->savedEnv as $name => $value) {
+            putenv(false === $value ? $name : $name.'='.$value);
+        }
         exec('rm -rf '.escapeshellarg($this->tmp));
     }
 
@@ -152,6 +172,74 @@ final class UpdateCommandTest extends TestCase
         $this->assertSame("OLD\n", file_get_contents($this->binary));
     }
 
+    public function testAWithoutWebInstallStaysWithoutTheDashboard(): void
+    {
+        $this->withWebService(false);
+
+        $tester = $this->runUpdate([]);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertContains([$this->binary, 'system:install', '--no-interaction', '--without-web'], $this->runner->probeCalls);
+    }
+
+    public function testWaitsForARunningDispatchAndGivesUpWithoutChangingAnything(): void
+    {
+        mkdir($this->tmp.'/stamps', 0o777, true);
+        $held = fopen(Dispatch::lockPath(), 'c+');
+        $this->assertNotFalse($held);
+        $this->assertTrue(flock($held, \LOCK_EX | \LOCK_NB));
+
+        try {
+            $updater = new Updater($this->runner, $this->binary, 'v1.0.0', 'linux-x86_64');
+            $this->expectExceptionMessage('dispatch run is still in progress');
+            $updater->lockDispatch(static function (string $line): void {}, 0.2, 0.05);
+        } finally {
+            fclose($held);
+            $this->assertSame("OLD\n", file_get_contents($this->binary));
+        }
+    }
+
+    public function testTheDispatchLockIsHeldDuringTheSwapAndReleasedAfter(): void
+    {
+        $heldDuringInstall = null;
+        $previous = $this->runner->onProbe;
+        \assert(\is_callable($previous));
+        $this->runner->onProbe = static function (array $argv) use ($previous, &$heldDuringInstall): ProbeResult {
+            if (\in_array('system:install', $argv, true)) {
+                $fd = fopen(Dispatch::lockPath(), 'c+');
+                $heldDuringInstall = false === $fd || !flock($fd, \LOCK_EX | \LOCK_NB);
+                if (false !== $fd) {
+                    fclose($fd);
+                }
+            }
+
+            return ($previous)($argv);
+        };
+
+        $this->assertSame(0, $this->runUpdate([])->getStatusCode());
+
+        $this->assertTrue($heldDuringInstall, 'a dispatch tick must not start while system:install runs');
+        $fd = fopen(Dispatch::lockPath(), 'c+');
+        $this->assertNotFalse($fd);
+        $this->assertTrue(flock($fd, \LOCK_EX | \LOCK_NB), 'the lock is released afterwards');
+        fclose($fd);
+    }
+
+    public function testABinaryReportingAnotherVersionIsRefused(): void
+    {
+        $previous = $this->runner->onProbe;
+        \assert(\is_callable($previous));
+        $this->runner->onProbe = static fn (array $argv): ProbeResult => 'env' === $argv[0]
+            ? new ProbeResult(0, 'pablo aaaaaaa-3-gbbbbbbb')
+            : ($previous)($argv);
+
+        $tester = $this->runUpdate([]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("reports 'pablo aaaaaaa-3-gbbbbbbb', not 'pablo v2.0.0'", $tester->getDisplay());
+        $this->assertSame("OLD\n", file_get_contents($this->binary));
+    }
+
     public function testIsAlsoCalledUpdate(): void
     {
         $this->assertContains('update', $this->command(new Updater($this->runner))->getAliases());
@@ -177,9 +265,21 @@ final class UpdateCommandTest extends TestCase
         return $tester;
     }
 
+    /** A PABLO dashboard unit in the sandbox HOME, or none (a --without-web install). */
+    private function withWebService(bool $installed): void
+    {
+        $unit = $this->tmp.'/home/.config/systemd/user/pablo-web.service';
+        if ($installed) {
+            @mkdir(\dirname($unit), 0o777, true);
+            file_put_contents($unit, "# marker: pablo-web.service\n");
+        } else {
+            @unlink($unit);
+        }
+    }
+
     private function command(Updater $updater): UpdateCommand
     {
-        $command = new UpdateCommand($updater, new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), new FakeAgents());
+        $command = new UpdateCommand($updater, new SchedulerFactory($this->runner, 'Linux'), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), new FakeAgents());
         (new Application())->addCommand($command);
 
         return $command;

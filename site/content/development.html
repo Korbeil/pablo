@@ -43,7 +43,7 @@
     <tr><td><code>Analytics/</code></td><td>the JSONL event log, reader and aggregator</td></tr>
     <tr><td><code>Listing/</code></td><td>the terminal tables</td></tr>
     <tr><td><code>Dashboard/</code>, <code>Controller/</code>, <code>Twig/Components/</code></td><td>the dashboard</td></tr>
-    <tr><td><code>Web/</code></td><td>the dashboard's HTTP server (<code>pablo web</code>)</td></tr>
+    <tr><td><code>Web/</code></td><td>how <code>pablo web</code> runs PHP's built-in server, from a checkout or from the binary</td></tr>
     <tr><td><code>Update/</code></td><td><code>pablo update</code>: finds, verifies and swaps in the latest release binary</td></tr>
     <tr><td><code>Install/</code></td><td><code>pablo system:install</code> / <code>system:uninstall</code>: config seeding, links, <code>PATH</code> block, the systemd and launchd schedulers</td></tr>
     <tr><td><code>Doctor/</code>, <code>Dispatch/</code>, <code>Backup/</code>, <code>Support/</code></td><td>preflight checks, the background job, backups, helpers</td></tr>
@@ -55,7 +55,7 @@
 <ul>
   <li><b>One kernel, three entry points.</b> <code>bin/pablo</code>, <code>bin/console</code> and the dashboard share one FrameworkBundle kernel. From a checkout its container is cached in <code>app/var/cache/&lt;env&gt;</code> and <code>PABLO_ENV</code> defaults to <code>dev</code>, so the cache is revalidated after a <code>git pull</code>. From the binary (a read-only phar) it is cached in <code>~/.pablo/cache/container/&lt;version&gt;/&lt;env&gt;-&lt;hash&gt;</code> and <code>PABLO_ENV</code> defaults to <code>prod</code>: a new version never reuses an old container.</li>
   <li><b>Bundled files are read-only.</b> Templates, service files and the example config may sit inside the binary: read them through <code>PabloPaths::resourcesDir()</code>, list them with <code>Support\Files::list()</code> (<code>glob()</code> sees nothing inside a phar), and write whatever is rendered from them under <code>~/.pablo/runtime/</code>.</li>
-  <li><b>The dashboard server</b> (<code>Web\Server</code>) is plain PHP, used from a checkout and from the binary alike: 127.0.0.1 only, four pre-forked workers that each boot the kernel once, one request per connection. A service that memoises something must implement <code>ResetInterface</code>, which the kernel calls between two requests.</li>
+  <li><b>The dashboard</b> runs on <code>php -S</code> (<code>Web\PhpServer</code>), 127.0.0.1 only, four workers. The binary's <code>micro</code> SAPI has no <code>php -S</code>, so the binary carries a static PHP CLI (<code>bin/php</code> in the phar); <code>pablo web</code> extracts it with a plain copy of the phar (the bytes after the micro prefix, which a regular PHP can read) and a router, then serves the compiled assets from inside the phar through <code>public/index.php</code>. Never fork a process that already reads the phar: the children share its file handle, and concurrent reads corrupt each other.</li>
   <li><b>Never resolve a <code>PABLO_*</code> variable (or <code>HOME</code>) when the container is compiled</b>: the value would be frozen into the cache. <code>Store</code> and <code>Agents</code> resolve their paths in their constructors for this reason.</li>
   <li><b><code>pablo --help</code> lists PABLO commands only</b>: the console application collects the <code>pablo.command</code> tag, not <code>console.command</code>.</li>
   <li><b>Add a state</b>: a case in <code>Domain/State.php</code> and a row in <code>StateMachine::states()</code>. Always change state through <code>StateMachine::enterState()</code>, never by setting the field.</li>
@@ -84,15 +84,16 @@ php app/bin/console lint:twig app/templates
 
 <h2 id="the-standalone-binary">The standalone binary</h2>
 
-<p>What users install is one file per platform: the application packed into a phar by <a href="https://box-project.github.io/box/">Box</a> (<code>app/box.json</code>), appended to a static PHP built by <a href="https://static-php.dev/">static-php-cli</a> (<code>micro.sfx</code>). It carries everything: <code>vendor/</code> without dev dependencies, the compiled dashboard assets (<code>asset-map:compile</code>), the agent templates, the service files and <code>examples/config.yaml</code>. Its version is the git tag (or the short commit hash), and a checkout reports <code>dev</code>.</p>
+<p>What users install is one file per platform: the application packed into a phar by <a href="https://box-project.github.io/box/">Box</a> (<code>app/box.json</code>), appended to a static PHP built by <a href="https://static-php.dev/">static-php-cli</a> (<code>micro.sfx</code>). It carries everything: <code>vendor/</code> without dev dependencies, the compiled dashboard assets (<code>asset-map:compile</code>), the agent templates, the service files and <code>examples/config.yaml</code>. Its version is the first 7 characters of the commit SHA, and a checkout reports <code>dev</code>.</p>
 
-<pre><code class="language-bash">castor build:binary                                    # dist/pablo.phar (needs a PHP to run)
-castor build:binary --micro=path/to/micro.sfx --spc=spc  # + dist/pablo, the standalone binary
+<pre><code class="language-bash">castor build:binary                          # dist/pablo.phar (needs a PHP to run)
+castor build:binary --micro=buildroot/bin/micro.sfx --php-cli=buildroot/bin/php --spc=spc
+                                             # + dist/pablo, the standalone binary
 </code></pre>
 
-<p>The task builds from a copy in <code>dist/stage/</code>, so your <code>app/vendor/</code> keeps its dev tools and no compiled assets land in <code>app/public/assets/</code> (they would shadow the dev AssetMapper). Build a <code>micro.sfx</code> once with static-php-cli; the task prints the commands. The extensions are <code>phar, ctype, iconv, mbstring, tokenizer, filter, posix, pcntl, dom, xml, zlib, openssl</code>. OPcache is not enabled in the binary: with PHP 8.5's micro, <code>opcache.enable_cli=1</code> crashes at startup.</p>
+<p>The task builds from a copy in <code>dist/stage/</code>, so your <code>app/vendor/</code> keeps its dev tools and no compiled assets land in <code>app/public/assets/</code> (they would shadow the dev AssetMapper). Build a <code>micro.sfx</code> and a PHP CLI once with static-php-cli (<code>spc build &lt;extensions&gt; --build-micro --build-cli</code>; the task prints the commands). The CLI is embedded for <code>pablo web</code>; without <code>--php-cli</code> the dashboard needs a <code>php</code> on the <code>PATH</code>. The extensions are <code>phar, ctype, iconv, mbstring, tokenizer, filter, posix, pcntl, dom, xml, zlib, openssl</code>. OPcache is not enabled in the binary: with PHP 8.5's micro, <code>opcache.enable_cli=1</code> crashes at startup.</p>
 
-<p><code>.github/workflows/binary.yml</code> builds <code>pablo-linux-x86_64</code>, <code>pablo-linux-aarch64</code>, <code>pablo-macos-arm64</code> and <code>pablo-macos-x86_64</code> on every pull request (nothing is published) and smoke-tests each one (on Linux in a <code>debian:stable-slim</code> container without PHP).</p>
+<p><code>.github/workflows/binary.yml</code> builds <code>pablo-linux-x86_64</code>, <code>pablo-linux-aarch64</code>, <code>pablo-macos-arm64</code> and <code>pablo-macos-x86_64</code> on every pull request (nothing is published) and smoke-tests each one (on Linux in a <code>debian:stable-slim</code> container without PHP), dashboard included, with parallel requests.</p>
 
 <h3 id="releasing">Releasing</h3>
 
@@ -101,7 +102,7 @@ castor release:create --no-latest  # publish it without making it the one users 
 castor release:list                # the last 10 releases (--limit to see more)
 </code></pre>
 
-<p>A release is named after the short hash of the last commit on <code>main</code> (tag and title), which is also what its binaries report with <code>pablo --version</code>. The task starts the Binary workflow on <code>main</code>; only once the four builds pass does the workflow create the release, with the binaries and <code>sha256sums.txt</code>, so the release the installer and <code>pablo update</code> pick (the one flagged <em>latest</em>) always has its binaries. It needs the <code>gh</code> CLI, logged in with write access to the repository, and refuses a commit that already has a release. A release published without the latest flag can still be installed by name: <code>pablo update &lt;release&gt;</code>.</p>
+<p>A release is named after the last commit on <code>main</code>: the first 7 characters of its SHA (tag and title), which is also exactly what its binaries report with <code>pablo --version</code> (the release job checks it). The task starts the Binary workflow on <code>main</code>; only once the four builds pass does the workflow create the release, with the binaries and <code>sha256sums.txt</code>, so the release the installer and <code>pablo update</code> pick (the one flagged <em>latest</em>) always has its binaries. It needs the <code>gh</code> CLI, logged in with write access to the repository, and refuses a commit that already has a release. A release published without the latest flag can still be installed by name: <code>pablo update &lt;release&gt;</code>.</p>
 
 <h2>Tests</h2>
 

@@ -88,9 +88,18 @@ final class Dispatch
      * manager, so this returns whether it was acquired rather than a bool-
      * yielding generator).
      */
+    /**
+     * The global dispatch lock. `pablo update` holds it too, so no dispatch
+     * run overlaps a binary swap (a tick that finds it taken skips).
+     */
+    public static function lockPath(): string
+    {
+        return Stamps::stampsDir().'/dispatch.lock';
+    }
+
     private function tryDispatchLock(): bool
     {
-        $path = Stamps::stampsDir().'/dispatch.lock';
+        $path = self::lockPath();
         $dir = \dirname($path);
         if (!is_dir($dir)) {
             @mkdir($dir, 0o777, true);

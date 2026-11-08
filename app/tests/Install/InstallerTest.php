@@ -296,6 +296,38 @@ final class InstallerTest extends TestCase
         $this->assertFileDoesNotExist($this->bin());
     }
 
+    public function testAnotherPabloBinaryOnThePathIsOnlyWarnedAbout(): void
+    {
+        $this->fakeTool('claude');
+        $this->fakeTool('pablo', 'echo "pablo 1111111"');
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString('Another PABLO is on your PATH at '.$this->sandbox.'/path/pablo (pablo 1111111)', $this->outputOf($process));
+        $this->assertStringContainsString('v9.9.9', (string) file_get_contents($this->bin()));
+    }
+
+    public function testAnOldShimOnThePathIsTakenAsTheCheckoutToMigrate(): void
+    {
+        $this->fakeTool('claude');
+        $this->fakeTool('pablo', "exec php '/srv/old-clone/app/bin/pablo' \"\$@\"");
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString('The checkout in /srv/old-clone is no longer used', $this->outputOf($process));
+    }
+
+    public function testTheDownloadIsStagedNextToTheBinaryAndCleanedUp(): void
+    {
+        $this->fakeTool('claude');
+
+        $this->assertSame(0, $this->install(['--no-interaction'])->getExitCode());
+
+        $this->assertSame(['pablo'], array_values(array_diff(scandir($this->sandbox.'/home/.local/bin') ?: [], ['.', '..'])));
+    }
+
     public function testSystemInstallFailureIsReported(): void
     {
         $this->fakeTool('claude');

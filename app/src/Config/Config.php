@@ -8,7 +8,6 @@ use Pablo\Agents\Runtime\AgentRuntimeResolver;
 use Pablo\Support\PabloError;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
-use Symfony\Contracts\Service\ResetInterface;
 
 /**
  * Project configuration loading.
@@ -17,7 +16,7 @@ use Symfony\Contracts\Service\ResetInterface;
  * key falls back to the PABLO-wide defaults in ~/.pablo/config.yaml
  * (see GlobalConfig).
  */
-final class Config implements ResetInterface
+final class Config
 {
     public const PROJECT_TYPES = ['work', 'open-source', 'personal'];
 
@@ -29,16 +28,6 @@ final class Config implements ResetInterface
 
     /** @var array<string, ProjectConfig>|null */
     private ?array $projectsCache = null;
-
-    /**
-     * Forget the loaded projects. The dashboard's workers live across
-     * requests (Pablo\Web\Server); the kernel calls this between two of them
-     * (kernel.reset) so a project added or edited since shows up.
-     */
-    public function reset(): void
-    {
-        $this->projectsCache = null;
-    }
 
     public function projectsDir(?string $override = null): string
     {

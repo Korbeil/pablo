@@ -58,11 +58,11 @@ castor site:serve                           # build + preview it on http://127.0
 (cd app && composer test)                   # same as castor qa:test
 (cd app && composer exec phpunit tests/StateMachineTest.php)  # one file
 castor build:binary [--micro=<micro.sfx> --spc=<spc>]  # dist/pablo.phar (+ dist/pablo, the static binary)
-castor release:create [--no-latest]         # release main's last commit (named after its short hash)
+castor release:create [--no-latest]         # release main's last commit (named after its SHA's first 7 chars)
                                             # via binary.yml (workflow_dispatch release=true)
 castor release:list [--limit=10]            # last releases (gh release list)
 php app/bin/pablo --help                    # engine subcommands, from the checkout
-php app/bin/pablo web                       # read-only dashboard on 127.0.0.1:8321 (Pablo\Web\Server)
+php app/bin/pablo web                       # read-only dashboard on 127.0.0.1:8321 (php -S, see Pablo\Web\PhpServer)
 php app/bin/console cache:clear             # framework CLI: cache:clear, lint:twig, debug:router,
                                             # importmap:*, ux:icons:import
 php app/bin/pablo system:install            # install/update for this user (shim from a checkout,
@@ -70,8 +70,9 @@ php app/bin/pablo system:install            # install/update for this user (shim
                                             # --runtime/--backend/--without-web
 php app/bin/pablo system:uninstall          # remove services, links, command, PATH block
 pablo update [<release>] [--check]          # binary only (a named release may be older): system:update (src/Update/) — latest release via
-                                            # curl, sha256-checked, run once, renamed over the binary,
-                                            # then the new binary runs system:install
+                                            # curl, sha256-checked, run once (must report `pablo <release>`),
+                                            # renamed over the binary under the dispatch lock, then the new
+                                            # binary runs system:install (--without-web kept)
 # site/installer = the interactive `curl -fsSL https://getpablo.dev/installer | bash`
 # script (detect runtimes + ADEs, download pablo-<os>-<arch> from the latest
 # GitHub Release, verify sha256sums.txt, install ~/.local/bin/pablo, then hand
@@ -96,8 +97,8 @@ unless noted.
 **One kernel, three entry points.** `src/App/Kernel.php` is a
 FrameworkBundle `MicroKernelTrait` kernel (project dir = `app/`) serving
 `bin/pablo` (the user-facing CLI), `bin/console` (framework maintenance) and
-the dashboard (`pablo web`, served by `src/Web/Server.php`; `public/index.php`
-remains only for a regular PHP SAPI — there is no `php -S` anywhere). From a
+the dashboard (`pablo web`: `php -S` on `public/index.php`, see
+`src/Web/PhpServer.php`). From a
 checkout the container is cached in `var/cache/<env>` and `PABLO_ENV`
 defaults to `dev` — **not** `prod`, where the container cache is never
 checked for freshness and a `git pull` would leave a stale container forever.
@@ -191,13 +192,19 @@ use `Support\Files::list()`/`copy()`. Everything rendered goes under
 `claude/{agents,commands}` + `agents.json`, `copilot/{agents,skills}`. The
 links in `~/.config/opencode`, `~/.claude`, `~/.copilot` point there.
 
-**Dashboard server** (`src/Web/Server.php`): plain PHP, 127.0.0.1 only (not
-configurable), prefork of 4 workers accept()ing on one socket, each booting
-the kernel once (handle/terminate; the kernel resets `kernel.reset` services
-between requests — a service that memoises state must implement
-`ResetInterface`, as `Config` and `Dashboard` do). Content-Length bodies,
-`Connection: close`, no keep-alive/chunked/TLS. Compiled assets are served
-from `public/` (inside the phar for the binary).
+**Dashboard server** (`src/Web/PhpServer.php`): PHP's built-in server
+(`php -S`, `PHP_CLI_SERVER_WORKERS=4`), 127.0.0.1 only (not configurable).
+From a checkout: `PHP_BINARY -S … app/public/index.php`. From the binary: the
+`micro` SAPI has no `php -S`, so the binary carries a static PHP CLI
+(`bin/php` in the phar, added at build time by `castor build:binary
+--php-cli` / the workflow); `pablo web` extracts it, a plain copy of the phar
+(the bytes after `micro_get_sfxsize()`: a regular PHP cannot read the phar
+inside the binary) and a router into
+`~/.pablo/cache/container/<version>/web-<hash>/`, and `public/index.php`
+serves the compiled assets from inside the phar. Never `pcntl_fork()` a
+process that has the phar open: the children share its file handle and
+concurrent reads corrupt each other (crc32 mismatch) — `php -S` forks its
+workers before opening it.
 
 **Install** (`src/Install/`, `system:install` / `system:uninstall`):
 idempotent; never touches a pre-existing non-PABLO file in
@@ -292,18 +299,21 @@ fails the build — and writes `search-index.json` for the local search
 
 `app/box.json` (base-path = repo root, so the phar mirrors the repo layout)
 packs `app/{src,config,templates,assets,public,vendor}` + `opencode/`,
-`systemd/`, `launchd/`, `examples/config.yaml`; `@package_version@` (Box
-`git-version`) feeds `ConsoleApplication::version()` (`dev` in a checkout).
+`systemd/`, `launchd/`, `examples/config.yaml`; `@package_version@` (a Box
+`replacements` entry set by castor and the workflow: the commit SHA's first 7
+characters — never `git describe`/`git-version`, which yields
+`<last release>-N-g<hash>` once a release tag exists) feeds
+`ConsoleApplication::version()` (`dev` in a checkout).
 `castor build:binary` builds from a staged copy in `dist/stage/` (no-dev
 vendor, `asset-map:compile`) so the checkout's vendor and
 `app/public/assets/` stay untouched, then `spc micro:combine`s it when given
-`--micro`. `.github/workflows/binary.yml` does the same per OS/arch
+`--micro` (and embeds `--php-cli` as `bin/php`). `.github/workflows/binary.yml` does the same per OS/arch
 (linux-x86_64/aarch64, macos-arm64/x86_64) and smoke-tests (Linux: in a
 `debian:stable-slim` container without PHP) on PRs and on demand. Releases
 come from `castor release:create`, which dispatches it on `main` with
 `release=true`: only after the four builds pass does its release job create
-the GitHub Release — tag and title = the commit's short hash (what Box's
-`git-version` writes into the binaries), binaries + `sha256sums.txt`, flagged
+the GitHub Release — tag and title = the SHA's first 7 characters (exactly
+what the binaries report; the job checks `pablo --version`), binaries + `sha256sums.txt`, flagged
 latest unless `--no-latest` — so `releases/latest` never lacks binaries.
 `pablo update` installs the latest-flagged release whenever its name differs
 from the running version (no ordering between hashes). micro extensions:
