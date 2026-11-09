@@ -83,7 +83,7 @@ final class CopilotRuntime implements AgentRuntimeInterface
         return RuntimeSupport::uuid();
     }
 
-    public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string
+    public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string
     {
         $argv = ['copilot', '--agent', CopilotAgents::agentId($agent)];
         if (null !== $model) {

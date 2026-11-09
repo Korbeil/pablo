@@ -70,13 +70,14 @@ final class ClaudeAgentProfile
 
     /**
      * Launch flags enforcing the same rules from the command line — the only
-     * place shell patterns can be expressed.
+     * place shell patterns can be expressed. $permissionMode overrides the
+     * agent's own (an interactive session must never stop on a prompt).
      *
      * @return list<string>
      */
-    public function cliArgs(): array
+    public function cliArgs(?string $permissionMode = null): array
     {
-        $args = ['--permission-mode', $this->permissionMode];
+        $args = ['--permission-mode', $permissionMode ?? $this->permissionMode];
         $allowed = [...$this->tools, ...$this->allowedPatterns];
         if ([] !== $allowed) {
             $args = [...$args, '--allowedTools', ...$allowed];

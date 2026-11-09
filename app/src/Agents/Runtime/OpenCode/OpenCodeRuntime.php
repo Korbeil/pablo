@@ -56,7 +56,7 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
         return null;
     }
 
-    public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string
+    public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string
     {
         // OpenCode v2 removed `run --dir` and the TUI's positional directory
         // + --prompt flags: callers cd into the worktree first.

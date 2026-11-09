@@ -58,7 +58,7 @@ final class HeadlessRunner
         // removed `run --dir`), so the detached subshell cd's into the
         // worktree before exec'ing the agent CLI.
         $pid = $this->exec(
-            'cd '.escapeshellarg($worktree).'; exec '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId),
+            'cd '.escapeshellarg($worktree).'; exec '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId, $worktree),
             $agent,
         );
         $this->writePidfile($pid, $worktree, $agent, $sessionId);

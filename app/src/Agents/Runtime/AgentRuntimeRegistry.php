@@ -123,7 +123,7 @@ final class AgentRuntimeRegistry
         $templates = new AgentTemplates(new Config($this->globalConfig));
 
         return match ($name) {
-            ClaudeCodeRuntime::NAME => new ClaudeCodeRuntime(new ClaudeCodeAgents($templates)),
+            ClaudeCodeRuntime::NAME => new ClaudeCodeRuntime(new ClaudeCodeAgents($templates), globalConfig: $this->globalConfig),
             CopilotRuntime::NAME => new CopilotRuntime(new CopilotAgents($templates)),
             default => new OpenCodeRuntime($templates),
         };

@@ -99,11 +99,31 @@ pablo system:doctor         # checks claude and the generated files
 
 <ul>
   <li><b>Global only.</b> Every project uses the same runtime; there is no per-project setting.</li>
-  <li><b>Orca or headless.</b> Agents run as <code>claude -p</code>, in an Orca terminal or headless, exactly where OpenCode would run. <b>OpenChamber is not supported</b>: it drives its own OpenCode server. <code>pablo system:doctor</code> reports the combination as an error and the dispatcher refuses to run with it; switch to <code>agent_backend: orca</code> or back to <code>agent_runtime: opencode</code>.</li>
+  <li><b>Orca or headless.</b> Agents run as <code>claude -p</code> in an Orca terminal, and as a <a href="#claude-code-remote-control">Remote Control session</a> headless, exactly where OpenCode would run. <b>OpenChamber is not supported</b>: it drives its own OpenCode server. <code>pablo system:doctor</code> reports the combination as an error and the dispatcher refuses to run with it; switch to <code>agent_backend: orca</code> or back to <code>agent_runtime: opencode</code>.</li>
   <li><b>Your account and quota.</b> Agents run with your own Claude Code login. With a Pro or Max subscription they share its usage limits with your interactive sessions, so keep an eye on them with busy projects.</li>
   <li><b>Your settings, not your MCP servers.</b> Agents load your Claude Code settings and hooks (Orca's, RTK's) but none of your MCP servers (<code>--strict-mcp-config</code>).</li>
   <li><b>Sessions you can resume.</b> Each run gets a session id chosen by PABLO; <code>claude --resume &lt;id&gt;</code> in the worktree reopens it.</li>
 </ul>
+
+<h3 id="claude-code-remote-control">Follow headless runs from claude.ai and the Claude apps</h3>
+
+<p>A run with no terminal (<code>agent_backend: headless</code>, Orca's and OpenChamber's fallback, the rebase-conflict resolver) starts as an interactive <code>claude --remote-control</code> session named <code>pablo &lt;agent&gt; &lt;worktree&gt;</code> instead of <code>claude -p</code>, so it shows up live in <a href="https://claude.ai/code">claude.ai/code</a> and the Claude apps while it runs. It is still a background run that ends on its own:</p>
+
+<ul>
+  <li><b>A terminal from <code>script</code>.</b> Interactive <code>claude</code> needs one; the command runs inside <code>script</code> (part of every Linux and macOS system). Its screen output goes to the run's log in <code>~/.pablo/agents/logs/</code>.</li>
+  <li><b>It stops when the agent has answered.</b> A <code>Stop</code> (and <code>StopFailure</code>) hook passed with <code>--settings</code> ends the session after the agent's answer, so the run finishes like a <code>claude -p</code> one. You can't continue it from the app afterwards: <code>claude --resume &lt;id&gt;</code> in the worktree still reopens it.</li>
+  <li><b>Same agent, same limits.</b> Same model, session id and permission flags as <code>claude -p</code>, with only the launched agent passed inline in <code>--agents</code> (interactive <code>claude</code> takes no file there). Every agent, the resolver included, runs in <code>dontAsk</code>: nobody is there to answer a prompt.</li>
+  <li><b>The worktree is trusted first.</b> PABLO adds a <code>hasTrustDialogAccepted</code> entry for the worktree to <code>~/.claude.json</code> just before the launch.</li>
+  <li><b>Needs a claude.ai login</b> on which your organization allows Remote Control.</li>
+</ul>
+
+<p>To keep plain <code>claude -p</code> runs, switch it off in <code>~/.pablo/config.yaml</code> (or export <code>PABLO_CLAUDE_REMOTE_CONTROL=0</code>):</p>
+
+<pre><code class="language-yaml">claude_code:
+  remote_control: false   # default: true
+</code></pre>
+
+<p>Without a generated <code>agents.json</code> or a <code>script</code> command, runs fall back to <code>claude -p</code>.</p>
 
 <p>How the agent permissions translate is on <a href="page:agents#claude-code">Agents</a>; what gets installed where is on <a href="page:installation#claude-code">Installation</a>.</p>
 
