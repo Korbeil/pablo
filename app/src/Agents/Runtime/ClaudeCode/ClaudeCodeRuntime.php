@@ -207,6 +207,11 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
             : 'script -qefc '.escapeshellarg('exec '.$claude).' /dev/null';
     }
 
+    public function interactiveCommand(string $agent, string $prompt, ?string $model): ?string
+    {
+        return null;
+    }
+
     public function modelError(string $model): ?string
     {
         if (str_contains($model, '/')) {

@@ -50,6 +50,14 @@ interface AgentRuntimeInterface
      */
     public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string;
 
+    /**
+     * Shell command (no `cd`) an ADE terminal runs to show $agent working on
+     * $prompt in the runtime's own interactive interface, where the user then
+     * carries on the same session; it ends when the user quits. Null when the
+     * runtime has none: the terminal runs launchCommand() instead.
+     */
+    public function interactiveCommand(string $agent, string $prompt, ?string $model): ?string;
+
     /** Why $model cannot be used with this runtime, or null when it can. */
     public function modelError(string $model): ?string;
 

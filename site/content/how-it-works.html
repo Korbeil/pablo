@@ -44,14 +44,18 @@
 
 <pre><code class="language-bash"># launch
 orca terminal create --worktree path:&lt;worktree&gt; --title "pablo:&lt;agent&gt;" \
-     --command "cd &lt;worktree&gt;; opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'" --json
-# wait for the end of a run
+     --command "cd &lt;worktree&gt;; sh -c '…'" --json
+#   the terminal starts, in the background:  opencode run -s ses_pablo&lt;id&gt; --agent &lt;agent&gt; '&lt;prompt&gt;'
+#   then, once that session exists:          opencode -s ses_pablo&lt;id&gt;   (the TUI)
+# wait for the end of a run (you quitting the TUI)
 orca terminal wait --terminal &lt;handle&gt; --for exit --timeout-ms 3600000 --json
 # who is working
 orca worktree ps --limit 200 --json
 </code></pre>
 
 <p>On Linux the Orca CLI is <code>orca-ide</code>, the name Orca gives it there because <code>orca</code> is GNOME's screen reader; PABLO runs <code>orca-ide</code> on Linux and <code>orca</code> elsewhere (or Orca's <code>ORCA_CLI_COMMAND</code> when set). The launch runs in the background, so <code>pablo task:relaunch</code> cannot tell whether Orca took it: when Orca refuses or doesn't know the worktree within 15 seconds, the agent runs headless and the reason goes to <code>~/.pablo/agents/logs/orca-fallback.log</code>.</p>
+
+<p>Under OpenCode the tab shows the OpenCode TUI on the agent's session: you follow the analysis live, then carry on the conversation with the same agent and model. The TUI takes no agent or model of its own, hence the background <code>opencode run</code> that starts the session under an id PABLO picks; if that run fails before creating it (an unknown model, say), its error stays in the tab. The run counts as finished when you quit the TUI.</p>
 
 <p>An agent that is <code>working</code> or <code>running</code> counts as 🏃 busy; anything else (idle, waiting for input) counts as 💭 waiting for you. Orca only knows repositories registered with <code>orca repo add</code>. Under Claude Code the terminal runs <code>claude -p</code> instead (<code>copilot -p</code> under Copilot), and Orca follows it through the hooks it installs in your Claude Code settings, as it does for your own sessions.</p>
 

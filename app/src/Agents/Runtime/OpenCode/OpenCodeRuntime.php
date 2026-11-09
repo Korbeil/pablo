@@ -24,6 +24,12 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
 {
     public const NAME = 'opencode';
 
+    /** OpenCode's session id prefix; `-s` creates a session under any such id. */
+    private const SESSION_PREFIX = 'ses_pablo';
+
+    /** How long the TUI waits for the background run to create its session. */
+    private const SESSION_WAIT_S = 60;
+
     private ?OpenCodeAgentFiles $agentFiles = null;
 
     /** @param AgentTemplates|null $templates null builds one from the global config on first use */
@@ -63,6 +69,29 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
         return 'opencode run'
             .(null !== $model ? ' --model '.escapeshellarg($model) : '')
             .' --agent '.RuntimeSupport::word($agent).' '.escapeshellarg($prompt);
+    }
+
+    /**
+     * The OpenCode TUI on the agent's session. The TUI takes no --agent or
+     * --model, so `opencode run` starts the session in the background, with a
+     * session id PABLO picks (`-s` creates it), and the TUI opens on it as
+     * soon as it exists: it follows the run live, then the user carries on
+     * with the session's agent and model. Run through `sh -c`: Orca types the
+     * command into the user's own shell, which may not be POSIX. When the run
+     * fails before creating the session, its error stays on screen.
+     */
+    public function interactiveCommand(string $agent, string $prompt, ?string $model): string
+    {
+        $session = escapeshellarg(self::SESSION_PREFIX.bin2hex(random_bytes(10)));
+        $run = 'opencode run -s '.$session
+            .(null !== $model ? ' --model '.escapeshellarg($model) : '')
+            .' --agent '.RuntimeSupport::word($agent).' '.escapeshellarg($prompt);
+        $script = 'err=$(mktemp); nohup '.$run.' >/dev/null 2>"$err" & pid=$!; i=0; '
+            .'until opencode session export '.$session.' >/dev/null 2>&1; do '
+            .'if ! kill -0 "$pid" 2>/dev/null || [ "$i" -ge '.self::SESSION_WAIT_S.' ]; then cat "$err"; rm -f "$err"; exit 1; fi; '
+            .'sleep 1; i=$((i+1)); done; rm -f "$err"; exec opencode -s '.$session;
+
+        return 'sh -c '.escapeshellarg($script);
     }
 
     public function modelError(string $model): ?string

@@ -105,6 +105,11 @@ final class CopilotRuntime implements AgentRuntimeInterface
         return RuntimeSupport::commandLine($argv);
     }
 
+    public function interactiveCommand(string $agent, string $prompt, ?string $model): ?string
+    {
+        return null;
+    }
+
     public function modelError(string $model): ?string
     {
         if (str_contains($model, '/')) {

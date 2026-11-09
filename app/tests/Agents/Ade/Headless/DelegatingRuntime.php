@@ -54,6 +54,11 @@ abstract class DelegatingRuntime implements AgentRuntimeInterface
         return null;
     }
 
+    public function interactiveCommand(string $agent, string $prompt, ?string $model): ?string
+    {
+        return null;
+    }
+
     public function modelError(string $model): ?string
     {
         return null;

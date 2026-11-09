@@ -289,6 +289,11 @@ final class AgentRuntimeTest extends TestCase
                 return '11111111-2222-4333-8444-555555555555';
             }
 
+            public function interactiveCommand(string $agent, string $prompt, ?string $model): ?string
+            {
+                return null;
+            }
+
             public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string
             {
                 $this->sessionSeen = $sessionId;
