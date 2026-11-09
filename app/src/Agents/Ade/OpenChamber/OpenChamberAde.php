@@ -54,7 +54,7 @@ final class OpenChamberAde implements AdeInterface
         return new CliProbe(
             cli: 'openchamber',
             argv: ['openchamber', 'status'],
-            hint: 'install openchamber: https://github.com/openchamber/openchamber',
+            hint: 'install the OpenChamber CLI ('.OpenChamberCli::INSTALL.'), ahead of the desktop app on your PATH: it drives the running desktop app',
             installCommands: [
                 'Darwin' => 'curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash',
                 'Linux' => 'curl -fsSL https://raw.githubusercontent.com/openchamber/openchamber/main/scripts/install.sh | bash',
@@ -62,6 +62,7 @@ final class OpenChamberAde implements AdeInterface
             docsUrl: 'https://github.com/openchamber/openchamber',
             // Without OpenChamber, agents fall back to a headless run.
             soft: true,
+            refuse: OpenChamberCli::refusal(...),
         );
     }
 

@@ -237,12 +237,25 @@ final class Doctor
         $results = [];
         foreach ($cliIds as $cliName) {
             [$probeArgv, $hint] = $this->probeFor($cliName);
-            if (null === $this->which($probeArgv[0])) {
+            $path = $this->which($probeArgv[0]);
+            if (null === $path) {
                 $results[] = new CheckResult(
                     cli: $cliName,
                     installed: false,
                     authenticated: false,
                     detail: "{$cliName} is not installed (not on PATH)",
+                    hint: $hint,
+                );
+                continue;
+            }
+            // Another program under the same name (e.g. a desktop app): never run it.
+            $refusal = ($this->agentProbes()[$cliName]->refuse ?? null)?->__invoke($path);
+            if (null !== $refusal) {
+                $results[] = new CheckResult(
+                    cli: $cliName,
+                    installed: true,
+                    authenticated: false,
+                    detail: $refusal,
                     hint: $hint,
                 );
                 continue;

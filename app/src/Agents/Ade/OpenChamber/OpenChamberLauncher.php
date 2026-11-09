@@ -69,7 +69,14 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
             return ['payload' => null, 'reason' => $e::class.': '.$e->getMessage()];
         }
         if (!\is_array($data)) {
-            return ['payload' => null, 'reason' => 'non-JSON response: '.var_export($out, true)];
+            $reason = 'non-JSON response: '.var_export($out, true);
+            if ('' === trim($out)) {
+                // What OpenChamber's desktop app answers: it ignores the
+                // arguments and raises its window.
+                $reason .= ' (is `openchamber` the desktop app? PABLO needs its CLI, '.OpenChamberCli::INSTALL.': see pablo system:doctor)';
+            }
+
+            return ['payload' => null, 'reason' => $reason];
         }
         if (($data['status'] ?? null) !== 'ok') {
             return ['payload' => null, 'reason' => 'status:'.var_export($data['status'] ?? null, true).' error:'.var_export($data['error'] ?? null, true)];

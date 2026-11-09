@@ -14,9 +14,11 @@ namespace Pablo\Doctor;
 final readonly class CliProbe
 {
     /**
-     * @param string                $cli             the CLI id doctor lists (the binary name)
-     * @param list<string>          $argv            probe command
-     * @param array<string, string> $installCommands PHP_OS_FAMILY => install command
+     * @param string                           $cli             the CLI id doctor lists (the binary name)
+     * @param list<string>                     $argv            probe command
+     * @param array<string, string>            $installCommands PHP_OS_FAMILY => install command
+     * @param (\Closure(string): ?string)|null $refuse          given the binary's path, why it is the wrong
+     *                                                          program (never run then), or null
      */
     public function __construct(
         public string $cli,
@@ -25,6 +27,7 @@ final readonly class CliProbe
         public array $installCommands = [],
         public ?string $docsUrl = null,
         public bool $soft = false,
+        public ?\Closure $refuse = null,
     ) {
     }
 }

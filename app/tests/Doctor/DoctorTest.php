@@ -125,6 +125,29 @@ YAML;
         $this->assertSame(['gh', 'openchamber', 'opencode'], $this->doctor()->requiredClis($projects));
     }
 
+    /**
+     * OpenChamber's desktop app also installs `openchamber`: exit 0 to every
+     * call, it used to pass the check while every launch fell back headless.
+     * It is refused from the file, and never run (that would open it).
+     */
+    public function testOpenChamberDesktopAppIsRefusedWithoutRunningIt(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nagent_backend: openchamber\n");
+        $desktop = sys_get_temp_dir().'/pablo-doctor-oc-'.uniqid();
+        file_put_contents($desktop, "\x7fELF\x02\x01\x01");
+        $this->onWhich = static fn (string $name): string => 'openchamber' === $name ? $desktop : '/usr/bin/'.$name;
+        try {
+            $openchamber = $this->findCli($this->doctor()->checkAll(['a' => $this->makeCfg('a', 'github')]), 'openchamber');
+        } finally {
+            unlink($desktop);
+        }
+
+        $this->assertFalse($openchamber->ok());
+        $this->assertStringContainsString('desktop app', $openchamber->detail);
+        $this->assertStringContainsString('npm i -g @openchamber/web', $openchamber->hint);
+        $this->assertNotContains('openchamber', array_map(static fn (array $argv): string => $argv[0], $this->runner()->probeCalls));
+    }
+
     public function testClaudeCodeRuntimeReplacesOpenCode(): void
     {
         $this->writeGlobalConfig(str_replace('openrouter/test/model', 'sonnet', self::DEFAULTS)."\nagent_runtime: claude-code\n");
