@@ -92,6 +92,16 @@ backend_label() {
     esac
 }
 
+# The command running a backend's CLI. Orca's Linux CLI is `orca-ide`: there
+# `orca` is GNOME's screen reader, never mistaken for Orca.
+backend_command() {
+    if [ "$1" = orca ] && [ "$(uname -s 2>/dev/null)" = Linux ]; then
+        echo orca-ide
+    else
+        echo "$1"
+    fi
+}
+
 usage() {
     cat <<'USAGE'
 Usage: installer [options]
@@ -379,10 +389,10 @@ choose_backend() {
 
     output "\nAgent development environments" heading
     for b in orca openchamber; do
-        if command -v "$b" >/dev/null 2>&1; then
+        if command -v "$(backend_command "$b")" >/dev/null 2>&1; then
             if has_word "$candidates" "$b"; then
                 found="$found $b"
-                ok "$(backend_label "$b") found ($(command -v "$b"))"
+                ok "$(backend_label "$b") found ($(command -v "$(backend_command "$b")"))"
             else
                 output "  [ ] $(backend_label "$b") found, but it cannot run $(runtime_label "$RUNTIME") (OpenCode only)" muted
             fi
@@ -395,8 +405,8 @@ choose_backend() {
         if [ "$BACKEND" = openchamber ] && [ "$RUNTIME" != opencode ]; then
             fail "OpenChamber only works with OpenCode: --backend openchamber cannot run $(runtime_label "$RUNTIME")."
         fi
-        if [ "$BACKEND" != headless ] && ! command -v "$BACKEND" >/dev/null 2>&1; then
-            warn "$(backend_label "$BACKEND") was asked for but '$BACKEND' is not on your PATH"
+        if [ "$BACKEND" != headless ] && ! command -v "$(backend_command "$BACKEND")" >/dev/null 2>&1; then
+            warn "$(backend_label "$BACKEND") was asked for but '$(backend_command "$BACKEND")' is not on your PATH"
         fi
         return 0
     fi

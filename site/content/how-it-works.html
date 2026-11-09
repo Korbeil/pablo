@@ -51,6 +51,8 @@ orca terminal wait --terminal &lt;handle&gt; --for exit --timeout-ms 3600000 --j
 orca worktree ps --limit 200 --json
 </code></pre>
 
+<p>On Linux the Orca CLI is <code>orca-ide</code>, the name Orca gives it there because <code>orca</code> is GNOME's screen reader; PABLO runs <code>orca-ide</code> on Linux and <code>orca</code> elsewhere (or Orca's <code>ORCA_CLI_COMMAND</code> when set). The launch runs in the background, so <code>pablo task:relaunch</code> cannot tell whether Orca took it: when Orca refuses or doesn't know the worktree within 15 seconds, the agent runs headless and the reason goes to <code>~/.pablo/agents/logs/orca-fallback.log</code>.</p>
+
 <p>An agent that is <code>working</code> or <code>running</code> counts as 🏃 busy; anything else (idle, waiting for input) counts as 💭 waiting for you. Orca only knows repositories registered with <code>orca repo add</code>. Under Claude Code the terminal runs <code>claude -p</code> instead (<code>copilot -p</code> under Copilot), and Orca follows it through the hooks it installs in your Claude Code settings, as it does for your own sessions.</p>
 
 <h3>OpenChamber</h3>

@@ -81,7 +81,7 @@ final class InstallerTest extends TestCase
 
     public function testNoRuntimeFoundPointsToThePrerequisites(): void
     {
-        $this->fakeTool('orca');
+        $this->fakeOrca();
 
         $process = $this->install(['--no-interaction']);
 
@@ -118,7 +118,7 @@ final class InstallerTest extends TestCase
     public function testTheVerifiedBinaryIsInstalledAndHandedOver(): void
     {
         $this->fakeTool('claude');
-        $this->fakeTool('orca');
+        $this->fakeOrca();
 
         $process = $this->install(['--no-interaction']);
 
@@ -179,7 +179,7 @@ final class InstallerTest extends TestCase
     public function testSingleRuntimeAndOrcaAreUsedWithoutAsking(): void
     {
         $this->fakeTool('claude');
-        $this->fakeTool('orca');
+        $this->fakeOrca();
 
         $process = $this->install(['--no-interaction']);
 
@@ -226,7 +226,7 @@ final class InstallerTest extends TestCase
     {
         $this->fakeTool('opencode');
         $this->fakeTool('claude');
-        $this->fakeTool('orca');
+        $this->fakeOrca();
 
         $process = $this->install(['--no-interaction', '--runtime=claude-code', '--backend', 'headless']);
 
@@ -262,7 +262,7 @@ final class InstallerTest extends TestCase
     public function testWithoutWebIsForwarded(): void
     {
         $this->fakeTool('claude');
-        $this->fakeTool('orca');
+        $this->fakeOrca();
 
         $process = $this->install(['--no-interaction', '--without-web']);
 
@@ -474,7 +474,7 @@ final class InstallerTest extends TestCase
     {
         $this->fakeTool('opencode');
         $this->fakeTool('claude');
-        $this->fakeTool('orca');
+        $this->fakeOrca();
         $this->fakeTool('openchamber');
         // runtime 2 = Claude Code, environment 2 = headless (OpenChamber is not offered), no dashboard, go
         $process = $this->interactive("2\n2\nn\ny\n");
@@ -487,7 +487,7 @@ final class InstallerTest extends TestCase
     public function testInteractiveMenuOffersOpenChamberWithOpenCode(): void
     {
         $this->fakeTool('opencode');
-        $this->fakeTool('orca');
+        $this->fakeOrca();
         $this->fakeTool('openchamber');
         // environments: 1 Orca, 2 OpenChamber, 3 headless
         $process = $this->interactive("2\n\n\n");
@@ -520,6 +520,44 @@ final class InstallerTest extends TestCase
 
         $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
         $this->assertSame('--runtime copilot', $this->installArguments());
+    }
+
+    public function testOnLinuxTheGnomeScreenReaderIsNotOrca(): void
+    {
+        if ('Linux' !== \PHP_OS_FAMILY) {
+            self::markTestSkipped('orca-ide is the Linux name of the Orca CLI');
+        }
+        $this->fakeTool('copilot');
+        $this->fakeTool('orca', 'echo "Orca version 49.4, AT-SPI2 version: 2.58.1"');
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringContainsString('agents can run headless', $this->outputOf($process));
+        $this->assertSame('--runtime copilot', $this->installArguments());
+    }
+
+    public function testOnLinuxOrcaIsFoundAsOrcaIde(): void
+    {
+        if ('Linux' !== \PHP_OS_FAMILY) {
+            self::markTestSkipped('orca-ide is the Linux name of the Orca CLI');
+        }
+        $this->fakeTool('copilot');
+        $this->fakeTool('orca', 'echo "Orca version 49.4, AT-SPI2 version: 2.58.1"');
+        $this->fakeTool('orca-ide');
+
+        $process = $this->install(['--no-interaction']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+
+        $this->assertStringContainsString('/orca-ide)', $this->outputOf($process));
+        $this->assertSame('--runtime copilot --backend orca', $this->installArguments());
+    }
+
+    /** The Orca app's CLI: orca-ide on Linux (GNOME's screen reader owns orca), orca elsewhere. */
+    private function fakeOrca(): void
+    {
+        $this->fakeTool('Linux' === \PHP_OS_FAMILY ? 'orca-ide' : 'orca');
     }
 
     public function testInteractiveWithoutEnvironmentCanStopToInstallOne(): void

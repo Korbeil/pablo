@@ -9,6 +9,9 @@
         <!-- KernelTestCase/WebTestCase need this: there is no .env, so APP_ENV
              and APP_DEBUG are unset and they default to test/true. -->
         <server name="KERNEL_CLASS" value="Pablo\App\Kernel"/>
+        <!-- Pin the Orca CLI name (orca-ide on Linux, orca elsewhere) so the
+             tests read the same on every OS. OrcaCliTest unsets it. -->
+        <env name="ORCA_CLI_COMMAND" value="orca" force="true"/>
     </php>
     <testsuites>
         <testsuite name="pablo">
