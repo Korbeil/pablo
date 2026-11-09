@@ -73,6 +73,35 @@ final class HeadlessLauncherTest extends TestCase
         $this->assertSame([], $this->runner->calls);
     }
 
+    /**
+     * A real detached run: the runtime's command runs from the worktree, its
+     * output lands in the run's log, and the recorded pid is the command's.
+     * A blanket `exec` in front of `cd …` once killed every headless run
+     * before it started.
+     */
+    public function testAgentCommandActuallyRunsInTheWorktree(): void
+    {
+        $runtime = new class extends DelegatingRuntime {
+            public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string
+            {
+                return 'sh -c '.escapeshellarg('echo "ran in $PWD as $$"; echo "detached in '.$detachedIn.'"');
+            }
+        };
+        $worktree = $this->tmp.'/wt';
+        mkdir($worktree);
+        $agents = new HeadlessLauncher($this->runner, new Time(), null, '/x/pablo', $runtime);
+
+        $handle = $agents->launchHeadless($worktree, 'task-analyst', 'go');
+        $pid = (int) substr($handle, 4);
+        $agents->waitForHandle($handle, 10);
+
+        $logs = Files::list($this->agentsDir.'/logs', '*-task-analyst.log');
+        $this->assertCount(1, $logs);
+        $log = (string) file_get_contents($logs[0]);
+        $this->assertStringContainsString('ran in '.realpath($worktree).' as '.$pid."\n", $log);
+        $this->assertStringContainsString('detached in '.$worktree."\n", $log);
+    }
+
     public function testDisplayNameIsANoOpAndWaitReturnsForADeadPid(): void
     {
         $this->agents->setWorktreeDisplayName($this->tmp, 'PROJ-1', null);
