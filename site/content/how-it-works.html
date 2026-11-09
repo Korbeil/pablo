@@ -75,6 +75,17 @@ openchamber session list --dir &lt;worktree&gt; --with-status
 
 <p>With <code>agent_backend: headless</code>, and whenever Orca or OpenChamber is unreachable or doesn't know the repository, PABLO runs the runtime's command (<code>opencode run --agent &lt;agent&gt;</code> <code>claude -p … --agent &lt;agent&gt;</code> or <code>copilot --agent pablo-&lt;agent&gt; … -p</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Under Claude Code a headless run is a <a href="page:configuration#claude-code-remote-control">Remote Control session</a> by default, so you can follow it live from claude.ai/code and the Claude apps. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
 
+<h3 id="headless-opencode-web-ui">Follow headless OpenCode runs in the browser</h3>
+
+<p>Under OpenCode, headless runs go through OpenCode's background service, which also serves a local web interface listing every session, the agents' included, live. <code>opencode pair</code> prints a link to it:</p>
+
+<pre><code class="language-bash">$ opencode pair
+  Open a link to connect. Links work once and expire in 5 minutes.
+  http://127.0.0.1:49374/auth/connect/…
+</code></pre>
+
+<p>The link works once and expires after 5 minutes; the browser stays connected afterwards. Over SSH, forward the port first (<code>ssh -L 49374:127.0.0.1:49374 &lt;host&gt;</code>, with the port from the link), then open the link on your machine. From another device on your network, <code>opencode service set hostname 0.0.0.0</code> makes the service listen beyond 127.0.0.1 (anyone on the network can then reach it with a pairing link). To carry on a session in the terminal instead: <code>opencode -s &lt;session&gt;</code> in the worktree (<code>opencode session list</code> shows the latest first).</p>
+
 <h2 id="what-pablo-may-change">What PABLO may change</h2>
 
 <p>Agents propose; you decide. PABLO's own code only performs these operations, each under strict rules:</p>
