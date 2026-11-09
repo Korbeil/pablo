@@ -15,7 +15,7 @@
   </tbody>
 </table>
 
-<p>Open an agent's session in Orca or OpenChamber to read its result and keep the conversation going: ask questions, push back, refine the plan. A headless Claude Code run reopens with <code>claude --resume &lt;session id&gt;</code> in the worktree, a Copilot one with <code>copilot --resume=&lt;session id&gt;</code>.</p>
+<p>Open an agent's session in Orca or OpenChamber to read its result and keep the conversation going: ask questions, push back, refine the plan. A headless Claude Code run can be followed live from claude.ai/code and the Claude apps (<a href="page:configuration#claude-code-remote-control">Remote Control</a>) and reopens with <code>claude --resume &lt;session id&gt;</code> in the worktree, a Copilot one with <code>copilot --resume=&lt;session id&gt;</code>.</p>
 
 <h2 id="the-rebase-conflict-resolver">The rebase-conflict resolver</h2>
 
@@ -74,8 +74,8 @@
 
 <ul>
   <li><b>Where the agents live.</b> <code>pablo system:generate-agents</code> writes all five into <code>~/.pablo/runtime/claude/agents.json</code>, which every launch passes with <code>--agents</code>. The same agents are also rendered as <code>pablo-&lt;agent&gt;.md</code> files in <code>~/.pablo/runtime/claude/agents/</code> and linked into <code>~/.claude/agents</code> by the installer, so they show up in <code>/agents</code> and the <code>@</code> picker of your own sessions. Those files only carry tool-level limits: the per-command shell denies (such as <code>git push</code>) are launch flags and apply only to PABLO's own launches.</li>
-  <li><b>How they launch.</b> <code>claude -p --agents … --agent &lt;name&gt; --model &lt;default_model&gt; --session-id &lt;id&gt; --strict-mcp-config</code>, plus the permission flags below.</li>
-  <li><b>No permission prompts.</b> The analysts run with <code>--permission-mode dontAsk</code> (anything not allowed is denied), the resolver with <code>acceptEdits</code>.</li>
+  <li><b>How they launch.</b> <code>claude -p --agents … --agent &lt;name&gt; --model &lt;default_model&gt; --session-id &lt;id&gt; --strict-mcp-config</code>, plus the permission flags below. A run with no terminal (headless) is an interactive <code>claude --remote-control</code> session with the same flags instead: see <a href="page:configuration#claude-code-remote-control">Remote Control</a>.</li>
+  <li><b>No permission prompts.</b> The analysts run with <code>--permission-mode dontAsk</code> (anything not allowed is denied), the resolver with <code>acceptEdits</code> (<code>dontAsk</code> too in a Remote Control session, where its edit tools are explicitly allowed).</li>
 </ul>
 
 <p>The permissions map as follows:</p>

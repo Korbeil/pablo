@@ -67,7 +67,7 @@ openchamber session list --dir &lt;worktree&gt; --with-status
 
 <h3>Headless</h3>
 
-<p>With <code>agent_backend: headless</code>, and whenever Orca or OpenChamber is unreachable or doesn't know the repository, PABLO runs the runtime's command (<code>opencode run --agent &lt;agent&gt;</code> <code>claude -p … --agent &lt;agent&gt;</code> or <code>copilot --agent pablo-&lt;agent&gt; … -p</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
+<p>With <code>agent_backend: headless</code>, and whenever Orca or OpenChamber is unreachable or doesn't know the repository, PABLO runs the runtime's command (<code>opencode run --agent &lt;agent&gt;</code> <code>claude -p … --agent &lt;agent&gt;</code> or <code>copilot --agent pablo-&lt;agent&gt; … -p</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Under Claude Code a headless run is a <a href="page:configuration#claude-code-remote-control">Remote Control session</a> by default, so you can follow it live from claude.ai/code and the Claude apps. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
 
 <h2 id="what-pablo-may-change">What PABLO may change</h2>
 
@@ -96,6 +96,7 @@ openchamber session list --dir &lt;worktree&gt; --with-status
     <tr><td>Task records, stamps, logs, analytics under <code>~/.pablo/</code></td><td>as it runs (see <a href="page:storage">Storage</a>)</td></tr>
     <tr><td>The rendered agents and the extracted commands and skills, in <code>~/.pablo/runtime/</code></td><td><code>pablo system:generate-agents</code> and <code>pablo system:install</code>; the binary is read-only, so nothing is ever written next to the templates it carries</td></tr>
     <tr><td>The compiled application cache, in <code>~/.pablo/cache/container/&lt;version&gt;/</code></td><td>the first run of each binary version (from a checkout: <code>app/var/cache/</code>); <code>pablo system:install</code> removes the other versions'</td></tr>
+    <tr><td>One <code>hasTrustDialogAccepted</code> entry per worktree in Claude Code's <code>~/.claude.json</code> (nothing else in the file)</td><td>just before a <a href="page:configuration#claude-code-remote-control">Remote Control</a> run in that worktree, so Claude Code doesn't stop on "Do you trust this folder?"</td></tr>
     <tr><td><code>~/.local/bin/pablo</code>, the links in <code>~/.config/opencode/</code>, <code>~/.claude/</code>, <code>~/.copilot/</code>, the scheduler files, the <code>PATH</code> block</td><td>only <code>pablo system:install</code>, <code>pablo system:uninstall</code> and <code>pablo update</code> (which replaces the binary with a checksum-verified release), never over a file that isn't PABLO's (see <a href="page:installation#what-pablo-system-install-does">Installation</a>)</td></tr>
   </tbody>
 </table>

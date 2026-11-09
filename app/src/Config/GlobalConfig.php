@@ -75,6 +75,7 @@ final class GlobalConfig
             'branch_prefix' => isset($data['branch_prefix']) ? (string) $data['branch_prefix'] : null,
             'agent_backend' => isset($data['agent_backend']) ? (string) $data['agent_backend'] : null,
             'agent_runtime' => isset($data['agent_runtime']) ? (string) $data['agent_runtime'] : null,
+            'claude_code' => \is_array($data['claude_code'] ?? null) ? $data['claude_code'] : [],
             'dashboard_port' => $data['dashboard_port'] ?? null,
         ];
     }

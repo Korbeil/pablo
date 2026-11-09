@@ -40,10 +40,15 @@ interface AgentRuntimeInterface
     public function newSessionId(): ?string;
 
     /**
-     * Shell command (no `cd`, no redirection) running $agent once,
-     * non-interactively, on $prompt. Every argument is shell-escaped.
+     * Shell command (no `cd`, no redirection) running $agent once on $prompt,
+     * exiting when the agent is done. Every argument is shell-escaped.
+     *
+     * $detachedIn: the worktree, when the command runs detached in the
+     * background with no terminal (and is run from that directory). A runtime
+     * may then prepare the worktree and run differently, as long as the
+     * command still ends on its own (Claude Code's Remote Control sessions).
      */
-    public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string;
+    public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string;
 
     /** Why $model cannot be used with this runtime, or null when it can. */
     public function modelError(string $model): ?string;

@@ -44,6 +44,8 @@ final class AgentRuntimeTest extends TestCase
         putenv('PABLO_AGENTS_DIR');
         putenv('PABLO_AGENT_RUNTIME');
         putenv('PABLO_AGENT_BACKEND');
+        putenv('PABLO_CLAUDE_JSON');
+        putenv(ClaudeCodeRuntime::REMOTE_CONTROL_ENV);
         $this->unsetGlobalConfig();
         self::removeDir($this->tmp);
     }
@@ -95,6 +97,101 @@ final class AgentRuntimeTest extends TestCase
         $this->assertStringContainsString('--permission-mode acceptEdits', $resolver);
         $this->assertStringNotContainsString('--model', $resolver);
         $this->assertStringNotContainsString('--session-id', $resolver);
+    }
+
+    /** A Claude runtime reading a real agents.json under $this->tmp, its trust file in $this->tmp too. */
+    private function claudeWithAgentsFile(): ClaudeCodeRuntime
+    {
+        $this->writeGlobalConfig("{}\n");
+        $dir = $this->tmp.'/claude';
+        mkdir($dir, 0o777, true);
+        $agents = new ClaudeCodeAgents(new AgentTemplates(new Config(new GlobalConfig())));
+        file_put_contents($dir.'/agents.json', $agents->renderAgentsJson($agents->templates()->templatesDir(), []));
+        file_put_contents($this->tmp.'/claude.json', '{"numStartups": 3}');
+        putenv('PABLO_CLAUDE_JSON='.$this->tmp.'/claude.json');
+
+        return new ClaudeCodeRuntime($agents, $dir);
+    }
+
+    public function testClaudeDetachedRunIsARemoteControlSession(): void
+    {
+        if (null === (new \Symfony\Component\Process\ExecutableFinder())->find('script')) {
+            $this->markTestSkipped('no script(1) on this machine');
+        }
+        $runtime = $this->claudeWithAgentsFile();
+        $worktree = $this->tmp.'/PROJ-12-fix';
+        $sid = (string) $runtime->newSessionId();
+
+        $command = $runtime->launchCommand('rebase-conflict-resolver', 'fix it', 'sonnet', $sid, $worktree);
+
+        // A terminal from script(1), the claude command inside it.
+        $inner = 'Darwin' === \PHP_OS_FAMILY ? substr($command, \strlen('script -q /dev/null ')) : $command;
+        if ('Darwin' !== \PHP_OS_FAMILY) {
+            $this->assertMatchesRegularExpression("~^script -qefc '.*' /dev/null$~s", $command);
+        }
+        $this->assertStringContainsString("claude --remote-control '\\''pablo rebase-conflict-resolver PROJ-12-fix'\\''", $inner);
+        $this->assertStringContainsString("--agent rebase-conflict-resolver --model sonnet --session-id {$sid} --strict-mcp-config --settings ", $inner);
+        $this->assertStringNotContainsString('claude -p', $inner);
+        $this->assertStringNotContainsString('agents.json', $inner, 'interactive claude only takes inline --agents JSON');
+        $this->assertStringContainsString('"rebase-conflict-resolver":{"description":', $inner);
+        $this->assertStringNotContainsString('"task-analyst"', $inner, 'only the launched agent is inlined');
+        $this->assertStringContainsString('"Stop":[{"hooks":[{"type":"command"', $inner);
+        $this->assertStringContainsString('"StopFailure":[', $inner);
+        // Nobody answers a prompt: even the edit-capable resolver runs in dontAsk.
+        $this->assertStringContainsString('--permission-mode dontAsk', $inner);
+        $this->assertStringNotContainsString('acceptEdits', $inner);
+
+        $trust = json_decode((string) file_get_contents($this->tmp.'/claude.json'), true);
+        $this->assertIsArray($trust);
+        $this->assertSame(3, $trust['numStartups'], 'the rest of ~/.claude.json is kept');
+        $this->assertTrue($trust['projects'][$worktree]['hasTrustDialogAccepted']);
+    }
+
+    public function testClaudeKeepsPrintModeOutsideDetachedRemoteControlRuns(): void
+    {
+        $runtime = $this->claudeWithAgentsFile();
+        $sid = (string) $runtime->newSessionId();
+
+        // In a terminal (Orca, OpenChamber).
+        $this->assertStringStartsWith('claude -p ', $runtime->launchCommand('task-analyst', 'go', null, $sid));
+        // Switched off, by config then by env.
+        $this->writeGlobalConfig("claude_code:\n  remote_control: false\n");
+        $this->assertFalse($runtime->remoteControl());
+        $this->assertStringStartsWith('claude -p ', $runtime->launchCommand('task-analyst', 'go', null, $sid, $this->tmp.'/wt'));
+        $this->writeGlobalConfig("{}\n");
+        $this->assertTrue($runtime->remoteControl(), 'on by default');
+        putenv(ClaudeCodeRuntime::REMOTE_CONTROL_ENV.'=0');
+        try {
+            $this->assertStringStartsWith('claude -p ', $runtime->launchCommand('task-analyst', 'go', null, $sid, $this->tmp.'/wt'));
+        } finally {
+            putenv(ClaudeCodeRuntime::REMOTE_CONTROL_ENV);
+        }
+        // No agents file to inline: the plain run.
+        unlink($this->tmp.'/claude/agents.json');
+        $this->assertStringStartsWith('claude -p ', $runtime->launchCommand('task-analyst', 'go', null, $sid, $this->tmp.'/wt'));
+        $trust = json_decode((string) file_get_contents($this->tmp.'/claude.json'), true);
+        $this->assertIsArray($trust);
+        $this->assertArrayNotHasKey('projects', $trust, 'a -p run trusts nothing');
+    }
+
+    public function testStopHookEndsTheProcessCarryingTheSessionId(): void
+    {
+        $sid = '11111111-2222-4333-8444-555555555555';
+        // bash stands in for claude: its command line carries the session id,
+        // and it runs the hook as a direct child, fed the hook's JSON input.
+        $process = new \Symfony\Component\Process\Process([
+            'bash', '-c', 'sh -c "$2" <<< "$1"; sleep 20; exit 7',
+            'claude --session-id '.$sid, '{"session_id": "'.$sid.'", "hook_event_name": "Stop"}', ClaudeCodeRuntime::STOP_HOOK,
+        ]);
+        $process->setTimeout(30);
+        $start = microtime(true);
+        try {
+            $process->run();
+            $this->fail('the session must be terminated, got exit code '.$process->getExitCode());
+        } catch (\Symfony\Component\Process\Exception\ProcessSignaledException $e) {
+            $this->assertSame(15, $e->getSignal(), 'terminated by SIGTERM');
+        }
+        $this->assertLessThan(10, microtime(true) - $start, 'the hook must end the session, not wait for it');
     }
 
     public function testClaudeModelsAndSessionRefs(): void
@@ -192,7 +289,7 @@ final class AgentRuntimeTest extends TestCase
                 return '11111111-2222-4333-8444-555555555555';
             }
 
-            public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null): string
+            public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string
             {
                 $this->sessionSeen = $sessionId;
 

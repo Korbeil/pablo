@@ -236,7 +236,11 @@ with. *What* runs is the agent **runtime**
 ~/.pablo/runtime/claude/agents.json`, and also rendered as `pablo-<agent>.md`
 into `~/.pablo/runtime/claude/agents/`, linked into `~/.claude/agents` for
 `/agents` and the `@` picker — tool-level limits only; every shell deny
-doubled in its `rtk`-prefixed form) or `copilot -p` (GitHub Copilot CLI:
+doubled in its `rtk`-prefixed form; a run with no terminal — `launchCommand()`'s
+`$detachedIn`, passed by `HeadlessRunner` — is instead an interactive
+`claude --remote-control` session inside `script`, ended by a Stop hook, its
+worktree trusted in `~/.claude.json` first; `claude_code.remote_control: false`
+keeps `-p`) or `copilot -p` (GitHub Copilot CLI:
 `pablo-<agent>.agent.md` files rendered into `~/.pablo/runtime/copilot/` and
 linked into `~/.copilot/agents`, policy repeated as
 `--available-tools`/`--allow-tool`/`--deny-tool` flags, session handles

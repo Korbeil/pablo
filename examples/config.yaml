@@ -29,6 +29,12 @@ pr_description_locale: en
 #   default_model: claude-sonnet-5.5
 # Re-run `pablo system:install` after changing it. Also settable with
 # PABLO_AGENT_RUNTIME. Only opencode works with agent_backend: openchamber.
+# claude_code:
+#   remote_control: true   # default: true
+# With claude-code, runs with no terminal (agent_backend: headless, Orca's
+# fallback, the rebase-conflict resolver) are Remote Control sessions you can
+# follow live from claude.ai/code and the Claude apps; false keeps `claude -p`.
+# Also settable with PABLO_CLAUDE_REMOTE_CONTROL=0/1.
 # agent_backend: orca | openchamber  (default: orca)
 # OpenChamber is an alternative agent runner (directory-based; no Orca repo
 # registration or worktree adoption needed). Set it here or via the
