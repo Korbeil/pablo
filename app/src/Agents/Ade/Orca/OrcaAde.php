@@ -47,9 +47,10 @@ final class OrcaAde implements AdeInterface
     public function probe(): CliProbe
     {
         return new CliProbe(
-            cli: 'orca',
-            argv: ['orca', 'status'],
-            hint: 'start the Orca app, or run: orca open',
+            cli: self::NAME,
+            // On Linux never bare `orca`: the GNOME screen reader (see OrcaCli).
+            argv: [OrcaCli::command(), 'status'],
+            hint: 'start the Orca app, or run: '.OrcaCli::command().' open',
             // Without Orca, agents fall back to a headless run.
             soft: true,
         );
@@ -69,7 +70,7 @@ final class OrcaAde implements AdeInterface
     public function backup(ProcessRunnerInterface $runner): array
     {
         try {
-            return [self::BACKUP_FILE => $runner->run(['orca', 'repo', 'list', '--json'], false, 30)];
+            return [self::BACKUP_FILE => $runner->run([OrcaCli::command(), 'repo', 'list', '--json'], false, 30)];
         } catch (\Throwable) {
             return [];
         }
@@ -78,12 +79,13 @@ final class OrcaAde implements AdeInterface
     public function restore(ProcessRunnerInterface $runner, array $repoPaths): array
     {
         $lines = [];
+        $orca = OrcaCli::command();
         foreach ($repoPaths as $repoPath) {
             try {
-                $runner->run(['orca', 'repo', 'add', '--path', $repoPath, '--json'], true, 30);
+                $runner->run([$orca, 'repo', 'add', '--path', $repoPath, '--json'], true, 30);
                 $lines[] = "  ✔ orca: registered {$repoPath}";
             } catch (\Throwable) {
-                $lines[] = "  ⚠ orca: could not register {$repoPath} (Orca may not be running — run `orca repo add --path {$repoPath}` manually)";
+                $lines[] = "  ⚠ orca: could not register {$repoPath} (Orca may not be running — run `{$orca} repo add --path {$repoPath}` manually)";
             }
         }
 
@@ -92,6 +94,7 @@ final class OrcaAde implements AdeInterface
 
     public function followHint(): string
     {
-        return 'check Orca for the new terminal tab';
+        // The launch is detached: whether Orca took it is only known later.
+        return 'check Orca for the new terminal tab (none within ~20 s: it fell back to headless, the reason is in ~/.pablo/agents/logs/'.self::NAME.'-fallback.log)';
     }
 }

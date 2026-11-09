@@ -151,7 +151,7 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
 
 <dl>
   <dt>Orca (default)</dt>
-  <dd>Agents run in Orca terminals. Orca only sees repositories registered with it, so register each project's repository once: <code>orca repo add &lt;path&gt;</code>.</dd>
+  <dd>Agents run in Orca terminals. Orca only sees repositories registered with it, so register each project's repository once: <code>orca repo add --path &lt;path&gt;</code> (on Linux the Orca CLI is <code>orca-ide</code>: <code>orca</code> is GNOME's screen reader).</dd>
   <dt>OpenChamber</dt>
   <dd>Set <code>agent_backend: openchamber</code> in <code>~/.pablo/config.yaml</code> (or export <code>PABLO_AGENT_BACKEND=openchamber</code>). OpenChamber works from directories, so there is nothing to register. OpenCode only: not available with <code>agent_runtime: claude-code</code> or <code>copilot</code>.</dd>
   <dt>Headless</dt>

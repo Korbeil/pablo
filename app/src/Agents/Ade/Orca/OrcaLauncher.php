@@ -46,7 +46,7 @@ final class OrcaLauncher extends AbstractAgentLauncher
     {
         $out = '';
         try {
-            $out = $this->runner->run(['orca', ...$argv, '--json'], check: false, timeout: $perCallTimeout);
+            $out = $this->runner->run([OrcaCli::command(), ...$argv, '--json'], check: false, timeout: $perCallTimeout);
             $data = json_decode($out, true);
         } catch (\Throwable $e) {
             return new OrcaCall(null, $e::class.': '.$e->getMessage().'; raw_stdout='.var_export($out, true));
@@ -87,19 +87,23 @@ final class OrcaLauncher extends AbstractAgentLauncher
      * asynchronously; a `terminal create` on a not-yet-adopted path fails with
      * `selector_not_found`. Poll `worktree show` (which fails fast) until Orca
      * adopts the worktree or $maxWaitS elapses.
+     *
+     * @return string|null null once adopted, else why not (with Orca's last reply)
      */
-    private function waitForOrcaAdoption(string $worktree, int $maxWaitS = self::ORCA_ADOPT_WAIT_S): bool
+    private function waitForOrcaAdoption(string $worktree, int $maxWaitS = self::ORCA_ADOPT_WAIT_S): ?string
     {
         $deadline = microtime(true) + $maxWaitS;
+        $last = null;
         while (microtime(true) < $deadline) {
             $call = $this->orca(['worktree', 'show', '--worktree', 'path:'.$worktree]);
             if (null !== $call->payload) {
-                return true;
+                return null;
             }
+            $last = $call->reason;
             usleep(1_000_000);
         }
 
-        return false;
+        return 'orca adoption timeout for '.$worktree.' (last reply: '.($last ?? 'none').')';
     }
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
@@ -112,8 +116,8 @@ final class OrcaLauncher extends AbstractAgentLauncher
         $sessionId = $this->runtime->newSessionId();
         $command = 'cd '.escapeshellarg($worktree).'; '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId);
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
-            if (!$this->waitForOrcaAdoption($worktree)) {
-                return new OrcaCall(null, 'orca adoption timeout for '.$worktree);
+            if (null !== ($notAdopted = $this->waitForOrcaAdoption($worktree))) {
+                return new OrcaCall(null, $notAdopted);
             }
 
             return $this->orca([
@@ -140,8 +144,8 @@ final class OrcaLauncher extends AbstractAgentLauncher
     {
         $command = 'bash '.escapeshellarg($script).'; exec bash';
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $command) {
-            if (!$this->waitForOrcaAdoption($worktree)) {
-                return new OrcaCall(null, 'orca adoption timeout for '.$worktree);
+            if (null !== ($notAdopted = $this->waitForOrcaAdoption($worktree))) {
+                return new OrcaCall(null, $notAdopted);
             }
 
             return $this->orca([
@@ -292,7 +296,7 @@ final class OrcaLauncher extends AbstractAgentLauncher
     {
         try {
             $this->runner->run([
-                'orca', 'terminal', 'wait', '--terminal', $handle,
+                OrcaCli::command(), 'terminal', 'wait', '--terminal', $handle,
                 '--for', 'exit', '--timeout-ms', (string) ($timeoutS * 1000), '--json',
             ], check: false, timeout: $timeoutS + 120);
         } catch (\Throwable) {

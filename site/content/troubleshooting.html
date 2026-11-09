@@ -62,7 +62,7 @@ pablo sync:log          # what the last sync did, per project
 
 <h3>Agents run headless instead of in Orca</h3>
 
-<p>Orca only sees repositories registered with it. Run <code>orca repo add &lt;repo path&gt;</code> for the project. Until then, PABLO runs the agents in the background; open those sessions with <code>opencode -s &lt;session&gt;</code>, <code>claude --resume &lt;session&gt;</code> in the worktree under Claude Code, or <code>copilot --resume=&lt;session&gt;</code> under Copilot (the session id is in the pid file in <code>~/.pablo/agents/</code>).</p>
+<p>The reason of each fallback is in <code>~/.pablo/agents/logs/orca-fallback.log</code>. Orca only sees repositories registered with it: run <code>orca repo add --path &lt;repo path&gt;</code> (<code>orca-ide</code> on Linux) for the project. On Linux, PABLO calls Orca's CLI as <code>orca-ide</code>, the name Orca gives it there (<code>orca</code> is GNOME's screen reader): if it isn't found, register the CLI in Orca under Settings → General → Orca CLI. Until then, PABLO runs the agents in the background; open those sessions with <code>opencode -s &lt;session&gt;</code>, <code>claude --resume &lt;session&gt;</code> in the worktree under Claude Code, or <code>copilot --resume=&lt;session&gt;</code> under Copilot (the session id is in the pid file in <code>~/.pablo/agents/</code>).</p>
 
 <h3>The agents use the wrong model</h3>
 
