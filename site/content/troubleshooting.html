@@ -42,6 +42,10 @@ pablo sync:log          # what the last sync did, per project
 
 <p>Both must be set, either in the project or in <code>~/.pablo/config.yaml</code>. See <a href="page:configuration#global-defaults">global defaults</a>.</p>
 
+<h3>The doctor says openchamber is OpenChamber's desktop app</h3>
+
+<p>OpenChamber's desktop app and its CLI both install an <code>openchamber</code> command, and only the CLI has the commands PABLO uses: the desktop app just raises its window, and every agent falls back to headless (<code>session create failed: non-JSON response: ''</code> in <code>~/.pablo/agents/logs/openchamber-fallback.log</code>). Install the CLI, <code>npm i -g @openchamber/web</code> (Node.js 24.14+), and put its directory (<code>npm prefix -g</code>, then <code>/bin</code>) ahead of the desktop app on your <code>PATH</code>. The CLI sends the sessions to the running desktop app.</p>
+
 <h3>The doctor says OpenChamber only works with OpenCode</h3>
 
 <p>You set <code>agent_runtime: claude-code</code> (or <code>copilot</code>) with <code>agent_backend: openchamber</code>. OpenChamber drives its own OpenCode server and can't run Claude Code or Copilot, so nothing would launch; the background job refuses to run. Set <code>agent_backend: orca</code> (or remove it), or go back to <code>agent_runtime: opencode</code>.</p>
