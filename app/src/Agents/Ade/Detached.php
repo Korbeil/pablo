@@ -15,12 +15,16 @@ final class Detached
      * before exec, so a long-lived process never keeps the global dispatch
      * flock (or any other parent fd) alive after the run ends. bash closes
      * already-closed fds gracefully, unlike POSIX sh. Prints the pid.
+     *
+     * $inner is a shell snippet run as is: it should `exec` its last
+     * command, so the printed pid is that command's. Never prefix it with a
+     * blanket `exec`: `exec cd …` fails and ends the shell before anything runs.
      */
     public static function command(string $inner): string
     {
         $close = implode('; ', array_map(static fn (int $n) => "exec {$n}>&-", range(3, 255)));
 
-        return 'setsid bash -c '.escapeshellarg($close.'; exec '.$inner).' </dev/null >/dev/null 2>&1 & echo $!';
+        return 'setsid bash -c '.escapeshellarg($close.'; '.$inner).' </dev/null >/dev/null 2>&1 & echo $!';
     }
 
     /**
@@ -32,6 +36,6 @@ final class Detached
     {
         $inner = implode(' ', array_map(static fn ($a) => escapeshellarg((string) $a), $argv));
 
-        return (int) trim((string) shell_exec(self::command($inner)));
+        return (int) trim((string) shell_exec(self::command('exec '.$inner)));
     }
 }

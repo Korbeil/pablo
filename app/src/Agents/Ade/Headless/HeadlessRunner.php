@@ -56,9 +56,9 @@ final class HeadlessRunner
         $sessionId ??= $this->runtime->newSessionId();
         // Runtimes attach the session to the working directory (OpenCode v2
         // removed `run --dir`), so the detached subshell cd's into the
-        // worktree before exec'ing the agent CLI.
+        // worktree before exec'ing the agent CLI (and never runs it elsewhere).
         $pid = $this->exec(
-            'cd '.escapeshellarg($worktree).'; exec '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId, $worktree),
+            'cd '.escapeshellarg($worktree).' && exec '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId, $worktree),
             $agent,
         );
         $this->writePidfile($pid, $worktree, $agent, $sessionId);
@@ -78,7 +78,9 @@ final class HeadlessRunner
     private function exec(string $command, string $label): int
     {
         $out = [];
-        exec(Detached::command($command.' >>'.escapeshellarg($this->logFor($label)).' 2>&1'), $out);
+        // The group's redirection covers every command in it, `cd` included,
+        // and survives the final exec.
+        exec(Detached::command('{ '.$command.'; } >>'.escapeshellarg($this->logFor($label)).' 2>&1'), $out);
 
         return (int) trim((string) ($out[0] ?? ''));
     }
