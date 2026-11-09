@@ -111,7 +111,25 @@ final class OrcaLauncherTest extends TestCase
         $key = array_search('--command', $calls[1], true);
         $this->assertIsInt($key);
         $command = $calls[1][$key + 1];
-        $this->assertStringContainsString("--model 'litellm/anthropic/claude-opus'", $command);
+        // The OpenCode TUI command nests the run inside `sh -c '…'`.
+        $this->assertStringContainsString("--model '\\''litellm/anthropic/claude-opus'\\''", $command);
+    }
+
+    public function testOrcaOpensTheOpenCodeTui(): void
+    {
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+
+            return $this->orcaOk(['handle' => 'term_123']);
+        });
+
+        $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'Analyze issue #45');
+        $key = array_search('--command', $calls[1], true);
+        $this->assertIsInt($key);
+        $command = $calls[1][$key + 1];
+        $this->assertStringStartsWith('cd '.escapeshellarg($this->tmp).'; sh -c ', $command);
+        $this->assertMatchesRegularExpression("/exec opencode -s '\\\\''ses_pablo[0-9a-f]{20}'\\\\'''\$/", $command);
     }
 
     public function testOrcaSessionsMapAgentStates(): void

@@ -108,13 +108,14 @@ final class OrcaLauncher extends AbstractAgentLauncher
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
-        // The runtime's one-shot command runs inside the worktree, in an Orca
-        // terminal (OpenCode v2 removed the TUI's positional directory +
-        // --prompt flags). The same session id carries over to the headless
-        // fallback so `claude --resume` / `copilot --resume` and analytics find
-        // the run either way.
+        // The agent runs inside the worktree, in an Orca terminal: in the
+        // runtime's interactive interface when it has one (the OpenCode TUI),
+        // else its one-shot command. The same session id carries over to the
+        // headless fallback so `claude --resume` / `copilot --resume` and
+        // analytics find the run either way.
         $sessionId = $this->runtime->newSessionId();
-        $command = 'cd '.escapeshellarg($worktree).'; '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId);
+        $command = 'cd '.escapeshellarg($worktree).'; '
+            .($this->runtime->interactiveCommand($agent, $prompt, $model) ?? $this->runtime->launchCommand($agent, $prompt, $model, $sessionId));
         $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
             if (null !== ($notAdopted = $this->waitForOrcaAdoption($worktree))) {
                 return new OrcaCall(null, $notAdopted);
