@@ -77,14 +77,14 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testCloseRefusesWhileAgentsActive(): void
     {
         $this->agents->active = [new SessionInfo('a', 'running')];
-        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [], ['capture_stderr_separately' => true]);
+        $tester = $this->runCommand(new CloseCommand($this->taskCloser(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [], ['capture_stderr_separately' => true]);
         $this->assertSame(1, $tester->getStatusCode());
         $this->assertStringContainsString('agent', $tester->getErrorOutput());
     }
 
     public function testCloseRemovesWorktreeAndRecord(): void
     {
-        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--yes' => true]);
+        $tester = $this->runCommand(new CloseCommand($this->taskCloser(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--yes' => true]);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame([[$this->wt, 'wk-45']], $this->git->removed);
         $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
@@ -93,7 +93,7 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testCloseByBranchFromAnywhere(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
+        $tester = $this->runCommand(new CloseCommand($this->taskCloser(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame([[$this->wt, 'wk-45']], $this->git->removed);
         $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
@@ -127,7 +127,7 @@ final class TaskLifecycleTest extends CommandTestBed
             YAML);
         $this->store->save(new Task('other-kit', 'wk-45', $this->tmp.'/wt2/wk-45', State::InProgress));
 
-        $close = fn (): CloseCommand => new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        $close = fn (): CloseCommand => new CloseCommand($this->taskCloser(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
 
         chdir($this->tmp);
         $tester = $this->runCommand($close(), ['branch' => 'wk-45'], ['capture_stderr_separately' => true]);
@@ -144,7 +144,7 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testCloseUnknownBranchFails(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'nope'], ['capture_stderr_separately' => true]);
+        $tester = $this->runCommand(new CloseCommand($this->taskCloser(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'nope'], ['capture_stderr_separately' => true]);
         $this->assertSame(1, $tester->getStatusCode());
         $this->assertStringContainsString("no PABLO task named 'nope'", $tester->getErrorOutput());
     }
@@ -153,7 +153,7 @@ final class TaskLifecycleTest extends CommandTestBed
     {
         (new \Symfony\Component\Process\Process(['rm', '-rf', $this->wt]))->run();
         chdir($this->tmp);
-        $tester = $this->runCommand(new CloseCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
+        $tester = $this->runCommand(new CloseCommand($this->taskCloser(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
         $this->assertStringContainsString('stale worktree pruned', $tester->getDisplay());

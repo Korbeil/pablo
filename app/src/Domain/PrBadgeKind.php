@@ -12,6 +12,8 @@ enum PrBadgeKind: string
     case Merged = 'merged';
     case Draft = 'draft';
     case Open = 'open';
+    /** PR closed without being merged. */
+    case Closed = 'closed';
     /** We know the number but could not read the PR's state. */
     case Unknown = 'unknown';
 }

@@ -45,6 +45,7 @@ use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
 use Pablo\Support\TaskSummarizer;
 use Pablo\Task\TaskAttacher;
+use Pablo\Task\TaskCloser;
 use Pablo\Task\TaskStarter;
 use Pablo\Task\TaskStateChanger;
 use Pablo\Update\Updater;
@@ -133,6 +134,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(TaskStarter::class);
     $services->set(TaskAttacher::class);
     $services->set(TaskStateChanger::class);
+    $services->set(TaskCloser::class);
 
     // `pablo system:install` / `system:uninstall`: the platform's background
     // services (systemd or launchd), paths resolved per call.

@@ -70,12 +70,11 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
     public function testCloseRecordsTaskClosed(): void
     {
         $cmd = new CloseCommand(
-            $this->git,
+            $this->taskCloser(),
             $this->store,
             $this->projectsLoader,
             $this->agentLaunchers,
             $this->agents,
-            $this->analytics,
         );
         $tester = $this->runCommand($cmd, ['branch' => 'wk-45']);
         $this->assertSame(0, $tester->getStatusCode());

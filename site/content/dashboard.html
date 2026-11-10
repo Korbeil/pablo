@@ -53,6 +53,8 @@ pablo web --port 9000 --open   # another port, and open the browser
   <dd>On every task. Pick the new state, and untick <b>Run the state's triggers</b> to only record it. Same as <a href="page:tasks#force-a-state"><code>pablo task:state</code></a>, with the same rules: no <code>waiting</code> from <code>request-changes</code> or <code>testing-failed</code>, no <code>needs-testing</code> when the project has no QA step.</dd>
   <dt>Skip CI</dt>
   <dd>Only on <code>ci-red</code> tasks. Ignores the failing checks and moves the task on to review, until the next <code>/pablo-commit-and-pr</code>. Same as <a href="page:tasks#help-with-ci"><code>pablo task:skip-ci</code></a>.</dd>
+  <dt>Close the task</dt>
+  <dd>Only on <code>closed</code> tasks (pull request closed without merging). Deletes the worktree, the local branch and the task from PABLO; the pull request and the remote branch are untouched, and a worktree with uncommitted changes is refused. While agents are running it is refused too, unless you tick <b>Close even if agents are still running</b>. Same as <a href="page:tasks#close-a-task"><code>pablo task:close</code></a>.</dd>
 </dl>
 
 <p>The tables refresh as soon as the change is saved.</p>

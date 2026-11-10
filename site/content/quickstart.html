@@ -42,6 +42,7 @@ pablo task:start --project your-repo "fix callback verification"
     <tr><td>a reviewer asks for changes</td><td>runs <b>pr-feedback</b> to turn comments into a checklist</td></tr>
     <tr><td>QA flags a problem</td><td>runs <b>task-feedback</b> to triage it</td></tr>
     <tr><td>you merge</td><td>closes the task and removes the worktree</td></tr>
+    <tr><td>you close the PR without merging</td><td>moves the task to <code>closed</code>, keeping the worktree until you close the task</td></tr>
   </tbody>
 </table>
 

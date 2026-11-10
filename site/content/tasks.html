@@ -120,6 +120,8 @@ pablo task:relaunch --only=task-analyst   # just one of them
 
 <p><b>Automatically, on merge.</b> When the pull request is merged, the poller deletes the worktree and the task. It never merges or closes pull requests itself. If an agent is still running on the worktree, closing waits: the task shows ✅ merged until the agents finish, and closes on a later poll. Merges are detected even for paused tasks.</p>
 
+<p><b>Closed without merging.</b> When the pull request is closed but not merged, nothing is deleted: the task moves to 🚫 <code>closed</code> and keeps its worktree, so you can check there is nothing left in it before removing it. Close it by hand (below) or with <b>Close the task</b> on the <a href="page:dashboard#change-a-task-from-the-browser">dashboard</a>. Reopening the pull request sends the task back to <code>draft</code>.</p>
+
 <p><b>By hand</b>, to abandon or clean up a task:</p>
 
 <pre><code class="language-bash">pablo task:close                              # the task of the current worktree

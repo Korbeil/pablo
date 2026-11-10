@@ -597,6 +597,63 @@ final class PollerTest extends TestCase
         $this->assertSame(7, $analytics->closed[0]->prNumber);
     }
 
+    public function testClosedPrParksTaskInClosedAndKeepsWorktree(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::Waiting));
+        $this->gh->prStateOverride = static fn (): string => 'CLOSED';
+        // Running agents don't matter: nothing is removed.
+        $this->agents->active = [new SessionInfo('a', 'running')];
+
+        $analytics = new FakeAnalytics();
+        $events = $this->analyticsPoller($analytics)->pollProject($cfg, $store, $this->agents);
+
+        $task = $this->taskOrFail($store);
+        $this->assertSame(State::Closed, $task->state);
+        $this->assertFalse($task->merged);
+        $this->assertSame([], $this->git->removed);
+        $this->assertSame([], $analytics->closed);
+        $this->assertStringContainsString('PR closed → closed', implode("\n", $events));
+
+        // A second poll is a no-op: the state is not re-entered.
+        $entered = $task->stateEnteredAt;
+        $this->assertSame([], array_values(array_filter(
+            $this->poll($cfg, $store),
+            static fn (string $ev): bool => str_contains($ev, '→'),
+        )));
+        $this->assertSame($entered, $this->taskOrFail($store)->stateEnteredAt);
+    }
+
+    public function testReopenedPrSendsClosedTaskBackToDraft(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::Closed));
+        $this->gh->prStateOverride = static fn (): string => 'OPEN';
+
+        $events = $this->poll($cfg, $store);
+
+        $this->assertSame(State::Draft, $this->taskOrFail($store)->state);
+        $this->assertStringContainsString('PR reopened → draft', implode("\n", $events));
+    }
+
+    public function testClosedTaskStillAutoClosesOnMerge(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::Closed));
+        $this->stubs['merged'] = true;
+
+        $this->poll($cfg, $store);
+
+        $this->assertNull($this->getTask($store));
+        $this->assertSame(['pr-1'], array_column($this->git->removed, 1));
+    }
+
     public function testPrNumberDiscoveredForDraft(): void
     {
         $e = $this->newEnv();

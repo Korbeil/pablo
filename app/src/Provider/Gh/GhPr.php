@@ -343,14 +343,20 @@ GQL;
 
     public function isMerged(string $repoSlug, int $prNumber): bool
     {
+        return 'MERGED' === $this->prState($repoSlug, $prNumber);
+    }
+
+    public function prState(string $repoSlug, int $prNumber): string
+    {
         $out = $this->runner->run([
             'gh', 'pr', 'view', (string) $prNumber, '--repo', $repoSlug,
             '--json', 'state,mergedAt',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
+        $state = strtoupper((string) ($data['state'] ?? ''));
 
-        return 'MERGED' === $data['state'] || !empty($data['mergedAt']);
+        return 'MERGED' === $state || !empty($data['mergedAt']) ? 'MERGED' : $state;
     }
 
     /** @return array<int, string> */

@@ -41,6 +41,9 @@ final readonly class PrBadge
         if ('MERGED' === $pr->state) {
             return new self(PrBadgeKind::Merged, $pr->number);
         }
+        if ('CLOSED' === $pr->state) {
+            return new self(PrBadgeKind::Closed, $pr->number);
+        }
 
         return new self($pr->isDraft ? PrBadgeKind::Draft : PrBadgeKind::Open, $pr->number);
     }
@@ -63,6 +66,9 @@ final readonly class PrBadge
         if (1 === preg_match('/^📖 open #(\d+)$/u', $cell, $m)) {
             return new self(PrBadgeKind::Open, (int) $m[1]);
         }
+        if (1 === preg_match('/^🚫 closed #(\d+)$/u', $cell, $m)) {
+            return new self(PrBadgeKind::Closed, (int) $m[1]);
+        }
         if (1 === preg_match('/^#(\d+)$/', $cell, $m)) {
             return new self(PrBadgeKind::Unknown, (int) $m[1]);
         }
@@ -80,6 +86,7 @@ final readonly class PrBadge
             PrBadgeKind::Merged => '✅ merged'.$suffix,
             PrBadgeKind::Draft => '📝 draft'.$suffix,
             PrBadgeKind::Open => '📖 open'.$suffix,
+            PrBadgeKind::Closed => '🚫 closed'.$suffix,
             PrBadgeKind::Unknown => ltrim($suffix),
         };
     }

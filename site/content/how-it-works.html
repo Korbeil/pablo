@@ -98,7 +98,7 @@ openchamber session list --dir &lt;worktree&gt; --with-status
     <tr><td>Switch a pull request between draft and ready</td><td>CI turns green (ready); changes requested or QA failure (back to draft); <code>task:retrigger-ci</code> (draft)</td></tr>
     <tr><td>Rebase or merge, then push with <code>--force-with-lease</code></td><td>sync, only with <code>auto_apply</code> or <code>--apply</code>; never on a dirty worktree; never plain <code>--force</code></td></tr>
     <tr><td>Resolve a rebase conflict</td><td>never in code: the <a href="page:agents#the-rebase-conflict-resolver">conflict resolver agent</a> does it</td></tr>
-    <tr><td>Delete a worktree</td><td>when the pull request is merged, or <code>pablo task:close</code></td></tr>
+    <tr><td>Delete a worktree</td><td>when the pull request is merged, or when you close the task (<code>pablo task:close</code> or the dashboard). A pull request closed without merging only moves the task to <code>closed</code></td></tr>
     <tr><td><code>checkout</code> + <code>reset --hard</code> the primary checkout</td><td>only when it is clean and has no local commits (<a href="page:sync#primary-checkout-update">rules</a>)</td></tr>
   </tbody>
 </table>
