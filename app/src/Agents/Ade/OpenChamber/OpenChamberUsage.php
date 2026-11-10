@@ -7,6 +7,7 @@ namespace Pablo\Agents\Ade\OpenChamber;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
+use Pablo\Support\Numbers;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -50,7 +51,7 @@ final class OpenChamberUsage implements UsageHarvesterInterface
                 if (!\is_array($row)) {
                     continue;
                 }
-                $createdMs = self::intOf(self::arrayOf($row, 'time')['created'] ?? null);
+                $createdMs = Numbers::int(self::arrayOf($row, 'time')['created'] ?? null);
                 if (0 === $createdMs || (int) floor($createdMs / 1000) < $windowStartS) {
                     continue;
                 }
@@ -71,12 +72,12 @@ final class OpenChamberUsage implements UsageHarvesterInterface
                 $row = $hit['row'];
                 $tokens = self::arrayOf($row, 'tokens');
                 $cache = self::arrayOf($tokens, 'cache');
-                $input += self::intOf($tokens['input'] ?? null);
-                $output += self::intOf($tokens['output'] ?? null);
-                $reasoning += self::intOf($tokens['reasoning'] ?? null);
-                $cacheRead += self::intOf($cache['read'] ?? null);
-                $cacheWrite += self::intOf($cache['write'] ?? null);
-                $cost += self::floatOf($row['cost'] ?? null);
+                $input += Numbers::int($tokens['input'] ?? null);
+                $output += Numbers::int($tokens['output'] ?? null);
+                $reasoning += Numbers::int($tokens['reasoning'] ?? null);
+                $cacheRead += Numbers::int($cache['read'] ?? null);
+                $cacheWrite += Numbers::int($cache['write'] ?? null);
+                $cost += Numbers::float($row['cost'] ?? null);
                 $id = trim((string) ($row['id'] ?? ''));
                 if ('' !== $id) {
                     $ids[] = $id;
@@ -88,7 +89,7 @@ final class OpenChamberUsage implements UsageHarvesterInterface
                     $models['' !== $providerId ? $providerId.'/'.$modelId : $modelId] = true;
                 }
                 $minCreatedMs = 0 === $minCreatedMs ? $hit['created'] : min($minCreatedMs, $hit['created']);
-                $updatedMs = self::intOf(self::arrayOf($row, 'time')['updated'] ?? null);
+                $updatedMs = Numbers::int(self::arrayOf($row, 'time')['updated'] ?? null);
                 $maxUpdatedMs = max($maxUpdatedMs, $updatedMs);
             }
 
@@ -123,15 +124,5 @@ final class OpenChamberUsage implements UsageHarvesterInterface
         $value = $source[$key] ?? null;
 
         return \is_array($value) ? $value : [];
-    }
-
-    private static function intOf(mixed $value): int
-    {
-        return is_numeric($value) ? (int) $value : 0;
-    }
-
-    private static function floatOf(mixed $value): float
-    {
-        return is_numeric($value) ? (float) $value : 0.0;
     }
 }

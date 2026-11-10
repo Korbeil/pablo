@@ -173,16 +173,6 @@ final class Dispatch
         ];
     }
 
-    public static function stampsDir(): string
-    {
-        $override = getenv('PABLO_STAMPS_DIR');
-        if (false !== $override && '' !== $override) {
-            return $override;
-        }
-
-        return (getenv('HOME') ?: '~').'/.pablo/stamps';
-    }
-
     private function isDue(ProjectConfig $cfg, string $job, float $now): bool
     {
         if ('main' === $job && !$cfg->mainUpdateEnabled) {

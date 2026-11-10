@@ -11,6 +11,7 @@ use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
+use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -52,7 +53,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
             return $override;
         }
 
-        return (getenv('HOME') ?: '~').'/.local/bin/pablo';
+        return PabloPaths::home().'/.local/bin/pablo';
     }
 
     /**

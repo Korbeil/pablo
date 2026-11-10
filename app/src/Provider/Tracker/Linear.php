@@ -47,7 +47,7 @@ final class Linear implements Provider
     /** @return array<string, mixed> */
     private function view(string $key): array
     {
-        $out = $this->runner->run(['linear', 'issue', 'view', $key, '--json']);
+        $out = $this->runner->run(self::viewCommand($key));
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
 
@@ -89,38 +89,29 @@ final class Linear implements Provider
 
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
-        $data = $this->view($key);
-
-        return (string) $data['state']['name'];
+        return self::statusOf($this->view($key));
     }
 
     public function batchIssueStatus(array $issues): array
     {
-        if ([] === $issues) {
-            return [];
-        }
+        return IssueStatuses::fetch(
+            $this->runner,
+            $issues,
+            static fn (string $key): array => self::viewCommand($key),
+            self::statusOf(...),
+        );
+    }
 
-        $commands = [];
-        $keyIndex = [];
-        foreach ($issues as $key => $_) {
-            $keyIndex[] = $key;
-            $commands[] = ['linear', 'issue', 'view', $key, '--json'];
-        }
+    /** @return list<string> */
+    private static function viewCommand(string $key): array
+    {
+        return ['linear', 'issue', 'view', $key, '--json'];
+    }
 
-        $results = $this->runner->runParallel($commands, check: false);
-        $statuses = [];
-        foreach ($results as $i => $out) {
-            $key = $keyIndex[$i];
-            try {
-                /** @var array<string, mixed> $data */
-                $data = json_decode($out, true, 512, \JSON_THROW_ON_ERROR);
-                $statuses[$key] = (string) $data['state']['name'];
-            } catch (\Throwable) {
-                $statuses[$key] = '?';
-            }
-        }
-
-        return $statuses;
+    /** @param array<string, mixed> $data */
+    private static function statusOf(array $data): string
+    {
+        return (string) $data['state']['name'];
     }
 
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array

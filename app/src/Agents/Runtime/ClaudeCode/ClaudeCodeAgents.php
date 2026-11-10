@@ -6,6 +6,7 @@ namespace Pablo\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\PermissionRules;
 use Pablo\Agents\Runtime\RuntimeSupport;
 
 /**
@@ -118,54 +119,16 @@ final class ClaudeCodeAgents
     public static function profileFromMarkdown(string $markdown, string $agent): ClaudeAgentProfile
     {
         [$front, $body] = RuntimeSupport::splitFrontmatter($markdown, $agent);
-        $rules = $front['permissions'] ?? [];
-        if (!\is_array($rules)) {
-            throw new AgentTemplateError("{$agent}: permissions must be a list");
-        }
+        $rules = PermissionRules::fromFrontmatter($front, $agent, array_keys(self::ACTION_TOOLS), 'Claude Code');
 
-        $allowedTools = [];
-        $deniedTools = [];
-        $allowedPatterns = [];
-        $deniedPatterns = [];
-        foreach ($rules as $i => $rule) {
-            if (!\is_array($rule)) {
-                throw new AgentTemplateError("{$agent}: permission #{$i} is not a mapping");
-            }
-            $action = (string) ($rule['action'] ?? '');
-            $resource = (string) ($rule['resource'] ?? '*');
-            $effect = (string) ($rule['effect'] ?? '');
-            $tools = self::ACTION_TOOLS[$action] ?? null;
-            if (null === $tools) {
-                throw new AgentTemplateError("{$agent}: permission action '{$action}' has no Claude Code equivalent");
-            }
-            if (!\in_array($effect, ['allow', 'deny'], true)) {
-                throw new AgentTemplateError("{$agent}: permission effect '{$effect}' is not allow/deny");
-            }
-            if ('*' === $resource) {
-                foreach ($tools as $tool) {
-                    if ('allow' === $effect) {
-                        $allowedTools[$tool] = true;
-                    } else {
-                        $deniedTools[$tool] = true;
-                    }
-                }
-                continue;
-            }
-            if ('shell' !== $action) {
-                throw new AgentTemplateError("{$agent}: only shell permissions may target a pattern ('{$action}' → '{$resource}')");
-            }
-            foreach (self::shellRules($resource) as $pattern) {
-                if ('allow' === $effect) {
-                    $allowedPatterns[$pattern] = true;
-                } else {
-                    $deniedPatterns[$pattern] = true;
-                }
-            }
-        }
+        $allowedTools = self::toolSet($rules->allowedActions);
+        $deniedTools = self::toolSet($rules->deniedActions);
+        $allowedPatterns = self::shellRuleSet($rules->allowedShell);
+        $deniedPatterns = self::shellRuleSet($rules->deniedShell);
         // A denied tool is never offered, whatever the order of the rules.
         $tools = array_values(array_diff(array_keys($allowedTools), array_keys($deniedTools)));
 
-        $steps = isset($front['steps']) && is_numeric($front['steps']) ? (int) $front['steps'] : null;
+        $steps = RuntimeSupport::steps($front);
 
         return new ClaudeAgentProfile(
             description: trim((string) ($front['description'] ?? '')),
@@ -180,6 +143,40 @@ final class ClaudeCodeAgents
             permissionMode: isset($allowedTools['Edit']) && !isset($deniedTools['Edit']) ? 'acceptEdits' : 'dontAsk',
             steps: $steps,
         );
+    }
+
+    /**
+     * @param list<string> $actions
+     *
+     * @return array<string, true> the Claude Code tools the actions stand for
+     */
+    private static function toolSet(array $actions): array
+    {
+        $tools = [];
+        foreach ($actions as $action) {
+            foreach (self::ACTION_TOOLS[$action] as $tool) {
+                $tools[$tool] = true;
+            }
+        }
+
+        return $tools;
+    }
+
+    /**
+     * @param list<string> $patterns
+     *
+     * @return array<string, true>
+     */
+    private static function shellRuleSet(array $patterns): array
+    {
+        $rules = [];
+        foreach ($patterns as $pattern) {
+            foreach (self::shellRules($pattern) as $rule) {
+                $rules[$rule] = true;
+            }
+        }
+
+        return $rules;
     }
 
     /**

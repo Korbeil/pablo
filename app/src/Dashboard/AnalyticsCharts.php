@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Dashboard;
 
+use Pablo\Support\Numbers;
 use Symfony\UX\Chartjs\Model\Chart;
 
 /**
@@ -190,7 +191,7 @@ final class AnalyticsCharts
      */
     private static function col(array $rows, string $key): array
     {
-        return array_map(static fn (array $row) => self::intOf($row[$key] ?? 0), array_values($rows));
+        return array_map(static fn (array $row) => Numbers::int($row[$key] ?? 0), array_values($rows));
     }
 
     /**
@@ -200,16 +201,6 @@ final class AnalyticsCharts
      */
     private static function floatCol(array $rows, string $key): array
     {
-        return array_map(static fn (array $row) => self::floatOf($row[$key] ?? 0), array_values($rows));
-    }
-
-    private static function intOf(mixed $value): int
-    {
-        return is_numeric($value) ? (int) $value : 0;
-    }
-
-    private static function floatOf(mixed $value): float
-    {
-        return is_numeric($value) ? (float) $value : 0.0;
+        return array_map(static fn (array $row) => Numbers::float($row[$key] ?? 0), array_values($rows));
     }
 }

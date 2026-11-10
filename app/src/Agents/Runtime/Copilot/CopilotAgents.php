@@ -6,6 +6,7 @@ namespace Pablo\Agents\Runtime\Copilot;
 
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\PermissionRules;
 use Pablo\Agents\Runtime\RuntimeSupport;
 
 /**
@@ -88,49 +89,20 @@ final class CopilotAgents
     public static function profileFromMarkdown(string $markdown, string $agent): CopilotAgentProfile
     {
         [$front, $body] = RuntimeSupport::splitFrontmatter($markdown, $agent);
-        $rules = $front['permissions'] ?? [];
-        if (!\is_array($rules)) {
-            throw new AgentTemplateError("{$agent}: permissions must be a list");
+        $rules = PermissionRules::fromFrontmatter($front, $agent, array_keys(self::ACTIONS), 'Copilot');
+        if ([] !== $rules->allowedShell) {
+            // Shell is either allowed whole or not at all here; a
+            // pattern-only allow would need a per-command allow list.
+            throw new AgentTemplateError("{$agent}: shell allow patterns have no Copilot translation yet ('{$rules->allowedShell[0]}')");
         }
-
-        $allowedActions = [];
-        $deniedActions = [];
         $deniedPatterns = [];
-        foreach ($rules as $i => $rule) {
-            if (!\is_array($rule)) {
-                throw new AgentTemplateError("{$agent}: permission #{$i} is not a mapping");
-            }
-            $action = (string) ($rule['action'] ?? '');
-            $resource = (string) ($rule['resource'] ?? '*');
-            $effect = (string) ($rule['effect'] ?? '');
-            if (!isset(self::ACTIONS[$action])) {
-                throw new AgentTemplateError("{$agent}: permission action '{$action}' has no Copilot equivalent");
-            }
-            if (!\in_array($effect, ['allow', 'deny'], true)) {
-                throw new AgentTemplateError("{$agent}: permission effect '{$effect}' is not allow/deny");
-            }
-            if ('*' === $resource) {
-                if ('allow' === $effect) {
-                    $allowedActions[$action] = true;
-                } else {
-                    $deniedActions[$action] = true;
-                }
-                continue;
-            }
-            if ('shell' !== $action) {
-                throw new AgentTemplateError("{$agent}: only shell permissions may target a pattern ('{$action}' → '{$resource}')");
-            }
-            if ('allow' === $effect) {
-                // Shell is either allowed whole or not at all here; a
-                // pattern-only allow would need a per-command allow list.
-                throw new AgentTemplateError("{$agent}: shell allow patterns have no Copilot translation yet ('{$resource}')");
-            }
+        foreach ($rules->deniedShell as $resource) {
             foreach (self::shellRules($resource, $agent) as $pattern) {
                 $deniedPatterns[$pattern] = true;
             }
         }
         // A denied action is never offered, whatever the order of the rules.
-        $actions = array_diff(array_keys($allowedActions), array_keys($deniedActions));
+        $actions = $rules->offeredActions();
 
         $aliases = [];
         $available = [];
@@ -146,14 +118,14 @@ final class CopilotAgents
             }
         }
         $denied = [];
-        foreach (array_keys($deniedActions) as $action) {
+        foreach ($rules->deniedActions as $action) {
             $kind = self::ACTIONS[$action][2];
             if (null !== $kind && !isset($allowed[$kind])) {
                 $denied[$kind] = true;
             }
         }
 
-        $steps = isset($front['steps']) && is_numeric($front['steps']) ? (int) $front['steps'] : null;
+        $steps = RuntimeSupport::steps($front);
 
         return new CopilotAgentProfile(
             id: self::agentId($agent),

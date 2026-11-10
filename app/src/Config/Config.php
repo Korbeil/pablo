@@ -6,6 +6,7 @@ namespace Pablo\Config;
 
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Support\PabloError;
+use Pablo\Support\PabloPaths;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -34,15 +35,11 @@ final class Config
         if (null !== $override && '' !== $override) {
             return $override;
         }
-        $env = getenv('PABLO_PROJECTS_DIR');
-        if (false !== $env && '' !== $env) {
-            return $env;
-        }
 
         // Projects live per-user outside the repo, under ~/.pablo/projects.
         // Resolved at runtime so the PABLO_PROJECTS_DIR override and HOME are
         // read fresh (same reason GlobalConfig resolves its own path).
-        return (getenv('HOME') ?: '~').'/.pablo/projects';
+        return PabloPaths::pabloPath('projects', 'PABLO_PROJECTS_DIR');
     }
 
     /**
@@ -182,7 +179,7 @@ final class Config
         if (null !== $rawRoot && '' !== $rawRoot) {
             $worktreesRoot = $this->expandHome((string) $rawRoot);
         } else {
-            $worktreesRoot = $this->expandHome('~/.pablo/worktrees').'/'.basename($repoPath);
+            $worktreesRoot = PabloPaths::pabloPath('worktrees').'/'.basename($repoPath);
         }
 
         $syncInterval = $this->merged($data, $defaults, 'sync', 'interval_minutes');

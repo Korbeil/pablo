@@ -62,6 +62,16 @@ final class RuntimeSupport
     }
 
     /**
+     * The `steps:` budget of an agent's frontmatter, null when it sets none.
+     *
+     * @param array<string, mixed> $front
+     */
+    public static function steps(array $front): ?int
+    {
+        return isset($front['steps']) && is_numeric($front['steps']) ? (int) $front['steps'] : null;
+    }
+
+    /**
      * OpenCode caps analysts with a hard `steps:` limit; runtimes without a
      * per-agent equivalent get the budget as an instruction (the 1 h watcher
      * timeout stays the hard backstop).

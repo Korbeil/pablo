@@ -7,6 +7,7 @@ namespace Pablo\Analytics;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Support\PabloPaths;
 
 /**
  * Append-only JSONL analytics under ~/.pablo/analytics/<project>/<YYYY-MM>.jsonl.
@@ -30,12 +31,7 @@ final class JsonlAnalytics implements AnalyticsInterface
      */
     public static function root(): string
     {
-        $override = getenv('PABLO_ANALYTICS_DIR');
-        if (false !== $override && '' !== $override) {
-            return $override;
-        }
-
-        return (getenv('HOME') ?: '~').'/.pablo/analytics';
+        return PabloPaths::pabloPath('analytics', 'PABLO_ANALYTICS_DIR');
     }
 
     public function taskOpened(Task $task): void
