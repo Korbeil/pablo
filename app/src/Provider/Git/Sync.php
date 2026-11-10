@@ -13,6 +13,7 @@ use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
 use Pablo\Support\PabloError;
+use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
 
@@ -173,12 +174,7 @@ final class Sync
 
     public static function logsDir(): string
     {
-        $override = getenv('PABLO_LOGS_DIR');
-        if (false !== $override && '' !== $override) {
-            return $override;
-        }
-
-        return (getenv('HOME') ?: '~').'/.pablo/logs';
+        return PabloPaths::pabloPath('logs', 'PABLO_LOGS_DIR');
     }
 
     /** @param list<SyncReport> $reports */

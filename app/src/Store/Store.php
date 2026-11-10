@@ -7,6 +7,7 @@ namespace Pablo\Store;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Support\PabloError;
+use Pablo\Support\PabloPaths;
 use Symfony\Component\Process\Process;
 
 /**
@@ -44,13 +45,7 @@ final class Store
      */
     private static function defaultRoot(): string
     {
-        $override = getenv('PABLO_STATE_DIR');
-        if (false !== $override && '' !== $override) {
-            return $override;
-        }
-        $home = getenv('HOME');
-
-        return ($home ?: '~').'/.pablo/state';
+        return PabloPaths::pabloPath('state', 'PABLO_STATE_DIR');
     }
 
     public function root(): string

@@ -12,6 +12,7 @@ use Pablo\Domain\Time;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
+use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -47,12 +48,7 @@ final class Backup
 
     public function pabloRoot(): string
     {
-        $env = getenv('PABLO_ROOT');
-        if (false !== $env && '' !== $env) {
-            return $env;
-        }
-
-        return (getenv('HOME') ?: '~').'/.pablo';
+        return PabloPaths::pabloPath('', 'PABLO_ROOT');
     }
 
     public function defaultBackupDir(): string
@@ -62,7 +58,7 @@ final class Backup
             return $env;
         }
 
-        return (getenv('HOME') ?: '~').'/'.self::DEFAULT_BACKUP_SUBDIR;
+        return PabloPaths::home().'/'.self::DEFAULT_BACKUP_SUBDIR;
     }
 
     public function defaultArchiveName(?\DateTimeImmutable $now = null): string

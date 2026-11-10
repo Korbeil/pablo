@@ -8,6 +8,7 @@ use Pablo\Analytics\PromptFingerprint;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
+use Pablo\Support\Numbers;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -151,14 +152,14 @@ final class OpenCodeUsage implements UsageHarvesterInterface
                     continue;
                 }
                 $tokens = \is_array($info['tokens'] ?? null) ? $info['tokens'] : [];
-                $input += self::intOf($tokens['input'] ?? null);
-                $output += self::intOf($tokens['output'] ?? null);
-                $reasoning += self::intOf($tokens['reasoning'] ?? null);
-                $total += self::intOf($tokens['total'] ?? null);
+                $input += Numbers::int($tokens['input'] ?? null);
+                $output += Numbers::int($tokens['output'] ?? null);
+                $reasoning += Numbers::int($tokens['reasoning'] ?? null);
+                $total += Numbers::int($tokens['total'] ?? null);
                 $cache = \is_array($tokens['cache'] ?? null) ? $tokens['cache'] : [];
-                $cacheRead += self::intOf($cache['read'] ?? null);
-                $cacheWrite += self::intOf($cache['write'] ?? null);
-                $messageCost += self::floatOf($info['cost'] ?? null);
+                $cacheRead += Numbers::int($cache['read'] ?? null);
+                $cacheWrite += Numbers::int($cache['write'] ?? null);
+                $messageCost += Numbers::float($info['cost'] ?? null);
                 $modelId = (string) ($info['modelID'] ?? '');
                 if ('' !== $modelId) {
                     $models[$modelId] = true;
@@ -173,7 +174,7 @@ final class OpenCodeUsage implements UsageHarvesterInterface
                     $maxCompletedMs = max($maxCompletedMs, (int) $completedMs);
                 }
             }
-            $sessionCost = self::floatOf(\is_array($export['info'] ?? null) ? ($export['info']['cost'] ?? null) : null);
+            $sessionCost = Numbers::float(\is_array($export['info'] ?? null) ? ($export['info']['cost'] ?? null) : null);
             // Subscription plans report zero per-message cost; fall back to the
             // session-level total when the messages carry none.
             $cost += $messageCost > 0.0 ? $messageCost : $sessionCost;
@@ -236,15 +237,5 @@ final class OpenCodeUsage implements UsageHarvesterInterface
         }
 
         return implode('', $chunks);
-    }
-
-    private static function intOf(mixed $value): int
-    {
-        return is_numeric($value) ? (int) $value : 0;
-    }
-
-    private static function floatOf(mixed $value): float
-    {
-        return is_numeric($value) ? (float) $value : 0.0;
     }
 }

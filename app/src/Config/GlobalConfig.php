@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Config;
 
 use Pablo\Support\PabloError;
+use Pablo\Support\PabloPaths;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -27,12 +28,8 @@ final class GlobalConfig
         if (null !== $override && '' !== $override) {
             return $override;
         }
-        $env = getenv('PABLO_CONFIG');
-        if (false !== $env && '' !== $env) {
-            return $env;
-        }
 
-        return (getenv('HOME') ?: '~').'/.pablo/config.yaml';
+        return PabloPaths::pabloPath('config.yaml', 'PABLO_CONFIG');
     }
 
     /**

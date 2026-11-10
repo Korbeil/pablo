@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Dispatch;
 
+use Pablo\Support\PabloPaths;
+
 /**
  * Per-job run stamps under ~/.pablo/stamps: when each project's sync/poll
  * last ran and how long it took. Shared by the dispatcher (write), the
@@ -13,12 +15,7 @@ final class Stamps
 {
     public static function stampsDir(): string
     {
-        $override = getenv('PABLO_STAMPS_DIR');
-        if (false !== $override && '' !== $override) {
-            return $override;
-        }
-
-        return (getenv('HOME') ?: '~').'/.pablo/stamps';
+        return PabloPaths::pabloPath('stamps', 'PABLO_STAMPS_DIR');
     }
 
     /** Encode a per-job run stamp: when it ran and how long the run took. */

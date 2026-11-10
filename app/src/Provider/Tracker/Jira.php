@@ -100,45 +100,34 @@ final class Jira implements Provider
 
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
-        $out = $this->runner->run(
-            ['acli', 'jira', 'workitem', 'view', $key, '--json', '--fields', 'status'],
-            timeout: self::JIRA_CALL_TIMEOUT_S,
-        );
-        /** @var array<string, mixed> $data */
-        $data = json_decode($out, true);
-        $fields = $data['fields'] ?? [];
+        $data = json_decode($this->runner->run(self::statusCommand($key), timeout: self::JIRA_CALL_TIMEOUT_S), true);
 
-        return (string) ($fields['status']['name'] ?? '?');
+        return \is_array($data) ? self::statusOf($data) : '?';
     }
 
     public function batchIssueStatus(array $issues): array
     {
-        if ([] === $issues) {
-            return [];
-        }
+        return IssueStatuses::fetch(
+            $this->runner,
+            $issues,
+            static fn (string $key): array => self::statusCommand($key),
+            self::statusOf(...),
+            self::JIRA_CALL_TIMEOUT_S,
+        );
+    }
 
-        $commands = [];
-        $keyIndex = [];
-        foreach ($issues as $key => $_) {
-            $keyIndex[] = $key;
-            $commands[] = ['acli', 'jira', 'workitem', 'view', $key, '--json', '--fields', 'status'];
-        }
+    /** @return list<string> */
+    private static function statusCommand(string $key): array
+    {
+        return ['acli', 'jira', 'workitem', 'view', $key, '--json', '--fields', 'status'];
+    }
 
-        $results = $this->runner->runParallel($commands, check: false, timeout: self::JIRA_CALL_TIMEOUT_S);
-        $statuses = [];
-        foreach ($results as $i => $out) {
-            $key = $keyIndex[$i];
-            try {
-                /** @var array<string, mixed> $data */
-                $data = json_decode($out, true, 512, \JSON_THROW_ON_ERROR);
-                $fields = $data['fields'] ?? [];
-                $statuses[$key] = (string) ($fields['status']['name'] ?? '?');
-            } catch (\Throwable) {
-                $statuses[$key] = '?';
-            }
-        }
+    /** @param array<string, mixed> $data */
+    private static function statusOf(array $data): string
+    {
+        $fields = $data['fields'] ?? [];
 
-        return $statuses;
+        return (string) ($fields['status']['name'] ?? '?');
     }
 
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array

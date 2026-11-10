@@ -31,6 +31,22 @@ final class PabloPaths
     }
 
     /**
+     * ~/.pablo/<relative> (~/.pablo itself for ''), unless the environment variable $override is set
+     * (non-empty): then its value, as-is. Read on every call.
+     */
+    public static function pabloPath(string $relative, ?string $override = null): string
+    {
+        if (null !== $override) {
+            $value = getenv($override);
+            if (false !== $value && '' !== $value) {
+                return $value;
+            }
+        }
+
+        return '' === $relative ? self::pabloDir() : self::pabloDir().'/'.$relative;
+    }
+
+    /**
      * ~/.pablo/runtime (or PABLO_RUNTIME_DIR): every file PABLO renders or
      * extracts for the agent runtimes — opencode/{agents,commands,skills},
      * claude/{agents,commands} + agents.json, copilot/{agents,skills}. The

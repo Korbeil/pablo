@@ -16,6 +16,7 @@ use Pablo\Dashboard\Dashboard;
 use Pablo\Domain\Time;
 use Pablo\Listing\Listing;
 use Pablo\Store\Store;
+use Pablo\Support\Numbers;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -127,9 +128,9 @@ final class StatsCommand extends Command
                 (string) $t['opened'],
                 (string) $t['closed'],
                 $t['closed'] > 0 ? $t['merge_rate_pct'].'%' : '-',
-                self::humanDuration(self::intOf($t['avg_life_s']), true),
-                self::humanDuration(self::intOf($t['p50_life_s']), true),
-                self::humanDuration(self::intOf($t['p90_life_s']), true),
+                self::humanDuration(Numbers::int($t['avg_life_s']), true),
+                self::humanDuration(Numbers::int($t['p50_life_s']), true),
+                self::humanDuration(Numbers::int($t['p90_life_s']), true),
             ];
         }
         $output->write($this->listing->render(
@@ -220,11 +221,6 @@ final class StatsCommand extends Command
         }
 
         return false;
-    }
-
-    private static function intOf(mixed $value): int
-    {
-        return is_numeric($value) ? (int) $value : 0;
     }
 
     /** Compact human duration; -1 input renders as "-" (no data). */

@@ -8,6 +8,7 @@ use Pablo\Analytics\PromptFingerprint;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
+use Pablo\Support\Numbers;
 
 /**
  * Harvests token usage for one GitHub Copilot CLI run from its local
@@ -175,11 +176,11 @@ final class CopilotUsage implements UsageHarvesterInterface
             $ids[] = $session['session'];
             foreach ($session['metrics'] as $model => $metric) {
                 $usage = \is_array($metric) && \is_array($metric['usage'] ?? null) ? $metric['usage'] : [];
-                $read = self::intOf($usage['cacheReadTokens'] ?? null);
-                $write = self::intOf($usage['cacheWriteTokens'] ?? null);
+                $read = Numbers::int($usage['cacheReadTokens'] ?? null);
+                $write = Numbers::int($usage['cacheWriteTokens'] ?? null);
                 // inputTokens includes the cached ones.
-                $input += max(0, self::intOf($usage['inputTokens'] ?? null) - $read - $write);
-                $output += self::intOf($usage['outputTokens'] ?? null);
+                $input += max(0, Numbers::int($usage['inputTokens'] ?? null) - $read - $write);
+                $output += Numbers::int($usage['outputTokens'] ?? null);
                 $cacheRead += $read;
                 $cacheWrite += $write;
                 if ('' !== (string) $model) {
@@ -219,10 +220,5 @@ final class CopilotUsage implements UsageHarvesterInterface
         } catch (\Throwable) {
             return 0;
         }
-    }
-
-    private static function intOf(mixed $value): int
-    {
-        return is_numeric($value) ? (int) $value : 0;
     }
 }

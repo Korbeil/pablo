@@ -104,46 +104,36 @@ final class Github implements Provider
 
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
-        $out = $this->runner->run([
-            'gh', 'issue', 'view', $key, '--repo', $this->repoSlug->for($cfg), '--json', 'state',
-        ], timeout: self::GH_CALL_TIMEOUT_S);
+        $out = $this->runner->run($this->statusCommand($key, $cfg), timeout: self::GH_CALL_TIMEOUT_S);
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
-        $state = $data['state'];
 
-        return self::STATUS[$state] ?? $state;
+        return self::statusOf($data);
     }
 
     public function batchIssueStatus(array $issues): array
     {
-        if ([] === $issues) {
-            return [];
-        }
+        return IssueStatuses::fetch(
+            $this->runner,
+            $issues,
+            $this->statusCommand(...),
+            self::statusOf(...),
+            self::GH_CALL_TIMEOUT_S,
+        );
+    }
 
-        $commands = [];
-        $keyIndex = [];
-        foreach ($issues as $key => $cfg) {
-            $keyIndex[] = $key;
-            $commands[] = [
-                'gh', 'issue', 'view', $key, '--repo', $this->repoSlug->for($cfg), '--json', 'state',
-            ];
-        }
+    /** @return list<string> */
+    private function statusCommand(string $key, ProjectConfig $cfg): array
+    {
+        return ['gh', 'issue', 'view', $key, '--repo', $this->repoSlug->for($cfg), '--json', 'state'];
+    }
 
-        $results = $this->runner->runParallel($commands, check: false, timeout: self::GH_CALL_TIMEOUT_S);
-        $statuses = [];
-        foreach ($results as $i => $out) {
-            $key = $keyIndex[$i];
-            try {
-                /** @var array<string, mixed> $data */
-                $data = json_decode($out, true, 512, \JSON_THROW_ON_ERROR);
-                $state = $data['state'];
-                $statuses[$key] = self::STATUS[$state] ?? $state;
-            } catch (\Throwable) {
-                $statuses[$key] = '?';
-            }
-        }
+    /** @param array<string, mixed> $data */
+    private static function statusOf(array $data): string
+    {
+        $state = $data['state'];
 
-        return $statuses;
+        return self::STATUS[$state] ?? $state;
     }
 
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array

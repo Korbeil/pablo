@@ -8,6 +8,7 @@ use Pablo\Agents\Ade\Detached;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
+use Pablo\Support\PabloPaths;
 
 /**
  * Headless runs: the runtime's command detached in the background, tracked
@@ -26,10 +27,7 @@ final class HeadlessRunner
         private readonly AgentRuntimeInterface $runtime,
     ) {
         // Resolved per process, never at container compile time.
-        $override = getenv('PABLO_AGENTS_DIR');
-        $this->agentsDir = (false !== $override && '' !== $override)
-            ? $override
-            : (getenv('HOME') ?: '~').'/.pablo/agents';
+        $this->agentsDir = PabloPaths::pabloPath('agents', 'PABLO_AGENTS_DIR');
     }
 
     public function agentsDir(): string

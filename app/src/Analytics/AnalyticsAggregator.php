@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Analytics;
 
 use Pablo\Domain\Time;
+use Pablo\Support\Numbers;
 
 /**
  * The single source of truth for analytics aggregation, shared by the
@@ -41,7 +42,7 @@ final class AnalyticsAggregator
                 $openedAt[$key] ??= ['ts' => $event->ts(), 'project' => $event->project()];
             } elseif ('task_closed' === $event->type()) {
                 $closed[$key] = [
-                    'duration_s' => self::intOf($event->get('duration_s')),
+                    'duration_s' => Numbers::int($event->get('duration_s')),
                     'merged' => (bool) $event->get('merged', false),
                 ];
             }
@@ -122,13 +123,13 @@ final class AnalyticsAggregator
                 }
                 $row = $byAgent[$name] ?? self::emptyAgentRow();
                 ++$row['runs'];
-                $row['duration_sum'] += max(0, self::intOf($event->get('duration_s')));
-                $row['in'] += max(0, self::intOf($event->get('input')));
-                $row['out'] += max(0, self::intOf($event->get('output')));
-                $row['reasoning'] += max(0, self::intOf($event->get('reasoning')));
-                $row['cache_read'] += max(0, self::intOf($event->get('cache_read')));
-                $row['cache_write'] += max(0, self::intOf($event->get('cache_write')));
-                $row['cost'] += abs(self::floatOf($event->get('cost')));
+                $row['duration_sum'] += max(0, Numbers::int($event->get('duration_s')));
+                $row['in'] += max(0, Numbers::int($event->get('input')));
+                $row['out'] += max(0, Numbers::int($event->get('output')));
+                $row['reasoning'] += max(0, Numbers::int($event->get('reasoning')));
+                $row['cache_read'] += max(0, Numbers::int($event->get('cache_read')));
+                $row['cache_write'] += max(0, Numbers::int($event->get('cache_write')));
+                $row['cost'] += abs(Numbers::float($event->get('cost')));
                 $waitS = $this->humanWaitS($event, $stateTsByKey[$event->project().'/'.$event->branch()] ?? []);
                 if (null !== $waitS) {
                     ++$row['waits'];
@@ -382,15 +383,5 @@ final class AnalyticsAggregator
     private static function avg(array $values): int
     {
         return [] !== $values ? (int) round(array_sum($values) / \count($values)) : -1;
-    }
-
-    private static function intOf(mixed $value): int
-    {
-        return is_numeric($value) ? (int) $value : 0;
-    }
-
-    private static function floatOf(mixed $value): float
-    {
-        return is_numeric($value) ? (float) $value : 0.0;
     }
 }

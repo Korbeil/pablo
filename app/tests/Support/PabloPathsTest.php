@@ -34,6 +34,22 @@ final class PabloPathsTest extends TestCase
         $this->assertSame('/r', PabloPaths::runtimeDir());
     }
 
+    public function testPabloPathFollowsHomeAndItsOverride(): void
+    {
+        putenv('HOME=/h');
+        putenv('PABLO_TEST_DIR');
+        $this->assertSame('/h/.pablo/state', PabloPaths::pabloPath('state'));
+        $this->assertSame('/h/.pablo/state', PabloPaths::pabloPath('state', 'PABLO_TEST_DIR'));
+        $this->assertSame('/h/.pablo', PabloPaths::pabloPath(''));
+
+        putenv('PABLO_TEST_DIR=');
+        $this->assertSame('/h/.pablo/state', PabloPaths::pabloPath('state', 'PABLO_TEST_DIR'), 'an empty override is unset');
+
+        putenv('PABLO_TEST_DIR=/elsewhere/');
+        $this->assertSame('/elsewhere/', PabloPaths::pabloPath('state', 'PABLO_TEST_DIR'));
+        putenv('PABLO_TEST_DIR');
+    }
+
     public function testResourcesAreTheRepositoryRootOutsideThePhar(): void
     {
         $this->assertSame(\dirname(__DIR__, 3), PabloPaths::resourcesDir());

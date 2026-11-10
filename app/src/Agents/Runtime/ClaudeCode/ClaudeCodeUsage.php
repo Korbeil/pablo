@@ -8,6 +8,7 @@ use Pablo\Analytics\PromptFingerprint;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
+use Pablo\Support\Numbers;
 
 /**
  * Harvests token usage for one Claude Code run from its local transcripts.
@@ -156,10 +157,10 @@ final class ClaudeCodeUsage implements UsageHarvesterInterface
             $sessions[] = $transcript['session'];
             foreach ($transcript['messages'] as $message) {
                 $usage = \is_array($message['usage'] ?? null) ? $message['usage'] : [];
-                $input += self::intOf($usage['input_tokens'] ?? null);
-                $output += self::intOf($usage['output_tokens'] ?? null);
-                $cacheRead += self::intOf($usage['cache_read_input_tokens'] ?? null);
-                $cacheWrite += self::intOf($usage['cache_creation_input_tokens'] ?? null);
+                $input += Numbers::int($usage['input_tokens'] ?? null);
+                $output += Numbers::int($usage['output_tokens'] ?? null);
+                $cacheRead += Numbers::int($usage['cache_read_input_tokens'] ?? null);
+                $cacheWrite += Numbers::int($usage['cache_creation_input_tokens'] ?? null);
                 $model = (string) ($message['model'] ?? '');
                 if ('' !== $model && '<synthetic>' !== $model) {
                     $models[$model] = true;
@@ -223,10 +224,5 @@ final class ClaudeCodeUsage implements UsageHarvesterInterface
         } catch (\Throwable) {
             return 0;
         }
-    }
-
-    private static function intOf(mixed $value): int
-    {
-        return is_numeric($value) ? (int) $value : 0;
     }
 }
