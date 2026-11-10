@@ -31,6 +31,7 @@ final class PrBadgeTest extends TestCase
         yield 'merged with number' => [new PrBadge(PrBadgeKind::Merged, 12), '✅ merged #12'];
         yield 'draft' => [new PrBadge(PrBadgeKind::Draft, 34), '📝 draft #34'];
         yield 'open' => [new PrBadge(PrBadgeKind::Open, 17035), '📖 open #17035'];
+        yield 'closed' => [new PrBadge(PrBadgeKind::Closed, 78), '🚫 closed #78'];
         yield 'unknown' => [new PrBadge(PrBadgeKind::Unknown, 56), '#56'];
     }
 
@@ -87,6 +88,10 @@ final class PrBadgeTest extends TestCase
         $this->assertSame(
             PrBadgeKind::Merged,
             PrBadge::fromTask($task, new PrInfo(number: 7, title: 't', state: 'MERGED', isDraft: false, url: 'u', mergedAt: null))->kind,
+        );
+        $this->assertSame(
+            PrBadgeKind::Closed,
+            PrBadge::fromTask($task, new PrInfo(number: 7, title: 't', state: 'CLOSED', isDraft: false, url: 'u', mergedAt: null))->kind,
         );
     }
 

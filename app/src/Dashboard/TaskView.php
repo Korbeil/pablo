@@ -66,6 +66,7 @@ final readonly class TaskView
             State::Draft => 'pablo-chip-muted',
             State::InProgress => 'is-primary',
             State::Waiting => 'pablo-chip',
+            State::Closed => 'pablo-chip-muted',
         };
     }
 
@@ -82,6 +83,7 @@ final readonly class TaskView
             State::Draft => 'lucide:file-pen',
             State::InProgress => 'lucide:hammer',
             State::Waiting => 'lucide:coffee',
+            State::Closed => 'lucide:git-pull-request-closed',
         };
     }
 }

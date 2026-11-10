@@ -58,6 +58,9 @@ interface GhPrInterface
 
     public function isMerged(string $repoSlug, int $prNumber): bool;
 
+    /** OPEN | CLOSED | MERGED (a PR with a mergedAt is MERGED whatever its state says). */
+    public function prState(string $repoSlug, int $prNumber): string;
+
     /** @return array<int, string> */
     public function rerunCi(string $repoSlug, string $branch): array;
 }

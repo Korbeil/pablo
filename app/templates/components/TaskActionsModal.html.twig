@@ -1,5 +1,6 @@
 {# @var this \Pablo\Twig\Components\TaskActionsModal #}
 {% set skipCi = this.mode == constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_SKIP_CI') %}
+{% set closeTask = this.mode == constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_CLOSE_TASK') %}
 <div {{ attributes }}>
     {% if this.message %}
         <div class="notification is-success is-light pablo-task-actions-flash">
@@ -21,7 +22,10 @@
         <div class="modal-card pablo-modal pablo-modal-narrow">
             <header class="modal-card-head">
                 <p class="modal-card-title">
-                    {% if skipCi %}
+                    {% if closeTask %}
+                        {{ ux_icon('lucide:trash-2', {class: 'pablo-icon'}) }}
+                        Close the task
+                    {% elseif skipCi %}
                         {{ ux_icon('lucide:ban', {class: 'pablo-icon'}) }}
                         Skip CI
                     {% else %}
@@ -46,7 +50,16 @@
                     — currently <span class="tag pablo-chip">{{ this.currentState }}</span>
                 </p>
 
-                {% if skipCi %}
+                {% if closeTask %}
+                    <p class="block">Remove <code>{{ this.branch }}</code> from PABLO: its worktree, its local branch and the task record are deleted. The pull request and the remote branch are untouched. A worktree with uncommitted changes is refused.</p>
+                    <div class="field">
+                        <label class="checkbox">
+                            <input type="checkbox" name="force" data-model="force" {{ this.force ? 'checked' : '' }}>
+                            Close even if agents are still running
+                        </label>
+                        <p class="help">Same as <code>pablo task:close --yes</code>.</p>
+                    </div>
+                {% elseif skipCi %}
                     <p>Ignore the failing CI checks on <code>{{ this.branch }}</code> and move it to <b>ready-to-review</b>? They stay ignored until the next <code>/pablo-commit-and-pr</code>.</p>
                 {% else %}
                     <div class="field">
@@ -76,7 +89,7 @@
 
             <footer class="modal-card-foot">
                 <div class="buttons">
-                    <button class="button {{ skipCi ? 'is-warning' : 'is-primary' }}"
+                    <button class="button {{ closeTask ? 'is-danger' : (skipCi ? 'is-warning' : 'is-primary') }}"
                             {{ live_action('confirm') }}
                             data-loading="addClass(is-loading)">
                         {{ ux_icon('lucide:check', {class: 'pablo-icon'}) }}

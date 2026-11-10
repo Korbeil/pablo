@@ -129,6 +129,18 @@ final class FakeGhPr implements GhPrInterface
         return false;
     }
 
+    /** @var callable|null fn(slug, pr): string — defaults to MERGED/OPEN from isMerged() */
+    public $prStateOverride;
+
+    public function prState(string $repoSlug, int $prNumber): string
+    {
+        if (null !== $this->prStateOverride) {
+            return ($this->prStateOverride)($repoSlug, $prNumber);
+        }
+
+        return $this->isMerged($repoSlug, $prNumber) ? 'MERGED' : 'OPEN';
+    }
+
     public function rerunCi(string $repoSlug, string $branch): array
     {
         $this->rerunBranches[] = $branch;

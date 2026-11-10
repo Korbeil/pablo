@@ -29,7 +29,7 @@ use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
 
 /**
- * Post-draft state polling and merge auto-close.
+ * Post-draft state polling, merge auto-close and the closed-PR park.
  */
 final class Poller
 {
@@ -348,7 +348,9 @@ final class Poller
             return;
         }
 
-        if (null !== $task->prNumber && $this->gh->isMerged($slug, $task->prNumber)) {
+        $prState = null !== $task->prNumber ? $this->gh->prState($slug, $task->prNumber) : null;
+
+        if ('MERGED' === $prState) {
             // Set before branching: the close event below is what analytics
             // records, and the flag must be true on the immediate path too.
             $task->merged = true;
@@ -357,6 +359,26 @@ final class Poller
                 $events[] = "{$task->branch}: PR merged, close deferred (agents still running)";
             } else {
                 $this->close($ctx, $events);
+            }
+
+            return;
+        }
+
+        // Closed without merging: nothing is removed automatically. The task
+        // parks in `closed`, worktree kept, until the user closes it
+        // (task:close or the dashboard); a reopen sends it back to draft.
+        if ('CLOSED' === $prState) {
+            if (State::Closed !== $task->state) {
+                $this->stateMachine->enterState($ctx, State::Closed);
+                $events[] = "{$task->branch}: PR closed → closed (worktree kept until you close the task)";
+            }
+
+            return;
+        }
+        if (State::Closed === $task->state) {
+            if ('OPEN' === $prState) {
+                $this->stateMachine->enterState($ctx, State::Draft);
+                $events[] = "{$task->branch}: PR reopened → draft";
             }
 
             return;

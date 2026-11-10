@@ -86,6 +86,19 @@
                 {{ ux_icon('lucide:repeat', {class: 'pablo-icon'}) }}
                 <span>Force state</span>
             </button>
+            {% if task.state.value == 'closed' %}
+                <button type="button" class="button is-danger"
+                        title="Remove the worktree, the local branch and the task from PABLO"
+                        data-action="live#emit"
+                        data-live-event-param="{{ event }}"
+                        data-live-mode-param="{{ constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_CLOSE_TASK') }}"
+                        data-live-project-param="{{ task.project }}"
+                        data-live-branch-param="{{ task.branch }}"
+                        data-live-state-param="{{ task.state.value }}">
+                    {{ ux_icon('lucide:trash-2', {class: 'pablo-icon'}) }}
+                    <span>Close the task</span>
+                </button>
+            {% endif %}
         </div>
     </td>
 </tr>

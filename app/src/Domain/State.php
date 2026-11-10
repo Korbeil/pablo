@@ -19,6 +19,7 @@ enum State: string
     case NeedsTesting = 'needs-testing';
     case RequestChanges = 'request-changes';
     case TestingFailed = 'testing-failed';
+    case Closed = 'closed';
 
     /** @return list<State> */
     public static function all(): array
@@ -44,6 +45,7 @@ enum State: string
         self::Draft,
         self::Waiting,
         self::InProgress,
+        self::Closed,
     ];
 
     public function displayRank(): int

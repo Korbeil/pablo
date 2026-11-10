@@ -14,6 +14,7 @@ use Pablo\Domain\Time;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
+use Pablo\Task\TaskCloser;
 use Pablo\Task\TaskStateChanger;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeAnalytics;
@@ -145,6 +146,11 @@ YAML,
     protected function stateChanger(): TaskStateChanger
     {
         return new TaskStateChanger($this->stateMachine, $this->store, $this->projectsLoader, $this->agents);
+    }
+
+    protected function taskCloser(): TaskCloser
+    {
+        return new TaskCloser($this->git, $this->store, $this->projectsLoader, $this->agents, $this->analytics);
     }
 
     protected function getTask(): Task

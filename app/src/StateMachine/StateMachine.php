@@ -75,6 +75,10 @@ final class StateMachine
             State::NeedsTesting->value => ['emoji' => '🧪', 'label' => 'needs-testing', 'onEnter' => $this->enterNeedsTesting(...), 'polled' => true],
             State::RequestChanges->value => ['emoji' => '🔁', 'label' => 'request-changes', 'onEnter' => $this->enterRequestChanges(...), 'polled' => false],
             State::TestingFailed->value => ['emoji' => '🚨', 'label' => 'testing-failed', 'onEnter' => $this->enterTestingFailed(...), 'polled' => false],
+            // The PR was closed without being merged. Nothing is removed: the
+            // worktree stays until the user closes the task (task:close or the
+            // dashboard). Polled only to notice a reopen (back to draft).
+            State::Closed->value => ['emoji' => '🚫', 'label' => 'closed', 'onEnter' => null, 'polled' => true],
         ];
     }
 

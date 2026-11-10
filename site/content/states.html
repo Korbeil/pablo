@@ -34,7 +34,7 @@
   <g class="node hot"><rect x="836" y="200" width="144" height="44" rx="22"/><text x="908" y="227">testing-failed</text></g>
   <text class="sm-aside cmd" x="560" y="310">/pablo-commit-and-pr</text>
 </svg></div>
-<figcaption>Thick yellow arrows are commands you type (<code>pablo task:start</code>, then <code>/pablo-commit-and-pr</code>). Thin arrows are detected by the poller. Yellow states bring work back to you, with an agent's analysis. A merge closes the task from any state.</figcaption>
+<figcaption>Thick yellow arrows are commands you type (<code>pablo task:start</code>, then <code>/pablo-commit-and-pr</code>). Thin arrows are detected by the poller. Yellow states bring work back to you, with an agent's analysis. A merge closes the task from any state; a pull request closed without merging parks it in <code>closed</code>.</figcaption>
 </figure>
 
 <p>There's no <code>todo</code> state on purpose: a ticket nobody has started has no task, it only exists in your tracker.</p>
@@ -54,6 +54,7 @@
     <tr><td>🧪 <code>needs-testing</code></td><td>right after <code>approved</code></td><td>record the time, as the baseline for QA signals</td></tr>
     <tr><td>🔁 <code>request-changes</code></td><td>poller: changes requested or a comment review</td><td>launch <b>pr-feedback</b>; when it finishes, put the pull request back in draft — and once every review signal is addressed (see <a href="#reviews">Reviews</a>), back to review</td></tr>
     <tr><td>🚨 <code>testing-failed</code></td><td>poller: QA's failure signal</td><td>launch <b>task-feedback</b>; when it finishes, put the pull request back in draft</td></tr>
+    <tr><td>🚫 <code>closed</code></td><td>poller: the pull request was closed without being merged (from any state, even <code>waiting</code>)</td><td>— nothing is deleted: the worktree stays until you <a href="page:tasks#close-a-task">close the task</a>. If the pull request is reopened, the task goes back to <code>draft</code></td></tr>
   </tbody>
 </table>
 
@@ -61,7 +62,7 @@
 
 <h2>Into draft: <code>/pablo-commit-and-pr</code></h2>
 
-<p>The one and only way work enters (or re-enters) <code>draft</code>, allowed from <code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>, <code>waiting-review</code> and <code>approved</code>. It commits, pushes, opens the pull request as a draft if needed, then sets the state. A raw <code>git push</code> is never detected and never changes a state. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>.</p>
+<p>The one and only way work enters (or re-enters) <code>draft</code>, allowed from <code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>, <code>waiting-review</code> and <code>approved</code>. It commits, pushes, opens the pull request as a draft if needed, then sets the state. A raw <code>git push</code> is never detected and never changes a state. The single other way in is a <code>closed</code> task whose pull request is reopened. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>.</p>
 
 <h2>What the poller watches</h2>
 
@@ -76,7 +77,8 @@
     <tr><td><code>request-changes</code></td><td>reviews (feedback-addressed check)</td></tr>
     <tr><td><code>approved</code></td><td>CI red</td></tr>
     <tr><td><code>needs-testing</code></td><td>QA failure signal</td></tr>
-    <tr><td>any state</td><td>merge (even <code>waiting</code>)</td></tr>
+    <tr><td><code>closed</code></td><td>reopen (back to <code>draft</code>), merge</td></tr>
+    <tr><td>any state</td><td>merge, close without merging (even <code>waiting</code>)</td></tr>
   </tbody>
 </table>
 

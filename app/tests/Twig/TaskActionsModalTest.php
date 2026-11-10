@@ -20,7 +20,7 @@ final class TaskActionsModalTest extends CommandTestBed
 
     private function modal(string $mode): TaskActionsModal
     {
-        $modal = new TaskActionsModal($this->stateChanger());
+        $modal = new TaskActionsModal($this->stateChanger(), $this->taskCloser());
         $modal->setLiveResponder($this->responder = new LiveResponder());
         $modal->openFor($mode, 'wallet-kit', 'wk-45', $this->getTask()->state->value);
 
@@ -95,5 +95,57 @@ final class TaskActionsModalTest extends CommandTestBed
         $this->assertFalse($modal->open);
         $this->assertStringContainsString('CI results skipped', (string) $modal->message);
         $this->assertTrue($this->getTask()->ciIgnored);
+    }
+
+    private function parkInClosed(): void
+    {
+        $task = $this->getTask();
+        $task->state = State::Closed;
+        $this->store->save($task);
+    }
+
+    public function testCloseTaskRefusedOutsideClosedState(): void
+    {
+        $modal = $this->modal(TaskActionsModal::MODE_CLOSE_TASK);
+        $modal->confirm();
+
+        $this->assertTrue($modal->open);
+        $this->assertStringContainsString('not closed', (string) $modal->error);
+        $this->assertNotNull($this->store->get('wallet-kit', 'wk-45'));
+        $this->assertSame([], $this->git->removed);
+    }
+
+    public function testCloseTaskRemovesEverything(): void
+    {
+        $this->parkInClosed();
+        $modal = $this->modal(TaskActionsModal::MODE_CLOSE_TASK);
+        $this->assertNotNull($this->store->get('wallet-kit', 'wk-45'));
+        $modal->confirm();
+
+        $this->assertFalse($modal->open);
+        $this->assertNull($modal->error);
+        $this->assertStringContainsString('task closed', (string) $modal->message);
+        $this->assertSame([[$this->wt, 'wk-45']], $this->git->removed);
+        $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
+        $this->assertCount(1, $this->analytics->closed);
+        $this->assertSame(TaskBoard::TASKS_CHANGED_EVENT, $this->responder->getEventsToEmit()[0]['event'] ?? null);
+    }
+
+    public function testCloseTaskRefusedWhileAgentsRunUnlessForced(): void
+    {
+        $this->parkInClosed();
+        $this->agents->active = [new \Pablo\Agents\SessionInfo('a', 'running')];
+        $modal = $this->modal(TaskActionsModal::MODE_CLOSE_TASK);
+        $modal->confirm();
+
+        $this->assertTrue($modal->open);
+        $this->assertStringContainsString('still active', (string) $modal->error);
+        $this->assertNotNull($this->store->get('wallet-kit', 'wk-45'));
+        $this->assertSame([], $this->git->removed);
+
+        $modal->force = true;
+        $modal->confirm();
+        $this->assertFalse($modal->open);
+        $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
     }
 }

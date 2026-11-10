@@ -6,6 +6,7 @@ namespace Pablo\Twig\Components;
 
 use Pablo\Domain\State;
 use Pablo\Support\PabloError;
+use Pablo\Task\TaskCloser;
 use Pablo\Task\TaskStateChanger;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
 use Symfony\UX\LiveComponent\Attribute\LiveAction;
@@ -16,9 +17,9 @@ use Symfony\UX\LiveComponent\ComponentToolsTrait;
 use Symfony\UX\LiveComponent\DefaultActionTrait;
 
 /**
- * The dashboard's per-task write exception: the "Force state" and "Skip CI"
- * dialogs, running the same TaskStateChanger as `pablo task:state` and
- * `pablo task:skip-ci`.
+ * The dashboard's per-task write exception: the "Force state", "Skip CI" and
+ * "Close the task" dialogs, running the same TaskStateChanger / TaskCloser as
+ * `pablo task:state`, `pablo task:skip-ci` and `pablo task:close`.
  *
  * Lives outside the TaskBoard so the board's 30-second poll never wipes an
  * open dialog: a row button emits OPEN_EVENT with the task's coordinates,
@@ -35,6 +36,9 @@ final class TaskActionsModal
 
     public const MODE_FORCE_STATE = 'force-state';
     public const MODE_SKIP_CI = 'skip-ci';
+    public const MODE_CLOSE_TASK = 'close-task';
+
+    private const MODES = [self::MODE_FORCE_STATE, self::MODE_SKIP_CI, self::MODE_CLOSE_TASK];
 
     #[LiveProp]
     public bool $open = false;
@@ -57,6 +61,10 @@ final class TaskActionsModal
     #[LiveProp(writable: true)]
     public bool $trigger = true;
 
+    /** Close the task even while agent sessions are active. */
+    #[LiveProp(writable: true)]
+    public bool $force = false;
+
     #[LiveProp]
     public ?string $message = null;
 
@@ -65,6 +73,7 @@ final class TaskActionsModal
 
     public function __construct(
         private readonly TaskStateChanger $changer,
+        private readonly TaskCloser $closer,
     ) {
     }
 
@@ -81,12 +90,13 @@ final class TaskActionsModal
         #[LiveArg] string $branch,
         #[LiveArg] string $state,
     ): void {
-        $this->mode = self::MODE_SKIP_CI === $mode ? self::MODE_SKIP_CI : self::MODE_FORCE_STATE;
+        $this->mode = \in_array($mode, self::MODES, true) ? $mode : self::MODE_FORCE_STATE;
         $this->project = $project;
         $this->branch = $branch;
         $this->currentState = $state;
         $this->target = '';
         $this->trigger = true;
+        $this->force = false;
         $this->error = null;
         $this->message = null;
         $this->open = true;
@@ -112,7 +122,10 @@ final class TaskActionsModal
         $this->message = null;
 
         try {
-            if (self::MODE_SKIP_CI === $this->mode) {
+            if (self::MODE_CLOSE_TASK === $this->mode) {
+                $cleanup = $this->closer->close($this->project, $this->branch, $this->force, onlyFrom: State::Closed);
+                $this->message = "{$this->branch}: task closed, {$cleanup}. The pull request is untouched.";
+            } elseif (self::MODE_SKIP_CI === $this->mode) {
                 $task = $this->changer->skipCi($this->project, $this->branch);
                 $this->message = "{$task->branch}: CI results skipped, moved to {$task->state->value}";
             } else {
