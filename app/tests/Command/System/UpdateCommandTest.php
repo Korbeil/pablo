@@ -330,6 +330,56 @@ final class UpdateCommandTest extends TestCase
         $this->assertContains('update', $this->command(new Updater($this->runner))->getAliases());
     }
 
+    public function testCheckAsJson(): void
+    {
+        $tester = $this->runUpdate(['--check' => true, '--format' => 'json']);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertSame(
+            ['current' => 'v1.0.0', 'latest' => 'v2.0.0', 'requested' => null, 'update_available' => true],
+            json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR),
+        );
+        $this->assertSame(self::OLD, file_get_contents($this->binary));
+    }
+
+    public function testCheckAsJsonWhenUpToDate(): void
+    {
+        $this->latest = 'v1.0.0';
+
+        $tester = $this->runUpdate(['--check' => true, '--format' => 'json']);
+
+        $payload = json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertIsArray($payload);
+        $this->assertFalse($payload['update_available']);
+    }
+
+    public function testJsonNeedsCheck(): void
+    {
+        $tester = $this->runUpdate(['--format' => 'json']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('--format=json is only supported with --check', $tester->getDisplay());
+        $this->assertSame([], $this->runner->probeCalls);
+    }
+
+    public function testJsonRefusesRollback(): void
+    {
+        $tester = $this->runUpdate(['--check' => true, '--rollback' => true, '--format' => 'json']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('--format=json is only supported with --check (without --rollback)', $tester->getDisplay());
+    }
+
+    public function testJsonFromACheckoutWritesNothingToStdout(): void
+    {
+        $tester = new CommandTester($this->command(new Updater($this->runner, '', 'dev', 'linux-x86_64')));
+        $tester->execute(['--check' => true, '--format' => 'json'], ['capture_stderr_separately' => true]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertSame('', $tester->getDisplay());
+        $this->assertStringContainsString('git pull', $tester->getErrorOutput());
+    }
+
     /** Where the fake curl call for the binary wrote it (the temporary dir is random). */
     private function downloadedTo(): string
     {

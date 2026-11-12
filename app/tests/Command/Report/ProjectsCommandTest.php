@@ -32,4 +32,29 @@ final class ProjectsCommandTest extends CommandTestBed
 
         $this->assertStringNotContainsString('warning', $tester->getDisplay());
     }
+
+    public function testTableIsTabSeparated(): void
+    {
+        $tester = $this->runCommand($this->command());
+
+        $this->assertSame("wallet-kit\topen-source\tgithub\t{$this->tmp}/repo\n", $tester->getDisplay());
+    }
+
+    public function testJson(): void
+    {
+        $tester = $this->runCommand($this->command(), ['--format' => 'json']);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $payload = json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertIsArray($payload);
+        $this->assertSame([[
+            'name' => 'wallet-kit',
+            'type' => 'open-source',
+            'provider' => 'github',
+            'project_key' => 'WK',
+            'repo_path' => $this->tmp.'/repo',
+            'primary_branch' => 'main',
+            'worktrees_root' => $this->tmp.'/wt',
+        ]], $payload['projects']);
+    }
 }

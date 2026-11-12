@@ -139,6 +139,17 @@ YAML;
         $this->assertStringContainsString($this->root, $tester->getDisplay());
     }
 
+    public function testEmptyLogStaysValidJson(): void
+    {
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'json']);
+        $this->assertSame(0, $tester->getStatusCode());
+        $payload = json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertIsArray($payload);
+        $this->assertSame([], $payload['tasks']);
+        $this->assertSame(30, $payload['days']);
+    }
+
     public function testTableRendersAllThreeSections(): void
     {
         $this->seedLifecycle();

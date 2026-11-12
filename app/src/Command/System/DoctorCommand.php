@@ -7,6 +7,7 @@ namespace Pablo\Command\System;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
 use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
@@ -19,6 +20,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'system:doctor', description: 'check required CLIs are installed and authenticated')]
 final class DoctorCommand extends Command
 {
+    use FormatsOutput;
+
     public function __construct(
         private readonly Doctor $doctor,
         private readonly AgentStaleness $agentStaleness,
@@ -31,8 +34,17 @@ final class DoctorCommand extends Command
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
 
+    protected function configure(): void
+    {
+        $this->addFormatOption();
+    }
+
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
+        if ($this->wantsJson($input)) {
+            return $this->executeJson($output);
+        }
+
         // Agent settings that cannot work at all (a backend that cannot run the
         // runtime, an unknown runtime) come first: they are hard failures.
         $configErrors = $this->doctor->configErrors();
@@ -79,5 +91,28 @@ final class DoctorCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Same checks and exit code as the table, one entry per check: status
+     * ok / warn (soft: a stale agent) / fail (hard).
+     */
+    private function executeJson(OutputInterface $output): int
+    {
+        $checks = [];
+        foreach ($this->doctor->configErrors() as $error) {
+            $checks[] = ['group' => 'config', 'name' => 'config', 'status' => 'fail', 'message' => $error, 'hint' => ''];
+        }
+        foreach ($this->doctor->checkAll($this->projects()) as $r) {
+            $checks[] = ['group' => 'cli', 'name' => $r->cli, 'status' => $r->ok() ? 'ok' : 'fail', 'message' => $r->detail, 'hint' => $r->hint, 'installed' => $r->installed, 'authenticated' => $r->authenticated];
+        }
+        foreach ($this->agentStaleness->check() as $a) {
+            $status = $a->ok() ? 'ok' : ($a->state->hard() ? 'fail' : 'warn');
+            $checks[] = ['group' => 'agents', 'name' => $a->agent, 'status' => $status, 'message' => $a->detail, 'hint' => $a->hint];
+        }
+        $failed = [] !== array_filter($checks, static fn (array $c): bool => 'fail' === $c['status']);
+        $this->writeJson($output, ['ok' => !$failed, 'checks' => $checks]);
+
+        return $failed ? self::FAILURE : self::SUCCESS;
     }
 }

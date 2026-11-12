@@ -245,6 +245,45 @@ YAML;
         $this->assertSame(0, $tester->getStatusCode());
     }
 
+    public function testJsonListsEveryCheckWithItsStatus(): void
+    {
+        $this->installFreshAgents();
+        file_put_contents($this->installedPath('task-analyst'), 'hand-edited');
+
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'json']);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $payload = json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertIsArray($payload);
+        $this->assertTrue($payload['ok']);
+        $byName = [];
+        foreach ($payload['checks'] as $check) {
+            $this->assertSame(['group', 'name', 'status', 'message', 'hint'], \array_slice(array_keys($check), 0, 5));
+            $byName[$check['group'].':'.$check['name']] = $check;
+        }
+        $this->assertSame('ok', $byName['cli:gh']['status']);
+        $this->assertSame('warn', $byName['agents:task-analyst']['status']);
+        $this->assertStringContainsString('pablo system:generate-agents', $byName['agents:task-analyst']['hint']);
+        $this->assertSame('ok', $byName['agents:task-feedback']['status']);
+    }
+
+    public function testJsonKeepsTheFailingExitCode(): void
+    {
+        $this->installFreshAgents();
+        unlink($this->installedPath('ci-analyst'));
+
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'json']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $payload = json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertIsArray($payload);
+        $this->assertFalse($payload['ok']);
+        $failed = array_values(array_filter($payload['checks'], static fn (array $c): bool => 'fail' === $c['status']));
+        $this->assertSame(['ci-analyst'], array_column($failed, 'name'));
+    }
+
     /**
      * Installs every generated agent into the fake HOME the way install.sh
      * does: a freshly rendered .md with a symlink pointing at it.

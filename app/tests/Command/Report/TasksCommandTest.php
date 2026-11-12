@@ -4,16 +4,18 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\Report;
 
+use Pablo\Agents\SessionInfo;
 use Pablo\Command\Report\TasksCommand;
 use Pablo\Dispatch\Stamps;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Listing\Listing;
+use Pablo\Provider\Gh\PrInfo;
 use Pablo\Tests\Command\CommandTestBed;
 
 /**
- * task:list's --project / --type / --state filters.
+ * task:list's --project / --type / --state filters and --format=json.
  */
 final class TasksCommandTest extends CommandTestBed
 {
@@ -106,6 +108,93 @@ final class TasksCommandTest extends CommandTestBed
         $tester = $this->list(['--state' => ['nope']]);
         $this->assertSame(1, $tester->getStatusCode());
         $this->assertStringContainsString("invalid --state 'nope'; expected one of: in-progress", $tester->getErrorOutput());
+    }
+
+    public function testJsonFromTheDisplayCache(): void
+    {
+        $task = $this->getTask();
+        $task->state = State::RequestChanges;
+        $task->displayCache = new DisplayCache('In Progress', '📝 draft #7', 1, '💭 1', '2026-11-12T10:00:00Z');
+        $this->store->save($task);
+        $this->gh->onPrForBranch = function (): never {
+            $this->fail('a cached listing makes no gh call');
+        };
+
+        $tester = $this->list(['--format' => 'json', '--project' => 'wallet-kit']);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $payload = $this->json($tester->getDisplay());
+        $this->assertCount(1, $payload['tasks']);
+        $row = $payload['tasks'][0];
+        $this->assertSame('wallet-kit', $row['project']);
+        $this->assertSame('wk-45', $row['branch']);
+        $this->assertSame('request-changes', $row['state']);
+        $this->assertSame('request-changes', $row['state_label']);
+        $this->assertTrue($row['waiting_for_feedback']);
+        $this->assertSame('In Progress', $row['tracker_status']);
+        $this->assertSame('45', $row['issue']['key']);
+        $this->assertSame(['number' => 7, 'url' => 'https://github.com/acme/wallet-kit/pull/7', 'state' => 'draft', 'draft' => true], $row['pr']);
+        $this->assertSame(['red' => false, 'ignored' => false], $row['ci']);
+        $this->assertSame(['total' => 1, 'running' => 0, 'waiting' => 1], $row['agents']);
+        $this->assertSame($this->wt, $row['worktree_path']);
+        $this->assertSame('2026-11-12T10:00:00Z', $row['cached_at']);
+        $this->assertArrayHasKey('state_entered_at', $row);
+    }
+
+    public function testJsonRespectsTheFilters(): void
+    {
+        $branches = fn (array $input): array => array_column($this->json($this->list(['--format' => 'json'] + $input)->getDisplay())['tasks'], 'branch');
+
+        $this->assertEqualsCanonicalizing(['wk-45', 'hl-1', 'hl-2'], $branches([]));
+        $this->assertEqualsCanonicalizing(['hl-1', 'hl-2'], $branches(['--project' => 'home-lab']));
+        $this->assertSame(['wk-45'], $branches(['--type' => 'open-source']));
+        $this->assertSame(['hl-2'], $branches(['--project' => 'home-lab', '--state' => ['ci-red']]));
+        $this->assertSame([], $branches(['--type' => 'work']));
+    }
+
+    public function testRefreshFetchesAndPersistsBeforeEmittingJson(): void
+    {
+        $this->gh->prByBranch['wk-45'] = new PrInfo(7, 'PR', 'OPEN', false, 'u', null);
+        $this->agents->bulk[$this->wt] = [new SessionInfo('h', 'running')];
+
+        $tester = $this->list(['--format' => 'json', '--refresh' => true, '--project' => 'wallet-kit']);
+
+        $row = $this->json($tester->getDisplay())['tasks'][0];
+        $this->assertSame('open', $row['pr']['state']);
+        $this->assertFalse($row['pr']['draft']);
+        $this->assertSame('todo', $row['tracker_status']);
+        $this->assertSame(['total' => 1, 'running' => 1, 'waiting' => 0], $row['agents']);
+        $this->assertSame('📖 open #7', $this->getTask()->displayCache->prState);
+    }
+
+    public function testNoTasksIsAnEmptyList(): void
+    {
+        $this->assertSame(['tasks' => []], $this->json($this->list(['--format' => 'json', '--type' => 'work'])->getDisplay()));
+    }
+
+    public function testTableStaysTheDefault(): void
+    {
+        $tester = $this->list([]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString('🔨 in-progress', $tester->getDisplay());
+    }
+
+    public function testAnUnknownFormatIsRefused(): void
+    {
+        $tester = $this->list(['--format' => 'yaml']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("invalid --format 'yaml'; expected one of: table, json", $tester->getErrorOutput());
+    }
+
+    /** @return array<string, mixed> */
+    private function json(string $display): array
+    {
+        $payload = json_decode($display, true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertIsArray($payload);
+
+        return $payload;
     }
 
     /** @param array<string, mixed> $input */

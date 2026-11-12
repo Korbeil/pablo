@@ -7,6 +7,7 @@ namespace Pablo\Command\System;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
 use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Store\Store;
@@ -30,6 +31,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'system:update', description: 'update the pablo binary to the latest release (or the one given), then re-run system:install', aliases: ['update'])]
 final class UpdateCommand extends Command
 {
+    use FormatsOutput;
+
     public function __construct(
         private readonly Updater $updater,
         private readonly SchedulerFactory $schedulers,
@@ -47,18 +50,24 @@ final class UpdateCommand extends Command
             ->addArgument('release', InputArgument::OPTIONAL, 'the release to install, by name (e.g. 5b34e92; default: the latest)')
             ->addOption('check', null, InputOption::VALUE_NONE, 'only tell whether a newer release exists')
             ->addOption('no-install', null, InputOption::VALUE_NONE, 'replace the binary but do not run system:install afterwards')
-            ->addOption('rollback', null, InputOption::VALUE_NONE, 'swap back the binary the last update replaced, then re-run system:install');
+            ->addOption('rollback', null, InputOption::VALUE_NONE, 'swap back the binary the last update replaced, then re-run system:install')
+            ->addFormatOption();
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
+        $json = $this->wantsJson($input);
+        if ($json && (!$input->getOption('check') || $input->getOption('rollback'))) {
+            throw new PabloError('--format=json is only supported with --check (without --rollback)');
+        }
+
         $info = static function (string $line) use ($output): void {
             $output->writeln('➜ '.$line);
         };
 
         $binary = $this->updater->binaryPath();
         if ('' === $binary) {
-            $output->writeln('pablo runs from a repository checkout: update it with <info>git pull</info>, then <info>php app/bin/pablo system:install</info>.');
+            ($json ? $this->errorOutput($output) : $output)->writeln('pablo runs from a repository checkout: update it with <info>git pull</info>, then <info>php app/bin/pablo system:install</info>.');
 
             return self::FAILURE;
         }
@@ -73,6 +82,19 @@ final class UpdateCommand extends Command
             }
 
             return $this->rollback($input, $output, $info, $binary, $current);
+        }
+
+        if ($json) {
+            // A named release is not compared with the latest: it is not looked up.
+            $latest = null !== $requested ? null : $this->updater->latestVersion();
+            $this->writeJson($output, [
+                'current' => $current,
+                'latest' => $latest,
+                'requested' => $requested,
+                'update_available' => null !== $requested ? $requested !== $current : Updater::isNewer((string) $latest, $current),
+            ]);
+
+            return self::SUCCESS;
         }
 
         if (null !== $requested) {
