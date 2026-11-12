@@ -93,7 +93,7 @@ final class DashboardControllerTest extends WebTestCase
 
     protected function tearDown(): void
     {
-        foreach (['PABLO_STATE_DIR', 'PABLO_PROJECTS_DIR', 'PABLO_STAMPS_DIR', 'PABLO_LOGS_DIR'] as $var) {
+        foreach (['PABLO_STATE_DIR', 'PABLO_PROJECTS_DIR', 'PABLO_STAMPS_DIR', 'PABLO_LOGS_DIR', 'PABLO_ANALYTICS_DIR'] as $var) {
             putenv($var);
         }
         $this->unsetGlobalConfig();
@@ -322,6 +322,23 @@ final class DashboardControllerTest extends WebTestCase
 
         $link = $crawler->filter('a[href="https://github.com/acme/wallet-kit/pull/42"]');
         $this->assertSame(1, $link->count());
+    }
+
+    /** Each row links to the task's analytics history, which exists even before any event was logged. */
+    public function testRowLinksToTheTaskHistory(): void
+    {
+        putenv('PABLO_ANALYTICS_DIR='.$this->tmp.'/analytics');
+        $this->seed('feat/wk-5', State::Draft);
+        $client = $this->browser();
+
+        $crawler = $client->request('GET', '/');
+        $link = $crawler->filter('a[href="/analytics/task/wallet-kit/feat/wk-5"]');
+        $this->assertSame(1, $link->count());
+        $this->assertSame('Task history of wallet-kit/feat/wk-5', $link->attr('aria-label'));
+
+        $history = $client->request('GET', '/analytics/task/wallet-kit/feat/wk-5');
+        $this->assertResponseIsSuccessful();
+        $this->assertStringContainsString('No analytics recorded for this task yet.', $history->text());
     }
 
     /** The tracker status chip must link to the issue; without an issue it stays an unlinked badge. */

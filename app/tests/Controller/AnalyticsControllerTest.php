@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Controller;
 
+use Pablo\Support\ProcessRunner;
+use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\RestoresErrorHandlers;
 use Pablo\Tests\UsesGlobalConfig;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -91,22 +93,22 @@ final class AnalyticsControllerTest extends WebTestCase
     }
 
     /** Seeds one complete lifecycle 2 days ago (within ?days=7 and =30). */
-    private function seedLifecycle(int $baseOffsetS = -2 * 86_400, string $project = 'proj', string $agent = 'task-analyst'): void
+    private function seedLifecycle(int $baseOffsetS = -2 * 86_400, string $project = 'proj', string $agent = 'task-analyst', string $branch = 'wk-1', string $model = 'anthropic/claude', int $input = 1000): void
     {
         $iso = static fn (int $offset): string => gmdate('Y-m-d\TH:i:sP', time() + $baseOffsetS + $offset);
-        $events = [['ts' => $iso(0), 'type' => 'task_opened', 'project' => $project, 'branch' => 'wk-1', 'initial_state' => 'in-progress'],
-            ['ts' => $iso(600), 'type' => 'state_entered', 'project' => $project, 'branch' => 'wk-1', 'from' => 'in-progress', 'to' => 'draft'],
-            ['ts' => $iso(1200), 'type' => 'agent_run_started', 'project' => $project, 'branch' => 'wk-1', 'run_id' => 'r1', 'agent' => $agent, 'backend' => 'orca', 'launched_at' => $iso(1200)],
+        $events = [['ts' => $iso(0), 'type' => 'task_opened', 'project' => $project, 'branch' => $branch, 'initial_state' => 'in-progress'],
+            ['ts' => $iso(600), 'type' => 'state_entered', 'project' => $project, 'branch' => $branch, 'from' => 'in-progress', 'to' => 'draft'],
+            ['ts' => $iso(1200), 'type' => 'agent_run_started', 'project' => $project, 'branch' => $branch, 'run_id' => 'r1', 'agent' => $agent, 'backend' => 'orca', 'launched_at' => $iso(1200)],
             [
-                'ts' => $iso(2400), 'type' => 'agent_run_finished', 'project' => $project, 'branch' => 'wk-1',
+                'ts' => $iso(2400), 'type' => 'agent_run_finished', 'project' => $project, 'branch' => $branch,
                 'run_id' => 'r1', 'agent' => $agent, 'backend' => 'orca',
                 'started_at' => $iso(1200), 'finished_at' => $iso(2400), 'duration_s' => 1200,
-                'input' => 1000, 'output' => 200, 'reasoning' => 50, 'cache_read' => 500,
+                'input' => $input, 'output' => 200, 'reasoning' => 50, 'cache_read' => 500,
                 'cache_write' => 100, 'tokens_total' => 1850, 'cost' => 0.25,
-                'models' => ['anthropic/claude'], 'session_id' => 'ses_a', 'harvest' => 'exact',
+                'models' => [$model], 'session_id' => 'ses_a', 'harvest' => 'exact',
             ],
-            ['ts' => $iso(4800), 'type' => 'state_entered', 'project' => $project, 'branch' => 'wk-1', 'from' => 'draft', 'to' => 'ready-to-review'],
-            ['ts' => $iso(9600), 'type' => 'task_closed', 'project' => $project, 'branch' => 'wk-1', 'final_state' => 'waiting-review', 'merged' => true],
+            ['ts' => $iso(4800), 'type' => 'state_entered', 'project' => $project, 'branch' => $branch, 'from' => 'draft', 'to' => 'ready-to-review'],
+            ['ts' => $iso(9600), 'type' => 'task_closed', 'project' => $project, 'branch' => $branch, 'final_state' => 'waiting-review', 'merged' => true],
         ];
         $dir = $this->tmp.'/analytics/'.($project ?: 'proj');
         if (!is_dir($dir)) {
@@ -115,6 +117,7 @@ final class AnalyticsControllerTest extends WebTestCase
         file_put_contents(
             $dir.'/'.gmdate('Y-m').'.jsonl',
             implode("\n", array_map(static fn (array $e) => json_encode($e, \JSON_UNESCAPED_SLASHES), $events))."\n",
+            \FILE_APPEND,
         );
     }
 
@@ -131,7 +134,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->assertStringContainsString('No analytics events recorded yet', $crawler->text());
     }
 
-    public function testRendersKpisAndAllSixCharts(): void
+    public function testRendersKpisAndAllCharts(): void
     {
         $this->seedLifecycle();
 
@@ -139,13 +142,14 @@ final class AnalyticsControllerTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
         $text = $crawler->text();
-        foreach (['Tasks opened vs closed', 'Tokens per agent', 'Cache hit %', 'Avg runtime per agent', 'Cost per agent', 'State dwell'] as $heading) {
+        foreach (['Tasks opened vs closed', 'Agent runs by agent', 'Top tasks by tokens', 'Tokens & cost per model', 'Tokens per agent', 'Cache hit %', 'Avg runtime per agent', 'Cost per agent', 'State dwell'] as $heading) {
             $this->assertStringContainsString($heading, $text);
         }
         // One canvas per chart; each carries its rendered config in the
         // stimulus view value.
         $canvases = $crawler->filter('canvas');
-        $this->assertSame(6, $canvases->count());
+        // Six agent/task charts + the breakdown and per-model charts.
+        $this->assertSame(8, $canvases->count());
         $rendered = '';
         foreach ($canvases as $node) {
             $rendered .= $node->C14N();
@@ -248,7 +252,7 @@ final class AnalyticsControllerTest extends WebTestCase
         $this->assertStringContainsString('task-analyst', $rendered);
         $this->assertStringNotContainsString('pr-feedback', $rendered);
         $active = $work->filter('.pablo-tabs li.is-active');
-        $this->assertSame(2, $active->count(), 'one active type tab + one active days tab');
+        $this->assertSame(3, $active->count(), 'one active type, days and breakdown tab');
 
         $openSource = $client->request('GET', '/analytics?days=all&type=open-source');
         $rendered = '';
@@ -292,5 +296,148 @@ final class AnalyticsControllerTest extends WebTestCase
         $active = $crawler->filter('[aria-label="Filter by project type"] li.is-active');
         $this->assertSame(1, $active->count());
         $this->assertStringContainsString('Work', $active->text());
+    }
+
+    /** @return list<string> the breakdown table's row headers */
+    private static function breakdownGroups(Crawler $crawler): array
+    {
+        return $crawler->filter('.pablo-breakdown-table tbody th')->each(static fn (Crawler $n): string => trim($n->text()));
+    }
+
+    private function noSubprocess(KernelBrowser $client): FakeProcessRunner
+    {
+        $runner = new FakeProcessRunner();
+        static::getContainer()->set(ProcessRunner::class, $runner);
+
+        return $runner;
+    }
+
+    public function testBreakdownParameterSwitchesTheGrouping(): void
+    {
+        $this->seedLifecycle(project: 'wallet-kit', model: 'anthropic/claude');
+        $this->seedLifecycle(project: 'bookkeeper', agent: 'pr-feedback', model: 'openai/gpt');
+        $client = $this->browser();
+        $runner = $this->noSubprocess($client);
+
+        $byAgent = $client->request('GET', '/analytics?days=all');
+        $this->assertResponseIsSuccessful();
+        $this->assertEqualsCanonicalizing(['task-analyst', 'pr-feedback'], self::breakdownGroups($byAgent));
+        $this->assertStringContainsString('Agent', $byAgent->filter('[aria-label="Break agent runs down by"] li.is-active')->text());
+
+        $byProject = $client->request('GET', '/analytics?days=all&by=project');
+        $this->assertEqualsCanonicalizing(['wallet-kit', 'bookkeeper'], self::breakdownGroups($byProject));
+        // Same columns as `pablo stats --by`.
+        $headers = $byProject->filter('.pablo-breakdown-table thead th')->each(static fn (Crawler $n): string => trim($n->text()));
+        $this->assertSame(['Project', 'Runs', 'Time', 'Avg time', 'In', 'Out', 'Cache R', 'Cache W', 'Total', 'Cost'], $headers);
+
+        $byModel = $client->request('GET', '/analytics?days=all&by=model');
+        $this->assertEqualsCanonicalizing(['anthropic/claude', 'openai/gpt'], self::breakdownGroups($byModel));
+
+        $byTask = $client->request('GET', '/analytics?days=all&by=task');
+        $this->assertEqualsCanonicalizing(['wallet-kit/wk-1', 'bookkeeper/wk-1'], self::breakdownGroups($byTask));
+        $this->assertSame(1, $byTask->filter('.pablo-breakdown-table a[href="/analytics/task/wallet-kit/wk-1"]')->count());
+
+        $this->assertSame([], $runner->calls, 'the analytics page never runs a subprocess');
+    }
+
+    public function testInvalidBreakdownFallsBackToAgent(): void
+    {
+        $this->seedLifecycle();
+        $crawler = $this->browser()->request('GET', '/analytics?by=bogus');
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSame(['task-analyst'], self::breakdownGroups($crawler));
+        $active = $crawler->filter('[aria-label="Break agent runs down by"] li.is-active');
+        $this->assertSame(1, $active->count());
+        $this->assertStringContainsString('Agent', $active->text());
+    }
+
+    /** by= survives the days/type tabs, and the by tabs keep days/type. */
+    public function testBreakdownAndFiltersPreserveEachOther(): void
+    {
+        $this->seedLifecycle(project: 'wallet-kit');
+        $crawler = $this->browser()->request('GET', '/analytics?days=7&type=work&by=model');
+
+        foreach (['Filter by project type', 'Time range'] as $nav) {
+            foreach ($crawler->filter("[aria-label=\"{$nav}\"] a")->each(static fn (Crawler $n): string => (string) $n->attr('href')) as $href) {
+                $this->assertStringContainsString('by=model', $href);
+            }
+        }
+        foreach ($crawler->filter('[aria-label="Time range"] a')->each(static fn (Crawler $n): string => (string) $n->attr('href')) as $href) {
+            $this->assertStringContainsString('type=work', $href);
+        }
+        $byLinks = $crawler->filter('[aria-label="Break agent runs down by"] a')->each(static fn (Crawler $n): string => (string) $n->attr('href'));
+        $this->assertCount(4, $byLinks);
+        foreach ($byLinks as $href) {
+            $this->assertStringContainsString('days=7', $href);
+            $this->assertStringContainsString('type=work', $href);
+        }
+    }
+
+    public function testTopTasksLinkToTheirHistory(): void
+    {
+        $this->seedLifecycle(project: 'wallet-kit', input: 5000);
+        $this->seedLifecycle(project: 'wallet-kit', branch: 'feat/slashed', input: 100);
+        $crawler = $this->browser()->request('GET', '/analytics?days=all');
+
+        $links = $crawler->filter('.pablo-top-tasks tbody a')->each(static fn (Crawler $n): string => (string) $n->attr('href'));
+        // Most tokens first; a branch's slash stays a path separator.
+        $this->assertSame(['/analytics/task/wallet-kit/wk-1', '/analytics/task/wallet-kit/feat/slashed'], $links);
+    }
+
+    public function testEmptyWindowShowsPerSectionEmptyStates(): void
+    {
+        // Only lifecycle events, no finished run: the breakdown, top tasks and
+        // model sections each say so instead of drawing an empty chart.
+        $dir = $this->tmp.'/analytics/proj';
+        file_put_contents($dir.'/'.gmdate('Y-m').'.jsonl', json_encode(['ts' => gmdate('Y-m-d\TH:i:sP'), 'type' => 'task_opened', 'project' => 'proj', 'branch' => 'b', 'initial_state' => 'in-progress'])."\n");
+        $crawler = $this->browser()->request('GET', '/analytics');
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSame(3, substr_count($crawler->text(), 'No finished agent runs in this window.'));
+    }
+
+    public function testTaskHistoryRendersTheTimeline(): void
+    {
+        $this->seedLifecycle(project: 'wallet-kit', branch: 'feat/slashed');
+        $client = $this->browser();
+        $runner = $this->noSubprocess($client);
+
+        $crawler = $client->request('GET', '/analytics/task/wallet-kit/feat/slashed');
+
+        $this->assertResponseIsSuccessful();
+        $rows = $crawler->filter('.pablo-history-table tbody tr')->each(static fn (Crawler $n): string => preg_replace('/\s+/', ' ', trim($n->text())) ?? '');
+        $this->assertCount(5, $rows);
+        $this->assertStringContainsString('opened', $rows[0]);
+        $this->assertStringContainsString('in-progress → draft', $rows[1]);
+        $this->assertStringContainsString('task-analyst (anthropic/claude)', $rows[2]);
+        $this->assertStringContainsString('20m', $rows[2]);
+        $this->assertStringContainsString('0.25', $rows[2]);
+        $this->assertStringContainsString('closed', $rows[4]);
+        $this->assertStringContainsString('merged', $rows[4]);
+        $kpis = implode(' | ', $crawler->filter('.pablo-kpi')->each(static fn (Crawler $n): string => trim($n->text())));
+        $this->assertStringContainsString('1 Agent runs', $kpis);
+        $this->assertSame([], $runner->calls);
+    }
+
+    public function testTaskHistoryOfAnUnconfiguredProjectWithALogStillWorks(): void
+    {
+        $this->seedLifecycle(project: 'gone');
+        $this->browser()->request('GET', '/analytics/task/gone/wk-1');
+
+        $this->assertResponseIsSuccessful();
+    }
+
+    public function testTaskHistory404sForUnknownTaskOrProject(): void
+    {
+        $this->seedLifecycle(project: 'wallet-kit');
+        $client = $this->browser();
+
+        $client->request('GET', '/analytics/task/wallet-kit/nope');
+        $this->assertResponseStatusCodeSame(404);
+        $client->request('GET', '/analytics/task/nowhere/wk-1');
+        $this->assertResponseStatusCodeSame(404);
+        $client->request('GET', '/analytics/task/..%2F..%2Fetc/wk-1');
+        $this->assertResponseStatusCodeSame(404);
     }
 }

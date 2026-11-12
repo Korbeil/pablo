@@ -8,13 +8,14 @@ use Pablo\Support\Numbers;
 use Symfony\UX\Chartjs\Model\Chart;
 
 /**
- * Builds the six /analytics charts from AnalyticsAggregator output. Pure
+ * Builds the /analytics charts from AnalyticsAggregator output. Pure
  * data-in, Chart-objects-out: no reads, no clock — the controller owns both,
  * exactly like the terminal side (StatsCommand owns filtering, the
  * aggregator owns numbers).
  *
  * @phpstan-type AgentRow array<string, float|int|string>
  * @phpstan-type StateRow array<string, float|int|string>
+ * @phpstan-type BreakdownRow array{runs: int, duration_s: int, avg_run_s: int, tokens_in: int, tokens_out: int, cache_read: int, cache_write: int, tokens_total: int, cost: float|null}
  */
 final class AnalyticsCharts
 {
@@ -26,6 +27,10 @@ final class AnalyticsCharts
     private const PURPLE = '#9a7cf0';
     private const YELLOW = '#e9ce37';
     private const RED = '#e5534b';
+
+    /** Groups a breakdown chart draws before folding the rest into OTHER. */
+    public const TOP = 10;
+    public const OTHER = '(other)';
 
     public function __construct()
     {
@@ -148,6 +153,95 @@ final class AnalyticsCharts
         return $chart;
     }
 
+    /**
+     * Tokens per runBreakdown() group, stacked by kind; the $top groups with
+     * the most tokens, the rest folded into one "other" bar.
+     *
+     * @param array<string, BreakdownRow> $groups as runBreakdown() returns them (sorted by total tokens)
+     */
+    public function breakdownChart(array $groups, int $top = self::TOP): Chart
+    {
+        $groups = self::foldTail($groups, $top);
+
+        return $this->bar(
+            array_map('strval', array_keys($groups)),
+            [
+                self::dataset('Input', self::col($groups, 'tokens_in'), self::BLUE),
+                self::dataset('Output', self::col($groups, 'tokens_out'), self::GREEN),
+                self::dataset('Cache read', self::col($groups, 'cache_read'), self::INFO),
+                self::dataset('Cache write', self::col($groups, 'cache_write'), self::PURPLE),
+            ],
+            null,
+            true,
+            true,
+        );
+    }
+
+    /**
+     * Total tokens per model (bottom axis) and cost where a run reported one
+     * (top axis; a model with no reported cost has no cost bar, not a zero).
+     *
+     * @param array<string, BreakdownRow> $models runBreakdown($events, 'model')
+     */
+    public function modelChart(array $models, int $top = self::TOP): Chart
+    {
+        $models = self::foldTail($models, $top);
+        $tokens = self::dataset('Total tokens', self::col($models, 'tokens_total'), self::BLUE);
+        $tokens['xAxisID'] = 'x';
+        $datasets = [$tokens];
+        $scales = ['x' => ['type' => 'linear']];
+        $costs = array_map(
+            static fn (array $row): ?float => null === $row['cost'] ? null : Numbers::float($row['cost']),
+            array_values($models),
+        );
+        if ([] !== array_filter($costs, static fn (?float $c): bool => null !== $c)) {
+            $cost = self::dataset('Cost', $costs, self::YELLOW);
+            $cost['xAxisID'] = 'x1';
+            $datasets[] = $cost;
+            $scales['x1'] = ['type' => 'linear', 'position' => 'top', 'grid' => ['display' => false]];
+        }
+
+        $chart = new Chart(Chart::TYPE_BAR);
+        $chart->setData(['labels' => array_map('strval', array_keys($models)), 'datasets' => $datasets]);
+        $chart->setOptions([
+            'maintainAspectRatio' => false,
+            'indexAxis' => 'y',
+            'layout' => ['padding' => 6],
+            'scales' => $scales,
+        ]);
+
+        return $chart;
+    }
+
+    /**
+     * Keeps the first $top groups and sums the rest into one "other" group
+     * (cost stays null unless some folded group reported one).
+     *
+     * @param array<string, BreakdownRow> $groups
+     *
+     * @return array<string, BreakdownRow>
+     */
+    public static function foldTail(array $groups, int $top = self::TOP): array
+    {
+        if ($top <= 0 || \count($groups) <= $top) {
+            return $groups;
+        }
+        $kept = \array_slice($groups, 0, $top, true);
+        $other = ['runs' => 0, 'duration_s' => 0, 'avg_run_s' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'cache_read' => 0, 'cache_write' => 0, 'tokens_total' => 0, 'cost' => null];
+        foreach (\array_slice($groups, $top, null, true) as $row) {
+            foreach (['runs', 'duration_s', 'tokens_in', 'tokens_out', 'cache_read', 'cache_write', 'tokens_total'] as $key) {
+                $other[$key] += $row[$key];
+            }
+            if (null !== $row['cost']) {
+                $other['cost'] = round(($other['cost'] ?? 0.0) + $row['cost'], 4);
+            }
+        }
+        $other['avg_run_s'] = $other['runs'] > 0 ? (int) round($other['duration_s'] / $other['runs']) : 0;
+        $kept[self::OTHER] = $other;
+
+        return $kept;
+    }
+
     // ------------------------------------------------------------ helpers ---
 
     /**
@@ -185,7 +279,7 @@ final class AnalyticsCharts
     }
 
     /**
-     * @param array<string, AgentRow|StateRow> $rows
+     * @param array<string, AgentRow|StateRow|BreakdownRow> $rows
      *
      * @return list<int>
      */
