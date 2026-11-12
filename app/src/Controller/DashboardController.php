@@ -11,10 +11,11 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * The single-page dashboard.
  *
- * Strictly read-only, like every other PABLO read surface: nothing reachable
- * from here mutates task state, a worktree, or an issue tracker. The page
- * itself renders from the poller-written display cache, so no gh/git/orca
- * subprocess runs on page load — see Pablo\Dashboard\Dashboard.
+ * Rendering it never changes anything: task state and worktrees are only
+ * touched by the confirmed actions of the live modals (New task, Force
+ * state, Skip CI, Close), and the issue tracker never is. The page itself renders from the
+ * poller-written display cache, so no gh/git/orca subprocess runs on page
+ * load — see Pablo\Dashboard\Dashboard.
  */
 final class DashboardController extends AbstractController
 {

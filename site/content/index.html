@@ -32,9 +32,9 @@
 <h2>What it never does</h2>
 
 <ul>
-  <li><b>Write your code.</b> Analysis agents are read-only by permission. The one exception, the <a href="page:sync">rebase-conflict resolver</a>, can't act on your behalf on GitHub.</li>
-  <li><b>Commit or push on its own.</b> Work goes into a pull request only when you run <code>/pablo-commit-and-pr</code>.</li>
+  <li><b>Write your code.</b> Analysis agents are read-only by permission. The one exception, the <a href="page:agents#the-rebase-conflict-resolver">rebase-conflict resolver</a>, only resolves conflicts of a rebase that sync started, and can't comment, review or merge on GitHub.</li>
+  <li><b>Write a commit of its own.</b> Your work is committed and opened as a pull request only when you run <code>/pablo-commit-and-pr</code>. With <a href="page:sync"><code>sync.auto_apply</code></a> (off by default), it rebases your branch onto its target and pushes with <code>--force-with-lease</code>, never plain <code>--force</code>.</li>
   <li><b>Change your issue tracker</b>, or <b>store tokens</b>: it uses the CLIs you're already logged into.</li>
 </ul>
 
-<p>The exact rules are in <a href="page:how-it-works#what-pablo-may-change">What PABLO may change</a>. Press <kbd>/</kbd> anywhere on the site to search.</p>
+<p>The exact rules are in <a href="page:safety">What PABLO may change</a>. Press <kbd>/</kbd> anywhere on the site to search.</p>

@@ -88,35 +88,7 @@ openchamber session list --dir &lt;worktree&gt; --with-status
 
 <h2 id="what-pablo-may-change">What PABLO may change</h2>
 
-<p>Agents propose; you decide. PABLO's own code only performs these operations, each under strict rules:</p>
-
-<table>
-  <thead><tr><th>Operation</th><th>When</th></tr></thead>
-  <tbody>
-    <tr><td>Create a branch and a worktree</td><td><code>pablo task:start</code></td></tr>
-    <tr><td>Commit, push, open a draft pull request</td><td>only through <code>/pablo-commit-and-pr</code>, which you run</td></tr>
-    <tr><td>Switch a pull request between draft and ready</td><td>CI turns green (ready); changes requested or QA failure (back to draft); <code>task:retrigger-ci</code> (draft)</td></tr>
-    <tr><td>Rebase or merge, then push with <code>--force-with-lease</code></td><td>sync, only with <code>auto_apply</code> or <code>--apply</code>; never on a dirty worktree; never plain <code>--force</code></td></tr>
-    <tr><td>Resolve a rebase conflict</td><td>never in code: the <a href="page:agents#the-rebase-conflict-resolver">conflict resolver agent</a> does it</td></tr>
-    <tr><td>Delete a worktree</td><td>when the pull request is merged, or when you close the task (<code>pablo task:close</code> or the dashboard). A pull request closed without merging only moves the task to <code>closed</code></td></tr>
-    <tr><td><code>checkout</code> + <code>reset --hard</code> the primary checkout</td><td>only when it is clean and has no local commits (<a href="page:sync#primary-checkout-update">rules</a>)</td></tr>
-  </tbody>
-</table>
-
-<p>It never merges or closes a pull request, never comments or reviews, and never changes a ticket.</p>
-
-<p>On your machine, outside the task worktrees, it writes only these files:</p>
-
-<table>
-  <thead><tr><th>Files</th><th>When</th></tr></thead>
-  <tbody>
-    <tr><td>Task records, stamps, logs, analytics under <code>~/.pablo/</code></td><td>as it runs (see <a href="page:storage">Storage</a>)</td></tr>
-    <tr><td>The rendered agents and the extracted commands and skills, in <code>~/.pablo/runtime/</code></td><td><code>pablo system:generate-agents</code> and <code>pablo system:install</code>; the binary is read-only, so nothing is ever written next to the templates it carries</td></tr>
-    <tr><td>The compiled application cache, in <code>~/.pablo/cache/container/&lt;version&gt;/</code></td><td>the first run of each binary version (from a checkout: <code>app/var/cache/</code>); <code>pablo system:install</code> removes the other versions'</td></tr>
-    <tr><td>One <code>hasTrustDialogAccepted</code> entry per worktree in Claude Code's <code>~/.claude.json</code> (nothing else in the file)</td><td>just before a <a href="page:configuration#claude-code-remote-control">Remote Control</a> run in that worktree, so Claude Code doesn't stop on "Do you trust this folder?"</td></tr>
-    <tr><td><code>~/.local/bin/pablo</code>, the links in <code>~/.config/opencode/</code>, <code>~/.claude/</code>, <code>~/.copilot/</code>, the scheduler files, the <code>PATH</code> block</td><td>only <code>pablo system:install</code>, <code>pablo system:uninstall</code> and <code>pablo update</code> (which replaces the binary with a checksum-verified release), never over a file that isn't PABLO's (see <a href="page:installation#what-pablo-system-install-does">Installation</a>)</td></tr>
-  </tbody>
-</table>
+<p>PABLO never writes your code or a commit of its own, and never changes your tracker. The few git and pull request operations it performs, and the files it writes on your machine, are listed on <a href="page:safety">What PABLO may change</a>.</p>
 
 <h2>Design decisions</h2>
 

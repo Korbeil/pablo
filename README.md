@@ -45,7 +45,7 @@ Using Jira or Linear, or want the details? Read the [Quickstart](https://getpabl
 
 ## What PABLO never does
 
-Agents propose; you decide. PABLO writes no code of its own: only the rebase conflict resolver agent edits files, to replay your branch. It never touches your issue tracker (GitHub Issues, Jira, Linear stay read-only), never merges or closes a pull request, and never comments or reviews. Commits and pushes happen only when you run `/pablo-commit-and-pr`; the one exception is sync with `sync.auto_apply` (off by default), which rebases (or merges, per `sync.strategy`) a clean worktree onto its base branch and pushes with `--force-with-lease`, never plain `--force`. The full list: [What PABLO may change](https://getpablo.dev/docs/how-it-works/#what-pablo-may-change).
+Agents propose; you decide. PABLO writes no code of its own: only the rebase conflict resolver agent edits files, to replay your branch. It never touches your issue tracker (GitHub Issues, Jira, Linear stay read-only), never merges or closes a pull request, and never comments or reviews. It never writes a commit of its own: commits happen only when you run `/pablo-commit-and-pr`, which also pushes. It pushes otherwise only with sync's `sync.auto_apply` (off by default), which rebases (or merges, per `sync.strategy`) a clean worktree onto its base branch and pushes with `--force-with-lease`, never plain `--force`, and when the conflict resolver pushes its replay of such a rebase the same way. The full list: [What PABLO may change](https://getpablo.dev/docs/safety/).
 
 ## Learn more
 
