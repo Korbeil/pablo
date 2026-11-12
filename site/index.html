@@ -9,15 +9,18 @@
   <meta property="og:description" content="Your agents got faster. Your brain didn't. PABLO does the noticing and the waiting for you.">
   <meta property="og:image" content="https://getpablo.dev/assets/og.png">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://getpablo.dev/">
+  <link rel="canonical" href="https://getpablo.dev/">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#2b2b2a">
+  <link rel="icon" href="favicon.ico" sizes="48x48">
   <link rel="icon" href="assets/logo-mark.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="preload" href="assets/fonts/josefin-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<a class="skip-link" href="#top">Skip to content</a>
 
 <header class="nav">
   <div class="wrap nav-inner">
@@ -40,7 +43,7 @@
   </div>
 </header>
 
-<main id="top">
+<main id="top" tabindex="-1">
 
   <!-- HERO -->
   <section class="hero">
@@ -66,17 +69,20 @@
         </ul>
       </div>
 
-      <div class="term" aria-label="Animated example of PABLO's task list">
-        <div class="term-bar"><span></span><span></span><span></span><em>~/work — pablo</em></div>
-        <div class="term-body">
+      <figure class="term">
+        <div class="term-bar"><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span><em aria-hidden="true">~/work — pablo</em>
+          <button type="button" class="term-toggle" id="term-toggle" hidden>Pause animation</button>
+        </div>
+        <figcaption class="visually-hidden">An animated example of pablo task:list overnight: CI turns red on one branch and PABLO launches the CI analyst in its worktree, a reviewer approves another branch, and a merged task is closed with its worktree removed.</figcaption>
+        <div class="term-body" aria-hidden="true">
           <div class="term-line"><span class="prompt">$</span> pablo task:list</div>
           <table class="term-table">
             <thead><tr><th>branch</th><th>state</th><th>PR</th><th>agents</th></tr></thead>
             <tbody id="term-rows"></tbody>
           </table>
-          <div class="term-log" id="term-log" aria-live="polite"></div>
+          <div class="term-log" id="term-log"></div>
         </div>
-      </div>
+      </figure>
     </div>
   </section>
 
@@ -87,20 +93,20 @@
         <p class="tag">Without PABLO</p>
         <h2>Every PR, every morning</h2>
         <ul class="checklist">
-          <li><label><input type="checkbox"><span class="box"></span>Is CI green?</label></li>
-          <li><label><input type="checkbox"><span class="box"></span>Has anyone reviewed it?</label></li>
-          <li><label><input type="checkbox"><span class="box"></span>Has QA picked it up?</label></li>
-          <li class="alarm"><label><input type="checkbox"><span class="box"></span>Red? Open a worktree, pick an agent, write the prompt, wait…</label></li>
+          <li><span class="box" aria-hidden="true"></span><span>Is CI green?</span></li>
+          <li><span class="box" aria-hidden="true"></span><span>Has anyone reviewed it?</span></li>
+          <li><span class="box" aria-hidden="true"></span><span>Has QA picked it up?</span></li>
+          <li class="alarm"><span class="box" aria-hidden="true"></span><span>Red? Open a worktree, pick an agent, write the prompt, wait…</span></li>
         </ul>
       </div>
       <div>
         <p class="tag">With PABLO</p>
         <h2>It tells you what needs you</h2>
         <ul class="checklist">
-          <li><label><input type="checkbox" checked><span class="box"></span><span>Checks every PR in the background, every few minutes.</span></label></li>
-          <li><label><input type="checkbox" checked><span class="box"></span><span>Launches the right agent when CI fails, a reviewer asks for changes, or QA flags a bug.</span></label></li>
-          <li><label><input type="checkbox" checked><span class="box"></span><span>Keeps your branches rebased and cleans up after the merge.</span></label></li>
-          <li><label><input type="checkbox" checked><span class="box"></span><span>Spends <b>no tokens</b> on finding out whether there's anything to do.</span></label></li>
+          <li class="done"><span class="box" aria-hidden="true"></span><span>Checks every PR in the background, every few minutes.</span></li>
+          <li class="done"><span class="box" aria-hidden="true"></span><span>Launches the right agent when CI fails, a reviewer asks for changes, or QA flags a bug.</span></li>
+          <li class="done"><span class="box" aria-hidden="true"></span><span>Keeps your branches rebased and cleans up after the merge.</span></li>
+          <li class="done"><span class="box" aria-hidden="true"></span><span>Spends <b>no tokens</b> on finding out whether there's anything to do.</span></li>
         </ul>
       </div>
     </div>

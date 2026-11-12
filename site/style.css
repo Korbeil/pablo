@@ -1,3 +1,20 @@
+/* Self-hosted fonts (no third-party request; licences in assets/fonts/OFL-*.txt).
+   Same variable woff2 files as the dashboard (app/assets/fonts). */
+@font-face {
+  font-family: 'Josefin Sans';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url('assets/fonts/josefin-sans-latin-wght-normal.woff2') format('woff2-variations'), url('assets/fonts/josefin-sans-latin-wght-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('assets/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations'), url('assets/fonts/jetbrains-mono-latin-wght-normal.woff2') format('woff2');
+}
+
 :root {
   --ink: #2b2b2a;
   --ink-2: #3a3a38;
@@ -38,6 +55,21 @@ p { margin: 0 0 1em; }
 .hl { background: linear-gradient(transparent 58%, var(--yellow) 58%, var(--yellow) 92%, transparent 92%); padding: 0 .1em; }
 .hl-dark { color: var(--yellow); }
 
+/* ---------- accessibility ---------- */
+:focus-visible { outline: 3px solid var(--yellow-deep); outline-offset: 2px; border-radius: 4px; }
+.nav :focus-visible, .section.dark :focus-visible, .foot :focus-visible, .term :focus-visible { outline-color: var(--yellow); }
+main:focus { outline: none; } /* focused by the skip link only */
+.skip-link {
+  position: absolute; left: 12px; top: -100px; z-index: 200;
+  background: var(--yellow); color: var(--ink); font-weight: 700; text-decoration: none;
+  padding: .7em 1.1em .55em; border-radius: 0 0 10px 10px;
+}
+.skip-link:focus { top: 0; }
+.visually-hidden {
+  position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
 /* ---------- nav ---------- */
 .nav {
   position: sticky; top: 0; z-index: 10;
@@ -74,8 +106,10 @@ p { margin: 0 0 1em; }
 }
 .search-field { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: #fff; border-bottom: 1px solid var(--line); }
 .search-field svg { flex: none; color: var(--yellow-deep); }
-.search-field input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: inherit; font-size: 1.15rem; color: var(--ink); padding-top: .15em; }
+.search-field input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; font-size: 1.15rem; color: var(--ink); padding-top: .15em; }
 .search-field input::-webkit-search-cancel-button { display: none; }
+.search-field:focus-within { box-shadow: inset 0 -3px 0 var(--yellow-deep); }
+.search-field input:focus-visible { outline: 2px solid var(--yellow-deep); outline-offset: 4px; }
 .search-field kbd, .search-foot kbd { font-family: var(--mono); font-size: .72rem; padding: .1em .45em; border-radius: 5px; border: 1px solid var(--line); border-bottom-width: 2px; background: #fff; color: var(--ink-soft); }
 .search-results { list-style: none; margin: 0; padding: 8px; overflow-y: auto; }
 .search-results li a { display: block; text-decoration: none; padding: 10px 12px; border-radius: 10px; color: var(--ink); }
@@ -85,6 +119,7 @@ p { margin: 0 0 1em; }
 .search-hit-text { display: block; font-family: ui-sans-serif, system-ui, sans-serif; font-size: .88rem; line-height: 1.45; color: var(--ink-soft); margin-top: .2em; }
 .search-results mark { background: rgba(233,206,55,.55); color: inherit; border-radius: 3px; padding: 0 .1em; }
 .search-empty { padding: 22px 14px; color: var(--ink-soft); }
+.search-error { color: #a3302a; }
 .search-label { padding: 8px 12px 4px; font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-soft); }
 .search-foot { display: flex; gap: 18px; padding: 10px 18px; font-size: .8rem; color: var(--ink-soft); border-top: 1px solid var(--line); background: #fff; }
 body.search-open { overflow: hidden; }
@@ -117,11 +152,19 @@ body.search-open { overflow: hidden; }
   background: #1f1f1e; color: #e8e6df; border-radius: 16px;
   box-shadow: 0 30px 60px -20px rgba(43,43,42,.55), 0 0 0 1px rgba(255,255,255,.04) inset;
   font-family: var(--mono); font-size: 13px; line-height: 1.6; overflow: hidden;
+  margin: 0;
 }
-.term-bar { display: flex; align-items: center; gap: 7px; padding: 12px 16px; background: #2b2b2a; }
+.term-bar { position: relative; display: flex; align-items: center; gap: 7px; padding: 12px 16px; background: #2b2b2a; }
 .term-bar span { width: 11px; height: 11px; border-radius: 50%; background: #55534d; }
 .term-bar span:first-child { background: var(--yellow); }
 .term-bar em { margin-left: auto; margin-right: auto; font-style: normal; color: #8f8c82; font-size: 12px; transform: translateX(-20px); }
+.term-toggle {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  font: inherit; font-size: 11px; color: #cfccc2; cursor: pointer;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.18); border-radius: 999px; padding: .15em .8em;
+}
+.term-toggle:hover { color: #fff; border-color: var(--yellow); }
+.term-toggle[hidden] { display: none; }
 .term-body { padding: 16px 18px 18px; min-height: 340px; overflow-x: auto; }
 .prompt { color: var(--yellow); margin-right: .5em; }
 .term-table { width: 100%; border-collapse: collapse; margin: 10px 0 14px; }
@@ -158,19 +201,14 @@ body.search-open { overflow: hidden; }
 .two-col { display: grid; grid-template-columns: 1fr 1.2fr; gap: 64px; align-items: start; }
 
 .checklist { list-style: none; padding: 0; margin: 0 0 1.4rem; display: grid; gap: 10px; }
-.checklist li { background: #fff; border: 1px solid var(--line); border-radius: 12px; font-size: 1.08rem; }
-.checklist label { display: flex; align-items: center; gap: 14px; padding: .8em 1em .65em; cursor: pointer; }
-.checklist input { position: absolute; opacity: 0; pointer-events: none; }
+.checklist li { display: flex; align-items: center; gap: 14px; padding: .8em 1em .65em; background: #fff; border: 1px solid var(--line); border-radius: 12px; font-size: 1.08rem; }
 .checklist .box { flex: none; width: 20px; height: 20px; border: 2.5px solid var(--yellow-deep); border-radius: 6px; margin-top: -3px; position: relative; }
-.checklist input:checked + .box { background: var(--yellow-deep); }
-.checklist input:checked + .box::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
-.checklist input:focus-visible + .box { outline: 2px solid var(--yellow-deep); outline-offset: 2px; }
+.checklist .done .box { background: var(--yellow-deep); }
+.checklist .done .box::after { content: ""; position: absolute; left: 5px; top: 1px; width: 5px; height: 10px; border: solid #fff; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
 #problem .two-col > div { display: grid; grid-template-rows: subgrid; grid-row: span 3; row-gap: 0; }
 #problem .two-col > div > .tag { justify-self: start; }
 .checklist .alarm { background: var(--yellow-soft); border-color: var(--yellow); }
 .checklist .alarm .box { border-color: #d9534f; }
-.checklist .alarm input:checked + .box { background: #d9534f; }
-.checklist .alarm input:focus-visible + .box { outline-color: #d9534f; }
 
 /* ---------- punchlines ---------- */
 .punch { position: relative; background: var(--ink); color: #fff; padding: 90px 0; }

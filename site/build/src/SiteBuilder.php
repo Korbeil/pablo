@@ -22,11 +22,15 @@ use Symfony\Component\Yaml\Yaml;
  *  - resolves `page:<slug>[#anchor]` links (validated: a typo fails the
  *    build), `repo:<path>` links (GitHub) and `asset:<path>` links;
  *  - highlights <pre><code class="language-…"> blocks at build time;
- *  - writes search-index.json: one entry per section, for search.js.
+ *  - writes search-index.json: one entry per section, for search.js;
+ *  - writes sitemap.xml (home + every page) and robots.txt, on the
+ *    canonical origin SITE_URL whatever --base is.
  */
 final class SiteBuilder
 {
     private const REPO_URL = 'https://github.com/Korbeil/pablo';
+    /** Canonical origin: canonical links, og:url and the sitemap always point here, whatever --base is. */
+    private const SITE_URL = 'https://getpablo.dev/';
     private const HIGHLIGHT_ALIASES = ['sh' => 'bash', 'shell' => 'bash', 'console' => 'bash', 'yml' => 'yaml'];
 
     /** @var array<string, array{slug: string, title: string, description: string, section: string}> */
@@ -81,6 +85,19 @@ final class SiteBuilder
             'urlOf' => $this->pageUrl(...),
         ]));
         $this->writeFile('search-index.json', json_encode($this->index, \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR));
+        $this->writeFile('sitemap.xml', $this->sitemap());
+        $this->writeFile('robots.txt', "User-agent: *\nAllow: /\n\nSitemap: ".self::SITE_URL."sitemap.xml\n");
+    }
+
+    /** The home page, then every documentation page, as absolute canonical URLs. */
+    private function sitemap(): string
+    {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?>'."\n".'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'."\n";
+        foreach (['', ...array_map($this->pagePath(...), array_keys($this->pages))] as $path) {
+            $xml .= '  <url><loc>'.htmlspecialchars(self::SITE_URL.$path, \ENT_XML1 | \ENT_QUOTES, 'UTF-8').'</loc></url>'."\n";
+        }
+
+        return $xml.'</urlset>'."\n";
     }
 
     // ------------------------------------------------------------- loading
@@ -359,13 +376,20 @@ final class SiteBuilder
 
     private function pageUrl(string $slug): string
     {
-        return $this->base.('index' === $slug ? 'docs/' : 'docs/'.$slug.'/');
+        return $this->base.$this->pagePath($slug);
+    }
+
+    /** A page's path from the site root, without the --base prefix. */
+    private function pagePath(string $slug): string
+    {
+        return 'index' === $slug ? 'docs/' : 'docs/'.$slug.'/';
     }
 
     /** @param array<string, mixed> $vars */
     private function render(string $template, array $vars): string
     {
         $e = static fn (string $s): string => htmlspecialchars($s, \ENT_QUOTES | \ENT_SUBSTITUTE, 'UTF-8');
+        $siteUrl = self::SITE_URL;
         extract($vars);
         ob_start();
         require __DIR__.'/../templates/'.$template;

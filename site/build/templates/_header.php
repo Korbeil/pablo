@@ -1,6 +1,8 @@
 <?php
 /**
  * @var string   $base
+ * @var string   $siteUrl     https://getpablo.dev/
+ * @var ?string  $path        this page's path from the site root ("docs/states/"), null: no canonical URL
  * @var string   $title
  * @var string   $description
  * @var callable $e
@@ -16,16 +18,21 @@
   <meta property="og:description" content="<?= $e($description) ?>">
   <meta property="og:image" content="https://getpablo.dev/assets/og.png">
   <meta property="og:type" content="article">
+<?php if (null !== $path) { ?>
+  <meta property="og:url" content="<?= $e($siteUrl.$path) ?>">
+  <link rel="canonical" href="<?= $e($siteUrl.$path) ?>">
+<?php } ?>
   <meta name="twitter:card" content="summary_large_image">
   <meta name="theme-color" content="#2b2b2a">
+  <link rel="icon" href="<?= $base ?>favicon.ico" sizes="48x48">
   <link rel="icon" href="<?= $base ?>assets/logo-mark.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="apple-touch-icon" href="<?= $base ?>assets/apple-touch-icon.png">
+  <link rel="preload" href="<?= $base ?>assets/fonts/josefin-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="<?= $base ?>style.css">
   <link rel="stylesheet" href="<?= $base ?>docs.css">
 </head>
 <body class="docs-body">
+<a class="skip-link" href="#content">Skip to content</a>
 
 <header class="nav">
   <div class="nav-inner nav-wide">
