@@ -72,6 +72,10 @@ pablo sync:log          # what the last sync did, per project
 
 <p>Orca can hang the first time it opens a brand-new worktree. PABLO notices when no agent session shows up in time and relaunches automatically, a limited number of times. To force it: <code>pablo task:relaunch</code> in the worktree (or <code>--only=&lt;agent&gt;</code>).</p>
 
+<h3>Agents fall back to headless (or statuses show <code>?</code>) only under the scheduler</h3>
+
+<p>When <code>pablo task:start</code> from your terminal reaches Orca, OpenChamber or a tracker but the background runs don't, the services can't find that CLI: their <code>PATH</code> is computed when <code>pablo system:install</code> runs (see <a href="page:installation#the-services-path">The services' PATH</a>), so a tool installed or moved since is missing. Run <code>pablo system:install</code> again from a terminal where the tool is on your <code>PATH</code>, and check the <code>services PATH: …</code> line it prints. For a tool that isn't on your <code>PATH</code> at all, list its directory under <code>scheduler.path</code> in <code>~/.pablo/config.yaml</code> first.</p>
+
 <h3>Agents run headless instead of in Orca</h3>
 
 <p>The reason of each fallback is in <code>~/.pablo/agents/logs/orca-fallback.log</code>. Orca only sees repositories registered with it: run <code>orca repo add --path &lt;repo path&gt;</code> (<code>orca-ide</code> on Linux) for the project. On Linux, PABLO calls Orca's CLI as <code>orca-ide</code>, the name Orca gives it there (<code>orca</code> is GNOME's screen reader): if it isn't found, register the CLI in Orca under Settings → General → Orca CLI. Until then, PABLO runs the agents in the background; open those sessions with <code>opencode -s &lt;session&gt;</code>, <code>claude --resume &lt;session&gt;</code> in the worktree under Claude Code, or <code>copilot --resume=&lt;session&gt;</code> under Copilot (the session id is in the pid file in <code>~/.pablo/agents/</code>).</p>

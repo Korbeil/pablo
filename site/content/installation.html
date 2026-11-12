@@ -77,7 +77,7 @@
   <li>makes sure <code>~/.local/bin/pablo</code> is this binary and, if that directory isn't on your <code>PATH</code> yet, adds it (see below);</li>
   <li>renders the agents for your <a href="page:configuration#global-only-keys">agent runtime</a>, and extracts the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, into <code>~/.pablo/runtime/</code>;</li>
   <li>links them into <code>~/.config/opencode/</code> (OpenCode), <code>~/.claude/</code> (Claude Code) or <code>~/.copilot/</code> (Copilot);</li>
-  <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary);</li>
+  <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary), with the <a href="#the-services-path">services' <code>PATH</code></a> computed from yours;</li>
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
 </ol>
 
@@ -191,6 +191,19 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
 <p>Background agents are started in a session of their own with <code>setsid</code> on Linux; macOS has no <code>setsid</code>, so PABLO uses the system <code>perl</code> there instead. The doctor warns when neither is on your <code>PATH</code>.</p>
 
 <p>On Linux the installer enables <em>lingering</em> for your user (<code>loginctl enable-linger</code>), so the scheduler also starts after a reboot without you logging in.</p>
+
+<h3 id="the-services-path">The services' <code>PATH</code></h3>
+
+<p>systemd and launchd start the services with a bare <code>PATH</code> that misses the tools installed for your user only (nvm, pnpm, <code>~/.opencode/bin</code>, Homebrew…). So <code>pablo system:install</code> writes into the unit files (the plists on macOS) a <code>PATH</code> computed from the one it runs with, in this order:</p>
+
+<ol>
+  <li>the directories listed under <code>scheduler.path</code> in <code>~/.pablo/config.yaml</code>, if any (see <a href="page:configuration#global-only-keys">Configuration</a>);</li>
+  <li><code>~/.local/bin</code> and <code>~/bin</code>;</li>
+  <li>the directory where it finds, on your <code>PATH</code>, each command PABLO may call: the selected runtime's CLI (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), the selected environment's CLI (<code>orca-ide</code> on Linux, <code>orca</code> on macOS, or <code>openchamber</code>), <code>git</code>, <code>gh</code>, <code>node</code> (npm and pnpm shims need it), <code>acli</code>, <code>linear</code>, <code>bash</code>, <code>setsid</code>, <code>perl</code> (the macOS fallback for <code>setsid</code>), <code>script</code> and <code>brew</code>;</li>
+  <li>the system directories (<code>/usr/local/bin</code>, <code>/usr/bin</code>, <code>/bin</code>, …).</li>
+</ol>
+
+<p>Install prints it as <code>services PATH: …</code>. It is computed once: after installing or moving one of those tools, or changing the runtime or environment, run <code>pablo system:install</code> again.</p>
 
 <h3>First install on macOS</h3>
 

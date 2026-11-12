@@ -8,12 +8,13 @@
     <key>Label</key>
     <string>com.pablo.web</string>
     <!-- launchd's default PATH (/usr/bin:/bin:/usr/sbin:/sbin) misses the
-         agent CLIs: claude and the pablo binary live in ~/.local/bin, opencode
-         in ~/.opencode/bin, gh/acli in Homebrew. -->
+         agent CLIs: `pablo system:install` writes the PATH computed from
+         yours (~/.local/bin, the directories of the CLIs PABLO uses, the
+         scheduler.path extras, then the system directories). -->
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>@HOME@/.local/bin:@HOME@/.opencode/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>@PATH@</string>
     </dict>
     <key>ProgramArguments</key>
     <array>

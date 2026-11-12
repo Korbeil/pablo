@@ -90,6 +90,31 @@ final class GlobalConfigTest extends TestCase
         (new GlobalConfig())->dashboardTrustedHosts();
     }
 
+    public function testSchedulerPathIsEmptyWhenUnset(): void
+    {
+        $this->writeGlobalConfig("default_model: x\n");
+
+        $this->assertSame([], (new GlobalConfig())->schedulerPath());
+    }
+
+    public function testSchedulerPathAsAListOrAColonSeparatedString(): void
+    {
+        $this->writeGlobalConfig("scheduler:\n  path: ['~/tools/bin', /opt/x/bin]\n");
+        $this->assertSame(['~/tools/bin', '/opt/x/bin'], (new GlobalConfig())->schedulerPath());
+
+        $this->writeGlobalConfig("scheduler:\n  path: '/a/bin::/b/bin'\n");
+        $this->assertSame(['/a/bin', '/b/bin'], (new GlobalConfig())->schedulerPath());
+    }
+
+    public function testAnInvalidSchedulerPathIsAClearError(): void
+    {
+        $this->writeGlobalConfig("scheduler:\n  path: [{a: b}]\n");
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('scheduler.path must be a list of directories');
+        (new GlobalConfig())->schedulerPath();
+    }
+
     public function testIsPort(): void
     {
         foreach ([1, 8321, 65535, '8400'] as $port) {

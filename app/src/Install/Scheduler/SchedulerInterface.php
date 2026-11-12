@@ -18,11 +18,13 @@ namespace Pablo\Install\Scheduler;
 interface SchedulerInterface
 {
     /**
+     * @param string                 $path the services' PATH (SchedulerPath::build()), written
+     *                                     in place of the bundled files' @PATH@ placeholder
      * @param \Closure(string): void $info
      *
      * @throws \Pablo\Support\PabloError
      */
-    public function install(string $pabloBin, bool $withWeb, \Closure $info): void;
+    public function install(string $pabloBin, bool $withWeb, string $path, \Closure $info): void;
 
     /** @param \Closure(string): void $info */
     public function uninstall(\Closure $info): void;

@@ -21,6 +21,7 @@ use Pablo\Install\Links;
 use Pablo\Install\PabloCommand;
 use Pablo\Install\PathRc;
 use Pablo\Install\Scheduler\SchedulerFactory;
+use Pablo\Install\Scheduler\SchedulerPath;
 use Pablo\Store\Store;
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
@@ -84,12 +85,13 @@ final class InstallCommand extends Command
         $withWeb = !$input->getOption('without-web');
 
         // 0. Bad options are refused before anything is touched; so is a
-        //    platform without a scheduler.
+        //    platform without a scheduler, and an invalid scheduler.path.
         ConfigSeeder::validate($runtimeOption, $backendOption);
         if (null !== $portOption && !GlobalConfig::isPort($portOption)) {
             throw new PabloError("invalid --port {$portOption}: expected a number between 1 and 65535");
         }
         $scheduler = $this->schedulers->create();
+        $this->globalConfig->schedulerPath();
 
         // 1. Config.
         $runtime = $this->agentLaunchers->runtimes()->resolve(
@@ -125,7 +127,9 @@ final class InstallCommand extends Command
         //    once the services restarted on this binary (`pablo update` also
         //    holds the dispatch lock meanwhile), so no running process of an
         //    older binary loses the container it reads its services from.
-        $scheduler->install(InstallPaths::binPath(), $withWeb, $info);
+        $path = $this->schedulerPath($runtime);
+        $info('services PATH: '.$path);
+        $scheduler->install(InstallPaths::binPath(), $withWeb, $path, $info);
         $this->pruneContainers($info);
 
         // 5. Preflight.
@@ -163,6 +167,29 @@ final class InstallCommand extends Command
             $info($links->link($target, $link));
         }
         array_map($info, $files->installNotes());
+    }
+
+    /**
+     * The services' PATH, from the installing user's: where the selected
+     * runtime's and ADE's CLIs and the other tools PABLO calls are found now.
+     *
+     * @throws PabloError on an invalid scheduler.path
+     */
+    private function schedulerPath(AgentRuntimeInterface $runtime): string
+    {
+        $clis = [$runtime->probe()->argv[0] ?? ''];
+        $adeProbe = $this->agentLaunchers->ades()->resolveOrDefault()->probe();
+        if (null !== $adeProbe) {
+            $clis[] = $adeProbe->argv[0] ?? '';
+        }
+
+        return SchedulerPath::build(
+            PabloPaths::home(),
+            (string) getenv('PATH'),
+            [...$clis, ...SchedulerPath::TOOLS],
+            $this->globalConfig->schedulerPath(),
+            $this->schedulers->osFamily(),
+        );
     }
 
     /**

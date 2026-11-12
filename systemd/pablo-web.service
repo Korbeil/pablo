@@ -6,9 +6,9 @@ Description=PABLO read-only dashboard (127.0.0.1)
 
 [Service]
 Type=simple
-# Same corrected PATH as pablo-dispatch.service (Orca shim dir first), kept
-# for parity even though the dashboard itself runs no agent CLI.
-Environment=PATH=%h/.config/orca/linux-orca-cli-shim:%h/.opencode/bin:%h/.local/bin:%h/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:%h/.local/share/pnpm/bin:%h/.nvm/versions/node/v24.19.0/bin
+# Same PATH as pablo-dispatch.service (computed by `pablo system:install`):
+# kept for parity, so any CLI the dashboard reaches resolves the same way.
+Environment="PATH=@PATH@"
 # acli requires DBUS_SESSION_BUS_ADDRESS (see pablo-dispatch.service); set it
 # here too so any acli path keeps working under this unit.
 Environment=DBUS_SESSION_BUS_ADDRESS=disabled:

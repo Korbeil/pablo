@@ -243,6 +243,63 @@ final class InstallCommandTest extends TestCase
         $this->assertContains("launchctl bootstrap gui/{$uid} {$this->home}/Library/LaunchAgents/com.pablo.dispatch.plist", $this->serviceCalls());
     }
 
+    public function testTheServicesPathIsComputedFromTheInstallingUsersPath(): void
+    {
+        $this->fakeTool('opencode');
+        $this->fakeTool('orca-ide');
+        mkdir($this->sandbox.'/nvm/bin', 0o777, true);
+        file_put_contents($this->sandbox.'/nvm/bin/node', "#!/bin/sh\n");
+        chmod($this->sandbox.'/nvm/bin/node', 0o755);
+        putenv('PATH='.$this->sandbox.'/bin:'.$this->sandbox.'/nvm/bin');
+        mkdir($this->home.'/.pablo', 0o777, true);
+        file_put_contents($this->home.'/.pablo/config.yaml', "scheduler:\n  path: ['~/my tools/bin']\n");
+
+        $tester = $this->install(['--runtime' => 'opencode', '--backend' => 'orca']);
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+
+        $expected = "{$this->home}/my tools/bin:{$this->home}/.local/bin:{$this->home}/bin:{$this->sandbox}/bin:{$this->sandbox}/nvm/bin:/usr/local/sbin";
+        $this->assertStringContainsString('services PATH: '.$expected, $tester->getDisplay());
+        $units = $this->home.'/.config/systemd/user';
+        foreach (['pablo-dispatch.service', 'pablo-web.service'] as $unit) {
+            $content = (string) file_get_contents($units.'/'.$unit);
+            $this->assertStringContainsString('Environment="PATH='.$expected, $content, $unit);
+            $this->assertStringNotContainsString('@PATH@', $content, $unit);
+            $this->assertStringNotContainsString('.nvm/versions', $content, "{$unit}: no machine-specific literal");
+            $this->assertStringNotContainsString('orca-cli-shim', $content, $unit);
+        }
+
+        // Idempotent: the same PATH renders the same unit.
+        $before = (string) file_get_contents($units.'/pablo-dispatch.service');
+        $this->assertSame(0, $this->install(['--runtime' => 'opencode', '--backend' => 'orca'])->getStatusCode());
+        $this->assertSame($before, file_get_contents($units.'/pablo-dispatch.service'));
+    }
+
+    public function testAnInvalidSchedulerPathIsRefusedBeforeTouchingAnything(): void
+    {
+        mkdir($this->home.'/.pablo', 0o777, true);
+        file_put_contents($this->home.'/.pablo/config.yaml', "scheduler:\n  path: 42\n");
+
+        $tester = $this->install(['--runtime' => 'opencode']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('scheduler.path must be a list of directories', $tester->getDisplay());
+        $this->assertFileDoesNotExist($this->home.'/.local/bin/pablo');
+    }
+
+    public function testTheLaunchdPathIsComputedAndEscaped(): void
+    {
+        $this->fakeTool('opencode');
+        $this->fakeTool('brew');
+        mkdir($this->home.'/.pablo', 0o777, true);
+        file_put_contents($this->home.'/.pablo/config.yaml', "scheduler:\n  path: ['/opt/a&b/bin']\n");
+
+        $this->assertSame(0, $this->install(['--runtime' => 'opencode'], 'Darwin')->getStatusCode());
+
+        $plist = (string) file_get_contents($this->home.'/Library/LaunchAgents/com.pablo.dispatch.plist');
+        $this->assertStringContainsString("<string>/opt/a&amp;b/bin:{$this->home}/.local/bin:{$this->home}/bin:{$this->sandbox}/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>", $plist);
+        $this->assertStringNotContainsString('@PATH@', $plist);
+    }
+
     public function testAForeignPlistIsNeverOverwritten(): void
     {
         mkdir($this->home.'/Library/LaunchAgents', 0o777, true);

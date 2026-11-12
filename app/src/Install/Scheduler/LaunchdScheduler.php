@@ -28,13 +28,13 @@ final class LaunchdScheduler implements SchedulerInterface
     ) {
     }
 
-    public function install(string $pabloBin, bool $withWeb, \Closure $info): void
+    public function install(string $pabloBin, bool $withWeb, string $path, \Closure $info): void
     {
-        $this->load(self::DISPATCH, $pabloBin);
+        $this->load(self::DISPATCH, $pabloBin, $path);
         $info(self::DISPATCH." loaded (every 5 minutes; logs: {$this->logDir}/dispatch.log)");
 
         if ($withWeb) {
-            $this->load(self::WEB, $pabloBin);
+            $this->load(self::WEB, $pabloBin, $path);
             $info(self::WEB." loaded (the dashboard; logs: {$this->logDir}/web.log)");
         } elseif (ServiceFiles::isOurs($this->plist(self::WEB), self::WEB)) {
             $this->runner->probe(['launchctl', 'bootout', $this->domain().'/'.self::WEB]);
@@ -70,14 +70,17 @@ final class LaunchdScheduler implements SchedulerInterface
     }
 
     /** @throws PabloError */
-    private function load(string $label, string $pabloBin): void
+    private function load(string $label, string $pabloBin, string $path): void
     {
         if (!is_dir($this->logDir)) {
             @mkdir($this->logDir, 0o777, true);
         }
         $content = str_replace(
-            ['@PABLO_BIN@', '@LOG_DIR@', '@HOME@'],
-            [$pabloBin, $this->logDir, $this->home],
+            ['@PABLO_BIN@', '@LOG_DIR@', '@HOME@', '@PATH@'],
+            array_map(
+                static fn (string $value): string => htmlspecialchars($value, \ENT_XML1 | \ENT_QUOTES),
+                [$pabloBin, $this->logDir, $this->home, $path],
+            ),
             ServiceFiles::bundled($this->templatesDir.'/'.$label.'.plist.template'),
         );
         ServiceFiles::write($this->plist($label), $label, $content);

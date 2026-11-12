@@ -20,6 +20,12 @@ final class SchedulerFactory
     ) {
     }
 
+    /** The platform the schedulers are built for (PHP_OS_FAMILY). */
+    public function osFamily(): string
+    {
+        return $this->osFamily;
+    }
+
     /** @throws PabloError on a platform PABLO does not support */
     public function create(): SchedulerInterface
     {
