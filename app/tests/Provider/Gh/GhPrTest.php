@@ -99,6 +99,60 @@ final class GhPrTest extends TestCase
         $this->assertSame('green', $this->svc()->evaluateCi($rollup));
     }
 
+    public function testCiCancelledIsNotAFailure(): void
+    {
+        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+            ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'build'],
+            ['status' => 'COMPLETED', 'conclusion' => 'CANCELLED', 'name' => 'deploy'],
+        ]);
+        $this->assertSame('green', $this->svc()->evaluateCi($rollup));
+    }
+
+    public function testCiSupersededCancelledRunIgnored(): void
+    {
+        // Real shape: a concurrency group cancels the first run, a second one passes.
+        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+            ['status' => 'COMPLETED', 'conclusion' => 'CANCELLED', 'name' => 'Check-Migration', 'workflowName' => 'Pull Request Jobs', 'startedAt' => '2026-11-12T15:58:46Z'],
+            ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'Check-Migration', 'workflowName' => 'Pull Request Jobs', 'startedAt' => '2026-11-12T15:58:59Z'],
+        ]);
+        $this->assertSame('green', $this->svc()->evaluateCi($rollup));
+    }
+
+    public function testCiLatestRunWinsWhateverTheRollupOrder(): void
+    {
+        $older = ['status' => 'COMPLETED', 'conclusion' => 'FAILURE', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:00:00Z'];
+        $newer = ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:05:00Z'];
+        $this->assertSame('green', $this->svc()->evaluateCi(array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [$older, $newer])));
+        $this->assertSame('green', $this->svc()->evaluateCi(array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [$newer, $older])));
+    }
+
+    public function testCiNewerFailedRunStillRed(): void
+    {
+        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+            ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:00:00Z'],
+            ['status' => 'COMPLETED', 'conclusion' => 'FAILURE', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:05:00Z'],
+        ]);
+        $this->assertSame('red', $this->svc()->evaluateCi($rollup));
+    }
+
+    public function testCiNewerRunInProgressIsPending(): void
+    {
+        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+            ['status' => 'COMPLETED', 'conclusion' => 'FAILURE', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:00:00Z'],
+            ['status' => 'IN_PROGRESS', 'conclusion' => null, 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:05:00Z'],
+        ]);
+        $this->assertSame('pending', $this->svc()->evaluateCi($rollup));
+    }
+
+    public function testCiSameCheckNameInDifferentWorkflowsKeptApart(): void
+    {
+        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+            ['status' => 'COMPLETED', 'conclusion' => 'FAILURE', 'name' => 'build', 'workflowName' => 'Backend', 'startedAt' => '2026-11-12T10:00:00Z'],
+            ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'build', 'workflowName' => 'Frontend', 'startedAt' => '2026-11-12T10:05:00Z'],
+        ]);
+        $this->assertSame('red', $this->svc()->evaluateCi($rollup));
+    }
+
     public function testCiGreenWhenNoChecks(): void
     {
         $this->assertSame('green', $this->svc()->evaluateCi([]));

@@ -213,7 +213,7 @@ GQL;
     public function evaluateCi(array $rollup, array $ignoreChecks = []): string
     {
         $pending = false;
-        foreach ($rollup as $check) {
+        foreach ($this->latestRuns($rollup) as $check) {
             if ($this->isIgnored($check, $ignoreChecks)) {
                 continue;
             }
@@ -226,6 +226,33 @@ GQL;
         }
 
         return $pending ? 'pending' : 'green';
+    }
+
+    /**
+     * Keeps only the most recent run of each check run: a workflow triggered
+     * twice on one commit leaves both runs in the rollup, and the older one
+     * (often cancelled or failed, then superseded) must not decide the state.
+     * Legacy status contexts carry no run key and are all kept.
+     *
+     * @param list<CiCheck> $rollup
+     *
+     * @return list<CiCheck>
+     */
+    private function latestRuns(array $rollup): array
+    {
+        $kept = [];
+        foreach ($rollup as $i => $check) {
+            if (null === $check->runKey) {
+                $kept[$i] = $check;
+                continue;
+            }
+            $key = 'run:'.$check->runKey;
+            if (!isset($kept[$key]) || $check->startedAt >= $kept[$key]->startedAt) {
+                $kept[$key] = $check;
+            }
+        }
+
+        return array_values($kept);
     }
 
     public function ciStatus(string $repoSlug, int $prNumber, array $ignoreChecks = []): string
