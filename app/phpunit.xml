@@ -7,8 +7,15 @@
          cacheDirectory=".phpunit.result.cache">
     <php>
         <!-- KernelTestCase/WebTestCase need this: there is no .env, so APP_ENV
-             and APP_DEBUG are unset and they default to test/true. -->
+             is unset and defaults to test. -->
         <server name="KERNEL_CLASS" value="Pablo\App\Kernel"/>
+        <!-- Every test kernel boots with debug on: only a debug kernel checks
+             its cached container (var/cache/test) for freshness, so a rebase
+             that changes a service's constructor rebuilds it instead of
+             failing on a stale one. An env (read before $_SERVER by
+             KernelTestCase), forced so an APP_DEBUG=0 in the shell cannot turn
+             the check off. -->
+        <env name="APP_DEBUG" value="1" force="true"/>
         <!-- Pin the Orca CLI name (orca-ide on Linux, orca elsewhere) so the
              tests read the same on every OS. OrcaCliTest unsets it. -->
         <env name="ORCA_CLI_COMMAND" value="orca" force="true"/>

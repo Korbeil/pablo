@@ -69,8 +69,11 @@ YAML;
     {
         $this->snapshotErrorHandlers();
 
-        // debug:false — this asserts command wiring, not the debug toolchain.
-        $this->kernel = new Kernel('test', false);
+        // debug:true, always: only a debug kernel checks its cached container
+        // in var/cache/test for freshness. With debug:false a rebase that
+        // reorders a constructor's arguments keeps the old container and the
+        // test fails with a TypeError from var/cache/test until it is deleted.
+        $this->kernel = new Kernel('test', true);
         $this->kernel->boot();
 
         $app = $this->kernel->getContainer()->get(ConsoleApplication::class);
