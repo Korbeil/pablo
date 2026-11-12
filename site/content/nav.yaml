@@ -1,11 +1,11 @@
 # Sidebar of the documentation, in reading order. Each slug is a page:
 # site/content/<slug>.html. The docs home is site/content/index.html.
 - section: Getting started
-  pages: [quickstart, installation]
+  pages: [quickstart, installation, update]
 - section: Guides
   pages: [tasks, dashboard, analytics, backups, troubleshooting]
 - section: Concepts
-  pages: [how-it-works, safety, states, agents, sync]
+  pages: [how-it-works, safety, states, agents, runtimes, sync]
 - section: Reference
   pages: [cli, configuration, providers, storage]
 - section: Contributing

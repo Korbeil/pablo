@@ -1,0 +1,202 @@
+<h1>Runtimes &amp; ADEs</h1>
+
+<p>Two global choices decide how PABLO's agents run: the <b>agent runtime</b>, the program that runs them (OpenCode, Claude Code or GitHub Copilot CLI), and the <b>agent environment (ADE)</b>, where they run and where you read them (Orca, OpenChamber, or headless in the background). This page covers both: how to choose, how each one is set up, and its limits.</p>
+
+<h2 id="choose-an-agent-runtime">Choose an agent runtime</h2>
+
+<p>The runtime decides <em>what</em> runs an agent; the ADE decides <em>where</em>. Every project uses the same runtime: <code>agent_runtime</code> is a <a href="page:configuration#global-only-keys">global-only key</a> of <code>~/.pablo/config.yaml</code>, also settable with the <code>PABLO_AGENT_RUNTIME</code> environment variable.</p>
+
+<table>
+  <thead><tr><th><code>agent_runtime</code></th><th>Runs</th><th>Model ids</th><th>ADEs</th></tr></thead>
+  <tbody>
+    <tr><td><code>opencode</code> (default)</td><td><code>opencode run --agent &lt;agent&gt;</code></td><td><code>provider/model</code>, e.g. <code>opencode-go/glm-5.3-flash</code></td><td>Orca, OpenChamber, headless</td></tr>
+    <tr><td><code>claude-code</code></td><td><code>claude -p --agents … --agent &lt;agent&gt;</code></td><td>an alias (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or a full id such as <code>claude-sonnet-5-5</code></td><td>Orca, headless</td></tr>
+    <tr><td><code>copilot</code> (experimental)</td><td><code>copilot --agent pablo-&lt;agent&gt; … -p</code></td><td>Copilot's dotted ids, such as <code>claude-sonnet-5.5</code> or <code>gpt-5.3-codex</code></td><td>Orca, headless</td></tr>
+  </tbody>
+</table>
+
+<p>The installer lists the runtimes it finds on your <code>PATH</code> and asks which one to use; with a single one it takes it without asking, and with none it stops. A first install picks OpenCode, Claude Code when it finds Claude Code but no OpenCode, Copilot when it finds Copilot CLI but neither. The runtime changes the command the doctor requires (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), what the installer generates and links, and which model ids <code>default_model</code> accepts (see <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>).</p>
+
+<p>Whatever the runtime, the agents come from the same templates, translated rather than rewritten, so they run the same prompts and the same guardrails (see <a href="page:agents">Agents</a>).</p>
+
+<h3 id="switch-runtime">Switch runtime</h3>
+
+<p>Run <code>pablo system:install</code> again with <code>--runtime</code>: it records <code>agent_runtime</code>, resets <code>default_model</code> to a model of that runtime, regenerates the agents and links them. Or change <code>agent_runtime</code> (and <code>default_model</code>) yourself and run it without options. The other runtimes' links stay in place until <code>pablo system:uninstall</code>; they're harmless.</p>
+
+<pre><code class="language-bash">pablo system:install --runtime claude-code   # or opencode, copilot
+pablo system:doctor                          # checks the runtime and its generated files
+</code></pre>
+
+<h2 id="opencode">OpenCode</h2>
+
+<p>The default, and the only runtime OpenChamber can run. You need <a href="https://opencode.ai">OpenCode</a> set up with your usual model provider.</p>
+
+<ul>
+  <li><b>What is installed.</b> The agents, the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, rendered into <code>~/.pablo/runtime/opencode/</code> and linked into <code>~/.config/opencode/</code>.</li>
+  <li><b>Guardrails.</b> The agents' permissions are OpenCode frontmatter rules, enforced by OpenCode, and their step budget is OpenCode's own step limit (see <a href="page:agents#read-only-enforced">Read-only, enforced</a>).</li>
+  <li><b>Sessions.</b> <code>opencode -s &lt;session&gt;</code> reopens a run. Headless runs can be followed in OpenCode's web interface: see <a href="page:how-it-works#headless-opencode-web-ui">Follow headless OpenCode runs in the browser</a>.</li>
+</ul>
+
+<h2 id="claude-code">Claude Code</h2>
+
+<p>Set it in <code>~/.pablo/config.yaml</code>, with a Claude model, then regenerate and relink:</p>
+
+<pre><code class="language-yaml">agent_runtime: claude-code
+default_model: sonnet        # or opus, haiku, or a full model id
+</code></pre>
+
+<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash -s -- --runtime claude-code
+                            # generates ~/.pablo/runtime/claude/agents.json, links the agents and the command
+                            # (already installed: pablo system:install --runtime claude-code)
+pablo system:doctor         # checks claude and the generated files
+</code></pre>
+
+<h3 id="claude-code-setup">Setup</h3>
+
+<ul>
+  <li><b>Prerequisite.</b> The <code>claude</code> command, logged in: the doctor runs <code>claude auth status</code>. Install it with <code>curl -fsSL https://claude.ai/install.sh | bash</code>.</li>
+  <li><b>What is installed.</b> <code>pablo system:generate-agents</code> writes all five agents into <code>~/.pablo/runtime/claude/agents.json</code>, which every launch passes with <code>--agents</code>. The installer links <code>~/.claude/commands/pablo-commit-and-pr.md</code> and <code>~/.claude/skills/pablo-task</code>.</li>
+  <li><b>Your own sessions.</b> The same agents are also rendered as <code>pablo-&lt;agent&gt;.md</code> files in <code>~/.pablo/runtime/claude/agents/</code> and linked into <code>~/.claude/agents/</code>, so they show up in <code>/agents</code> and the <code>@</code> picker. Those files only carry tool-level limits: the per-command shell denies (such as <code>git push</code>) are launch flags and apply only to PABLO's own launches.</li>
+</ul>
+
+<h3 id="claude-code-limits">How it runs, and its limits</h3>
+
+<ul>
+  <li><b>Orca or headless.</b> Agents run as <code>claude -p</code> in an Orca terminal, and as a <a href="#claude-code-remote-control">Remote Control session</a> headless. <b>OpenChamber is not supported</b>: it drives its own OpenCode server. <code>pablo system:doctor</code> reports the combination as an error and the dispatcher refuses to run with it.</li>
+  <li><b>How they launch.</b> <code>claude -p --agents … --agent &lt;name&gt; --model &lt;default_model&gt; --session-id &lt;id&gt; --strict-mcp-config</code>, plus the permission flags below.</li>
+  <li><b>No permission prompts.</b> The analysts run with <code>--permission-mode dontAsk</code> (anything not allowed is denied), the resolver with <code>acceptEdits</code> (<code>dontAsk</code> too in a Remote Control session, where its edit tools are explicitly allowed).</li>
+  <li><b>Your account and quota.</b> Agents run with your own Claude Code login. With a Pro or Max subscription they share its usage limits with your interactive sessions, so keep an eye on them with busy projects.</li>
+  <li><b>Your settings, not your MCP servers.</b> Agents load your Claude Code settings and hooks (Orca's, RTK's) but none of your MCP servers (<code>--strict-mcp-config</code>).</li>
+  <li><b>Sessions you can resume.</b> Each run gets a session id chosen by PABLO; <code>claude --resume &lt;id&gt;</code> in the worktree reopens it.</li>
+  <li><b>Step budget.</b> Claude Code has no per-agent step limit, so the budget becomes an instruction at the end of the prompt: followed, not enforced.</li>
+</ul>
+
+<h3 id="claude-code-permissions">Permission mapping</h3>
+
+<table>
+  <thead><tr><th>OpenCode rule</th><th>Claude Code</th></tr></thead>
+  <tbody>
+    <tr><td><code>read</code>, <code>grep</code>, <code>glob</code>, <code>webfetch</code></td><td>the <code>Read</code>, <code>Grep</code>, <code>Glob</code>, <code>WebFetch</code> tools</td></tr>
+    <tr><td><code>edit *</code></td><td><code>Edit</code>, <code>Write</code> and <code>NotebookEdit</code></td></tr>
+    <tr><td><code>skill *</code></td><td><code>Skill</code></td></tr>
+    <tr><td><code>shell *</code> allowed</td><td><code>Bash</code></td></tr>
+    <tr><td><code>shell "git commit*"</code> denied</td><td><code>Bash(git commit*)</code> and <code>Bash(rtk git commit*)</code> in <code>--disallowedTools</code></td></tr>
+  </tbody>
+</table>
+
+<p>Whole tools are allowed or denied both in the agent definition and on the command line. Command patterns only go on the command line: in an agent definition, a <code>Bash(…)</code> entry removes the whole Bash tool. Claude Code matches <code>*</code> anywhere, so patterns such as <code>*acli jira workitem edit*</code> keep their meaning.</p>
+
+<aside class="callout note"><p><b>Why every command pattern is denied twice.</b> If you use <a href="https://github.com/rtk-ai/rtk">RTK</a>, its Claude Code hook rewrites <code>git push</code> into <code>rtk git push</code> <em>before</em> permissions are checked, which slips past a plain <code>Bash(git push*)</code> rule. Each denied pattern is therefore emitted raw and with the <code>rtk</code> prefix; a test checks that no OpenCode deny is missing either form.</p></aside>
+
+<p>The commit command is rendered into <code>~/.pablo/runtime/claude/commands/</code> and linked into <code>~/.claude/commands/</code>. Its body, the <code>!`…`</code> context injection and <code>$ARGUMENTS</code> work as in OpenCode, and its allowed commands become <code>allowed-tools</code> (raw and <code>rtk</code> forms again). One limit: a Claude Code command can't deny a tool, so “no edits” is an instruction in its hard rules rather than a permission.</p>
+
+<h3 id="claude-code-remote-control">Follow headless runs from claude.ai and the Claude apps</h3>
+
+<p>A run with no terminal (<code>agent_backend: headless</code>, Orca's and OpenChamber's fallback, the rebase-conflict resolver) starts as an interactive <code>claude --remote-control</code> session named <code>pablo &lt;agent&gt; &lt;worktree&gt;</code> instead of <code>claude -p</code>, so it shows up live in <a href="https://claude.ai/code">claude.ai/code</a> and the Claude apps while it runs. It is still a background run that ends on its own:</p>
+
+<ul>
+  <li><b>A terminal from <code>script</code>.</b> Interactive <code>claude</code> needs one; the command runs inside <code>script</code> (part of every Linux and macOS system). Its screen output goes to the run's log in <code>~/.pablo/agents/logs/</code>.</li>
+  <li><b>It stops when the agent has answered.</b> A <code>Stop</code> (and <code>StopFailure</code>) hook passed with <code>--settings</code> ends the session after the agent's answer, so the run finishes like a <code>claude -p</code> one. You can't continue it from the app afterwards: <code>claude --resume &lt;id&gt;</code> in the worktree still reopens it.</li>
+  <li><b>Same agent, same limits.</b> Same model, session id and permission flags as <code>claude -p</code>, with only the launched agent passed inline in <code>--agents</code> (interactive <code>claude</code> takes no file there). Every agent, the resolver included, runs in <code>dontAsk</code>: nobody is there to answer a prompt.</li>
+  <li><b>The worktree is trusted first.</b> PABLO adds a <code>hasTrustDialogAccepted</code> entry for the worktree to <code>~/.claude.json</code> just before the launch.</li>
+  <li><b>Needs a claude.ai login</b> on which your organization allows Remote Control.</li>
+</ul>
+
+<p>To keep plain <code>claude -p</code> runs, switch it off in <code>~/.pablo/config.yaml</code> (or export <code>PABLO_CLAUDE_REMOTE_CONTROL=0</code>):</p>
+
+<pre><code class="language-yaml">claude_code:
+  remote_control: false   # default: true
+</code></pre>
+
+<p>Without a generated <code>agents.json</code> or a <code>script</code> command, runs fall back to <code>claude -p</code>.</p>
+
+<h2 id="copilot">GitHub Copilot CLI</h2>
+
+<aside class="callout warning"><p><b>Experimental.</b> This runtime was built from <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">Copilot CLI's documentation</a>, without the CLI at hand: loading agents from <code>~/.copilot/agents</code> during <code>-p</code>, compound commands (<code>a &amp;&amp; b</code>) against prefix denies, and skill argument passing are not verified live yet.</p></aside>
+
+<p>Set it in <code>~/.pablo/config.yaml</code> (or export <code>PABLO_AGENT_RUNTIME=copilot</code>), with a Copilot model, then regenerate and relink:</p>
+
+<pre><code class="language-yaml">agent_runtime: copilot
+default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-codex
+</code></pre>
+
+<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash -s -- --runtime copilot
+                            # renders ~/.pablo/runtime/copilot/ and links the agents and skills into ~/.copilot/
+                            # (already installed: pablo system:install --runtime copilot)
+pablo system:doctor         # checks copilot and the generated files
+</code></pre>
+
+<h3 id="copilot-setup">Setup</h3>
+
+<ul>
+  <li><b>Prerequisite.</b> The <code>copilot</code> command (<code>npm install -g @github/copilot</code>), logged in once with <code>copilot login</code>. The doctor only runs <code>copilot --version</code>: Copilot has no non-interactive login check, so a run fails if you're logged out.</li>
+  <li><b>What is installed.</b> <code>pablo system:generate-agents</code> renders <code>~/.pablo/runtime/copilot/agents/pablo-&lt;agent&gt;.agent.md</code> for the five agents, linked into <code>~/.copilot/agents/</code>; the <code>pablo-commit-and-pr</code> and <code>pablo-task</code> skills go into <code>~/.copilot/skills/</code> (under <code>COPILOT_HOME</code> when set).</li>
+  <li><b>Visible on purpose.</b> The agents go where your own Copilot sessions can pick them, prefixed <code>pablo-</code>.</li>
+  <li><b>What an agent file holds.</b> <code>name</code>, <code>description</code> and <code>tools</code> (Copilot aliases: <code>read</code>, <code>search</code>, <code>execute</code>, <code>web</code>, <code>edit</code>), and no <code>model:</code> line: in Copilot an agent file's model would override <code>--model</code>.</li>
+</ul>
+
+<h3 id="copilot-limits">How it runs, and its limits</h3>
+
+<ul>
+  <li><b>Orca or headless.</b> Agents run as <code>copilot -p</code>, in an Orca terminal or headless. <b>OpenChamber is not supported</b>, as with Claude Code: the doctor reports it and the dispatcher refuses to run.</li>
+  <li><b>How they launch.</b> <code>copilot --agent pablo-&lt;agent&gt; --model &lt;default_model&gt; --session-id &lt;uuid&gt; --no-ask-user --no-auto-update --no-color --disable-builtin-mcps --available-tools … --allow-tool … --deny-tool … -p '&lt;prompt&gt;'</code>. <code>--available-tools</code> lists exactly the built-in tools the agent may use (the analysts: <code>view</code>, <code>grep</code>, <code>glob</code>, <code>web_fetch</code>, <code>bash</code>; the resolver: <code>view</code>, <code>bash</code>, <code>edit</code>, <code>create</code>), which also hides your MCP tools; <code>--disable-builtin-mcps</code> turns off Copilot's built-in MCP servers. Your own custom instructions (<code>AGENTS.md</code>…) and hooks still load.</li>
+  <li><b>Copilot model ids.</b> Dotted ids such as <code>claude-sonnet-5.5</code> or <code>gpt-5.3-codex</code>. A <code>provider/model</code> id (bring-your-own-model ids aren't supported) or a Claude Code name (<code>sonnet</code>, <code>claude-sonnet-5-5</code>) is refused when the project loads, with the dotted form suggested.</li>
+  <li><b>Sessions you can resume.</b> Each run gets a UUID chosen by PABLO; <code>copilot --resume=&lt;id&gt;</code> in the worktree reopens it. Its handle is recorded as <code>copilot:&lt;uuid&gt;</code>, so it can't be mistaken for a Claude Code session.</li>
+  <li><b>Step budget.</b> As under Claude Code: no per-agent limit, so it becomes an instruction at the end of the prompt.</li>
+</ul>
+
+<h3 id="copilot-permissions">Permission mapping</h3>
+
+<table>
+  <thead><tr><th>OpenCode rule</th><th>Copilot CLI</th></tr></thead>
+  <tbody>
+    <tr><td><code>read *</code> allowed</td><td>tool <code>view</code>, <code>--allow-tool read</code></td></tr>
+    <tr><td><code>grep</code>, <code>glob</code></td><td>tools <code>grep</code>, <code>glob</code></td></tr>
+    <tr><td><code>webfetch</code></td><td>tool <code>web_fetch</code>, <code>--allow-all-urls</code></td></tr>
+    <tr><td><code>shell *</code> allowed</td><td>tool <code>bash</code>, <code>--allow-tool shell</code></td></tr>
+    <tr><td><code>edit *</code> allowed</td><td>tools <code>edit</code>, <code>create</code>, <code>--allow-tool write</code></td></tr>
+    <tr><td><code>edit *</code> denied</td><td><code>--deny-tool write</code></td></tr>
+    <tr><td><code>skill</code> denied</td><td><code>skill</code> left out of the available tools</td></tr>
+    <tr><td><code>shell "git push*"</code> denied</td><td><code>--deny-tool 'shell(git push)'</code> and <code>'shell(git push:*)'</code>, plus <code>shell(rtk git push)</code> and <code>shell(rtk git push:*)</code></td></tr>
+  </tbody>
+</table>
+
+<p>Copilot matches a command prefix, so leading and trailing <code>*</code> are dropped: <code>*acli jira workitem edit*</code> becomes <code>acli jira workitem edit</code>. A pattern with a <code>*</code> in the middle can't be translated, and generation fails. In Copilot a deny always wins over an allow. The command patterns only exist on PABLO's launches: when you run a <code>pablo-*</code> agent by hand, only the visible tools from its agent file apply.</p>
+
+<p>Copilot has no <code>!`…`</code> context injection, so the commit command becomes a skill, <code>copilot/skills/pablo-commit-and-pr/SKILL.md</code>, linked into <code>~/.copilot/skills/</code>. Its context section tells the agent to run those commands first, and <code>disable-model-invocation: true</code> keeps the model from running it on its own: only you typing <code>/pablo-commit-and-pr</code> does. The “no code edits” rule is restated in its hard rules, and <code>--force</code> still works as part of your request.</p>
+
+<h2 id="choose-an-ade">Choose an agent environment (ADE)</h2>
+
+<p>The agent environment (ADE) is where PABLO's agents run, and where you open them to read their analysis or keep chatting. It is the global-only key <code>agent_backend</code> of <code>~/.pablo/config.yaml</code> (or the <code>PABLO_AGENT_BACKEND</code> environment variable); change it with <code>pablo system:install --backend orca|openchamber|headless</code>.</p>
+
+<table>
+  <thead><tr><th><code>agent_backend</code></th><th>Runtimes</th><th>Doctor checks</th></tr></thead>
+  <tbody>
+    <tr><td><code>orca</code> (default)</td><td>all three</td><td>the Orca CLI</td></tr>
+    <tr><td><code>openchamber</code></td><td>OpenCode only</td><td>the <code>openchamber</code> command</td></tr>
+    <tr><td><code>headless</code></td><td>all three</td><td>neither</td></tr>
+  </tbody>
+</table>
+
+<p>The installer only offers the ADEs that can run your runtime. Without a choice, a first install picks Orca, or OpenChamber when it finds OpenChamber but no Orca. When it finds neither, agents run headless but <code>agent_backend</code> stays <code>orca</code>, so Orca is used as soon as you install it; choose <code>headless</code> explicitly to never use one. OpenChamber with Claude Code or Copilot is refused by the installer, the doctor and the dispatcher.</p>
+
+<dl>
+  <dt id="orca">Orca (default)</dt>
+  <dd>Agents run in <a href="https://www.onorca.dev/">Orca</a> terminals. Orca only sees repositories registered with it, so register each project's repository once: <code>orca repo add --path &lt;path&gt;</code> (on Linux the Orca CLI is <code>orca-ide</code>: <code>orca</code> is GNOME's screen reader; Orca's <code>ORCA_CLI_COMMAND</code> overrides it).</dd>
+  <dt id="openchamber">OpenChamber</dt>
+  <dd>Set <code>agent_backend: openchamber</code>. PABLO drives it through <a href="https://openchamber.dev/">OpenChamber</a>'s CLI, the npm package <code>@openchamber/web</code> (<code>npm i -g @openchamber/web</code>, Node.js 24.14+), which sends the sessions to the running desktop app when there is one. The desktop app installs an <code>openchamber</code> command too, which ignores the CLI's commands: put the CLI first on your <code>PATH</code>. OpenChamber works from directories, so there is nothing to register. OpenCode only.</dd>
+  <dt id="headless">Headless</dt>
+  <dd>No ADE: <code>agent_backend: headless</code> runs every agent as <code>opencode run</code> (or <code>claude -p</code>, <code>copilot -p</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. You read their output with <code>opencode -s &lt;session&gt;</code> (or <code>claude --resume &lt;session&gt;</code>, <code>copilot --resume=&lt;session&gt;</code> in the worktree). Under OpenCode, <code>opencode pair</code> prints a link to OpenCode's local web interface (see <a href="page:how-it-works#headless-opencode-web-ui">Follow headless OpenCode runs in the browser</a>); under Claude Code, a headless run is a <a href="#claude-code-remote-control">Remote Control session</a>.</dd>
+</dl>
+
+<h3 id="fallback-rules">Fallback to headless</h3>
+
+<p>Headless is every ADE's fallback, so agents still run when the chosen one can't take them:</p>
+
+<ul>
+  <li><b>Orca</b> unreachable, or a repository not registered with it: the agent runs headless. Orca's launch runs in the background, so when Orca refuses or doesn't know the worktree within 15 seconds, the agent runs headless and the reason goes to <code>~/.pablo/agents/logs/orca-fallback.log</code>.</li>
+  <li><b>OpenChamber</b> unreachable, or sending the prompt fails: the reason goes to <code>~/.pablo/agents/logs/openchamber-fallback.log</code> and the agent runs headless with the same model.</li>
+  <li><b>Always headless</b>, whatever the ADE: project startup scripts and the <a href="page:agents#the-rebase-conflict-resolver">rebase-conflict resolver</a>.</li>
+</ul>
+
+<p>The exact commands each ADE runs, and how PABLO tells busy agents from those waiting for you, are in <a href="page:how-it-works#agent-backends">How it works</a>.</p>

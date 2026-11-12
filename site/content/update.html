@@ -1,0 +1,34 @@
+<h1>Update &amp; uninstall</h1>
+
+<p>Keep PABLO up to date with <code>pablo update</code>, move an older install made from a clone of the repository to the binary, or remove PABLO while keeping your data.</p>
+
+<h2 id="update">Update</h2>
+
+<pre><code class="language-bash">pablo update           # or pablo system:update
+pablo update --check   # only tell whether a newer release exists
+pablo update 5b34e92   # install that release instead (an older one too)
+pablo update --rollback  # go back to the binary the last update replaced
+</code></pre>
+
+<p>PABLO updates itself: it finds the <a href="https://github.com/Korbeil/pablo/releases">release</a> flagged <em>latest</em> (releases are named after the commit they were built from) and, when it is not the one you run, downloads its binary for your OS and processor with <code>curl</code>, checks it against the release's <code>sha256sums.txt</code>, runs it once, then swaps it in place of the current one (a failed check changes nothing). It then runs <a href="page:installation#what-pablo-system-install-does"><code>pablo system:install</code></a> with the new binary, which picks up new agents and links and restarts the dashboard; <code>--no-install</code> skips that step. A dashboard you opted out of (<code>--without-web</code>) stays off. If the background job is running (a sync or a poll), the update first waits for it to finish, up to 10 minutes, and no new run starts until the update is done. Your choices in <code>~/.pablo/config.yaml</code> and your data in <code>~/.pablo/</code> are kept. Each version compiles its own cache in <code>~/.pablo/cache/container/&lt;version&gt;/</code>; the install removes the ones of other versions.</p>
+
+<p>Running the installer again (<code>curl -fsSL https://getpablo.dev/installer | bash</code>) does the same, and also takes a release with <code>--version</code>. The releases are listed on <a href="https://github.com/Korbeil/pablo/releases">GitHub</a>.</p>
+
+<p>From a checkout: <code>git pull</code>, <code>(cd app &amp;&amp; composer install)</code>, then <code>php app/bin/pablo system:install</code>.</p>
+
+<h3 id="rollback">Rolling back</h3>
+
+<p>Each update keeps the binary it replaces as <code>~/.local/bin/pablo.previous</code> (only one: the next update replaces it). It sits next to <code>pablo</code> rather than in <code>~/.pablo/</code> because only the same directory is sure to be on the same filesystem, which the swap needs to be atomic; it is a hard link where the filesystem allows, so it takes no extra space while a service still runs it. <code>pablo update --rollback</code> runs it once (<code>--version</code>), swaps it back in place under the same lock as an update, runs its <code>system:install</code> (keeping <code>--without-web</code>) and reports <code>PABLO rolled back: &lt;current&gt; → &lt;previous&gt;</code>. The binary it replaces becomes the previous one in turn, so a second rollback undoes the first. <code>--no-install</code> skips the install, <code>--check</code> only tells whether a previous binary is kept. Without one (a fresh install, or one that was never updated), it says so: install an older release by name with <code>pablo update &lt;release&gt;</code> instead.</p>
+
+<p>The rollback is automatic when the <code>system:install</code> that follows an update fails: the previous binary is restored, runs <code>system:install</code> in turn, and the update reports <code>PABLO rolled back: &lt;new&gt; → &lt;previous&gt;</code> and exits with an error. <code>pablo system:uninstall</code> removes <code>pablo.previous</code> along with <code>pablo</code>.</p>
+
+<h2 id="migrating-from-a-clone-install">Migrating from a clone install</h2>
+
+<p>Earlier versions were installed by cloning the repository (to <code>~/.local/share/pablo</code> by default) and running <code>bin/install.sh</code>, which wrote a <code>~/.local/bin/pablo</code> shim running <code>php …/app/bin/pablo</code>. Run the <a href="page:installation#install">installer</a>: it recognises that shim, replaces it with the binary, and <code>pablo system:install</code> takes over everything that install created. The links that pointed into the checkout now point into <code>~/.pablo/runtime/</code>, the systemd units that were links into the checkout are written as files, and <code>~/.pablo/claude/agents.json</code> moves to <code>~/.pablo/runtime/claude/</code>. The checkout itself is never touched: delete it once everything works. Your config, projects and tasks in <code>~/.pablo/</code> carry over as they are.</p>
+
+<h2 id="uninstall">Uninstall</h2>
+
+<pre><code class="language-bash">pablo system:uninstall
+</code></pre>
+
+<p>It removes what the install created (the <code>pablo</code> command, the links under <code>~/.config/opencode/</code>, <code>~/.claude/</code> and <code>~/.copilot/</code>, including the links an old clone install made, the generated <code>~/.pablo/runtime/</code> and <code>~/.pablo/cache/container/</code>, the <code>PATH</code> block, the scheduler and dashboard services) and keeps your data in <code>~/.pablo/</code>. Delete <code>~/.pablo/</code> as well if you want a clean slate, or <a href="page:backups">back it up</a> first.</p>

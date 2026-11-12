@@ -1,6 +1,6 @@
 <h1>How it works</h1>
 
-<p>PABLO has two layers: the commands you run, and a background job that runs every 5 minutes, checks each project and does whatever is due. Agents run through your agent backend, and everything else is plain, deterministic code.</p>
+<p>PABLO has two layers: the commands you run, and a background job that runs every 5 minutes, checks each project and does whatever is due. Agents run through your agent environment (ADE), and everything else is plain, deterministic code.</p>
 
 <h2>Two layers</h2>
 
@@ -17,7 +17,7 @@
 
 <ol>
   <li>takes a global lock, so two runs never overlap (a second one exits immediately);</li>
-  <li>checks the tools it needs. A problem with <code>gh</code>, with the agent runtime's command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), or an impossible agent setup (OpenChamber with Claude Code or Copilot) stops the run; a problem with a tracker tool or the agent backend only produces a warning, and only the projects using that tool are affected;</li>
+  <li>checks the tools it needs. A problem with <code>gh</code>, with the agent runtime's command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), or an impossible agent setup (OpenChamber with Claude Code or Copilot) stops the run; a problem with a tracker tool or the ADE only produces a warning, and only the projects using that tool are affected;</li>
   <li>for each project, runs the jobs whose interval has elapsed since their last success.</li>
 </ol>
 
@@ -48,11 +48,11 @@
 
 <p>Because the dispatcher wakes up every 5 minutes, a job runs at the first wake-up <em>after</em> its interval has elapsed, not at the exact minute.</p>
 
-<h2 id="agent-backends">Agent backends</h2>
+<h2 id="agent-backends">Agent environments (ADEs)</h2>
 
-<p>PABLO doesn't run agents itself. It hands them to an agent backend, exactly the way you would, and asks it which agents are busy.</p>
+<p>PABLO doesn't run agents itself. It hands them to an agent environment (ADE), exactly the way you would, and asks it which agents are busy.</p>
 
-<p>The backend decides <em>where</em> an agent runs; the <a href="page:configuration#claude-code">agent runtime</a> (<code>agent_runtime</code>) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/runtime/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code, or <code>copilot --agent pablo-&lt;agent&gt; --session-id &lt;uuid&gt; … -p '&lt;prompt&gt;'</code> with <a href="page:configuration#copilot">Copilot</a>. Orca and headless run any of them; OpenChamber only runs OpenCode.</p>
+<p>The ADE decides <em>where</em> an agent runs; the <a href="page:runtimes">agent runtime</a> (<code>agent_runtime</code>) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/runtime/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code, or <code>copilot --agent pablo-&lt;agent&gt; --session-id &lt;uuid&gt; … -p '&lt;prompt&gt;'</code> with <a href="page:runtimes#copilot">Copilot</a>. Orca and headless run any of them; OpenChamber only runs OpenCode. How to choose both is on <a href="page:runtimes">Runtimes &amp; ADEs</a>; this section shows what each ADE runs.</p>
 
 <h3>Orca (default)</h3>
 
@@ -87,7 +87,7 @@ openchamber session list --dir &lt;worktree&gt; --with-status
 
 <h3>Headless</h3>
 
-<p>With <code>agent_backend: headless</code>, and whenever Orca or OpenChamber is unreachable or doesn't know the repository, PABLO runs the runtime's command (<code>opencode run --agent &lt;agent&gt;</code> <code>claude -p … --agent &lt;agent&gt;</code> or <code>copilot --agent pablo-&lt;agent&gt; … -p</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Under Claude Code a headless run is a <a href="page:configuration#claude-code-remote-control">Remote Control session</a> by default, so you can follow it live from claude.ai/code and the Claude apps. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
+<p>With <code>agent_backend: headless</code>, and whenever Orca or OpenChamber is unreachable or doesn't know the repository, PABLO runs the runtime's command (<code>opencode run --agent &lt;agent&gt;</code> <code>claude -p … --agent &lt;agent&gt;</code> or <code>copilot --agent pablo-&lt;agent&gt; … -p</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Under Claude Code a headless run is a <a href="page:runtimes#claude-code-remote-control">Remote Control session</a> by default, so you can follow it live from claude.ai/code and the Claude apps. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
 
 <h3 id="headless-opencode-web-ui">Follow headless OpenCode runs in the browser</h3>
 

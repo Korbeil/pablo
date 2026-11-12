@@ -2,159 +2,6 @@
 
 <p>PABLO reads two kinds of YAML files: one global <code>~/.pablo/config.yaml</code> with your defaults, and one file per project in <code>~/.pablo/projects/</code>. A project can override any default, key by key.</p>
 
-<h2 id="global-defaults">Global defaults</h2>
-
-<p><code>~/.pablo/config.yaml</code> is created by the installer from <a href="repo:examples/config.yaml"><code>examples/config.yaml</code></a>. It holds the keys every project inherits, plus a few that only exist globally.</p>
-
-<pre><code class="language-yaml">default_model: opencode-go/glm-5.3-flash
-pr_description_locale: en
-sync:
-  strategy: rebase
-  auto_apply: false
-  interval_minutes: 720
-state_polling:
-  interval_minutes: 10
-review:
-  bot_whitelist: []
-ci:
-  ignore_checks: ["approval"]
-# agent_runtime: claude-code        # global only, default opencode (or copilot)
-# agent_backend: openchamber        # global only, default orca
-# default_model_by_type:            # global only
-#   work: anthropic/claude-opus-4
-</code></pre>
-
-<h3>Keys a project inherits</h3>
-
-<p>When a project omits one of these keys, the global value applies. Only some keys have a built-in default for when the global file omits them too; the others are <b>required</b> in the project or in the global file. The installed <code>config.yaml</code> sets every required key, with the values shown below.</p>
-
-<table>
-  <thead><tr><th>Key</th><th>Built-in default</th><th>Meaning</th></tr></thead>
-  <tbody>
-    <tr><td><code>default_model</code></td><td><b>required</b> somewhere</td><td>Model for agents (see <a href="#choose-the-agent-model">below</a>)</td></tr>
-    <tr><td><code>pr_description_locale</code></td><td><b>required</b> somewhere</td><td>Language of the pull request descriptions <code>/pablo-commit-and-pr</code> writes</td></tr>
-    <tr><td><code>branch_prefix</code></td><td>none</td><td>Prefix added to every branch name, verbatim (write the slash yourself, e.g. <code>pablo/</code>)</td></tr>
-    <tr><td><code>sync.strategy</code></td><td><b>required</b> somewhere (installed config: <code>rebase</code>)</td><td><code>rebase</code> or <code>merge</code></td></tr>
-    <tr><td><code>sync.auto_apply</code></td><td><b>required</b> somewhere (installed config: <code>false</code>)</td><td><code>false</code>: sync only reports</td></tr>
-    <tr><td><code>sync.interval_minutes</code></td><td><b>required</b> somewhere (installed config: <code>720</code>)</td><td>How often branches are synced</td></tr>
-    <tr><td><code>state_polling.interval_minutes</code></td><td><b>required</b> somewhere (installed config: <code>10</code>)</td><td>How often pull requests are checked</td></tr>
-    <tr><td><code>main_update.enabled</code></td><td><code>true</code></td><td>Keep the main checkout up to date</td></tr>
-    <tr><td><code>main_update.interval_minutes</code></td><td><code>60</code></td><td>How often</td></tr>
-    <tr><td><code>testing.enabled</code></td><td><code>true</code></td><td>Whether the project has a QA step</td></tr>
-    <tr><td><code>review.bot_whitelist</code></td><td><b>required</b> somewhere (installed config: <code>[]</code>)</td><td>Bot accounts whose reviews count (login with or without its <code>[bot]</code> suffix)</td></tr>
-    <tr><td><code>ci.ignore_checks</code></td><td><b>required</b> somewhere (installed config: <code>["approval"]</code>)</td><td>Checks to leave out of CI</td></tr>
-  </tbody>
-</table>
-
-<p>If a required key isn't set anywhere (and, for <code>default_model</code>, no <code>default_model_by_type</code> entry matches), loading the project fails with an error such as <code>no value for sync.interval_minutes — set it in the project config or ~/.pablo/config.yaml</code>.</p>
-
-<h3>Global-only keys</h3>
-
-<dl>
-  <dt><code>agent_runtime</code></dt>
-  <dd><code>opencode</code> (default), <code>claude-code</code> or <code>copilot</code>: the program that runs the agents. Also settable with the <code>PABLO_AGENT_RUNTIME</code> environment variable. It changes the command the doctor requires (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), what the installer generates and links, and which model ids <code>default_model</code> accepts. A first install sets <code>claude-code</code> for you when it finds Claude Code but no OpenCode. It sets <code>copilot</code> when it finds Copilot CLI but neither OpenCode nor Claude Code. See <a href="#claude-code">Run the agents with Claude Code</a> and <a href="#copilot">with GitHub Copilot CLI</a>.</dd>
-  <dt><code>agent_backend</code></dt>
-  <dd><code>orca</code> (default), <code>openchamber</code> or <code>headless</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command instead of <code>orca</code>; with <code>headless</code> (no agent development environment: every agent runs in the background) it checks neither. A first install sets <code>openchamber</code> for you when it finds OpenChamber but no Orca; when it finds neither it keeps <code>orca</code>, whose runs fall back to headless until Orca is installed. OpenChamber only runs OpenCode: with <code>agent_runtime: claude-code</code> or <code>copilot</code> it is refused. See <a href="page:how-it-works#agent-backends">Agent backends</a>.</dd>
-  <dt><code>default_model_by_type</code></dt>
-  <dd>A model per project type; see below.</dd>
-  <dt><code>dashboard_port</code></dt>
-  <dd>The port of the <a href="page:dashboard">dashboard</a> (default <code>8321</code>): <code>pablo web</code> and its background service listen on <code>127.0.0.1:&lt;dashboard_port&gt;</code>. The installer sets it when 8321 is taken by another program; change it with <code>pablo system:install --port &lt;port&gt;</code> (or edit it here and restart the service).</dd>
-  <dt><code>dashboard_trusted_hosts</code></dt>
-  <dd>Extra host names the <a href="page:dashboard">dashboard</a> answers, besides <code>127.0.0.1</code> and <code>localhost</code> (default: none), for when you reach it through something that forwards to <code>127.0.0.1</code>: a reverse proxy, an SSH tunnel, an <code>/etc/hosts</code> alias. A list of exact host names or IP addresses, without scheme, port or wildcard, e.g. <code>[pablo.home.arpa]</code>. It doesn't change where the dashboard listens. Read on every request, so no restart is needed; an invalid value makes the dashboard answer the loopback names only, and <code>pablo web</code> refuses to start with it.</dd>
-  <dt><code>scheduler.path</code></dt>
-  <dd>Extra directories put first on the <code>PATH</code> of the background services, for a tool <code>pablo system:install</code> doesn't find on your own <code>PATH</code>: a list (<code>path: [~/tools/bin, /opt/acli/bin]</code>) or one colon-separated string. A leading <code>~</code> stands for your home directory. Run <code>pablo system:install</code> again after changing it. See <a href="page:installation#the-services-path">The services' PATH</a>.</dd>
-</dl>
-
-<h2 id="choose-the-agent-model">Choose the agent model</h2>
-
-<p>The model is resolved when an agent is launched, and passed to the backend as <code>--model</code>. The first one found wins:</p>
-
-<ol>
-  <li>the project's own <code>default_model</code>;</li>
-  <li>the entry for the project's type in <code>default_model_by_type</code>;</li>
-  <li>the global <code>default_model</code>;</li>
-  <li>as a last resort, the model written in the generated agent file.</li>
-</ol>
-
-<pre><code class="language-yaml"># ~/.pablo/config.yaml — expensive models only on work projects
-default_model_by_type:
-  work: anthropic/claude-opus-4
-  open-source: litellm/glm-5.3-flash
-  personal: opencode-go/glm-5.3-flash
-</code></pre>
-
-<p>Keys must be project types (<code>work</code>, <code>open-source</code>, <code>personal</code>); an unknown key is an error.</p>
-
-<p>The format depends on <code>agent_runtime</code>. OpenCode takes a <code>provider/model</code> id, as above. Claude Code takes an alias (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or a full model id such as <code>claude-sonnet-5-5</code>; a <code>provider/model</code> id is refused with an error when the project loads. Copilot takes its own dotted model ids, such as <code>claude-sonnet-5.5</code> or <code>gpt-5.3-codex</code>; a <code>provider/model</code> id or a Claude Code name (<code>sonnet</code>, <code>claude-sonnet-5-5</code>) is refused, with the dotted form suggested. Under Claude Code and Copilot the generated agents carry no model, so step 4 never applies.</p>
-
-<h2 id="claude-code">Run the agents with Claude Code</h2>
-
-<p>PABLO runs its agents with OpenCode by default. To use Claude Code instead, set it in <code>~/.pablo/config.yaml</code>, then regenerate and relink:</p>
-
-<pre><code class="language-yaml">agent_runtime: claude-code
-default_model: sonnet
-</code></pre>
-
-<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash -s -- --runtime claude-code
-                            # generates ~/.pablo/runtime/claude/agents.json, links the agents and the command
-                            # (already installed: pablo system:install --runtime claude-code)
-pablo system:doctor         # checks claude and the generated files
-</code></pre>
-
-<ul>
-  <li><b>Global only.</b> Every project uses the same runtime; there is no per-project setting.</li>
-  <li><b>Orca or headless.</b> Agents run as <code>claude -p</code> in an Orca terminal, and as a <a href="#claude-code-remote-control">Remote Control session</a> headless, exactly where OpenCode would run. <b>OpenChamber is not supported</b>: it drives its own OpenCode server. <code>pablo system:doctor</code> reports the combination as an error and the dispatcher refuses to run with it; switch to <code>agent_backend: orca</code> or back to <code>agent_runtime: opencode</code>.</li>
-  <li><b>Your account and quota.</b> Agents run with your own Claude Code login. With a Pro or Max subscription they share its usage limits with your interactive sessions, so keep an eye on them with busy projects.</li>
-  <li><b>Your settings, not your MCP servers.</b> Agents load your Claude Code settings and hooks (Orca's, RTK's) but none of your MCP servers (<code>--strict-mcp-config</code>).</li>
-  <li><b>Sessions you can resume.</b> Each run gets a session id chosen by PABLO; <code>claude --resume &lt;id&gt;</code> in the worktree reopens it.</li>
-</ul>
-
-<h3 id="claude-code-remote-control">Follow headless runs from claude.ai and the Claude apps</h3>
-
-<p>A run with no terminal (<code>agent_backend: headless</code>, Orca's and OpenChamber's fallback, the rebase-conflict resolver) starts as an interactive <code>claude --remote-control</code> session named <code>pablo &lt;agent&gt; &lt;worktree&gt;</code> instead of <code>claude -p</code>, so it shows up live in <a href="https://claude.ai/code">claude.ai/code</a> and the Claude apps while it runs. It is still a background run that ends on its own:</p>
-
-<ul>
-  <li><b>A terminal from <code>script</code>.</b> Interactive <code>claude</code> needs one; the command runs inside <code>script</code> (part of every Linux and macOS system). Its screen output goes to the run's log in <code>~/.pablo/agents/logs/</code>.</li>
-  <li><b>It stops when the agent has answered.</b> A <code>Stop</code> (and <code>StopFailure</code>) hook passed with <code>--settings</code> ends the session after the agent's answer, so the run finishes like a <code>claude -p</code> one. You can't continue it from the app afterwards: <code>claude --resume &lt;id&gt;</code> in the worktree still reopens it.</li>
-  <li><b>Same agent, same limits.</b> Same model, session id and permission flags as <code>claude -p</code>, with only the launched agent passed inline in <code>--agents</code> (interactive <code>claude</code> takes no file there). Every agent, the resolver included, runs in <code>dontAsk</code>: nobody is there to answer a prompt.</li>
-  <li><b>The worktree is trusted first.</b> PABLO adds a <code>hasTrustDialogAccepted</code> entry for the worktree to <code>~/.claude.json</code> just before the launch.</li>
-  <li><b>Needs a claude.ai login</b> on which your organization allows Remote Control.</li>
-</ul>
-
-<p>To keep plain <code>claude -p</code> runs, switch it off in <code>~/.pablo/config.yaml</code> (or export <code>PABLO_CLAUDE_REMOTE_CONTROL=0</code>):</p>
-
-<pre><code class="language-yaml">claude_code:
-  remote_control: false   # default: true
-</code></pre>
-
-<p>Without a generated <code>agents.json</code> or a <code>script</code> command, runs fall back to <code>claude -p</code>.</p>
-
-<p>How the agent permissions translate is on <a href="page:agents#claude-code">Agents</a>; what gets installed where is on <a href="page:installation#claude-code">Installation</a>.</p>
-
-<h2 id="copilot">Run the agents with GitHub Copilot CLI</h2>
-
-<p>To use <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> instead, set it in <code>~/.pablo/config.yaml</code> (or export <code>PABLO_AGENT_RUNTIME=copilot</code>), then regenerate and relink:</p>
-
-<pre><code class="language-yaml">agent_runtime: copilot
-default_model: claude-sonnet-5.5
-</code></pre>
-
-<pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash -s -- --runtime copilot
-                            # renders ~/.pablo/runtime/copilot/ and links the agents and skills into ~/.copilot/
-                            # (already installed: pablo system:install --runtime copilot)
-pablo system:doctor         # checks copilot and the generated files
-</code></pre>
-
-<ul>
-  <li><b>Global only.</b> Every project uses the same runtime.</li>
-  <li><b>Orca or headless.</b> Agents run as <code>copilot -p</code>, in an Orca terminal or headless, like the other runtimes. <b>OpenChamber is not supported</b>, as with Claude Code: the doctor reports it and the dispatcher refuses to run.</li>
-  <li><b>Copilot model ids.</b> Dotted ids such as <code>claude-sonnet-5.5</code> or <code>gpt-5.3-codex</code>. A <code>provider/model</code> id (bring-your-own-model ids aren't supported) or a Claude Code name (<code>sonnet</code>, <code>claude-sonnet-5-5</code>) is refused when the project loads, with the dotted form suggested.</li>
-  <li><b>Your instructions, not your MCP servers.</b> Agents load your custom instructions and hooks, but see only the built-in tools PABLO lists, and Copilot's built-in MCP servers are off.</li>
-  <li><b>Sessions you can resume.</b> Each run gets a UUID chosen by PABLO; <code>copilot --resume=&lt;id&gt;</code> in the worktree reopens it.</li>
-</ul>
-
-<p>How the agent permissions translate is on <a href="page:agents#copilot">Agents</a>; what gets installed where is on <a href="page:installation#copilot">Installation</a>.</p>
-
 <h2 id="add-a-project">Add a project</h2>
 
 <p>Run the wizard (it detects the repository if you run it inside one):</p>
@@ -205,6 +52,95 @@ ci:
 </code></pre>
 
 <p>It refuses while the project still has active tasks (close them first with <code>pablo task:close</code>). It deletes only the YAML file: worktrees and the rest of <code>~/.pablo/</code> stay. It also regenerates the agents, so a tracker no project uses any more stops being taught to them.</p>
+
+<h2 id="global-defaults">Global defaults</h2>
+
+<p><code>~/.pablo/config.yaml</code> is created by the installer from <a href="repo:examples/config.yaml"><code>examples/config.yaml</code></a>. It holds the keys every project inherits, plus a few that only exist globally.</p>
+
+<pre><code class="language-yaml">default_model: opencode-go/glm-5.3-flash
+pr_description_locale: en
+sync:
+  strategy: rebase
+  auto_apply: false
+  interval_minutes: 720
+state_polling:
+  interval_minutes: 10
+review:
+  bot_whitelist: []
+ci:
+  ignore_checks: ["approval"]
+# agent_runtime: claude-code        # global only, default opencode (or copilot)
+# agent_backend: openchamber        # global only, default orca
+# default_model_by_type:            # global only
+#   work: anthropic/claude-opus-4
+</code></pre>
+
+<h3>Keys a project inherits</h3>
+
+<p>When a project omits one of these keys, the global value applies. Only some keys have a built-in default for when the global file omits them too; the others are <b>required</b> in the project or in the global file. The installed <code>config.yaml</code> sets every required key, with the values shown below.</p>
+
+<table>
+  <thead><tr><th>Key</th><th>Built-in default</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>default_model</code></td><td><b>required</b> somewhere</td><td>Model for agents (see <a href="#choose-the-agent-model">below</a>)</td></tr>
+    <tr><td><code>pr_description_locale</code></td><td><b>required</b> somewhere</td><td>Language of the pull request descriptions <code>/pablo-commit-and-pr</code> writes</td></tr>
+    <tr><td><code>branch_prefix</code></td><td>none</td><td>Prefix added to every branch name, verbatim (write the slash yourself, e.g. <code>pablo/</code>)</td></tr>
+    <tr><td><code>sync.strategy</code></td><td><b>required</b> somewhere (installed config: <code>rebase</code>)</td><td><code>rebase</code> or <code>merge</code></td></tr>
+    <tr><td><code>sync.auto_apply</code></td><td><b>required</b> somewhere (installed config: <code>false</code>)</td><td><code>false</code>: sync only reports</td></tr>
+    <tr><td><code>sync.interval_minutes</code></td><td><b>required</b> somewhere (installed config: <code>720</code>)</td><td>How often branches are synced</td></tr>
+    <tr><td><code>state_polling.interval_minutes</code></td><td><b>required</b> somewhere (installed config: <code>10</code>)</td><td>How often pull requests are checked</td></tr>
+    <tr><td><code>main_update.enabled</code></td><td><code>true</code></td><td>Keep the main checkout up to date</td></tr>
+    <tr><td><code>main_update.interval_minutes</code></td><td><code>60</code></td><td>How often</td></tr>
+    <tr><td><code>testing.enabled</code></td><td><code>true</code></td><td>Whether the project has a QA step</td></tr>
+    <tr><td><code>review.bot_whitelist</code></td><td><b>required</b> somewhere (installed config: <code>[]</code>)</td><td>Bot accounts whose reviews count (login with or without its <code>[bot]</code> suffix)</td></tr>
+    <tr><td><code>ci.ignore_checks</code></td><td><b>required</b> somewhere (installed config: <code>["approval"]</code>)</td><td>Checks to leave out of CI</td></tr>
+  </tbody>
+</table>
+
+<p>If a required key isn't set anywhere (and, for <code>default_model</code>, no <code>default_model_by_type</code> entry matches), loading the project fails with an error such as <code>no value for sync.interval_minutes — set it in the project config or ~/.pablo/config.yaml</code>.</p>
+
+<h3>Global-only keys</h3>
+
+<dl>
+  <dt><code>agent_runtime</code></dt>
+  <dd><code>opencode</code> (default), <code>claude-code</code> or <code>copilot</code>: the program that runs the agents. Also settable with the <code>PABLO_AGENT_RUNTIME</code> environment variable. It changes the command the doctor requires (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), what the installer generates and links, and which model ids <code>default_model</code> accepts. A first install sets <code>claude-code</code> for you when it finds Claude Code but no OpenCode. It sets <code>copilot</code> when it finds Copilot CLI but neither OpenCode nor Claude Code. See <a href="page:runtimes#choose-an-agent-runtime">Choose an agent runtime</a>.</dd>
+  <dt><code>agent_backend</code></dt>
+  <dd>The agent environment (ADE): <code>orca</code> (default), <code>openchamber</code> or <code>headless</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command instead of <code>orca</code>; with <code>headless</code> (no agent environment: every agent runs in the background) it checks neither. A first install sets <code>openchamber</code> for you when it finds OpenChamber but no Orca; when it finds neither it keeps <code>orca</code>, whose runs fall back to headless until Orca is installed. OpenChamber only runs OpenCode: with <code>agent_runtime: claude-code</code> or <code>copilot</code> it is refused. See <a href="page:runtimes#choose-an-ade">Choose an agent environment</a>.</dd>
+  <dt><code>default_model_by_type</code></dt>
+  <dd>A model per project type; see below.</dd>
+  <dt><code>dashboard_port</code></dt>
+  <dd>The port of the <a href="page:dashboard">dashboard</a> (default <code>8321</code>): <code>pablo web</code> and its background service listen on <code>127.0.0.1:&lt;dashboard_port&gt;</code>. The installer sets it when 8321 is taken by another program; change it with <code>pablo system:install --port &lt;port&gt;</code> (or edit it here and restart the service).</dd>
+  <dt><code>dashboard_trusted_hosts</code></dt>
+  <dd>Extra host names the <a href="page:dashboard">dashboard</a> answers, besides <code>127.0.0.1</code> and <code>localhost</code> (default: none), for when you reach it through something that forwards to <code>127.0.0.1</code>: a reverse proxy, an SSH tunnel, an <code>/etc/hosts</code> alias. A list of exact host names or IP addresses, without scheme, port or wildcard, e.g. <code>[pablo.home.arpa]</code>. It doesn't change where the dashboard listens. Read on every request, so no restart is needed; an invalid value makes the dashboard answer the loopback names only, and <code>pablo web</code> refuses to start with it.</dd>
+  <dt><code>scheduler.path</code></dt>
+  <dd>Extra directories put first on the <code>PATH</code> of the background services, for a tool <code>pablo system:install</code> doesn't find on your own <code>PATH</code>: a list (<code>path: [~/tools/bin, /opt/acli/bin]</code>) or one colon-separated string. A leading <code>~</code> stands for your home directory. Run <code>pablo system:install</code> again after changing it. See <a href="page:installation#the-services-path">The services' PATH</a>.</dd>
+</dl>
+
+<h2 id="choose-the-agent-model">Choose the agent model</h2>
+
+<p>The model is resolved when an agent is launched, and passed to the runtime as <code>--model</code>. The first one found wins:</p>
+
+<ol>
+  <li>the project's own <code>default_model</code>;</li>
+  <li>the entry for the project's type in <code>default_model_by_type</code>;</li>
+  <li>the global <code>default_model</code>;</li>
+  <li>as a last resort, the model written in the generated agent file.</li>
+</ol>
+
+<pre><code class="language-yaml"># ~/.pablo/config.yaml — expensive models only on work projects
+default_model_by_type:
+  work: anthropic/claude-opus-4
+  open-source: litellm/glm-5.3-flash
+  personal: opencode-go/glm-5.3-flash
+</code></pre>
+
+<p>Keys must be project types (<code>work</code>, <code>open-source</code>, <code>personal</code>); an unknown key is an error.</p>
+
+<p>The format depends on <code>agent_runtime</code>. OpenCode takes a <code>provider/model</code> id, as above. Claude Code takes an alias (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or a full model id such as <code>claude-sonnet-5-5</code>; a <code>provider/model</code> id is refused with an error when the project loads. Copilot takes its own dotted model ids, such as <code>claude-sonnet-5.5</code> or <code>gpt-5.3-codex</code>; a <code>provider/model</code> id or a Claude Code name (<code>sonnet</code>, <code>claude-sonnet-5-5</code>) is refused, with the dotted form suggested. Under Claude Code and Copilot the generated agents carry no model, so step 4 never applies.</p>
+
+<h2 id="runtimes-and-ades">Runtimes and agent environments</h2>
+
+<p><code>agent_runtime</code> (OpenCode, Claude Code or GitHub Copilot CLI) and <code>agent_backend</code> (the agent environment, or ADE: Orca, OpenChamber or headless) are global-only keys, above. How to choose them, each one's setup, model ids and limits, and the fallback rules are on <a href="page:runtimes">Runtimes &amp; ADEs</a>.</p>
 
 <h2 id="project-files">Project files</h2>
 
