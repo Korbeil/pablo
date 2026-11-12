@@ -156,14 +156,14 @@
         </div>
         <div class="pr">
           <h3>You ship</h3>
-          <p>Nothing is committed or pushed until you run <code>/pablo-commit-and-pr</code>.</p>
+          <p>PABLO never writes a commit of its own: your work lands only when you run <code>/pablo-commit-and-pr</code>. With <code>sync.auto_apply</code> (off by default), it rebases your branch and pushes with <code>--force-with-lease</code>.</p>
         </div>
         <div class="pr">
           <h3>Trackers untouched</h3>
           <p>Jira, GitHub Issues and Linear are only read. No tokens stored: PABLO uses the CLIs you're already logged into.</p>
         </div>
       </div>
-      <p class="note"><a href="docs/how-it-works/#what-pablo-may-change">Exactly what PABLO may change →</a></p>
+      <p class="note"><a href="docs/safety/">Exactly what PABLO may change →</a></p>
     </div>
   </section>
 
@@ -176,7 +176,7 @@
         <ul class="ticks">
           <li>Tasks waiting on you, and everything that's someone else's turn.</li>
           <li>Ready-to-paste Slack messages and token costs per agent run.</li>
-          <li>Read-only and served from a cache, so it opens instantly.</li>
+          <li>Loads from a cache, so it opens instantly; nothing changes until you confirm an action.</li>
         </ul>
         <pre class="one"><code><span class="prompt">$</span> pablo web   <span class="c"># → http://127.0.0.1:8321</span></code></pre>
       </div>

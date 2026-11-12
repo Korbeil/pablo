@@ -5,7 +5,7 @@
 - section: Guides
   pages: [tasks, dashboard, analytics, backups, troubleshooting]
 - section: Concepts
-  pages: [how-it-works, states, agents, sync]
+  pages: [how-it-works, safety, states, agents, sync]
 - section: Reference
   pages: [cli, configuration, providers, storage]
 - section: Contributing

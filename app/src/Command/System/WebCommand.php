@@ -20,12 +20,12 @@ use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Process\Process;
 
 /**
- * Serves the read-only dashboard from PHP's built-in web server — in the
+ * Serves the dashboard from PHP's built-in web server — in the
  * standalone binary, from the PHP CLI it carries (see PhpServer).
  *
  * No Docker, no symfony CLI, no extra daemon: `pablo web` and ctrl-c.
  */
-#[AsCommand(name: 'web', description: 'serve the read-only dashboard on 127.0.0.1')]
+#[AsCommand(name: 'web', description: 'serve the dashboard on 127.0.0.1')]
 final class WebCommand extends Command
 {
     public const DEFAULT_PORT = 8321;

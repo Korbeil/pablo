@@ -30,7 +30,7 @@ Linear stay read-only). It does
 perform git/PR-metadata ops (branches, worktrees, rebase,
 force-with-lease push, draft PR toggling, worktree deletion, checkout +
 `reset --hard` of a *clean, not-ahead* primary checkout onto its remote
-primary branch), but only per the explicit rules in `site/content/how-it-works.html`
+primary branch), but only per the explicit rules in `site/content/safety.html`
 ("What PABLO may change").
 
 **Git discipline:** agents never `git commit` or `git push` on their own
@@ -65,7 +65,7 @@ castor release:create [--no-latest]         # release main's last commit (named 
                                             # via binary.yml (workflow_dispatch release=true)
 castor release:list [--limit=10]            # last releases (gh release list)
 php app/bin/pablo --help                    # engine subcommands, from the checkout
-php app/bin/pablo web                       # read-only dashboard on 127.0.0.1:8321 (php -S, see Pablo\Web\PhpServer)
+php app/bin/pablo web                       # dashboard on 127.0.0.1:8321 (php -S, see Pablo\Web\PhpServer)
 php app/bin/console cache:clear             # framework CLI: cache:clear, lint:twig, debug:router,
                                             # importmap:*, ux:icons:import
 php app/bin/pablo system:install            # install/update for this user (shim from a checkout,
@@ -146,9 +146,10 @@ flows, never persists prompt content — see `site/content/analytics.html`) ·
 (`Dashboard` — the cache-only data service, `TaskView`, `PollSchedule`,
 `RebaseLogView`) · `src/Controller/` (the single `GET /`) ·
 `src/Twig/Components/` (UX Twig/Live components) · `templates/` ·
-`assets/`. Two hard rules: the page is **strictly read-only**, and a page
-render must never call `gh`/`orca`/a tracker CLI — it reads the poller's
-`DisplayCache`. Only the Slack modal fetches live, on demand.
+`assets/`. Two hard rules: loading the page **never changes anything** (only
+the confirmed modal actions do: New task, Force state, Skip CI, Close), and a
+page render must never call `gh`/`orca`/a tracker CLI — it reads the poller's
+`DisplayCache`. Only the modals fetch live, on demand.
 `Domain/PrBadge` and `Domain/AgentActivity` are the shared value objects
 `Listing` renders terminal cells over, so the two surfaces cannot drift;
 `tests/Listing/ListingTest.php` is what proves terminal output unchanged.

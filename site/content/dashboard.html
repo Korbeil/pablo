@@ -70,8 +70,8 @@ pablo web --port 9000 --open   # another port, and open the browser
 <h2>Guarantees</h2>
 
 <ul>
-  <li><b>Read-only until you confirm.</b> Loading or refreshing the page never changes a task, a worktree, a pull request or a ticket. Only three buttons change something: <b>Start task</b> in the New task form, and <b>Confirm</b> in the Force state and Skip CI dialogs.</li>
+  <li><b>Nothing changes until you confirm.</b> Loading or refreshing the page never changes a task, a worktree, a pull request or a ticket. Only four buttons change something: <b>Start task</b> in the New task form, and <b>Confirm</b> in the Force state, Skip CI and Close the task dialogs.</li>
   <li><b>Local only.</b> It always listens on <code>127.0.0.1</code> and that can't be changed: the page has no login and shows branch names, issue titles and pull request links. It also only answers requests addressed to <code>127.0.0.1</code> or <code>localhost</code> (any port): anything else gets a <code>400 Bad Request</code>, so a website can't reach it by pointing its own domain name at your machine (DNS rebinding) and press its buttons. Open it as <code>http://127.0.0.1:&lt;port&gt;</code> or <code>http://localhost:&lt;port&gt;</code>. To reach it under another name (through a reverse proxy, an SSH tunnel or an <code>/etc/hosts</code> alias), list that name in <a href="page:configuration#global-only-keys"><code>dashboard_trusted_hosts</code></a>.</li>
-  <li><b>Fast and quiet.</b> The tables are built from what the background poller already saved, so a page load never calls GitHub or your tracker. Only the Slack messages, New task, Force state and Skip CI forms do, when you use them.</li>
+  <li><b>Fast and quiet.</b> The tables are built from what the background poller already saved, so a page load never calls GitHub or your tracker. Only the Slack messages, New task, Force state, Skip CI and Close the task forms do, when you use them.</li>
   <li><b>Works offline.</b> Fonts, icons and scripts are all bundled; nothing is loaded from the internet.</li>
 </ul>
