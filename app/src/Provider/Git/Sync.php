@@ -49,6 +49,7 @@ final class Sync
         private readonly ProcessRunnerInterface $runner,
         private readonly Time $time,
         private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
+        private readonly float $lockTimeoutS = self::SYNC_LOCK_TIMEOUT_S,
     ) {
     }
 
@@ -146,7 +147,7 @@ final class Sync
         foreach ($branches as $branch) {
             $path = $byBranch[$branch];
             try {
-                $lock = $store->taskLock($cfg->name, $branch, self::SYNC_LOCK_TIMEOUT_S);
+                $lock = $store->taskLock($cfg->name, $branch, $this->lockTimeoutS);
                 try {
                     $reports[] = $this->git->syncWorktree(
                         $path,

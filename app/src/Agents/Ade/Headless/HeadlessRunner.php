@@ -154,13 +154,16 @@ final class HeadlessRunner
         return str_starts_with($handle, self::HANDLE_PREFIX);
     }
 
+    /** How often wait() checks the pid: a run that exits is seen within this. */
+    public const WAIT_POLL_US = 200_000;
+
     /** Wait for a `pid:N` handle to exit, at most $timeoutS seconds. */
     public function wait(string $handle, int $timeoutS): void
     {
         $pid = (int) substr($handle, \strlen(self::HANDLE_PREFIX));
         $deadline = microtime(true) + $timeoutS;
         while ($this->pidAlive($pid) && microtime(true) < $deadline) {
-            sleep(5);
+            usleep(self::WAIT_POLL_US);
         }
     }
 }

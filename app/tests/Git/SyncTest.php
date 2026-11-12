@@ -32,6 +32,8 @@ final class SyncTest extends TestCase
             new RepoSlug($slugGit),
             new \Pablo\Support\ProcessRunner(),
             new \Pablo\Domain\Time(),
+            // Short lock timeout: testLockedTaskSkippedCleanly waits it out.
+            lockTimeoutS: 0.2,
         );
     }
 

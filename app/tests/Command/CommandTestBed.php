@@ -74,7 +74,13 @@ abstract class CommandTestBed extends TestCase
 
         $this->globalConfig = new GlobalConfig();
         $this->projectsLoader = new Config($this->globalConfig);
+        // Launchers built by the factory share the fake runner: a real one
+        // would call the real ADE CLI and, when it refuses, fall back to a
+        // real headless `opencode run`. Their pidfiles/logs stay in the tmp
+        // dir and the detached watcher re-invocation is /bin/true.
         $this->agentLaunchers = new AgentLauncherFactory($this->globalConfig, $this->runner);
+        putenv('PABLO_AGENTS_DIR='.$this->tmp.'/agents');
+        putenv('PABLO_SHIM=/bin/true');
         $this->repoSlug = new RepoSlug($this->git);
         $this->analytics = new FakeAnalytics();
         $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time, $this->analytics);
@@ -93,6 +99,8 @@ abstract class CommandTestBed extends TestCase
     {
         chdir($this->prevCwd);
         putenv('PABLO_PROJECTS_DIR');
+        putenv('PABLO_AGENTS_DIR');
+        putenv('PABLO_SHIM');
         $this->unsetGlobalConfig();
     }
 
