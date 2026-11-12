@@ -31,6 +31,7 @@ final class UninstallCommandTest extends TestCase
         file_put_contents($this->home.'/.bashrc', "# mine\n".(string) file_get_contents($this->home.'/.bashrc'));
         file_put_contents($this->home.'/.claude/agents/my-own.md', "mine\n");
         mkdir($this->home.'/.pablo/state', 0o777, true);
+        file_put_contents($this->home.'/.local/bin/pablo.previous', "#!/bin/sh\necho 'pablo v0.9.0'\n");
         $this->runner->probeCalls = [];
 
         $tester = $this->uninstall();
@@ -40,6 +41,7 @@ final class UninstallCommandTest extends TestCase
         $this->assertFileDoesNotExist($this->home.'/.claude/commands/pablo-commit-and-pr.md');
         $this->assertFileDoesNotExist($this->home.'/.claude/skills/pablo-task');
         $this->assertFileDoesNotExist($this->home.'/.local/bin/pablo');
+        $this->assertFileDoesNotExist($this->home.'/.local/bin/pablo.previous', 'the binary kept for update --rollback goes too');
         $this->assertDirectoryDoesNotExist($this->home.'/.pablo/runtime');
         $this->assertFileDoesNotExist($this->home.'/.config/systemd/user/pablo-dispatch.timer');
         $this->assertContains('systemctl --user disable --now pablo-dispatch.timer', $this->serviceCalls());

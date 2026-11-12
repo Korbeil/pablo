@@ -16,6 +16,7 @@ use PHPUnit\Framework\TestCase;
  */
 final class UpdaterTest extends TestCase
 {
+    private const OLD_BINARY = "#!/bin/sh\necho 'pablo v1.0.0'\n";
     private const NEW_BINARY = "#!/bin/sh\necho 'pablo v2.0.0'\n";
 
     private string $tmp;
@@ -32,7 +33,8 @@ final class UpdaterTest extends TestCase
         $this->tmp = sys_get_temp_dir().'/pablo-updater-'.bin2hex(random_bytes(4));
         mkdir($this->tmp.'/bin', 0o777, true);
         $this->binary = $this->tmp.'/bin/pablo';
-        file_put_contents($this->binary, "OLD BINARY\n");
+        file_put_contents($this->binary, self::OLD_BINARY);
+        chmod($this->binary, 0o755);
         $this->releasesUrl = getenv('PABLO_RELEASES_URL');
         putenv('PABLO_RELEASES_URL=https://example.test/releases');
 
@@ -100,7 +102,8 @@ final class UpdaterTest extends TestCase
         $this->assertSame(self::NEW_BINARY, file_get_contents($this->binary));
         $this->assertTrue(is_executable($this->binary));
         $this->assertContains('sha256 verified', $lines);
-        $this->assertSame([$this->binary], glob($this->tmp.'/bin/*'), 'no temporary file is left behind');
+        $this->assertSame([$this->binary, $this->binary.'.previous'], glob($this->tmp.'/bin/*'), 'no temporary file is left behind');
+        $this->assertSame(self::OLD_BINARY, file_get_contents($this->binary.'.previous'), 'the replaced binary is kept');
         $this->assertSame([], glob($this->tmp.'/bin/.pablo-update-*') ?: []);
     }
 
@@ -114,7 +117,7 @@ final class UpdaterTest extends TestCase
         } catch (PabloError $e) {
             $this->assertStringContainsString('checksum mismatch', $e->getMessage());
         }
-        $this->assertSame("OLD BINARY\n", file_get_contents($this->binary));
+        $this->assertSame(self::OLD_BINARY, file_get_contents($this->binary));
         $this->assertSame([], glob($this->tmp.'/bin/.pablo-update-*') ?: []);
     }
 
@@ -136,7 +139,7 @@ final class UpdaterTest extends TestCase
         } catch (PabloError $e) {
             $this->assertStringContainsString('does not run', $e->getMessage());
         }
-        $this->assertSame("OLD BINARY\n", file_get_contents($this->binary));
+        $this->assertSame(self::OLD_BINARY, file_get_contents($this->binary));
     }
 
     public function testAMissingAssetIsReported(): void
@@ -153,6 +156,75 @@ final class UpdaterTest extends TestCase
         (new Updater($this->runner, '', 'dev', 'linux-x86_64'))->update('v2.0.0', static function (string $line): void {});
     }
 
+    public function testOnlyOnePreviousBinaryIsKept(): void
+    {
+        $this->publish('v3.0.0', "#!/bin/sh\necho 'pablo v3.0.0'\n");
+        $this->updater()->update('v2.0.0', static function (string $line): void {});
+        $this->updater()->update('v3.0.0', static function (string $line): void {});
+
+        $this->assertSame(self::NEW_BINARY, file_get_contents($this->binary.'.previous'));
+        $this->assertSame([$this->binary, $this->binary.'.previous'], glob($this->tmp.'/bin/*'));
+    }
+
+    public function testAFailedCheckKeepsThePreviousCopyAsItWas(): void
+    {
+        file_put_contents($this->binary.'.previous', 'OLDER');
+        $this->publish('v2.0.0', "#!/bin/sh\nexit 1\n");
+
+        try {
+            $this->updater()->update('v2.0.0', static function (string $line): void {});
+            $this->fail('a broken binary was installed');
+        } catch (PabloError) {
+        }
+        $this->assertSame('OLDER', file_get_contents($this->binary.'.previous'));
+    }
+
+    public function testRollbackSwapsThePreviousBinaryBack(): void
+    {
+        $this->updater()->update('v2.0.0', static function (string $line): void {});
+
+        $restored = (new Updater($this->runner, $this->binary, 'v2.0.0', 'linux-x86_64'))->rollback(static function (string $line): void {});
+
+        $this->assertSame('v1.0.0', $restored);
+        $this->assertSame(self::OLD_BINARY, file_get_contents($this->binary));
+        $this->assertTrue(is_executable($this->binary));
+        $this->assertSame(self::NEW_BINARY, file_get_contents($this->binary.'.previous'), 'a second rollback undoes the first');
+        $this->assertSame([], glob($this->tmp.'/bin/.pablo-update-*') ?: []);
+        $this->assertContains(['env', 'HOME='.$this->homeOf($this->runner->probeCalls), $this->binary.'.previous', '--version'], $this->runner->probeCalls, 'the previous binary is run before it is trusted');
+    }
+
+    public function testRollbackWithoutAPreviousBinaryIsAClearError(): void
+    {
+        try {
+            $this->updater()->rollback(static function (string $line): void {});
+            $this->fail('rolled back to nothing');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString('no previous binary to roll back to', $e->getMessage());
+        }
+        $this->assertSame(self::OLD_BINARY, file_get_contents($this->binary));
+    }
+
+    public function testAPreviousBinaryThatDoesNotRunIsNotRestored(): void
+    {
+        file_put_contents($this->binary.'.previous', "#!/bin/sh\nexit 1\n");
+
+        try {
+            $this->updater()->rollback(static function (string $line): void {});
+            $this->fail('a broken binary was restored');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString('does not run', $e->getMessage());
+        }
+        $this->assertSame(self::OLD_BINARY, file_get_contents($this->binary));
+        $this->assertFileExists($this->binary.'.previous');
+    }
+
+    public function testRollbackFromACheckoutIsRefused(): void
+    {
+        $this->expectExceptionMessage('repository checkout');
+
+        (new Updater($this->runner, '', 'dev', 'linux-x86_64'))->rollback(static function (string $line): void {});
+    }
+
     public function testExpectedHash(): void
     {
         $sums = str_repeat('a', 64)."  pablo-linux-x86_64\n".str_repeat('B', 64)." *pablo-macos-arm64\n";
@@ -160,6 +232,23 @@ final class UpdaterTest extends TestCase
         $this->assertSame(str_repeat('a', 64), Updater::expectedHash($sums, 'pablo-linux-x86_64'));
         $this->assertSame(str_repeat('b', 64), Updater::expectedHash($sums, 'pablo-macos-arm64'));
         $this->assertNull(Updater::expectedHash($sums, 'pablo-linux-aarch64'));
+    }
+
+    /**
+     * The throwaway HOME of the last `--version` run.
+     *
+     * @param list<list<string>> $calls
+     */
+    private function homeOf(array $calls): string
+    {
+        $last = '';
+        foreach ($calls as $argv) {
+            if ('env' === $argv[0]) {
+                $last = substr($argv[1], \strlen('HOME='));
+            }
+        }
+
+        return $last;
     }
 
     private function updater(): Updater
