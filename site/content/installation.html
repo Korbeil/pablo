@@ -12,7 +12,7 @@
   <li><b>git</b>: every task is a branch and a worktree.</li>
   <li><b>A runtime</b>, the agent CLI that runs the agents: <a href="https://opencode.ai">OpenCode</a> set up with your usual model provider (the default), <a href="https://code.claude.com/docs">Claude Code</a> logged in to your Claude account, or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> logged in to your GitHub account. See <a href="page:runtimes">Runtimes &amp; ADEs</a>.</li>
   <li><b>An agent environment (ADE: Orca, OpenChamber or headless)</b>: <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a> is where agents run and where you chat with them. Optional in theory (without one, agents run headless in the background), but that's where you'll read their work. See <a href="page:runtimes#choose-an-ade">Choose an ADE</a>.</li>
-  <li><b>curl</b>, to download PABLO. Nothing else: the binary carries its own PHP.</li>
+  <li><b>curl</b>, to download PABLO, and <b>sha256sum</b> or <b>shasum</b> (one ships with every Linux and macOS) to verify it. Nothing else: the binary carries its own PHP.</li>
 </ul>
 
 <h3>Then, for your projects</h3>
@@ -23,7 +23,7 @@
   <thead><tr><th>Your project uses…</th><th>You need</th><th>Log in once with</th></tr></thead>
   <tbody>
     <tr><td>GitHub pull requests (every project: PABLO follows PRs and CI on GitHub, whatever the issue tracker)</td><td><a href="https://cli.github.com/"><code>gh</code></a></td><td><code>gh auth login</code></td></tr>
-    <tr><td>Jira issues, or Confluence pages</td><td><a href="https://www.atlassian.com/software/cli"><code>acli</code></a></td><td><code>acli auth login</code> (one login covers both)</td></tr>
+    <tr><td>Jira issues, or Confluence pages</td><td><a href="https://www.atlassian.com/software/cli"><code>acli</code></a></td><td><code>acli auth login</code> for Jira; Confluence has its own, <code>acli confluence auth login</code></td></tr>
     <tr><td>Linear issues</td><td><a href="https://github.com/schpet/linear-cli"><code>linear</code></a></td><td>see its docs (checked with <code>linear auth status</code>)</td></tr>
   </tbody>
 </table>
@@ -44,7 +44,7 @@
 <p>The script is interactive, on Linux and macOS. It:</p>
 
 <ol>
-  <li>checks that <code>git</code> and <code>curl</code> are there, and which binary your OS and processor need;</li>
+  <li>checks that <code>git</code>, <code>curl</code> and <code>sha256sum</code> (or <code>shasum</code>) are there, and which binary your OS and processor need;</li>
   <li>looks for the <a href="page:runtimes#choose-an-agent-runtime">runtimes</a> you have (OpenCode, Claude Code, GitHub Copilot CLI) and asks which one to use;</li>
   <li>looks for the <a href="page:runtimes#choose-an-ade">ADEs</a> you have (Orca, OpenChamber) and asks which one to use. It only offers the ones that can run your runtime;</li>
   <li>asks whether to install the <a href="#the-dashboard-service">dashboard service</a>. If another program already uses its port (8321, or the <code>dashboard_port</code> of your config), it suggests the next free port and lets you type another; without a terminal it takes the suggestion. A port already used by PABLO's own dashboard (a re-install) is kept. Then it shows a summary;</li>
@@ -65,8 +65,10 @@
     <tr><td><code>--runtime &lt;name&gt;</code></td><td><code>opencode</code>, <code>claude-code</code> or <code>copilot</code></td></tr>
     <tr><td><code>--backend &lt;name&gt;</code></td><td><code>orca</code>, <code>openchamber</code> (OpenCode only) or <code>headless</code></td></tr>
     <tr><td><code>--without-web</code></td><td>skip the dashboard service</td></tr>
+    <tr><td><code>--with-web</code></td><td>install the dashboard service (the default; cancels an earlier <code>--without-web</code>)</td></tr>
     <tr><td><code>--port &lt;port&gt;</code></td><td>the dashboard's port, instead of 8321 (or the next free one)</td></tr>
-    <tr><td><code>--no-interaction</code></td><td>never ask: use the options, then what it detected. It is also what happens when there is no terminal</td></tr>
+    <tr><td><code>-n</code>, <code>--no-interaction</code></td><td>never ask: use the options, then what it detected. It is also what happens when there is no terminal</td></tr>
+    <tr><td><code>-h</code>, <code>--help</code></td><td>print the options and exit</td></tr>
   </tbody>
 </table>
 
@@ -172,7 +174,7 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
 <h3>First install on macOS</h3>
 
 <ol>
-  <li>Install the prerequisites, including <code>acli auth login</code> if you use Jira or Confluence.</li>
+  <li>Install the prerequisites, including <code>acli auth login</code> if you use Jira (<code>acli confluence auth login</code> for Confluence).</li>
   <li>Run the installer and look for “com.pablo.dispatch loaded”.</li>
   <li>Run <code>pablo system:doctor</code>: everything should be ✅.</li>
   <li>Watch one 5-minute run: <code>tail -f ~/.pablo/logs/dispatch.log</code>.</li>

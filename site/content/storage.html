@@ -64,8 +64,10 @@
     <tr><td><code>task_analyst_ran</code>, <code>startup_script_ran</code></td><td>so they only run once per task</td></tr>
     <tr><td><code>agent_launches</code></td><td>per agent: when it was launched and how many attempts, used to relaunch launches that never started</td></tr>
     <tr><td><code>needs_testing_entered_at</code>, <code>last_handled_signal_at</code>, <code>last_seen_issue_status</code></td><td>baselines for the QA failure signal</td></tr>
+    <tr><td><code>ci_ignored</code></td><td>failing checks are ignored (<code>pablo task:skip-ci</code>) until the next <code>/pablo-commit-and-pr</code></td></tr>
     <tr><td><code>pr_number</code>, <code>merged</code></td><td>the pull request</td></tr>
     <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamps</td></tr>
+    <tr><td><code>cached_tracker_status</code>, <code>cached_pr_state</code>, <code>cached_agent_count</code>, <code>cached_agent_activity</code>, <code>cached_at</code></td><td>the display cache (below), all <code>null</code> until the first poll</td></tr>
   </tbody>
 </table>
 

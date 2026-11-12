@@ -9,8 +9,8 @@
   <tbody>
     <tr><td><b>task-analyst</b></td><td><code>in-progress</code>, once per task</td><td>Reads the issue (GitHub, Jira or Linear), its parents, linked pull requests and the relevant code, and writes a summary and a grounded action plan. For a prompt task, it applies the same method to your prompt.</td></tr>
     <tr><td><b>ci-analyst</b></td><td><code>ci-red</code></td><td>Fetches the failing checks and their logs, ties each failure to the responsible code, and proposes a fix plan. It never changes the pull request.</td></tr>
-    <tr><td><b>pr-feedback</b></td><td><code>request-changes</code></td><td>Reads unresolved review threads, review bodies and comments, and turns them into a fix plan grouped by topic. When it finishes, the pull request goes back to draft.</td></tr>
-    <tr><td><b>task-feedback</b></td><td><code>testing-failed</code></td><td>Compares QA's feedback with what the pull request really ships, classifies each point, and drafts a reply in the language QA used. When it finishes, the pull request goes back to draft.</td></tr>
+    <tr><td><b>pr-feedback</b></td><td><code>request-changes</code></td><td>Reads unresolved review threads, review bodies and comments, and turns them into a fix plan grouped by topic. The pull request goes back to draft just before it starts.</td></tr>
+    <tr><td><b>task-feedback</b></td><td><code>testing-failed</code></td><td>Compares QA's feedback with what the pull request really ships, classifies each point, and drafts a reply in the language QA used. The pull request goes back to draft just before it starts.</td></tr>
     <tr><td><b>rebase-conflict-resolver</b></td><td>a sync rebase hits a conflict</td><td>Replays the rebase, resolves every conflict and pushes with <code>--force-with-lease</code>. See below.</td></tr>
   </tbody>
 </table>

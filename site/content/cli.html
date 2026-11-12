@@ -1,22 +1,22 @@
 <h1>Commands</h1>
 
-<p>Every <code>pablo</code> command, grouped by what it acts on. Commands that take <code>[&lt;branch&gt;]</code> act on the task of the current directory unless you <a href="#choosing-the-task">name another one</a>. Run <code>pablo help &lt;command&gt;</code> for the full usage of any of them.</p>
+<p>Every <code>pablo</code> command, grouped by what it acts on. Commands that take <code>[&lt;branch&gt;]</code> act on the task of the current directory unless you <a href="#choosing-the-task">name another one</a>. Run <code>pablo help &lt;command&gt;</code> for the full usage of any of them. A few have a short alias: <code>start</code>, <code>tasks</code>, <code>attach</code> and <code>update</code>.</p>
 
 <h2>Tasks</h2>
 
 <table class="cmds">
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
-    <tr><td><code>task:start &lt;issue-url&gt;</code><br><code>task:start --project=&lt;name&gt; "&lt;prompt&gt;"</code></td><td>Start a task: branch, worktree, task-analyst. <a href="page:tasks#start-a-task">Guide</a></td></tr>
-    <tr><td><code>task:list [--live] [--refresh] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--state=&lt;state&gt;…] [--format=json]</code></td><td>Active tasks, split into “waiting for feedback” and the rest. <code>--live</code> fetches fresh data, <code>--refresh</code> runs the poller first; <code>--project</code>, <code>--type</code> and <code>--state</code> (repeatable) narrow the list, in the table and in the JSON alike. <a href="page:tasks#see-your-tasks">Guide</a></td></tr>
+    <tr><td><code>task:start &lt;issue-url&gt;</code><br><code>task:start --project=&lt;name&gt; "&lt;prompt&gt;"</code> (alias <code>start</code>)</td><td>Start a task: branch, worktree, task-analyst. <a href="page:tasks#start-a-task">Guide</a></td></tr>
+    <tr><td><code>task:list [--live] [--refresh] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--state=&lt;state&gt;…] [--format=json]</code> (alias <code>tasks</code>)</td><td>Active tasks, split into “waiting for feedback” and the rest. <code>--live</code> fetches fresh data, <code>--refresh</code> runs the poller first; <code>--project</code>, <code>--type</code> and <code>--state</code> (repeatable) narrow the list, in the table and in the JSON alike. <a href="page:tasks#see-your-tasks">Guide</a></td></tr>
     <tr><td><code>task:waiting [&lt;branch&gt;]</code></td><td>Pause the task, or resume it. <a href="page:tasks#pause-a-task">Guide</a></td></tr>
     <tr><td><code>task:state &lt;state&gt; [&lt;branch&gt;] [--no-trigger]</code></td><td>Force a state. <a href="page:tasks#force-a-state">Guide</a></td></tr>
-    <tr><td><code>task:attach &lt;state&gt; [--project=&lt;name&gt;]</code></td><td>In a worktree. Adopt a worktree PABLO didn't create. <a href="page:tasks#adopt-an-existing-worktree">Guide</a></td></tr>
+    <tr><td><code>task:attach &lt;state&gt; [--project=&lt;name&gt;]</code> (alias <code>attach</code>)</td><td>In a worktree. Adopt a worktree PABLO didn't create. <a href="page:tasks#adopt-an-existing-worktree">Guide</a></td></tr>
     <tr><td><code>task:relaunch [&lt;branch&gt;] [--only=&lt;agent&gt;]</code></td><td>Launch the agents of the task's current state again. <a href="page:tasks#relaunch-an-agent">Guide</a></td></tr>
     <tr><td><code>task:retrigger-ci [&lt;branch&gt;]</code></td><td>Re-run the GitHub Actions workflows of the branch; the pull request goes back to draft. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
     <tr><td><code>task:skip-ci [&lt;branch&gt;]</code></td><td>From <code>ci-red</code>. Ignore failing checks until the next <code>/pablo-commit-and-pr</code>. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
     <tr><td><code>task:close [&lt;branch&gt;] [--yes]</code></td><td>Close a task: delete its worktree and record. Asks first when the task comes from the current directory; <code>--yes</code> (<code>-y</code>) skips that and the active-agents check. <a href="page:tasks#close-a-task">Guide</a></td></tr>
-    <tr><td><code>task:info [&lt;branch&gt;]</code></td><td>Print the task record as JSON. <code>task:info current</code> still works: it means the current directory's task.</td></tr>
+    <tr><td><code>task:info [&lt;branch&gt;] [--json]</code></td><td>Print the task record as JSON (<code>--json</code> is accepted, and changes nothing). <code>task:info current</code> still works: it means the current directory's task.</td></tr>
     <tr><td><code>task:precommit-check [&lt;branch&gt;] [--json]</code></td><td>Whether <code>/pablo-commit-and-pr</code> is allowed here. Used by that command.</td></tr>
   </tbody>
 </table>
@@ -78,8 +78,8 @@
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
     <tr><td><code>archive:backup [&lt;destination&gt;]</code></td><td>Write a backup of <code>~/.pablo/</code>. <a href="page:backups">Guide</a></td></tr>
-    <tr><td><code>archive:restore &lt;archive&gt; [--skip-worktrees] [--skip-ade] [--yes]</code></td><td>Restore a backup and recreate the worktrees.</td></tr>
-    <tr><td><code>web [--port=&lt;port&gt;] [--open]</code></td><td>Serve the dashboard on <code>127.0.0.1</code>, on <code>dashboard_port</code> (default 8321) unless <code>--port</code> is given. <a href="page:dashboard">Guide</a></td></tr>
+    <tr><td><code>archive:restore &lt;archive&gt; [--skip-worktrees] [--skip-ade] [-y|--yes]</code></td><td>Restore a backup and recreate the worktrees.</td></tr>
+    <tr><td><code>web [-p|--port=&lt;port&gt;] [--open]</code></td><td>Serve the dashboard on <code>127.0.0.1</code>, on <code>dashboard_port</code> (default 8321) unless <code>--port</code> is given. <a href="page:dashboard">Guide</a></td></tr>
     <tr><td><code>stats [--days=&lt;n&gt;] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--agent=&lt;agent&gt;] [--by=agent|project|model|task] [--limit=&lt;n&gt;] [--format=table|json|csv]</code></td><td>Task lifetimes, agent runs, tokens and cost; <code>--by</code> breaks runs down instead (top tasks by tokens with <code>--by task</code>). <a href="page:analytics#break-runs-down">Guide</a></td></tr>
     <tr><td><code>task:history &lt;branch&gt; [--project=&lt;name&gt;] [--format=json]</code></td><td>One task's timeline from the analytics log: state transitions with their durations, agent runs with their tokens and cost. <a href="page:analytics#task-history">Guide</a></td></tr>
   </tbody>
@@ -145,6 +145,15 @@ $ pablo task:list --format=json
     ]
 }</code></pre>
 
+<h2>Shell completion</h2>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>completion [bash|zsh|fish]</code></td><td>Print the shell completion script for <code>pablo</code> (Symfony Console's). <code>pablo completion --help</code> shows how to install it.</td></tr>
+  </tbody>
+</table>
+
 <h2>Agent command</h2>
 
 <table class="cmds">
@@ -163,6 +172,6 @@ $ pablo task:list --format=json
   <tbody>
     <tr><td><code>internal:launch-agent</code></td><td>Launches one agent in a worktree, detached, so commands and the poller never wait for an ADE.</td></tr>
     <tr><td><code>internal:run-startup-script</code></td><td>Runs a project's startup script in a worktree, detached.</td></tr>
-    <tr><td><code>internal:watch-agent</code></td><td>Waits for an agent run to finish, records its usage, and does what comes next (for example putting the pull request back in draft).</td></tr>
+    <tr><td><code>internal:watch-agent</code></td><td>Waits for an agent run to finish and records when it ended and its usage.</td></tr>
   </tbody>
 </table>

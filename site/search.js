@@ -14,7 +14,7 @@
 
   const script = document.currentScript;
   const indexUrl = script && script.dataset.index ? script.dataset.index : 'search-index.json';
-  const SUGGESTED = ['Installation', 'Your first task', 'Managing tasks', 'Configuration', 'Commands', 'Troubleshooting'];
+  const SUGGESTED = ['Installation', 'Quickstart', 'Managing tasks', 'Configuration', 'Commands', 'Troubleshooting'];
   const MAX_RESULTS = 12;
 
   let entries = null;

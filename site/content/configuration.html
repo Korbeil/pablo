@@ -241,11 +241,16 @@ branch_prefix: pablo/
     <tr><td><code>PABLO_AGENT_BACKEND</code></td><td>—</td><td>Overrides <code>agent_backend</code></td></tr>
     <tr><td><code>ORCA_CLI_COMMAND</code></td><td><code>orca-ide</code> on Linux, <code>orca</code> elsewhere</td><td>The Orca CLI command PABLO runs (Orca's own variable)</td></tr>
     <tr><td><code>PABLO_RUNTIME_DIR</code></td><td><code>~/.pablo/runtime</code></td><td>Where the agents, commands and skills are rendered (the links in your runtime's directory point here)</td></tr>
+    <tr><td><code>PABLO_CLAUDE_REMOTE_CONTROL</code></td><td>—</td><td>Overrides <code>claude_code.remote_control</code> (<code>0</code> keeps plain <code>claude -p</code> runs)</td></tr>
     <tr><td><code>PABLO_CLAUDE_DIR</code></td><td><code>~/.pablo/runtime/claude</code></td><td>Where the Claude Code <code>agents.json</code> is generated and read</td></tr>
     <tr><td><code>CLAUDE_CONFIG_DIR</code></td><td><code>~/.claude</code></td><td>Claude Code's own directory: where the command and skill are linked, and where run transcripts are read for analytics</td></tr>
     <tr><td><code>COPILOT_HOME</code></td><td><code>~/.copilot</code></td><td>Copilot's own directory: where the agents and skills are linked, and where session state is read</td></tr>
     <tr><td><code>PABLO_STATE_DIR</code>, <code>PABLO_PROJECTS_DIR</code>, <code>PABLO_STAMPS_DIR</code>, <code>PABLO_LOGS_DIR</code>, <code>PABLO_AGENTS_DIR</code>, <code>PABLO_ANALYTICS_DIR</code></td><td>under <code>~/.pablo/</code></td><td>Move a part of PABLO's data elsewhere</td></tr>
-    <tr><td><code>PABLO_CONFIG</code></td><td><code>~/.pablo/config.yaml</code></td><td>Where the installer writes the global config</td></tr>
+    <tr><td><code>PABLO_ROOT</code></td><td><code>~/.pablo</code></td><td>The directory <code>pablo archive:backup</code> archives and <code>pablo archive:restore</code> restores into</td></tr>
+    <tr><td><code>PABLO_BACKUPS_DIR</code></td><td><code>~/.pablo-backups</code></td><td>Default destination of <code>pablo archive:backup</code></td></tr>
+    <tr><td><code>PABLO_SHIM</code></td><td><code>~/.local/bin/pablo</code></td><td>The <code>pablo</code> command detached agent runs call back into</td></tr>
+    <tr><td><code>PABLO_RELEASES_URL</code></td><td><code>https://github.com/Korbeil/pablo/releases</code></td><td>Where <code>pablo update</code> and the installer look for releases (<code>…/latest</code>, <code>…/download/&lt;release&gt;/</code>)</td></tr>
+    <tr><td><code>PABLO_CONFIG</code></td><td><code>~/.pablo/config.yaml</code></td><td>Path of the global config file, read by every command</td></tr>
     <tr><td><code>PABLO_ENV</code></td><td><code>prod</code> (binary), <code>dev</code> (checkout)</td><td>Symfony environment. Leave it. The binary caches each version apart, so <code>prod</code> is safe there; from a checkout keep <code>dev</code>: in <code>prod</code> the cache is never refreshed, so a <code>git pull</code> would keep running old code</td></tr>
     <tr><td><code>PABLO_SECRET</code></td><td>a fixed local string</td><td>Signs dashboard requests; irrelevant for a local-only dashboard</td></tr>
   </tbody>
