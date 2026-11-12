@@ -12,7 +12,7 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'task:precommit-check', description: 'check /commit-and-pr is allowed here')]
+#[AsCommand(name: 'task:precommit-check', description: 'check /pablo-commit-and-pr is allowed here')]
 final class PrecommitCheckCommand extends Command
 {
     protected function configure(): void

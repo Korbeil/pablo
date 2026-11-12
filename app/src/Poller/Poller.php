@@ -331,7 +331,7 @@ final class Poller
             $actualBranch = $task->branch;
         }
 
-        // A task that entered draft via /commit-and-pr may not know its PR yet.
+        // A task that entered draft via /pablo-commit-and-pr may not know its PR yet.
         if (null === $task->prNumber && !\in_array($task->state, [State::InProgress, State::Waiting], true)) {
             $pr = $this->gh->prForBranch($slug, $actualBranch);
             if (null !== $pr) {

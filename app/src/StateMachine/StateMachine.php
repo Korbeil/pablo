@@ -25,7 +25,7 @@ use Pablo\Support\RepoSlug;
  */
 final class StateMachine
 {
-    // /commit-and-pr is the single, uniform way work re-enters draft.
+    // /pablo-commit-and-pr is the single, uniform way work re-enters draft.
     public const COMMIT_ALLOWED_FROM = [
         State::InProgress,
         State::CiRed,
@@ -318,7 +318,7 @@ final class StateMachine
             throw new PabloError('unknown state '.var_export($target->value, true));
         }
         if (State::Waiting === $target && \in_array($ctx->task->state, self::WAITING_FORBIDDEN_FROM, true)) {
-            throw new PabloError("going from {$ctx->task->state->value} to waiting is impossible — address ".'the feedback and use /commit-and-pr instead');
+            throw new PabloError("going from {$ctx->task->state->value} to waiting is impossible — address ".'the feedback and use /pablo-commit-and-pr instead');
         }
         if (State::NeedsTesting === $target && !$ctx->cfg->testingEnabled) {
             throw new PabloError('needs-testing is disabled for this project (testing.enabled: false)');
