@@ -20,8 +20,8 @@ testing:
 ci:
   # CircleCI-style approval gates (deploy-code-approval-*) show up as
   # StatusContext entries stuck at state PENDING since nobody approves them —
-  # matched by the "approval" substring so evaluate_ci skips them and CI can
+  # matched by the "approval" substring so GhPr::evaluateCi() skips them and CI can
   # still resolve to green.
   ignore_checks: ["approval"]
 # worktrees_root omitted -> ~/.pablo/worktrees/pim/
-# sync / state_polling / review omitted -> ~/.pablo/config.yaml
+# sync.interval_minutes / state_polling / review omitted -> ~/.pablo/config.yaml

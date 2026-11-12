@@ -45,15 +45,15 @@
   <thead><tr><th>State</th><th>Entered when</th><th>On entering</th></tr></thead>
   <tbody>
     <tr><td>🔨 <code>in-progress</code></td><td><code>pablo task:start</code></td><td>launch <b>task-analyst</b> and the project's startup script (each only once per task)</td></tr>
-    <tr><td>⏸️ <code>waiting</code></td><td><code>pablo task:waiting</code></td><td>remember the previous state</td></tr>
+    <tr><td>🥱 <code>waiting</code></td><td><code>pablo task:waiting</code></td><td>remember the previous state</td></tr>
     <tr><td>📝 <code>draft</code></td><td><code>/pablo-commit-and-pr</code></td><td>—</td></tr>
     <tr><td>🔴 <code>ci-red</code></td><td>poller: a check failed</td><td>launch <b>ci-analyst</b></td></tr>
     <tr><td><code>ready-to-review</code></td><td>poller: CI is green</td><td>mark the pull request ready on GitHub, then move straight to <code>waiting-review</code></td></tr>
     <tr><td>👀 <code>waiting-review</code></td><td>right after <code>ready-to-review</code></td><td>— (the task waits for reviewers)</td></tr>
     <tr><td>✅ <code>approved</code></td><td>poller: the review is approved</td><td>move straight to <code>needs-testing</code>, unless the project has no QA step: then it stays here until merged</td></tr>
     <tr><td>🧪 <code>needs-testing</code></td><td>right after <code>approved</code></td><td>record the time, as the baseline for QA signals</td></tr>
-    <tr><td>🔁 <code>request-changes</code></td><td>poller: changes requested or a comment review</td><td>launch <b>pr-feedback</b>; when it finishes, put the pull request back in draft — and once every review signal is addressed (see <a href="#reviews">Reviews</a>), back to review</td></tr>
-    <tr><td>🚨 <code>testing-failed</code></td><td>poller: QA's failure signal</td><td>launch <b>task-feedback</b>; when it finishes, put the pull request back in draft</td></tr>
+    <tr><td>🔁 <code>request-changes</code></td><td>poller: changes requested or a comment review</td><td>put the pull request back in draft, then launch <b>pr-feedback</b> — and once every review signal is addressed (see <a href="#reviews">Reviews</a>), back to review</td></tr>
+    <tr><td>🚨 <code>testing-failed</code></td><td>poller: QA's failure signal</td><td>put the pull request back in draft, then launch <b>task-feedback</b></td></tr>
     <tr><td>🚫 <code>closed</code></td><td>poller: the pull request was closed without being merged (from any state, even <code>waiting</code>)</td><td>— nothing is deleted: the worktree stays until you <a href="page:tasks#close-a-task">close the task</a>, and <a href="page:sync#skipped-on-purpose">sync</a> no longer rebases or pushes it. If the pull request is reopened, the task goes back to <code>draft</code></td></tr>
   </tbody>
 </table>
@@ -85,7 +85,7 @@
 <h3>CI</h3>
 
 <ul>
-  <li><b>Red</b> moves <code>draft</code> (or <code>waiting-review</code>) to <code>ci-red</code>. <b>Green</b> moves <code>draft</code> or <code>ci-red</code> to review.</li>
+  <li><b>Red</b> moves <code>draft</code> (or <code>waiting-review</code>, <code>approved</code>) to <code>ci-red</code>. <b>Green</b> moves <code>draft</code> or <code>ci-red</code> to review.</li>
   <li><b>Pending is not a signal</b>: the task just stays where it is.</li>
   <li><b>No checks at all counts as green</b>, otherwise a project without CI could never leave draft.</li>
   <li><b>A cancelled check is not a failure.</b> When a workflow runs more than once on the same commit, only its latest run counts, so a run cancelled or failed and then superseded by a newer one no longer turns the task red.</li>
@@ -113,7 +113,7 @@
 
 <h3>Known gaps, on purpose</h3>
 
-<p>CI turning red during <code>needs-testing</code>, or during <code>approved</code> for projects without QA, doesn't move the task. A broken CI shows up at merge time anyway.</p>
+<p>CI turning red during <code>needs-testing</code> doesn't move the task: a broken CI shows up at merge time anyway. (In <code>approved</code> it does, the task goes to <code>ci-red</code>.)</p>
 
 <h2>Projects without QA</h2>
 

@@ -54,7 +54,7 @@ pablo task:list --state ci-red --state request-changes   # only these states
 
 <p>Columns: branch and project, PABLO state, the linked issue and its title (or the prompt summary), the tracker's own status, the pull request (📬 open, 📪 draft, ✅ merged), and agent activity such as <code>🏃 1 · 💭 1</code>. Rows are sorted by state, most urgent first:</p>
 
-<p class="states-legend">🚨 testing-failed · 🧪 needs-testing · ✅ approved · 🔁 request-changes · 👀 waiting-review · 🔴 ci-red · 📝 draft · ⏸️ waiting · 🔨 in-progress</p>
+<p class="states-legend">🚨 testing-failed · 🧪 needs-testing · ✅ approved · 🔁 request-changes · 👀 waiting-review · 🔴 ci-red · 📝 draft · 🥱 waiting · 🔨 in-progress · 🚫 closed</p>
 
 <p>The <a href="page:dashboard">dashboard</a> shows the same two tables, built from the same rules, so the terminal and the browser never disagree.</p>
 
@@ -82,7 +82,7 @@ pablo task:waiting pim-123   # or name the task, from anywhere
 
 <p>Like every command acting on an existing task, it takes the task's branch as an optional last argument (plus <code>--project</code> when the branch exists in several projects, or <code>--worktree &lt;path&gt;</code>), and otherwise acts on the task of the current worktree. See <a href="page:cli#choosing-the-task">Choosing the task</a>.</p>
 
-<p>The first call saves the current state and switches to ⏸️ <code>waiting</code>; the second restores it. While paused, the poller only watches for a merge, and worktree sync keeps running. Events that happened during the pause (a QA label, for example) are handled after you resume, not lost.</p>
+<p>The first call saves the current state and switches to 🥱 <code>waiting</code>; the second restores it. While paused, the poller only watches for a merge, and worktree sync keeps running. Events that happened during the pause (a QA label, for example) are handled after you resume, not lost.</p>
 
 <p>You can't pause from <code>request-changes</code> or <code>testing-failed</code>: those states are already waiting for you.</p>
 

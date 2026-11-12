@@ -22,7 +22,7 @@
 
 <h2>Jira: <code>acli</code></h2>
 
-<p>Atlassian's own CLI. Log in once with <code>acli auth login</code> (a browser login); the same login covers Jira and Confluence. Run it again if Atlassian ever revokes access.</p>
+<p>Atlassian's own CLI. Log in once with <code>acli auth login</code> (a browser login) for Jira; Confluence has a login of its own (below). Run it again if Atlassian ever revokes access.</p>
 
 <table>
   <thead><tr><th>Used for</th><th>Command</th></tr></thead>
@@ -40,7 +40,7 @@
 
 <h2>Confluence: <code>acli confluence</code></h2>
 
-<p>Same tool, same login. Agents use it to read documentation pages an issue links to.</p>
+<p>Same tool, but its own login: <code>acli confluence auth login</code>. Agents use it to read documentation pages an issue links to.</p>
 
 <ul>
   <li>A page: <code>acli confluence page view --id &lt;id&gt; --json --body-format storage</code>. The body is Confluence's XHTML, passed as is: agents read it fine.</li>
