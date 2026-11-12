@@ -15,7 +15,12 @@
     },
     "require": {
         "php": ">=8.4.1",
+        "ext-ctype": "*",
+        "ext-filter": "*",
+        "ext-iconv": "*",
         "ext-mbstring": "*",
+        "ext-phar": "*",
+        "ext-zlib": "*",
         "symfony/asset": "^8.1",
         "symfony/asset-mapper": "^8.1",
         "symfony/config": "^8.1",
@@ -38,6 +43,10 @@
         "phpunit/phpunit": "^13.4",
         "symfony/browser-kit": "^8.1",
         "symfony/css-selector": "^8.1"
+    },
+    "suggest": {
+        "ext-pcntl": "Lets pablo web pass a service stop (SIGTERM/SIGINT) on to its php -S workers",
+        "ext-posix": "Native pid and user lookups (headless agent liveness, scheduler uid/user name); without it PABLO falls back to kill -0 and id"
     },
     "scripts": {
         "test": "phpunit"

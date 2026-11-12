@@ -85,7 +85,7 @@
 
 <h3>From a checkout (contributors)</h3>
 
-<p>Working on PABLO itself? Clone the repository and run it from there, with PHP 8.4.1+ and Composer: <code>php app/bin/pablo</code> is the same application as the binary. <code>pablo system:install</code> run from a checkout writes a <code>~/.local/bin/pablo</code> shim that runs <code>php app/bin/pablo</code> instead of copying a binary; everything else is the same.</p>
+<p>Working on PABLO itself? Clone the repository and run it from there, with PHP 8.4.1+ (extensions ctype, filter, iconv, mbstring, phar and zlib; pcntl and posix are optional) and Composer: <code>php app/bin/pablo</code> is the same application as the binary. <code>pablo system:install</code> run from a checkout writes a <code>~/.local/bin/pablo</code> shim that runs <code>php app/bin/pablo</code> instead of copying a binary; everything else is the same.</p>
 
 <pre><code class="language-bash">git clone https://github.com/Korbeil/pablo
 cd pablo
