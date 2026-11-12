@@ -17,6 +17,7 @@ use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\State;
 use Pablo\Domain\Time;
+use Pablo\Hooks\Hooks;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
@@ -38,6 +39,7 @@ final class WatchAgentCommand extends Command
         AgentLauncherInterface $agents,
         private readonly UsageHarvesterInterface $usage,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
+        private readonly Hooks $hooks = new Hooks(),
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
@@ -66,6 +68,7 @@ final class WatchAgentCommand extends Command
         $branch = (string) $input->getOption('branch');
         $agentName = $input->getOption('agent');
         $lock = $store->taskLock($project, $branch);
+        $finished = null;
         try {
             $task = $store->get($project, $branch);
             if (null === $task) {
@@ -95,16 +98,18 @@ final class WatchAgentCommand extends Command
                         runId: $runId,
                         reported: true,
                     );
+                    $finished = $launch->agent;
                     $this->recordAgentRunFinished($task, $launch->launchedAt, $finishedAt, $runId, $launch->agent->value, (string) ($input->getOption('backend') ?: AdeRegistry::DEFAULT), (string) ($input->getOption('prompt-fingerprint') ?? ''));
                 }
             }
             $expect = null !== $input->getOption('expect-state') ? State::tryFrom((string) $input->getOption('expect-state')) : null;
-            if (null !== $expect && $task->state !== $expect) {
-                $store->save($task);
-
-                return self::SUCCESS; // state moved on
+            // Otherwise the state moved on: nothing more than the stamp to save,
+            // and no one to notify about a run the task has left behind.
+            $current = null === $expect || $task->state === $expect;
+            if (!$current) {
+                $finished = null;
             }
-            if ('pr-draft' === $input->getOption('then') && null !== $task->prNumber) {
+            if ($current && 'pr-draft' === $input->getOption('then') && null !== $task->prNumber) {
                 $cfg = $this->projects()[$project] ?? null;
                 if (null !== $cfg) {
                     $this->gh->markDraft($this->repoSlug->for($cfg), $task->prNumber);
@@ -113,6 +118,17 @@ final class WatchAgentCommand extends Command
             $store->save($task);
         } finally {
             $lock->release();
+        }
+        // Only once the stamp is saved: the analysis is ready, the user's move.
+        if (null !== $finished) {
+            try {
+                $cfg = $this->projects()[$project] ?? null;
+            } catch (\Throwable) {
+                $cfg = null; // a hook is best-effort: never fail the watcher
+            }
+            if (null !== $cfg) {
+                $this->hooks->agentFinished($cfg, $task, $finished);
+            }
         }
 
         return self::SUCCESS;

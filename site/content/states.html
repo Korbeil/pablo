@@ -129,6 +129,60 @@
 
 <p>How to use them: <a href="page:tasks">Managing tasks</a>.</p>
 
+<h2 id="get-notified">Get notified</h2>
+
+<p>PABLO itself notifies no one and sends nothing anywhere. Instead, you can give it a command of your own, <code>hooks.command</code>, in <code>~/.pablo/config.yaml</code> or in a project file (a project's value wins, key by key). PABLO runs it on two events:</p>
+
+<ul>
+  <li><b><code>transition</code></b>: a task settled into a new state, once the new state is saved. A pass-through state does not fire a second time: <code>ready-to-review</code> → <code>waiting-review</code> is one event (to <code>waiting-review</code>), and so is <code>approved</code> → <code>needs-testing</code>. Nothing fires when the state does not change.</li>
+  <li><b><code>agent-finished</code></b>: an agent PABLO launched (task-analyst, ci-analyst, pr-feedback, task-feedback, the conflict resolver) has finished and its analysis is ready, your move. Not for the startup script, and not when the task has already left the state the agent was launched for. Turn it off with <code>hooks.agent_finished: false</code>.</li>
+</ul>
+
+<pre><code class="language-yaml">hooks:
+  command: 'notify-send "PABLO $PABLO_PROJECT" "$PABLO_TASK: ${PABLO_TO:-$PABLO_AGENT finished}"'
+  states: [request-changes, testing-failed, ci-red, approved, closed]   # optional, transitions only
+  agent_finished: true                                                  # default
+</code></pre>
+
+<p><code>hooks.states</code> only filters <code>transition</code> events, and a pass-through state counts: <code>approved</code> matches a task that went <code>approved</code> → <code>needs-testing</code>. An unknown state in the list is a configuration error: in a project file, that project is skipped (see <code>pablo system:doctor</code>); in <code>~/.pablo/config.yaml</code>, every command refuses to run until it is fixed.</p>
+
+<p>The command runs with <code>bash -c</code>, from the task's worktree, with these variables added to the environment:</p>
+
+<table>
+  <thead><tr><th>Variable</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td><code>PABLO_EVENT</code></td><td><code>transition</code> or <code>agent-finished</code></td></tr>
+    <tr><td><code>PABLO_PROJECT</code>, <code>PABLO_TASK</code></td><td>the project name and the task's branch</td></tr>
+    <tr><td><code>PABLO_FROM</code>, <code>PABLO_TO</code></td><td>the previous and the new state (<code>transition</code> only, else empty)</td></tr>
+    <tr><td><code>PABLO_STATE</code></td><td>the task's state now, on both events</td></tr>
+    <tr><td><code>PABLO_AGENT</code></td><td>the agent that finished (<code>agent-finished</code> only, else empty)</td></tr>
+    <tr><td><code>PABLO_PR_URL</code>, <code>PABLO_ISSUE_KEY</code></td><td>the pull request URL and the issue key, empty when there is none</td></tr>
+    <tr><td><code>PABLO_WORKTREE</code></td><td>the task's worktree</td></tr>
+  </tbody>
+</table>
+
+<p>It runs detached in the background: PABLO never waits for it, and a slow or failing command never blocks or fails a transition. Its output goes to <code>~/.pablo/logs/hooks.log</code>. <code>pablo system:doctor</code> warns (without failing) when the command's program cannot be found; with <code>--format=json</code>, that warning is a <code>hooks</code> check with status <code>warn</code>.</p>
+
+<p>Some commands, all your own choice:</p>
+
+<pre><code class="language-yaml"># Linux desktop notification
+command: 'notify-send PABLO "$PABLO_TASK: ${PABLO_TO:-$PABLO_AGENT finished}"'
+
+# macOS notification
+command: 'osascript -e "display notification \"$PABLO_TASK: ${PABLO_TO:-$PABLO_AGENT finished}\" with title \"PABLO\""'
+
+# A Slack incoming webhook: your webhook, your data leaving your machine
+command: >-
+  curl -fsS -X POST -H 'Content-Type: application/json'
+  --data "{\"text\": \"$PABLO_TASK: ${PABLO_TO:-$PABLO_AGENT finished} $PABLO_PR_URL\"}"
+  "$SLACK_WEBHOOK_URL"
+
+# Anything longer: a script of yours
+command: ~/bin/pablo-notify
+</code></pre>
+
+<p>Most transitions happen in the background job, whose environment is not your shell's: a variable such as <code>SLACK_WEBHOOK_URL</code> set in your shell profile is not there. Read secrets from a file in the command or the script instead (<code>"$(cat ~/.config/slack-webhook)"</code>).</p>
+
 <h2>Launches that never start</h2>
 
 <p>Agent launches are fire-and-forget, so they never block a command. If no agent session appears for an agent-launching state (<code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>) within 4 minutes (240 s) of the launch, which happens when Orca hangs on a brand-new worktree, the poller fires the launches again, startup script included, up to 3 attempts in all. In <code>in-progress</code> it also sets the Orca workspace name to the issue key. Then the normal checks run, so a <code>ci-red</code> task that turned green still moves on. You can always force it with <code>pablo task:relaunch</code>.</p>

@@ -284,6 +284,40 @@ YAML;
         $this->assertSame(['ci-analyst'], array_column($failed, 'name'));
     }
 
+    public function testMissingHookCommandWarnsInBothFormatsWithoutFailing(): void
+    {
+        $this->installFreshAgents();
+        $this->writeGlobalConfig(self::DEFAULTS."\nhooks:\n  command: pablo-missing-notifier --now\n");
+        file_put_contents($this->tmp.'/projects/wallet-kit.yaml', <<<YAML
+            name: wallet-kit
+            type: work
+            repo:
+                path: {$this->tmp}/wallet-kit
+                primary_branch: main
+            issue_tracker:
+                provider: github
+                identity: octocat
+                project_key: WK
+            YAML);
+        $this->onWhich = static fn (string $name): ?string => 'pablo-missing-notifier' === $name ? null : '/usr/bin/'.$name;
+
+        $tester = new CommandTester($this->command());
+        $tester->execute([]);
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString("hooks.command: 'pablo-missing-notifier' not found (projects: wallet-kit)", $tester->getDisplay());
+
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'json']);
+        $this->assertSame(0, $tester->getStatusCode());
+        $payload = json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertIsArray($payload);
+        $this->assertTrue($payload['ok']);
+        $hooks = array_values(array_filter($payload['checks'], static fn (array $c): bool => 'hooks' === $c['group']));
+        $this->assertCount(1, $hooks);
+        $this->assertSame('warn', $hooks[0]['status']);
+        $this->assertStringContainsString("'pablo-missing-notifier' not found", $hooks[0]['message']);
+    }
+
     /**
      * Installs every generated agent into the fake HOME the way install.sh
      * does: a freshly rendered .md with a symlink pointing at it.

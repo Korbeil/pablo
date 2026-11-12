@@ -73,6 +73,8 @@ ci:
 # agent_backend: openchamber        # global only, default orca
 # default_model_by_type:            # global only
 #   work: anthropic/claude-opus-4
+# hooks:                            # your own command, see Get notified
+#   command: 'notify-send PABLO "$PABLO_TASK → $PABLO_TO"'
 </code></pre>
 
 <h3>Keys a project inherits</h3>
@@ -94,6 +96,9 @@ ci:
     <tr><td><code>testing.enabled</code></td><td><code>true</code></td><td>Whether the project has a QA step</td></tr>
     <tr><td><code>review.bot_whitelist</code></td><td><b>required</b> somewhere (installed config: <code>[]</code>)</td><td>Bot accounts whose reviews count (login with or without its <code>[bot]</code> suffix)</td></tr>
     <tr><td><code>ci.ignore_checks</code></td><td><b>required</b> somewhere (installed config: <code>["approval"]</code>)</td><td>Checks to leave out of CI</td></tr>
+    <tr><td><code>hooks.command</code></td><td>none</td><td>Your own shell command, run in the background when a task changes state or an agent's analysis is ready (see <a href="page:states#get-notified">Get notified</a>). A project setting it to <code>null</code> or <code>""</code> turns it off for that project</td></tr>
+    <tr><td><code>hooks.states</code></td><td>every state</td><td>Only run the command for transitions into these states, e.g. <code>[request-changes, testing-failed, ci-red, approved, closed]</code></td></tr>
+    <tr><td><code>hooks.agent_finished</code></td><td><code>true</code></td><td>Also run it when an auto-launched agent finishes</td></tr>
   </tbody>
 </table>
 

@@ -764,6 +764,53 @@ final class PollerTest extends TestCase
         $this->assertSame([], $this->agents->launch);
     }
 
+    public function testHealedLaunchFiresTheAgentFinishedHookOnce(): void
+    {
+        $e = $this->newEnv();
+        $base = $this->cfg($e['tmp']);
+        $cfg = new ProjectConfig(
+            name: $base->name,
+            type: $base->type,
+            repoPath: $base->repoPath,
+            primaryBranch: $base->primaryBranch,
+            worktreesRoot: $base->worktreesRoot,
+            provider: $base->provider,
+            identity: $base->identity,
+            projectKey: $base->projectKey,
+            syncStrategy: $base->syncStrategy,
+            syncAutoApply: $base->syncAutoApply,
+            syncInterval: $base->syncInterval,
+            pollInterval: $base->pollInterval,
+            failureSignal: $base->failureSignal,
+            botWhitelist: [],
+            ciIgnoreChecks: [],
+            defaultModel: $base->defaultModel,
+            prDescriptionLocale: 'en',
+            hookCommand: 'notify',
+        );
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::InProgress));
+        $this->setState($store, State::InProgress, ['prNumber' => null]);
+        $this->setLaunch($store, 'task-analyst', Poller::LAUNCH_MAX_ATTEMPTS, 301);
+
+        $runner = new \Pablo\Tests\FakeHookRunner();
+        $git = new \Pablo\Tests\FakeGit();
+        $git->originUrl = 'git@github.com:acme/proj.git';
+        $repoSlug = new RepoSlug($git);
+        $time = new \Pablo\Domain\Time();
+        $hooks = new \Pablo\Hooks\Hooks($runner, $repoSlug);
+        $poller = new Poller($this->gh, $this->git, $this->providers, $repoSlug, new StateMachine($this->gh, $this->providers, $repoSlug, $time, new FakeAnalytics(), $hooks), $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), new FakeAnalytics(), $hooks);
+
+        $poller->pollProject($cfg, $store, $this->agents);
+        $this->assertSame(['agent-finished'], $runner->events());
+        $this->assertSame('task-analyst', $runner->runs[0]['env']['PABLO_AGENT']);
+        $this->assertTrue($this->taskOrFail($store)->agentLaunches['task-analyst']->reported);
+
+        // Already reported: the next cycle stays silent.
+        $poller->pollProject($cfg, $store, $this->agents);
+        $this->assertCount(1, $runner->runs);
+    }
+
     public function testHealedLaunchIsReportedExactlyOnce(): void
     {
         $e = $this->newEnv();

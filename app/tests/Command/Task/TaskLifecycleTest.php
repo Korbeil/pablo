@@ -325,6 +325,49 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->assertNotNull($launch->runId);
     }
 
+    public function testWatchAgentFiresTheAgentFinishedHook(): void
+    {
+        file_put_contents($this->projectsDir.'/wallet-kit.yaml', "hooks:\n  command: notify\n", \FILE_APPEND);
+        $task = $this->getTask();
+        $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, '2026-08-11T00:00:00+00:00', 1);
+        $this->store->save($task);
+
+        $runner = new \Pablo\Tests\FakeHookRunner();
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), new FakeAnalytics(), new \Pablo\Hooks\Hooks($runner, $this->repoSlug)), [
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+            '--handle' => 't1',
+            '--agent' => 'task-analyst',
+        ]);
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertSame(['agent-finished'], $runner->events());
+        $env = $runner->runs[0]['env'];
+        $this->assertSame('task-analyst', $env['PABLO_AGENT']);
+        $this->assertSame('wk-45', $env['PABLO_TASK']);
+        $this->assertSame('https://github.com/acme/wallet-kit/pull/7', $env['PABLO_PR_URL']);
+    }
+
+    public function testWatchAgentDoesNotNotifyWhenTheStateMovedOn(): void
+    {
+        file_put_contents($this->projectsDir.'/wallet-kit.yaml', "hooks:\n  command: notify\n", \FILE_APPEND);
+        $task = $this->getTask();
+        $task->agentLaunches['pr-feedback'] = new \Pablo\Domain\AgentLaunch(Agent::PrFeedback, '2026-08-11T00:00:00+00:00', 1);
+        $this->store->save($task);
+
+        $runner = new \Pablo\Tests\FakeHookRunner();
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), new FakeAnalytics(), new \Pablo\Hooks\Hooks($runner, $this->repoSlug)), [
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+            '--handle' => 't1',
+            '--agent' => 'pr-feedback',
+            '--expect-state' => 'request-changes',
+        ]);
+        $this->assertSame(0, $tester->getStatusCode());
+        // Still stamped, but the task left request-changes: nobody to notify.
+        $this->assertNotNull($this->getTask()->agentLaunches['pr-feedback']->finishedAt);
+        $this->assertSame([], $runner->runs);
+    }
+
     public function testWatchAgentDoesNotReReportAnAlreadyReportedLaunch(): void
     {
         $task = $this->getTask();

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Config;
 
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
+use Pablo\Domain\State;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Symfony\Component\Yaml\Exception\ParseException;
@@ -209,6 +210,8 @@ final class Config
                 throw new PabloError(\sprintf('config.yaml: default_model_by_type has unknown type %s (expected one of ["open-source", "personal", "work"])', var_export((string) $typeKey, true)));
             }
         }
+        // The global hooks block on its own: an error there is every project's.
+        $this->parseHooks([], $defaults, 'config.yaml');
     }
 
     /** @return array<string, mixed> */
@@ -344,6 +347,7 @@ final class Config
         } elseif (null !== $branchPrefix) {
             $branchPrefix = (string) $branchPrefix;
         }
+        [$hookCommand, $hookStates, $hookAgentFinished] = $this->parseHooks($data, $defaults, $name);
 
         return new ProjectConfig(
             name: $projectName,
@@ -372,6 +376,69 @@ final class Config
             defaultModel: $defaultModel,
             prDescriptionLocale: $prDescriptionLocale,
             branchPrefix: $branchPrefix,
+            hookCommand: $hookCommand,
+            hookStates: $hookStates,
+            hookAgentFinished: $hookAgentFinished,
         );
+    }
+
+    /**
+     * hooks.<key>: the project's value when it sets the key (even to null,
+     * which turns the hook off for that project), else the global one.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $defaults
+     */
+    private function hookValue(array $data, array $defaults, string $key): mixed
+    {
+        foreach ([$data, $defaults] as $source) {
+            $hooks = $source['hooks'] ?? null;
+            if (\is_array($hooks) && \array_key_exists($key, $hooks)) {
+                return $hooks[$key];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $defaults
+     *
+     * @return array{0: ?string, 1: list<State>|null, 2: bool}
+     */
+    private function parseHooks(array $data, array $defaults, string $name): array
+    {
+        if (\array_key_exists('hooks', $data) && null !== $data['hooks'] && !\is_array($data['hooks'])) {
+            throw new PabloError("{$name}: hooks must be a mapping (command, states, agent_finished)");
+        }
+        $command = $this->hookValue($data, $defaults, 'command');
+        if (null !== $command && !\is_string($command)) {
+            throw new PabloError("{$name}: hooks.command must be a shell command string");
+        }
+        $command = null !== $command && '' !== trim($command) ? $command : null;
+
+        $rawStates = $this->hookValue($data, $defaults, 'states');
+        $states = null;
+        if (null !== $rawStates) {
+            if (!\is_array($rawStates)) {
+                throw new PabloError("{$name}: hooks.states must be a list of states");
+            }
+            $states = [];
+            foreach ($rawStates as $raw) {
+                $state = \is_string($raw) ? State::tryFrom($raw) : null;
+                if (null === $state) {
+                    throw new PabloError(\sprintf('%s: hooks.states has unknown state %s (expected one of %s)', $name, var_export($raw, true), implode(', ', array_map(static fn (State $s): string => $s->value, State::cases()))));
+                }
+                $states[] = $state;
+            }
+        }
+
+        $agentFinished = $this->hookValue($data, $defaults, 'agent_finished') ?? true;
+        if (!\is_bool($agentFinished)) {
+            throw new PabloError("{$name}: hooks.agent_finished must be true or false");
+        }
+
+        return [$command, $states, $agentFinished];
     }
 }

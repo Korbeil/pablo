@@ -44,7 +44,7 @@ final class GlobalConfig
     {
         $path ??= $this->configPath();
         if (!is_file($path)) {
-            return ['sync' => [], 'state_polling' => [], 'main_update' => [], 'review' => [], 'ci' => [], 'testing' => ['enabled' => true], 'branch_prefix' => null];
+            return ['sync' => [], 'state_polling' => [], 'main_update' => [], 'review' => [], 'ci' => [], 'testing' => ['enabled' => true], 'branch_prefix' => null, 'hooks' => []];
         }
         try {
             $data = Yaml::parseFile($path);
@@ -77,6 +77,7 @@ final class GlobalConfig
             'dashboard_port' => $data['dashboard_port'] ?? null,
             'dashboard_trusted_hosts' => $data['dashboard_trusted_hosts'] ?? null,
             'scheduler' => \is_array($data['scheduler'] ?? null) ? $data['scheduler'] : [],
+            'hooks' => \is_array($data['hooks'] ?? null) ? $data['hooks'] : [],
         ];
     }
 

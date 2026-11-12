@@ -11,6 +11,7 @@ use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Hooks\Hooks;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
 use Pablo\Support\PabloError;
@@ -50,8 +51,15 @@ final class StateMachine
         private readonly RepoSlug $repoSlug,
         private readonly Time $time,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
+        private readonly Hooks $hooks = new Hooks(),
     ) {
     }
+
+    /** Nesting of enterState() calls: >0 while a pass-through state chains on. */
+    private int $depth = 0;
+
+    /** @var list<State> states entered by the current outermost enterState() */
+    private array $entered = [];
 
     /**
      * state => ['emoji','label','onEnter'=>?callable,'polled'=>bool].
@@ -323,16 +331,34 @@ final class StateMachine
         if (State::NeedsTesting === $target && !$ctx->cfg->testingEnabled) {
             throw new PabloError('needs-testing is disabled for this project (testing.enabled: false)');
         }
-        $ctx->previousState = $ctx->task->state;
-        $ctx->task->state = $target;
-        $ctx->task->stateEnteredAt = $this->time->utcnow();
-        if (null !== $stateDef['onEnter'] && ($trigger || State::Waiting === $target)) {
-            ($stateDef['onEnter'])($ctx);
+        // A pass-through state (ready-to-review, approved) re-enters this
+        // method from its on-enter: only the outermost call fires the user's
+        // hook, once, for where the task finally settled.
+        $outermost = 0 === $this->depth;
+        if ($outermost) {
+            $this->entered = [];
         }
-        $ctx->store->save($ctx->task);
-        // Only after a successful save: a transition that failed to persist
-        // must not pollute the analytics timeline.
-        $this->analytics->stateEntered($ctx->task, $ctx->previousState);
+        $from = $ctx->task->state;
+        ++$this->depth;
+        try {
+            $ctx->previousState = $ctx->task->state;
+            $ctx->task->state = $target;
+            $ctx->task->stateEnteredAt = $this->time->utcnow();
+            $this->entered[] = $target;
+            if (null !== $stateDef['onEnter'] && ($trigger || State::Waiting === $target)) {
+                ($stateDef['onEnter'])($ctx);
+            }
+            $ctx->store->save($ctx->task);
+            // Only after a successful save: a transition that failed to persist
+            // must not pollute the analytics timeline.
+            $this->analytics->stateEntered($ctx->task, $ctx->previousState);
+        } finally {
+            --$this->depth;
+        }
+        if ($outermost) {
+            // Same rule as analytics: only a persisted transition notifies.
+            $this->hooks->transition($ctx->cfg, $ctx->task, $from, $this->entered);
+        }
     }
 
     public function toggleWaiting(TaskCtx $ctx): State

@@ -64,6 +64,11 @@ final class DoctorCommand extends Command
         if (null !== $detachWarning) {
             $output->writeln($detachWarning);
         }
+        // The user's hook command: a soft warning, never a failure.
+        $hookWarnings = $this->doctor->hookWarnings($projects);
+        if ([] !== $hookWarnings) {
+            $output->writeln($this->doctor->renderHookWarnings($hookWarnings));
+        }
         $failed = [] !== $configErrors || [] !== $projectErrors;
         foreach ($results as $r) {
             if (!$r->ok()) {
@@ -103,8 +108,12 @@ final class DoctorCommand extends Command
         foreach ($this->doctor->configErrors() as $error) {
             $checks[] = ['group' => 'config', 'name' => 'config', 'status' => 'fail', 'message' => $error, 'hint' => ''];
         }
-        foreach ($this->doctor->checkAll($this->projects()) as $r) {
+        $projects = $this->projects();
+        foreach ($this->doctor->checkAll($projects) as $r) {
             $checks[] = ['group' => 'cli', 'name' => $r->cli, 'status' => $r->ok() ? 'ok' : 'fail', 'message' => $r->detail, 'hint' => $r->hint, 'installed' => $r->installed, 'authenticated' => $r->authenticated];
+        }
+        foreach ($this->doctor->hookWarnings($projects) as $warning) {
+            $checks[] = ['group' => 'hooks', 'name' => 'hooks.command', 'status' => 'warn', 'message' => $warning, 'hint' => ''];
         }
         foreach ($this->agentStaleness->check() as $a) {
             $status = $a->ok() ? 'ok' : ($a->state->hard() ? 'fail' : 'warn');

@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Pablo\Config;
 
+use Pablo\Domain\State;
+
 /**
  * A parsed project configuration (frozen: all properties are readonly).
  */
 final class ProjectConfig
 {
     /**
-     * @param list<string> $botWhitelist
-     * @param list<string> $ciIgnoreChecks
+     * @param list<string>     $botWhitelist
+     * @param list<string>     $ciIgnoreChecks
+     * @param list<State>|null $hookStates     null: every transition fires the hook
      */
     public function __construct(
         public readonly string $name,
@@ -40,6 +43,9 @@ final class ProjectConfig
         public readonly bool $testingEnabled = true,
         public readonly bool $mainUpdateEnabled = true,
         public readonly int $mainUpdateInterval = 60,
+        public readonly ?string $hookCommand = null,
+        public readonly ?array $hookStates = null,
+        public readonly bool $hookAgentFinished = true,
     ) {
     }
 
@@ -73,6 +79,11 @@ final class ProjectConfig
             'default_model' => $this->defaultModel,
             'pr_description_locale' => $this->prDescriptionLocale,
             'branch_prefix' => $this->branchPrefix,
+            'hooks' => [
+                'command' => $this->hookCommand,
+                'states' => null !== $this->hookStates ? array_map(static fn (State $s): string => $s->value, $this->hookStates) : null,
+                'agent_finished' => $this->hookAgentFinished,
+            ],
         ];
     }
 }
