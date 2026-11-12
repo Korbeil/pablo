@@ -399,6 +399,22 @@ final class GitRepo implements GitRepoInterface
         return new AheadBehind((int) $left, (int) $right);
     }
 
+    /**
+     * Whether the local branch once pointed exactly at $remoteRef's tip (per
+     * its reflog): its commits are then the user's own pre-rewrite history,
+     * not a collaborator's push. An exact match, not ancestry: a sync that
+     * integrated the remote and was rolled back leaves only merge/rebase
+     * results in the reflog, and a fast-forward to the tip is excluded by the
+     * caller's "local has commits of its own" check.
+     */
+    private function wasLocalTip(string $wt, string $branch, string $remoteRef): bool
+    {
+        $tip = $this->git($wt, ['rev-parse', $remoteRef]);
+        $reflog = $this->git($wt, ['reflog', 'show', '--format=%H', "refs/heads/{$branch}", '--'], check: false);
+
+        return \in_array($tip, preg_split('/\r?\n/', $reflog) ?: [], true);
+    }
+
     public function syncWorktree(
         string $wt,
         string $branch,
@@ -426,7 +442,22 @@ final class GitRepo implements GitRepoInterface
 
         $remoteBranch = "{$remote}/{$branch}";
         $hasRemote = $this->refExists($wt, $remoteBranch);
-        $remoteNew = $hasRemote ? $this->counts($wt, $remoteBranch)->behind : 0;
+        $own = $hasRemote ? $this->counts($wt, $remoteBranch) : new AheadBehind(0, 0);
+        $remoteNew = $own->behind;
+
+        if ($remoteNew > 0 && $own->ahead > 0 && $this->wasLocalTip($wt, $branch, $remoteBranch)) {
+            // The remote holds an earlier version of this very branch: the user
+            // amended/rebased locally and has not pushed yet. Integrating it
+            // would replay the old commits over the rewrite (silently undoing
+            // it), and pushing would publish a rewrite the user hasn't chosen
+            // to publish. Leave the branch alone until they push.
+            return new SyncReport(
+                $wt,
+                $branch,
+                'local-rewrite',
+                detail: "local history was rewritten (amend/rebase) and not pushed; {$remoteBranch} still holds the old version. Push it (git push --force-with-lease) to resume sync",
+            );
+        }
 
         $target = $this->refExists($wt, "{$remote}/{$primary}") ? "{$remote}/{$primary}" : $primary;
         if (null !== $base && '' !== $base && $this->refExists($wt, "{$remote}/{$base}")) {

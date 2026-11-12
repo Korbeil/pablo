@@ -37,6 +37,7 @@ final class Sync
         'conflict' => '🚫',
         'lease-failed' => '🔁',
         'dirty' => '📝',
+        'local-rewrite' => '✏️',
         'locked' => '🔐',
         'skipped' => '⏭️',
         'error' => '❌',

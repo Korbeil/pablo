@@ -7,7 +7,7 @@
 <p>On each project's <code>sync.interval_minutes</code> (or when you run <code>pablo sync:run</code>), PABLO lists the repository's worktrees and syncs <b>only those that belong to an active task</b>. Other worktrees are left alone. For each one:</p>
 
 <ol>
-  <li><b>fetch</b>, and bring in the branch's own remote first, so a collaborator's push is never overwritten;</li>
+  <li><b>fetch</b>, and bring in the branch's own remote first, so a collaborator's push is never overwritten (when it only holds the old version of a local rewrite you haven't pushed, the branch is skipped instead: see <a href="#skipped-on-purpose">below</a>);</li>
   <li><b>rebase or merge</b> (per <code>sync.strategy</code>) onto <code>&lt;primary_remote&gt;/&lt;primary_branch&gt;</code>. For a <b>stacked pull request</b>, an open pull request targeting another branch, it uses that base branch instead, whatever the tracker. A merged or closed pull request's base is ignored, and a base that no longer exists falls back to the primary branch;</li>
   <li>if the history changed and the branch exists on the remote, <b>push with <code>--force-with-lease</code></b>, never plain <code>--force</code>. If the lease fails (someone pushed in the meantime), the worktree is rolled back and sync tries again next time.</li>
 </ol>
@@ -31,6 +31,7 @@ pablo sync:log               # what the last sync did, per project
   <li>🔒 <b>Busy tasks</b>: sync and the poller never work on the same task at the same time. A locked task is skipped and retried next time.</li>
   <li>⏭️ <b>Closed tasks</b>: a task in <code>closed</code> (pull request closed without merging) is never rebased or pushed; its worktree is only kept for a last look. It shows as <code>skipped</code> in the log. A paused (<code>waiting</code>) task, on the other hand, keeps being synced.</li>
   <li>❌ <b>Broken worktrees</b>: if git fails in one worktree (for example a worktree deleted by hand that git still lists), that task is reported as <code>error</code> with git's message and retried next time; the other tasks still sync and the log is still written. <code>git worktree prune</code> removes a deleted worktree from git's list.</li>
+  <li>✏️ <b>Unpushed rewrites</b> (<code>local-rewrite</code>): you amended, squashed or rebased the branch locally and haven't pushed it yet, so the remote branch still holds the old version. Bringing that "remote" in would replay your old commits over the rewrite and silently undo it, and pushing would publish a rewrite you haven't chosen to publish, so sync leaves the branch alone (dry run included) until you push it yourself with <code>git push --force-with-lease</code>. PABLO recognises the case when the remote tip is a commit your local branch pointed at before (its reflog) and the local branch has commits of its own; anything else on the remote, such as a collaborator's push, is brought in as usual.</li>
 </ul>
 
 <h3>Conflicts</h3>
