@@ -131,7 +131,11 @@ final class WatchAgentCommand extends Command
             if (null !== $launchedAt) {
                 $durationS = max(0, $this->time->parseTs($finishedAt)->getTimestamp() - $this->time->parseTs($launchedAt)->getTimestamp());
             }
-            $usage = $this->usage->harvest($task->worktreePath, $launchedAt ?? $finishedAt, '' !== $fingerprint ? $fingerprint : null);
+            // A startup script makes no LLM call: harvesting would pick up
+            // whatever agent session ran in the worktree meanwhile.
+            $usage = Agent::StartupScript->value === $agentName
+                ? null
+                : $this->usage->harvest($task->worktreePath, $launchedAt ?? $finishedAt, '' !== $fingerprint ? $fingerprint : null);
             $this->analytics->agentRunFinished(new AgentRunRecord(
                 project: $task->project,
                 branch: $task->branch,

@@ -64,10 +64,12 @@ final class HeadlessRunner
         return self::HANDLE_PREFIX.$pid;
     }
 
-    /** Run an arbitrary shell $command (e.g. a startup script). */
+    /** Run an arbitrary shell $command (e.g. a startup script) from $worktree. */
     public function launchCommand(string $worktree, string $label, string $command): string
     {
-        $pid = $this->exec($command, $label);
+        // Like launch(): never from the caller's cwd (the user's shell for
+        // task:start, the scheduler's for a relaunch).
+        $pid = $this->exec('cd '.escapeshellarg($worktree).' && '.$command, $label);
         $this->writePidfile($pid, $worktree, $label);
 
         return self::HANDLE_PREFIX.$pid;

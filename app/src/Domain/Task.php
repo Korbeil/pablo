@@ -58,12 +58,13 @@ final class Task
     /**
      * Has PABLO triggered an agent on this task whose run has concluded, so
      * the ball is with the user? The single source of truth for the
-     * "💭 Waiting for feedback" split.
+     * "💭 Waiting for feedback" split. The startup script is not an agent:
+     * its run ending hands nothing to the user.
      */
     public function hasFinishedAgent(): bool
     {
         foreach ($this->agentLaunches as $launch) {
-            if (null !== $launch->finishedAt) {
+            if (Agent::StartupScript !== $launch->agent && null !== $launch->finishedAt) {
                 return true;
             }
         }

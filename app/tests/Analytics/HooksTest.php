@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Pablo\Tests\Analytics;
 
 use Pablo\Agents\Runtime\OpenCode\OpenCodeUsage;
+use Pablo\Analytics\UsageHarvesterInterface;
+use Pablo\Analytics\UsageSnapshot;
 use Pablo\Command\Internal\WatchAgentCommand;
 use Pablo\Command\Task\CloseCommand;
 use Pablo\Command\Task\StartCommand;
@@ -127,6 +129,51 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
         $this->assertNull($record->usage);
         // The finishedAt stamping behaviour must be preserved alongside.
         $this->assertNotNull($this->getTask()->agentLaunches['task-analyst']->finishedAt);
+    }
+
+    /**
+     * internal:run-startup-script watches the script's handle: once it exits
+     * the launch is stamped finished (so the poller never re-runs it), with
+     * no usage harvested (no LLM call) and no "waiting for feedback" signal.
+     */
+    public function testWatcherStampsStartupScriptFinishedWithoutUsage(): void
+    {
+        $task = $this->getTask();
+        $task->agentLaunches['startup-script'] = new AgentLaunch(Agent::StartupScript, '2026-08-01T00:00:00+00:00', 1);
+        $this->store->save($task);
+
+        $cmd = new WatchAgentCommand(
+            $this->gh,
+            $this->repoSlug,
+            $this->time,
+            $this->store,
+            $this->projectsLoader,
+            $this->agentLaunchers,
+            $this->agents,
+            $this->analytics,
+            new class implements UsageHarvesterInterface {
+                public function harvest(string $worktree, string $launchedAt, ?string $fingerprint): ?UsageSnapshot
+                {
+                    throw new \LogicException('a startup script has no usage to harvest');
+                }
+            },
+        );
+        $input = new ArrayInput([
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+            '--handle' => 'pid:999999', // dead: the wait returns at once
+            '--agent' => 'startup-script',
+            '--backend' => 'headless',
+        ]);
+        $input->bind($cmd->getDefinition());
+        $this->assertSame(0, $cmd->run($input, new NullOutput()));
+
+        $launch = $this->getTask()->agentLaunches['startup-script'];
+        $this->assertNotNull($launch->finishedAt);
+        $this->assertTrue($launch->reported);
+        $this->assertCount(1, $this->analytics->runsFinished);
+        $this->assertNull($this->analytics->runsFinished[0]->usage);
+        $this->assertFalse($this->getTask()->hasFinishedAgent());
     }
 
     public function testWatcherWithoutAgentRecordsNoRunEvent(): void
