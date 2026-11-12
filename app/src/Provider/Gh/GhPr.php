@@ -320,23 +320,23 @@ GQL;
     }
 
     /**
-     * @param list<ReviewNode> $reviews
-     * @param list<string>     $botWhitelist
-     */
-    /**
      * @param list<ReviewNode>   $reviews
      * @param list<ReviewThread> $threads
      * @param list<string>       $botWhitelist
      */
     public function evaluateReviews(array $reviews, array $threads, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
     {
+        // GraphQL spells a bot's login without the "[bot]" suffix the REST
+        // API and the GitHub UI show: accept both spellings in the whitelist.
+        $botLogin = static fn (string $login): string => str_ends_with($login, '[bot]') ? substr($login, 0, -5) : $login;
+        $allowedBots = array_map($botLogin, $botWhitelist);
         $latest = [];
         foreach ($reviews as $node) {
             $reviewAuthor = $node->login;
             if ('' === $reviewAuthor || $reviewAuthor === $author) {
                 continue;
             }
-            if ($node->isBot() && !\in_array($reviewAuthor, $botWhitelist, true)) {
+            if ($node->isBot() && !\in_array($botLogin($reviewAuthor), $allowedBots, true)) {
                 continue;
             }
             if (!\in_array($node->state, ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED'], true)) {
@@ -357,6 +357,10 @@ GQL;
         // counts as addressed. CHANGES_REQUESTED is an explicit verdict on its
         // own and ignores thread state. An unknown review id (never in
         // production) keeps counting rather than silently dropping the signal.
+        // A bot's review body is its summary (Copilot writes one on every
+        // review, "approval recommended" included), not feedback to address:
+        // a whitelisted bot's comment review counts only through its
+        // unresolved threads.
         $unresolved = [];
         foreach ($threads as $thread) {
             if ($thread->resolved) {
@@ -368,7 +372,8 @@ GQL;
         }
         $verdicts = [];
         foreach ($latest as $node) {
-            if ('COMMENTED' === $node->state && '' === $node->body && '' !== $node->id
+            $body = $node->isBot() ? '' : $node->body;
+            if ('COMMENTED' === $node->state && '' === $body && '' !== $node->id
                 && !isset($unresolved[$node->id])) {
                 continue;
             }

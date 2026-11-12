@@ -167,6 +167,37 @@ final class GhPrTest extends TestCase
         $this->assertSame('changes', $this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', ['sonar[bot]']));
     }
 
+    public function testBotWhitelistAcceptsLoginWithOrWithoutBotSuffix(): void
+    {
+        // GraphQL reports Copilot as "copilot-pull-request-reviewer", the UI
+        // and REST API as "copilot-pull-request-reviewer[bot]".
+        $reviews = [self::review('copilot-pull-request-reviewer', 'COMMENTED', '2026-07-21T10:00:00Z', 'Bot', id: 'r1')];
+        $threads = [self::thread(false, 'r1')];
+        foreach (['copilot-pull-request-reviewer', 'copilot-pull-request-reviewer[bot]'] as $listed) {
+            $this->assertSame('changes', $this->svc()->evaluateReviews($reviews, $threads, new \DateTimeImmutable(self::ANCHOR), 'me', [$listed]));
+        }
+    }
+
+    public function testWhitelistedBotSummaryBodyAloneDoesNotCount(): void
+    {
+        // Copilot writes an overview on every review, even "approval
+        // recommended": without an unresolved thread there is nothing to address.
+        $reviews = [self::review('copilot-pull-request-reviewer', 'COMMENTED', '2026-07-21T10:00:00Z', 'Bot', id: 'r1', body: '### 🟢 Approval recommended')];
+        $whitelist = ['copilot-pull-request-reviewer'];
+        $this->assertNull($this->svc()->evaluateReviews($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', $whitelist));
+        $this->assertNull($this->svc()->evaluateReviews($reviews, [self::thread(true, 'r1')], new \DateTimeImmutable(self::ANCHOR), 'me', $whitelist));
+    }
+
+    public function testWhitelistedBotUnresolvedThreadCounts(): void
+    {
+        $reviews = [self::review('copilot-pull-request-reviewer', 'COMMENTED', '2026-07-21T10:00:00Z', 'Bot', id: 'r1', body: '### 🟡 Changes recommended')];
+        $this->assertSame('changes', $this->svc()->evaluateReviews(
+            $reviews,
+            [self::thread(false, 'r1')],
+            new \DateTimeImmutable(self::ANCHOR), 'me', ['copilot-pull-request-reviewer'],
+        ));
+    }
+
     public function testReviewsBeforeAnchorIgnored(): void
     {
         $reviews = [self::review('alice', 'CHANGES_REQUESTED', '2026-07-19T10:00:00Z')];
