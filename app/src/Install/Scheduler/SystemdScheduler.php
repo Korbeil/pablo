@@ -27,10 +27,10 @@ final class SystemdScheduler implements SchedulerInterface
     ) {
     }
 
-    public function install(string $pabloBin, bool $withWeb, \Closure $info): void
+    public function install(string $pabloBin, bool $withWeb, string $path, \Closure $info): void
     {
         foreach (self::DISPATCH_UNITS as $unit) {
-            $this->writeUnit($unit);
+            $this->writeUnit($unit, $path);
             $info("wrote {$this->unitDir}/{$unit}");
         }
         // User units only start at boot if the user lingers; otherwise systemd
@@ -45,7 +45,7 @@ final class SystemdScheduler implements SchedulerInterface
 
         $web = $this->unitDir.'/'.self::WEB_UNIT;
         if ($withWeb) {
-            $this->writeUnit(self::WEB_UNIT);
+            $this->writeUnit(self::WEB_UNIT, $path);
             $info("wrote {$web}");
             $this->systemctl(['daemon-reload']);
             $this->systemctl(['enable', '--now', self::WEB_UNIT]);
@@ -89,9 +89,19 @@ final class SystemdScheduler implements SchedulerInterface
         );
     }
 
-    private function writeUnit(string $unit): void
+    private function writeUnit(string $unit, string $path): void
     {
-        ServiceFiles::write($this->unitDir.'/'.$unit, $unit, ServiceFiles::bundled($this->sourceDir.'/'.$unit));
+        $content = str_replace('@PATH@', self::escape($path), ServiceFiles::bundled($this->sourceDir.'/'.$unit));
+        ServiceFiles::write($this->unitDir.'/'.$unit, $unit, $content);
+    }
+
+    /**
+     * $value inside a quoted Environment="…" assignment: % starts a systemd
+     * specifier, \ and " are C-style escapes there.
+     */
+    private static function escape(string $value): string
+    {
+        return str_replace(['\\', '"', '%'], ['\\\\', '\\"', '%%'], $value);
     }
 
     /**

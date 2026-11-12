@@ -33,6 +33,7 @@ trait InstallSandbox
     private const ISOLATED_ENV = [
         'HOME', 'PATH', 'SHELL', 'ZDOTDIR', 'PABLO_CONFIG', 'PABLO_PROJECTS_DIR', 'PABLO_RUNTIME_DIR',
         'PABLO_CLAUDE_DIR', 'PABLO_AGENT_RUNTIME', 'PABLO_AGENT_BACKEND', 'CLAUDE_CONFIG_DIR', 'COPILOT_HOME',
+        'ORCA_CLI_COMMAND',
     ];
 
     private string $sandbox;

@@ -76,6 +76,7 @@ final class GlobalConfig
             'claude_code' => \is_array($data['claude_code'] ?? null) ? $data['claude_code'] : [],
             'dashboard_port' => $data['dashboard_port'] ?? null,
             'dashboard_trusted_hosts' => $data['dashboard_trusted_hosts'] ?? null,
+            'scheduler' => \is_array($data['scheduler'] ?? null) ? $data['scheduler'] : [],
         ];
     }
 
@@ -107,6 +108,31 @@ final class GlobalConfig
         }
 
         return array_keys($normalized);
+    }
+
+    /**
+     * `scheduler.path`: extra directories `system:install` puts first on the
+     * background services' PATH — a list, or one colon-separated string.
+     *
+     * @return list<string>
+     *
+     * @throws PabloError when it is neither
+     */
+    public function schedulerPath(): array
+    {
+        $scheduler = $this->defaults()['scheduler'] ?? [];
+        $value = \is_array($scheduler) ? ($scheduler['path'] ?? null) : null;
+        if (null === $value) {
+            return [];
+        }
+        if (\is_string($value)) {
+            $value = explode(':', $value);
+        }
+        if (!\is_array($value) || [] !== array_filter($value, static fn (mixed $dir): bool => !\is_string($dir))) {
+            throw new PabloError('config.yaml: scheduler.path must be a list of directories (or a colon-separated string)');
+        }
+
+        return array_values(array_filter(array_map(trim(...), $value), static fn (string $dir): bool => '' !== $dir));
     }
 
     /**
