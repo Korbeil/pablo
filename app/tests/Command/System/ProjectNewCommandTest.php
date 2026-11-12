@@ -87,7 +87,7 @@ YAML;
 
     public function testHappyPathJiraWithDefaults(): void
     {
-        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -129,7 +129,7 @@ YAML;
     {
         $this->git->originUrl = static fn (string $repo) => 'git@github.com:stripe/payment-kit.git';
 
-        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -160,7 +160,7 @@ YAML;
 
     public function testHappyPathLinear(): void
     {
-        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -191,7 +191,7 @@ YAML;
 
     public function testWithFailureSignal(): void
     {
-        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -220,7 +220,7 @@ YAML;
 
     public function testDisablingTestingSkipsFailureSignalQuestion(): void
     {
-        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -262,7 +262,7 @@ issue_tracker:
   project_key: EX
 YAML);
 
-        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -290,7 +290,7 @@ YAML);
 
     public function testAbortsOnNoConfirm(): void
     {
-        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         $tester->setInputs([
@@ -368,7 +368,7 @@ YAML);
     /** @return array{0: ProjectNewCommand, 1: FakeGenerateAgentsCommand} */
     private function wiredCommand(): array
     {
-        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new ProjectNewCommand($this->git, new \Pablo\Store\Store(), new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $fake = new FakeGenerateAgentsCommand();
         $application = new Application();
         $application->addCommand($command);

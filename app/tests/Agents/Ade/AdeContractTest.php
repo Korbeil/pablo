@@ -73,7 +73,7 @@ final class AdeContractTest extends TestCase
     public function testFactoryBuildsTheConfiguredAde(string $name): void
     {
         $this->writeGlobalConfig("agent_backend: {$name}\n");
-        $factory = new \Pablo\Agents\AgentLauncherFactory(new GlobalConfig());
+        $factory = new \Pablo\Agents\AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner());
         $this->assertSame($name, $factory->ade()->name());
         $this->assertInstanceOf(AgentLauncherInterface::class, $factory->create());
     }

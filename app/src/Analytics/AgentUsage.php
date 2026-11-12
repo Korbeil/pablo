@@ -6,7 +6,6 @@ namespace Pablo\Analytics;
 
 use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
-use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -17,8 +16,8 @@ use Pablo\Support\ProcessRunnerInterface;
 final class AgentUsage implements UsageHarvesterInterface
 {
     public function __construct(
+        private readonly ProcessRunnerInterface $runner,
         private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
-        private readonly ProcessRunnerInterface $runner = new ProcessRunner(),
         private readonly AdeRegistry $ades = new AdeRegistry(),
     ) {
     }

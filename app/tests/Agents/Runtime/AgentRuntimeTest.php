@@ -231,7 +231,7 @@ final class AgentRuntimeTest extends TestCase
     public function testFactoryRefusesOpenChamberWithClaudeCode(): void
     {
         $this->writeGlobalConfig("agent_runtime: claude-code\nagent_backend: openchamber\n");
-        $factory = new AgentLauncherFactory(new GlobalConfig());
+        $factory = new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner());
         try {
             $factory->create();
             $this->fail('OpenChamber + Claude Code must be refused');

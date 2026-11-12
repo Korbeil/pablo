@@ -8,7 +8,6 @@ use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AgentRunRecord;
-use Pablo\Analytics\AgentUsage;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\NullAnalytics;
 use Pablo\Analytics\UsageHarvesterInterface;
@@ -37,8 +36,8 @@ final class WatchAgentCommand extends Command
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
         AgentLauncherInterface $agents,
+        private readonly UsageHarvesterInterface $usage,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
-        private readonly UsageHarvesterInterface $usage = new AgentUsage(),
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }

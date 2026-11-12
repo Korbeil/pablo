@@ -103,8 +103,8 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
             $this->projectsLoader,
             $this->agentLaunchers,
             $this->agents,
-            $this->analytics,
             new OpenCodeUsage($this->runner),
+            $this->analytics,
         );
         $input = new ArrayInput([
             '--project' => 'wallet-kit',
@@ -186,8 +186,8 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
             $this->projectsLoader,
             $this->agentLaunchers,
             $this->agents,
-            $this->analytics,
             new OpenCodeUsage($this->runner),
+            $this->analytics,
         );
         $input = new ArrayInput([
             '--project' => 'wallet-kit',

@@ -279,7 +279,7 @@ final class UpdateCommandTest extends TestCase
 
     private function command(Updater $updater): UpdateCommand
     {
-        $command = new UpdateCommand($updater, new SchedulerFactory($this->runner, 'Linux'), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), new FakeAgents());
+        $command = new UpdateCommand($updater, new SchedulerFactory($this->runner, 'Linux'), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), $this->runner), new FakeAgents());
         (new Application())->addCommand($command);
 
         return $command;

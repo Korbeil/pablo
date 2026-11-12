@@ -36,7 +36,7 @@ final class DispatchTest extends TestCase
         $this->runner = new \Pablo\Tests\FakeProcessRunner();
         $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
         $global = new \Pablo\Config\GlobalConfig();
-        $doctor = new Doctor($this->runner, new \Pablo\Agents\AgentLauncherFactory($global), static fn (string $name): string => '/usr/bin/'.$name);
+        $doctor = new Doctor($this->runner, new \Pablo\Agents\AgentLauncherFactory($global, $this->runner), static fn (string $name): string => '/usr/bin/'.$name);
         $time = new \Pablo\Domain\Time();
         $git = $this->git = new \Pablo\Tests\FakeGit();
         $gh = new \Pablo\Tests\FakeGhPr();
@@ -44,9 +44,9 @@ final class DispatchTest extends TestCase
         $providers = new \Pablo\Tests\StubProviders();
         $sm = new \Pablo\StateMachine\StateMachine($gh, $providers, $repoSlug, $time);
         $sync = new \Pablo\Provider\Git\Sync($git, $gh, $repoSlug, $this->runner, $time);
-        $poller = new \Pablo\Poller\Poller($gh, $git, $providers, $repoSlug, $sm, $time);
+        $poller = new \Pablo\Poller\Poller($gh, $git, $providers, $repoSlug, $sm, $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner));
         $stamps = new \Pablo\Dispatch\Stamps();
-        $this->dispatch = new Dispatch($doctor, $sync, $poller, new \Pablo\Agents\AgentLauncherFactory($global), $stamps, $git);
+        $this->dispatch = new Dispatch($doctor, $sync, $poller, new \Pablo\Agents\AgentLauncherFactory($global, $this->runner), $stamps, $git);
         $fh = fopen('/dev/null', 'w');
         \assert(false !== $fh);
         $this->dispatch->stderr = $fh;

@@ -10,7 +10,6 @@ use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
-use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -37,7 +36,7 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
     public const SESSION_TIMEOUT_S = 60;
 
     public function __construct(
-        ProcessRunnerInterface $runner = new ProcessRunner(),
+        ProcessRunnerInterface $runner,
         Time $time = new Time(),
         ?Store $store = null,
         ?string $shimPath = null,

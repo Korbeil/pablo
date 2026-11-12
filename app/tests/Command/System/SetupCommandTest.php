@@ -48,7 +48,7 @@ YAML;
         /** @var callable|null */
         $onWhich = $this->onWhich;
 
-        return new Doctor($this->runner, new AgentLauncherFactory(new GlobalConfig()), $onWhich);
+        return new Doctor($this->runner, new AgentLauncherFactory(new GlobalConfig(), $this->runner), $onWhich);
     }
 
     /** @var callable|null */
@@ -114,7 +114,7 @@ YAML;
             $this->doctor(),
             new Store(),
             new Config(new GlobalConfig()),
-            new AgentLauncherFactory(new GlobalConfig()),
+            new AgentLauncherFactory(new GlobalConfig(), $this->runner),
             new FakeAgents(),
         );
         $tester = new CommandTester($command);

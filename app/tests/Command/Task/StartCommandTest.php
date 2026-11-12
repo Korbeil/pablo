@@ -227,7 +227,7 @@ YAML,
         $registry = $this->currentProviders;
         $gh = new FakeGhPr();
         $sm = new StateMachine($gh, $registry, $repoSlug, $time);
-        $factory = new AgentLauncherFactory($global);
+        $factory = new AgentLauncherFactory($global, new FakeProcessRunner());
         $starter = new TaskStarter(
             $this->currentProviders,
             new Naming(),

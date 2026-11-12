@@ -227,7 +227,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::RequestChanges;
         $this->store->save($task);
-        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new FakeAnalytics(), new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner)), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), new FakeAnalytics()), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -240,7 +240,7 @@ final class TaskLifecycleTest extends CommandTestBed
 
     public function testWatchAgentSkipsWhenStateMovedOn(): void
     {
-        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new FakeAnalytics(), new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner)), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), new FakeAnalytics()), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -257,7 +257,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, '2026-08-11T00:00:00+00:00', 1);
         $this->store->save($task);
 
-        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new FakeAnalytics(), new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner)), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), new FakeAnalytics()), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -287,7 +287,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->store->save($task);
 
         $analytics = new FakeAnalytics();
-        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, $analytics, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner)), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->gh, $this->repoSlug, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), $analytics), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',

@@ -120,7 +120,7 @@ YAML);
     private function runRemove(array $input): CommandTester
     {
         $application = new Application();
-        $application->addCommand(new ProjectRemoveCommand($this->store, new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents()));
+        $application->addCommand(new ProjectRemoveCommand($this->store, new Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents()));
         $application->addCommand($this->fakeGenerateAgents);
 
         $tester = new CommandTester($application->find('project:remove'));

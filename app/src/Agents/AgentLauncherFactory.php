@@ -11,7 +11,6 @@ use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Config\GlobalConfig;
 use Pablo\Domain\Time;
 use Pablo\Support\PabloError;
-use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -20,14 +19,15 @@ use Pablo\Support\ProcessRunnerInterface;
  *
  * ADE and runtime are resolved per call — env override first, then the
  * global config — never at container compile time (the compiled container is
- * cached under app/var/cache/<env>). Collaborators default to real
- * implementations in the signature so hand-rolled instances stay simple.
+ * cached under app/var/cache/<env>). The process runner is required (never
+ * defaulted to a real one) so a hand-rolled instance cannot reach real CLIs
+ * by omission.
  */
 final class AgentLauncherFactory
 {
     public function __construct(
         private readonly GlobalConfig $globalConfig,
-        private readonly ProcessRunnerInterface $runner = new ProcessRunner(),
+        private readonly ProcessRunnerInterface $runner,
         private readonly Time $time = new Time(),
         private ?AgentRuntimeRegistry $runtimes = null,
         private ?AdeRegistry $ades = null,

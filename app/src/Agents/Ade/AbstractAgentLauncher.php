@@ -12,7 +12,6 @@ use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
 use Pablo\Support\PabloPaths;
-use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -57,16 +56,16 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     }
 
     /**
-     * Collaborators default to real implementations right in the signature so
-     * hand-rolled test instances stay simple; the ADE always passes its
-     * own injected ones through.
+     * The process runner is required: a default real one would let a test that
+     * forgets it reach real CLIs. Side-effect-free collaborators (Time) keep
+     * a default; the ADE always passes its own injected ones through.
      *
      * @param string      $ade      the `agent_backend` the detached subprocesses re-resolve
      * @param string|null $shimPath absolute path used for detached self-reinvocation
      */
     public function __construct(
         private readonly string $ade,
-        protected readonly ProcessRunnerInterface $runner = new ProcessRunner(),
+        protected readonly ProcessRunnerInterface $runner,
         protected readonly Time $time = new Time(),
         ?Store $store = null,
         ?string $shimPath = null,

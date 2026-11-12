@@ -6,7 +6,6 @@ namespace Pablo\Poller;
 
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AgentRunRecord;
-use Pablo\Analytics\AgentUsage;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\NullAnalytics;
 use Pablo\Analytics\UsageHarvesterInterface;
@@ -54,8 +53,8 @@ final class Poller
         private readonly RepoSlug $repoSlug,
         private readonly StateMachine $stateMachine,
         private readonly Time $time,
+        private readonly UsageHarvesterInterface $usage,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
-        private readonly UsageHarvesterInterface $usage = new AgentUsage(),
     ) {
     }
 

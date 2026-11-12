@@ -191,7 +191,7 @@ final class CopilotRuntimeTest extends TestCase
         $this->assertSame('copilot', $resolver->resolveName());
         $this->assertInstanceOf(CopilotRuntime::class, $resolver->resolve());
 
-        $factory = new AgentLauncherFactory(new GlobalConfig());
+        $factory = new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner());
         $launcher = $factory->create('orca');
         $this->assertInstanceOf(OrcaLauncher::class, $launcher);
         $this->assertSame(CopilotRuntime::NAME, $launcher->runtime()->name());
