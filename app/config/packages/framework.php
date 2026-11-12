@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Pablo\Web\TrustedHosts;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 /*
@@ -19,13 +20,11 @@ return static function (ContainerConfigurator $container): void {
 
     $container->extension('framework', [
         'secret' => '%env(default:pablo.secret_fallback:PABLO_SECRET)%',
-        // The dashboard only listens on 127.0.0.1 (Pablo\Web\PhpServer), but a
-        // web page whose host name re-resolves to 127.0.0.1 (DNS rebinding)
-        // would become same-origin and could drive its write actions (New
-        // task, Force state, Skip CI). Its requests carry that foreign Host
-        // header: answer them with a 400. Symfony strips the port before
-        // matching and wraps each pattern as {pattern}i, hence the anchors.
-        'trusted_hosts' => ['^(?:127\.0\.0\.1|localhost)$'],
+        // Loopback only here (see Pablo\Web\TrustedHosts for why). The user's
+        // dashboard_trusted_hosts is added per request by
+        // TrustedHostsSubscriber: a value read from ~/.pablo/config.yaml at
+        // compile time would freeze in the cached container.
+        'trusted_hosts' => [TrustedHosts::LOOPBACK_PATTERN],
         'session' => ['enabled' => false],
         'router' => ['utf8' => true],
         'asset_mapper' => [

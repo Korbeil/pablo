@@ -188,6 +188,41 @@ final class DashboardControllerTest extends WebTestCase
         }
     }
 
+    public function testServesTheConfiguredTrustedHostsToo(): void
+    {
+        file_put_contents($this->configPath, "\ndashboard_trusted_hosts: [pablo.home.arpa]\n", \FILE_APPEND);
+        $client = $this->browser();
+
+        $client->request('GET', '/', server: ['HTTP_HOST' => 'Pablo.Home.Arpa:8321']);
+        $this->assertResponseIsSuccessful();
+        $client->request('GET', '/', server: ['HTTP_HOST' => '127.0.0.1:8321']);
+        $this->assertResponseIsSuccessful();
+
+        // Exact names only: neither a sub-domain nor another host gets in.
+        $client->catchExceptions(false);
+        foreach (['evil.pablo.home.arpa', 'evil.example'] as $host) {
+            try {
+                $client->request('GET', '/', server: ['HTTP_HOST' => $host]);
+                $this->fail("a request for host {$host} was served");
+            } catch (BadRequestHttpException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function testAnInvalidTrustedHostsValueFailsClosed(): void
+    {
+        file_put_contents($this->configPath, "\ndashboard_trusted_hosts: ['*.home.arpa']\n", \FILE_APPEND);
+        $client = $this->browser();
+
+        $client->request('GET', '/', server: ['HTTP_HOST' => 'localhost']);
+        $this->assertResponseIsSuccessful();
+
+        $client->catchExceptions(false);
+        $this->expectException(BadRequestHttpException::class);
+        $client->request('GET', '/', server: ['HTTP_HOST' => 'x.home.arpa']);
+    }
+
     public function testTablesAreOrderedAttentionRest(): void
     {
         // ci-red alone is not enough — an agent must actually be blocked on us.
