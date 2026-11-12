@@ -19,7 +19,7 @@ use Pablo\Support\ProcessRunnerInterface;
  */
 final class Jira implements Provider
 {
-    public const JIRA_CALL_TIMEOUT_S = 30;
+    private const JIRA_CALL_TIMEOUT_S = 30;
 
     private const FIELDS = 'summary,status';
 

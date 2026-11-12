@@ -16,7 +16,7 @@ use Pablo\Support\RepoSlug;
  */
 final class Github implements Provider
 {
-    public const GH_CALL_TIMEOUT_S = 20;
+    private const GH_CALL_TIMEOUT_S = 20;
 
     private const STATUS = ['OPEN' => 'To Do', 'CLOSED' => 'Done'];
 

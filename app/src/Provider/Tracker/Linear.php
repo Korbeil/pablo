@@ -15,6 +15,13 @@ use Pablo\Support\ProcessRunnerInterface;
  */
 final class Linear implements Provider
 {
+    /**
+     * The linear CLI is a Deno binary making GraphQL calls to api.linear.app;
+     * `issue view` returns the whole history and `issue list` may paginate,
+     * so allow the same headroom as acli rather than gh's 20 s.
+     */
+    private const LINEAR_CALL_TIMEOUT_S = 30;
+
     public function __construct(
         private readonly ProcessRunnerInterface $runner,
         private readonly Time $time,
@@ -47,7 +54,7 @@ final class Linear implements Provider
     /** @return array<string, mixed> */
     private function view(string $key): array
     {
-        $out = $this->runner->run(self::viewCommand($key));
+        $out = $this->runner->run(self::viewCommand($key), timeout: self::LINEAR_CALL_TIMEOUT_S);
         /** @var array<string, mixed> $data */
         $data = json_decode($out, true);
 
@@ -76,7 +83,7 @@ final class Linear implements Provider
 
     public function listAssigned(ProjectConfig $cfg): array
     {
-        $out = $this->runner->run(['linear', 'issue', 'list', '--assignee', $cfg->identity, '--json']);
+        $out = $this->runner->run(['linear', 'issue', 'list', '--assignee', $cfg->identity, '--json'], timeout: self::LINEAR_CALL_TIMEOUT_S);
         $issues = [];
         /** @var array<int, array<string, mixed>> $items */
         $items = json_decode($out, true);
@@ -99,6 +106,7 @@ final class Linear implements Provider
             $issues,
             static fn (string $key): array => self::viewCommand($key),
             self::statusOf(...),
+            self::LINEAR_CALL_TIMEOUT_S,
         );
     }
 
