@@ -1,0 +1,38 @@
+name: setup
+description: >-
+  PHP, Composer's download cache, Castor and its remote packages (.castor/),
+  set up the same way for every CI job.
+
+inputs:
+  php-version:
+    description: PHP version to install
+    default: "8.5"
+
+runs:
+  using: composite
+  steps:
+    # On the PATH as well as for Composer: php-cs-fixer's parallel workers run
+    # on the PATH's php, not castor's (the runner's PHP is too old for its deps).
+    - name: setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ inputs.php-version }}
+        coverage: none
+        tools: composer
+        extensions: mbstring, dom, xml, simplexml
+    - name: cache composer
+      uses: actions/cache@v6
+      with:
+        path: ~/.cache/composer
+        key: composer-${{ runner.os }}-php${{ inputs.php-version }}-${{ hashFiles('app/composer.lock', 'site/build/composer.lock') }}
+        restore-keys: |
+          composer-${{ runner.os }}-php${{ inputs.php-version }}-
+    - name: setup castor
+      uses: castor-php/setup-castor@v1
+    - name: cache castor
+      uses: actions/cache@v6
+      with:
+        path: .castor
+        key: castor-${{ runner.os }}-${{ hashFiles('castor.composer.json', 'castor.composer.lock', 'castor.php') }}
+        restore-keys: |
+          castor-${{ runner.os }}-
