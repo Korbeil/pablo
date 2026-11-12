@@ -43,7 +43,7 @@ final class RepairMergeFlagsCommand extends Command
     {
         $this
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'report what would change without rewriting any file')
-            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'restrict the repair to one project');
+            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'restrict the repair to one project', null, $this->suggestions()->projectCompleter());
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

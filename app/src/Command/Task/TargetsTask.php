@@ -7,6 +7,7 @@ namespace Pablo\Command\Task;
 use Pablo\Domain\Task;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Support\PabloError;
+use Symfony\Component\Console\Completion\CompletionInput;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -24,11 +25,26 @@ use Symfony\Component\Console\Input\InputOption;
  */
 trait TargetsTask
 {
-    protected function addTaskTarget(): static
+    /**
+     * Shell completion offers the recorded task branches (narrowed by a
+     * --project already typed) plus $extraBranches, and the configured
+     * projects for --project.
+     *
+     * @param list<string> $extraBranches extra values completed for <branch> (e.g. task:info's `current`)
+     */
+    protected function addTaskTarget(array $extraBranches = []): static
     {
+        $branches = $this->suggestions()->branchCompleter();
+
         return $this
-            ->addArgument('branch', InputArgument::OPTIONAL, 'task branch to act on instead of the cwd\'s task')
-            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'project owning <branch> (needed only when several projects have a task with that branch)')
+            ->addArgument(
+                'branch',
+                InputArgument::OPTIONAL,
+                'task branch to act on instead of the cwd\'s task',
+                null,
+                [] === $extraBranches ? $branches : static fn (CompletionInput $input): array => [...$extraBranches, ...$branches($input)],
+            )
+            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'project owning <branch> (needed only when several projects have a task with that branch)', null, $this->suggestions()->projectCompleter())
             ->addOption('worktree', null, InputOption::VALUE_REQUIRED, 'task worktree path to act on instead of the cwd');
     }
 

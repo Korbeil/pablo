@@ -6,6 +6,7 @@ namespace Pablo\Command;
 
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Completion\Suggestions;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
 use Pablo\StateMachine\TaskCtx;
@@ -54,6 +55,12 @@ abstract class Command extends SymfonyCommand
         foreach ($this->projectsLoader->projectErrors() as $file => $error) {
             $err->writeln("pablo: warning: skipping invalid project config {$file}: {$error}");
         }
+    }
+
+    /** Shell-completion values, from local files only (see Suggestions). */
+    protected function suggestions(): Suggestions
+    {
+        return new Suggestions($this->store, $this->projectsLoader);
     }
 
     protected function agents(): AgentLauncherInterface

@@ -22,6 +22,7 @@ use Pablo\Install\PabloCommand;
 use Pablo\Install\PathRc;
 use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Install\Scheduler\SchedulerPath;
+use Pablo\Install\ShellCompletion;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
@@ -37,8 +38,9 @@ use Symfony\Component\Console\Output\OutputInterface;
  *
  *  1. ~/.pablo/config.yaml seeded from the bundled example (an existing one
  *     is kept, except for the keys --runtime / --backend set);
- *  2. ~/.local/bin/pablo: this binary (or, from a checkout, a shim), and
- *     ~/.local/bin on the PATH;
+ *  2. ~/.local/bin/pablo: this binary (or, from a checkout, a shim),
+ *     ~/.local/bin on the PATH, and the shell completion of the user's shell
+ *     (unless --without-completion);
  *  3. the agents, commands and skills rendered into ~/.pablo/runtime and
  *     linked into the selected runtime's user directory (~/.config/opencode,
  *     ~/.claude, …) — never over a pre-existing file that is not PABLO's;
@@ -68,9 +70,11 @@ final class InstallCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('runtime', null, InputOption::VALUE_REQUIRED, implode(' | ', AgentRuntimeRegistry::NAMES).': record it in ~/.pablo/config.yaml')
-            ->addOption('backend', null, InputOption::VALUE_REQUIRED, implode(' | ', AdeRegistry::NAMES).': record it in ~/.pablo/config.yaml')
+            ->addOption('runtime', null, InputOption::VALUE_REQUIRED, implode(' | ', AgentRuntimeRegistry::NAMES).': record it in ~/.pablo/config.yaml', null, AgentRuntimeRegistry::NAMES)
+            ->addOption('backend', null, InputOption::VALUE_REQUIRED, implode(' | ', AdeRegistry::NAMES).': record it in ~/.pablo/config.yaml', null, AdeRegistry::NAMES)
             ->addOption('without-web', null, InputOption::VALUE_NONE, 'do not install the dashboard service (and remove a previously installed one)')
+            ->addOption('without-completion', null, InputOption::VALUE_NONE, 'do not install the shell completion, now or on later installs (shell_completion: false), and remove an installed one')
+            ->addOption('with-completion', null, InputOption::VALUE_NONE, 'install the shell completion again after --without-completion (shell_completion: true)')
             ->addOption('port', null, InputOption::VALUE_REQUIRED, 'port of the dashboard: record it in ~/.pablo/config.yaml (dashboard_port)');
     }
 
@@ -83,12 +87,17 @@ final class InstallCommand extends Command
         $backendOption = self::option($input, 'backend');
         $portOption = self::option($input, 'port');
         $withWeb = !$input->getOption('without-web');
+        $withoutCompletion = (bool) $input->getOption('without-completion');
+        $withCompletion = (bool) $input->getOption('with-completion');
 
         // 0. Bad options are refused before anything is touched; so is a
         //    platform without a scheduler, and an invalid scheduler.path.
         ConfigSeeder::validate($runtimeOption, $backendOption);
         if (null !== $portOption && !GlobalConfig::isPort($portOption)) {
             throw new PabloError("invalid --port {$portOption}: expected a number between 1 and 65535");
+        }
+        if ($withoutCompletion && $withCompletion) {
+            throw new PabloError('--with-completion and --without-completion cannot be used together');
         }
         $scheduler = $this->schedulers->create();
         $this->globalConfig->schedulerPath();
@@ -102,6 +111,9 @@ final class InstallCommand extends Command
             ConfigSeeder::set($this->globalConfig->configPath(), 'dashboard_port', (string) (int) $portOption);
             $info('dashboard port: '.(int) $portOption);
         }
+        if ($withoutCompletion || $withCompletion) {
+            ConfigSeeder::set($this->globalConfig->configPath(), 'shell_completion', $withCompletion ? 'true' : 'false');
+        }
 
         // 2. pablo on the PATH.
         $info(PabloCommand::place(InstallPaths::binPath(), PabloPaths::pharPath(), PabloPaths::resourcesDir().'/app/bin/pablo'));
@@ -111,6 +123,7 @@ final class InstallCommand extends Command
             PathRc::rcFile((string) getenv('SHELL'), PabloPaths::home(), \PHP_OS_FAMILY, getenv('ZDOTDIR') ?: null),
         );
         $info($rc['message']);
+        $this->shellCompletion($info);
 
         // 3. Agents, commands and skills: rendered into ~/.pablo/runtime, then linked.
         $info("generating the {$runtime->name()} agent definitions into ".PabloPaths::runtimeDir());
@@ -190,6 +203,23 @@ final class InstallCommand extends Command
             $this->globalConfig->schedulerPath(),
             $this->schedulers->osFamily(),
         );
+    }
+
+    /**
+     * The completion of the user's shell, unless shell_completion is false
+     * (then an installed one is removed).
+     *
+     * @param \Closure(string): void $info
+     */
+    private function shellCompletion(\Closure $info): void
+    {
+        if ($this->globalConfig->shellCompletion()) {
+            array_map($info, ShellCompletion::install((string) getenv('SHELL'), PabloPaths::home()));
+
+            return;
+        }
+        $info('shell completion off (shell_completion: false; --with-completion turns it back on)');
+        array_map($info, ShellCompletion::remove(PabloPaths::home()));
     }
 
     /**

@@ -19,7 +19,7 @@ final class ProjectRemoveCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('name', InputArgument::REQUIRED, 'project name (the YAML "name" key)');
+            ->addArgument('name', InputArgument::REQUIRED, 'project name (the YAML "name" key)', null, $this->suggestions()->projectCompleter());
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

@@ -33,7 +33,7 @@ final class MainUpdateCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project (runs even when main_update.enabled is false)')
+            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project (runs even when main_update.enabled is false)', null, $this->suggestions()->projectCompleter())
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'run every check and report what would happen, without touching the checkout (still fetches)');
     }
 

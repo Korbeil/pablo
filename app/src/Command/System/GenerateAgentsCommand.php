@@ -48,7 +48,7 @@ final class GenerateAgentsCommand extends Command
     {
         $this
             ->addOption('agents-dir', null, InputOption::VALUE_REQUIRED, 'template sources directory (default: the bundled opencode/agents)')
-            ->addOption('runtime', null, InputOption::VALUE_REQUIRED, implode(' | ', AgentRuntimeRegistry::NAMES).' (default: agent_runtime / PABLO_AGENT_RUNTIME)')
+            ->addOption('runtime', null, InputOption::VALUE_REQUIRED, implode(' | ', AgentRuntimeRegistry::NAMES).' (default: agent_runtime / PABLO_AGENT_RUNTIME)', null, AgentRuntimeRegistry::NAMES)
             ->addOption('output-dir', null, InputOption::VALUE_REQUIRED, 'where the shared agents/, commands/ and skills/ go (default: ~/.pablo/runtime/opencode)')
             ->addOption('runtime-dir', null, InputOption::VALUE_REQUIRED, 'where the runtime\'s own files go (default: ~/.pablo/runtime/<runtime>)');
     }

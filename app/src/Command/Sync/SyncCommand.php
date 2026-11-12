@@ -39,7 +39,7 @@ final class SyncCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project')
+            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project', null, $this->suggestions()->projectCompleter())
             ->addOption('apply', null, InputOption::VALUE_NONE, 'actually sync (default dry-run unless sync.auto_apply is set)')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'only report, even when sync.auto_apply is set')
             ->addFormatOption();

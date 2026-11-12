@@ -8,6 +8,7 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
+use Pablo\Completion\Suggestions;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\State;
@@ -40,9 +41,9 @@ final class TasksCommand extends Command
         $this
             ->addOption('live', null, InputOption::VALUE_NONE, 'fetch fresh Tracker/PR/Agents data for display only')
             ->addOption('refresh', null, InputOption::VALUE_NONE, 'fetch fresh data and persist it as the new cache before rendering')
-            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'only this project\'s tasks')
+            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'only this project\'s tasks', null, $this->suggestions()->projectCompleter())
             ->addOption('type', null, InputOption::VALUE_REQUIRED, 'only tasks of this project type (work/open-source/personal)', null, Config::PROJECT_TYPES)
-            ->addOption('state', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'only tasks in this state (repeatable)', [], array_map(static fn (State $s): string => $s->value, State::cases()))
+            ->addOption('state', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'only tasks in this state (repeatable)', [], Suggestions::states())
             ->addFormatOption();
     }
 

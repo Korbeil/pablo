@@ -270,6 +270,17 @@ final class InstallerTest extends TestCase
         $this->assertSame('--runtime claude-code --backend orca --without-web', $this->installArguments());
     }
 
+    public function testWithoutCompletionIsForwarded(): void
+    {
+        $this->fakeTool('claude');
+        $this->fakeOrca();
+
+        $process = $this->install(['--no-interaction', '--without-completion']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertStringEndsWith(' --without-completion', $this->installArguments());
+    }
+
     public function testACloneInstallIsMigrated(): void
     {
         $this->fakeTool('claude');

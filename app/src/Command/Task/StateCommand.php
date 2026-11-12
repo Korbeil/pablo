@@ -7,6 +7,7 @@ namespace Pablo\Command\Task;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Completion\Suggestions;
 use Pablo\Config\Config;
 use Pablo\Domain\State;
 use Pablo\Store\Store;
@@ -36,7 +37,7 @@ final class StateCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('state', InputArgument::REQUIRED, 'target state')
+            ->addArgument('state', InputArgument::REQUIRED, 'target state', null, Suggestions::states())
             ->addTaskTarget()
             ->addOption('no-trigger', null, InputOption::VALUE_NONE, 'skip the state\'s on-enter actions (ignored for waiting)');
     }

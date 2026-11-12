@@ -121,6 +121,8 @@ ci:
   <dd>Extra directories put first on the <code>PATH</code> of the background services, for a tool <code>pablo system:install</code> doesn't find on your own <code>PATH</code>: a list (<code>path: [~/tools/bin, /opt/acli/bin]</code>) or one colon-separated string. A leading <code>~</code> stands for your home directory. Run <code>pablo system:install</code> again after changing it. See <a href="page:installation#the-services-path">The services' PATH</a>.</dd>
   <dt><code>prune.keep_days</code></dt>
   <dd>How many days of logs <code>pablo system:prune</code> keeps (default <code>10</code>, at least <code>1</code>): agent logs, the daily archives of the macOS service logs and the binary's caches of other versions are removed once older than that. The prune runs every day at 03:00. See <a href="page:storage#what-grows-and-how-its-pruned">What grows and how it's pruned</a>.</dd>
+  <dt><code>shell_completion</code></dt>
+  <dd><code>false</code> keeps <code>pablo system:install</code> (and so <code>pablo update</code>) from installing the <a href="page:installation#shell-completion">shell completion</a>, and removes an installed one. Set by <code>pablo system:install --without-completion</code>, back to <code>true</code> by <code>--with-completion</code>; unset means on.</dd>
 </dl>
 
 <h2 id="choose-the-agent-model">Choose the agent model</h2>

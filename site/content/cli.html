@@ -61,7 +61,7 @@
   <tbody>
     <tr><td><code>system:doctor [--format=json]</code></td><td>Check every required tool is installed and logged in, and that the agents are up to date. <a href="page:providers#the-doctor">Details</a></td></tr>
     <tr><td><code>system:setup</code></td><td>The same checks as a wizard, one fix at a time.</td></tr>
-    <tr><td><code>system:install [--runtime=opencode|claude-code|copilot] [--backend=orca|openchamber|headless] [--without-web] [--port=&lt;port&gt;]</code></td><td>Install or update PABLO for your user: config, the <code>pablo</code> command on your <code>PATH</code>, the agents and their links, the scheduler and dashboard services. Safe to run again. <a href="page:installation#what-pablo-system-install-does">Details</a></td></tr>
+    <tr><td><code>system:install [--runtime=opencode|claude-code|copilot] [--backend=orca|openchamber|headless] [--without-web] [--port=&lt;port&gt;] [--without-completion|--with-completion]</code></td><td>Install or update PABLO for your user: config, the <code>pablo</code> command on your <code>PATH</code>, the <a href="#shell-completion">shell completion</a>, the agents and their links, the scheduler and dashboard services. Safe to run again. <a href="page:installation#what-pablo-system-install-does">Details</a></td></tr>
     <tr><td><code>system:update [&lt;release&gt;] [--check [--format=json]] [--no-install] [--rollback]</code> (alias <code>update</code>)</td><td>Replace the <code>pablo</code> binary with the latest release for your OS and processor, or the release named (an older one too), checksum-verified, then run <code>system:install</code> with it; the replaced binary is kept, and put back automatically if that install fails. <code>--rollback</code> swaps the kept binary back (<a href="page:update#rollback">Rolling back</a>). <code>--check</code> only reports. From a checkout, use <code>git pull</code> instead. <a href="page:update#update">Details</a></td></tr>
     <tr><td><code>system:uninstall</code></td><td>Remove what <code>system:install</code> created; keeps your data in <code>~/.pablo/</code>.</td></tr>
     <tr><td><code>system:generate-agents [--runtime=opencode|claude-code|copilot] [--agents-dir=&lt;dir&gt;] [--output-dir=&lt;dir&gt;] [--runtime-dir=&lt;dir&gt;]</code></td><td>Regenerate the agents from their templates into <code>~/.pablo/runtime/</code>: the OpenCode agent files with the command and the skill, plus, under Claude Code, <code>claude/agents.json</code>, the <code>pablo-&lt;agent&gt;.md</code> files and the command, or, under Copilot, the agent files and skills in <code>copilot/</code>. <code>--output-dir</code> moves the shared OpenCode render, <code>--runtime-dir</code> the runtime's own files (default <code>~/.pablo/runtime/&lt;runtime&gt;</code>). The runtime defaults to <code>agent_runtime</code>. <a href="page:agents#customise-the-agents">Details</a></td></tr>
@@ -85,7 +85,7 @@
   </tbody>
 </table>
 
-<h2>Machine-readable output</h2>
+<h2 id="machine-readable-output">Machine-readable output</h2>
 
 <p>The read commands take <code>--format=table|json</code> (default <code>table</code>): <code>task:list</code>, <code>project:list</code>, <code>sync:run</code>, <code>sync:log</code>, <code>system:doctor</code>, <code>system:update --check</code> and <code>stats</code> (which also takes <code>csv</code> for a <code>--by</code> breakdown). With <code>--format=json</code>, standard output holds one pretty-printed JSON object and nothing else; warnings and errors go to standard error, and the exit code is the same as with the table (<code>system:doctor</code> still exits non-zero on a hard failure). An unknown format is refused. <code>task:info</code> and <code>task:precommit-check</code> always print JSON; <code>--json</code> is accepted there for compatibility.</p>
 
@@ -145,7 +145,15 @@ $ pablo task:list --format=json
     ]
 }</code></pre>
 
-<h2>Shell completion</h2>
+<h2 id="shell-completion">Shell completion</h2>
+
+<p>Press <kbd>Tab</kbd> to complete command names and options, and the values PABLO knows: task branches (the <code>&lt;branch&gt;</code> of every command that <a href="#choosing-the-task">picks a task</a>, narrowed to the <code>--project</code> already typed, plus <code>current</code> for <code>task:info</code>), project names (<code>--project</code>, <code>task:list --project</code> included, and the <code>&lt;project&gt;</code> arguments of <code>sync:run</code>, <code>sync:log</code>, <code>sync:main</code>, <code>system:poll</code>, <code>project:remove</code>), states (<code>task:state</code>, <code>task:attach</code>, <code>task:list --state</code>), project types (<code>task:list --type</code>), the output formats of <code>--format</code> (see <a href="#machine-readable-output">Machine-readable output</a>) and the runtimes and backends of <code>system:install</code>. The values come from your task records and project files in <code>~/.pablo/</code> only: completing never calls <code>gh</code>, <code>git</code> or the network, and a broken file just means fewer suggestions.</p>
+
+<p><code>pablo system:install</code> installs it for the shell in your <code>$SHELL</code> (bash, zsh or fish; see <a href="page:installation#shell-completion">Installation</a>). To set it up by hand instead, or for another shell's file:</p>
+
+<pre><code class="language-bash">pablo completion bash   # or zsh, fish: prints the script to load
+pablo completion --help # where to put it for your shell
+</code></pre>
 
 <table class="cmds">
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>

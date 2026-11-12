@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Command\System;
 
 use Pablo\Install\ConfigSeeder;
+use Pablo\Install\ShellCompletion;
 use Pablo\Tests\Install\InstallSandbox;
 use PHPUnit\Framework\TestCase;
 
@@ -425,5 +426,49 @@ final class InstallCommandTest extends TestCase
         $tester = $this->install(['--runtime' => 'opencode']);
         $this->assertStringContainsString('is already on your PATH', $tester->getDisplay());
         $this->assertFileDoesNotExist($this->home.'/.config/fish/conf.d/pablo.fish');
+    }
+
+    public function testTheShellCompletionIsInstalledUnlessOptedOut(): void
+    {
+        $bash = $this->home.'/.local/share/bash-completion/completions/pablo';
+
+        $tester = $this->install(['--runtime' => 'opencode']);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertStringContainsString("installed the bash completion: {$bash}", $tester->getDisplay());
+        $this->assertStringContainsString(ShellCompletion::MARKER, (string) file_get_contents($bash));
+        $this->assertStringContainsString('is up to date', $this->install(['--runtime' => 'opencode'])->getDisplay());
+
+        $tester = $this->install(['--runtime' => 'opencode', '--without-completion' => true]);
+
+        $this->assertStringContainsString("removed {$bash}", $tester->getDisplay());
+        $this->assertFileDoesNotExist($bash);
+        $this->assertSame('false', $this->configValue('shell_completion'));
+
+        // Kept by a later install without the option (what `pablo update` runs).
+        $this->assertStringContainsString('shell completion off', $this->install()->getDisplay());
+        $this->assertFileDoesNotExist($bash);
+
+        $this->install(['--with-completion' => true]);
+        $this->assertSame('true', $this->configValue('shell_completion'));
+        $this->assertFileExists($bash);
+    }
+
+    public function testBothCompletionOptionsAreRefusedBeforeTouchingAnything(): void
+    {
+        $tester = $this->install(['--with-completion' => true, '--without-completion' => true]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('cannot be used together', $tester->getDisplay());
+        $this->assertFileDoesNotExist($this->home.'/.pablo/config.yaml');
+    }
+
+    public function testTheCompletionGoesToTheUsersShell(): void
+    {
+        putenv('SHELL=/usr/bin/fish');
+        $this->assertSame(0, $this->install(['--runtime' => 'opencode'])->getStatusCode());
+
+        $this->assertFileExists($this->home.'/.config/fish/completions/pablo.fish');
+        $this->assertFileDoesNotExist($this->home.'/.local/share/bash-completion/completions/pablo');
     }
 }
