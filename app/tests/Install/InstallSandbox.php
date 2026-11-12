@@ -112,7 +112,7 @@ trait InstallSandbox
         $global = new GlobalConfig();
         $config = new Config($global);
         $store = new Store();
-        $launchers = new AgentLauncherFactory($global);
+        $launchers = new AgentLauncherFactory($global, $this->runner);
         $templates = new AgentTemplates($config);
         $schedulers = new SchedulerFactory($this->runner, $os);
 

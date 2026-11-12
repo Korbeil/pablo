@@ -8,7 +8,6 @@ use Pablo\Agents\Ade\AbstractAgentLauncher;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
-use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -19,7 +18,7 @@ use Pablo\Support\ProcessRunnerInterface;
 final class HeadlessLauncher extends AbstractAgentLauncher
 {
     public function __construct(
-        ProcessRunnerInterface $runner = new ProcessRunner(),
+        ProcessRunnerInterface $runner,
         Time $time = new Time(),
         ?Store $store = null,
         ?string $shimPath = null,

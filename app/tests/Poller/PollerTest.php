@@ -156,7 +156,7 @@ final class PollerTest extends TestCase
         $repoSlug = new RepoSlug($git);
         $time = new \Pablo\Domain\Time();
         $sm = new StateMachine($this->gh, $this->providers, $repoSlug, $time);
-        $this->poller = new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time);
+        $this->poller = new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner));
     }
 
     /** A poller whose analytics/usage collaborators are test doubles. */
@@ -168,7 +168,7 @@ final class PollerTest extends TestCase
         $time = new \Pablo\Domain\Time();
         $sm = new StateMachine($this->gh, $this->providers, $repoSlug, $time);
 
-        return new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, $analytics, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner));
+        return new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), $analytics);
     }
 
     protected function tearDown(): void

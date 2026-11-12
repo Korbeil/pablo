@@ -70,7 +70,7 @@ YAML;
         /** @var callable|null */
         $which = $this->onWhich;
 
-        return new Doctor($this->runner(), new AgentLauncherFactory(new GlobalConfig()), $which);
+        return new Doctor($this->runner(), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), $which);
     }
 
     protected function setUp(): void
@@ -355,12 +355,12 @@ YAML;
         $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
         $staleness = $this->staleness();
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), new FakeAgents()));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents()));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::SUCCESS, $tester->getStatusCode());
 
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(1, 'login please');
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), new FakeAgents()));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents()));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
     }

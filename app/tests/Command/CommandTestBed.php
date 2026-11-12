@@ -74,7 +74,7 @@ abstract class CommandTestBed extends TestCase
 
         $this->globalConfig = new GlobalConfig();
         $this->projectsLoader = new Config($this->globalConfig);
-        $this->agentLaunchers = new AgentLauncherFactory($this->globalConfig);
+        $this->agentLaunchers = new AgentLauncherFactory($this->globalConfig, $this->runner);
         $this->repoSlug = new RepoSlug($this->git);
         $this->analytics = new FakeAnalytics();
         $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time, $this->analytics);

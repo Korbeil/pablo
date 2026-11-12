@@ -9,7 +9,6 @@ use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
-use Pablo\Support\ProcessRunner;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -30,13 +29,13 @@ final class OrcaLauncher extends AbstractAgentLauncher
     public const FINISHED_STATES = ['done', 'completed'];
 
     public function __construct(
-        ?ProcessRunnerInterface $runner = null,
-        ?Time $time = null,
+        ProcessRunnerInterface $runner,
+        Time $time = new Time(),
         ?Store $store = null,
         ?string $shimPath = null,
         ?AgentRuntimeInterface $runtime = null,
     ) {
-        parent::__construct(OrcaAde::NAME, $runner ?? new ProcessRunner(), $time ?? new Time(), $store, $shimPath, $runtime);
+        parent::__construct(OrcaAde::NAME, $runner, $time, $store, $shimPath, $runtime);
     }
 
     /**

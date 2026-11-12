@@ -56,7 +56,7 @@ final class EngineGraph
         $this->gh = new FakeGhPr();
         $this->global = new GlobalConfig();
         $this->config = new Config($this->global);
-        $this->agentLaunchers = new AgentLauncherFactory($this->global);
+        $this->agentLaunchers = new AgentLauncherFactory($this->global, $this->runner);
         $this->providers = new StubProviders();
         $this->repoSlug = new RepoSlug($this->git);
         $this->analytics = new FakeAnalytics();
@@ -71,8 +71,8 @@ final class EngineGraph
             $this->repoSlug,
             $this->stateMachine,
             $this->time,
-            $this->analytics,
             new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner),
+            $this->analytics,
         );
         $this->listing = new Listing($this->stamps, $this->gh, $this->git, $this->providers, $this->repoSlug, $this->stateMachine, $this->time);
         $this->dispatch = new Dispatch($this->doctor, $this->sync, $this->poller, $this->agentLaunchers, $this->stamps, $this->git);

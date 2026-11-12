@@ -197,7 +197,7 @@ final class WebCommandTest extends TestCase
 
     private function command(): WebCommand
     {
-        $command = new WebCommand(new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig()), new FakeAgents());
+        $command = new WebCommand(new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new FakeAgents());
         (new Application())->addCommand($command);
 
         return $command;

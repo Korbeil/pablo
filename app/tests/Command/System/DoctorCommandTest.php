@@ -55,7 +55,7 @@ YAML;
         /** @var callable|null */
         $which = $this->onWhich;
 
-        return new Doctor($this->runner, new AgentLauncherFactory(new GlobalConfig()), $which ?: static fn (string $name): string => '/usr/bin/'.$name);
+        return new Doctor($this->runner, new AgentLauncherFactory(new GlobalConfig(), $this->runner), $which ?: static fn (string $name): string => '/usr/bin/'.$name);
     }
 
     private function command(): DoctorCommand
@@ -63,7 +63,7 @@ YAML;
         $global = new GlobalConfig();
         $staleness = new AgentStaleness(new AgentTemplates(new Config($global)));
 
-        return new DoctorCommand($this->doctor(), $staleness, new Store(), new Config($global), new AgentLauncherFactory($global), new FakeAgents());
+        return new DoctorCommand($this->doctor(), $staleness, new Store(), new Config($global), new AgentLauncherFactory($global, $this->runner), new FakeAgents());
     }
 
     protected function setUp(): void

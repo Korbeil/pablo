@@ -69,7 +69,7 @@ YAML);
     {
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
 
         putenv('PABLO_PROJECTS_DIR='.$this->tmp.'/nonexistent');
@@ -91,7 +91,7 @@ YAML);
         mkdir($this->tmp.'/commands');
         copy(\dirname(__DIR__, 4).'/opencode/commands/pablo-commit-and-pr.md', $this->tmp.'/commands/pablo-commit-and-pr.md');
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute([
             '--agents-dir' => $this->agentsDir,
@@ -122,7 +122,7 @@ YAML);
         mkdir($this->tmp.'/commands');
         copy(\dirname(__DIR__, 4).'/opencode/commands/pablo-commit-and-pr.md', $this->tmp.'/commands/pablo-commit-and-pr.md');
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'copilot', '--runtime-dir' => $this->tmp.'/copilot']);
 
@@ -141,7 +141,7 @@ YAML);
     {
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'opencode', '--runtime-dir' => $this->tmp.'/pablo-claude']);
 
@@ -154,7 +154,7 @@ YAML);
         $this->writeProject('jira-project', 'jira');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -175,7 +175,7 @@ YAML);
         $this->writeProject('lin-project', 'linear');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -195,7 +195,7 @@ YAML);
         $this->writeProject('p2', 'jira');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -211,7 +211,7 @@ YAML);
         $this->writeProject('p1', 'github');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -245,7 +245,7 @@ EOF, $resolver);
         $this->writeProject('p1', 'github');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -268,7 +268,7 @@ EOF, $resolver);
         $this->copyAllTemplates();
         unlink($this->agentsDir.'/shared/housekeeping.body.md');
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -281,7 +281,7 @@ EOF, $resolver);
         $this->copyAllTemplates();
         unlink($this->agentsDir.'/shared/analysts.frontmatter.md');
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -291,7 +291,7 @@ EOF, $resolver);
 
     public function testReturnsFailureOnMissingTemplate(): void
     {
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -306,7 +306,7 @@ EOF, $resolver);
         $this->writeProject('c', 'linear');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig()), new \Pablo\Tests\FakeAgents());
+        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), new \Pablo\Store\Store(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()), new \Pablo\Agents\AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new \Pablo\Tests\FakeAgents());
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 

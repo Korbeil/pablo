@@ -25,32 +25,32 @@ final class AgentLauncherTest extends TestCase
     {
         putenv('PABLO_AGENT_BACKEND');
         $this->writeGlobalConfig("sync:\n  strategy: manual\n");
-        $this->assertInstanceOf(OrcaLauncher::class, (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig()))->create());
+        $this->assertInstanceOf(OrcaLauncher::class, (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()))->create());
     }
 
     public function testEnvVarSelectsOpenChamber(): void
     {
         putenv('PABLO_AGENT_BACKEND=openchamber');
-        $this->assertInstanceOf(OpenChamberLauncher::class, (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig()))->create());
+        $this->assertInstanceOf(OpenChamberLauncher::class, (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()))->create());
     }
 
     public function testGlobalConfigSelectsOpenChamber(): void
     {
         putenv('PABLO_AGENT_BACKEND');
         $this->writeGlobalConfig("agent_backend: openchamber\n");
-        $this->assertInstanceOf(OpenChamberLauncher::class, (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig()))->create());
+        $this->assertInstanceOf(OpenChamberLauncher::class, (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()))->create());
     }
 
     public function testExplicitArgumentBeatsEnv(): void
     {
         putenv('PABLO_AGENT_BACKEND=openchamber');
-        $this->assertInstanceOf(OrcaLauncher::class, (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig()))->create('orca'));
+        $this->assertInstanceOf(OrcaLauncher::class, (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()))->create('orca'));
     }
 
     public function testUnknownBackendThrows(): void
     {
         putenv('PABLO_AGENT_BACKEND');
         $this->expectException(PabloError::class);
-        (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig()))->create('nope');
+        (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()))->create('nope');
     }
 }
