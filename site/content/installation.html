@@ -188,6 +188,8 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
   </tbody>
 </table>
 
+<p>Background agents are started in a session of their own with <code>setsid</code> on Linux; macOS has no <code>setsid</code>, so PABLO uses the system <code>perl</code> there instead. The doctor warns when neither is on your <code>PATH</code>.</p>
+
 <p>On Linux the installer enables <em>lingering</em> for your user (<code>loginctl enable-linger</code>), so the scheduler also starts after a reboot without you logging in.</p>
 
 <h3>First install on macOS</h3>

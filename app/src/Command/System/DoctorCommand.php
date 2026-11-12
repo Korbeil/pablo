@@ -39,6 +39,10 @@ final class DoctorCommand extends Command
         }
         $results = $this->doctor->checkAll($this->projects());
         $output->writeln($this->doctor->render($results));
+        $detachWarning = $this->doctor->detachWarning();
+        if (null !== $detachWarning) {
+            $output->writeln($detachWarning);
+        }
         $failed = [] !== $configErrors;
         foreach ($results as $r) {
             if (!$r->ok()) {

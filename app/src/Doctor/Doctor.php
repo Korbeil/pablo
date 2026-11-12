@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Doctor;
 
+use Pablo\Agents\Ade\Detached;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Config\ProjectConfig;
 use Pablo\Support\PabloError;
@@ -132,6 +133,22 @@ final class Doctor
         $error = $ade->runtimeError($runtime);
 
         return null !== $error ? [$error] : [];
+    }
+
+    /**
+     * A warning when no program on PATH can put a background run in a session
+     * of its own (setsid, or perl on macOS — see Detached): agents still run,
+     * but stay in the dispatcher's process group, so stopping it can stop
+     * them too. Soft: never fails the doctor.
+     */
+    public function detachWarning(): ?string
+    {
+        if (Detached::canStartSession(fn (string $bin): ?string => $this->which($bin))) {
+            return null;
+        }
+
+        return \sprintf('⚠️  %-10s neither %s is on PATH: background agents are not detached into their own session', 'detach', implode(' nor ', Detached::SESSION_HELPERS))
+            ."\n   → install perl (or util-linux's setsid)";
     }
 
     /** @param list<string> $errors */

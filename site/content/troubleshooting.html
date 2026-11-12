@@ -50,6 +50,10 @@ pablo sync:log          # what the last sync did, per project
 
 <p>You set <code>agent_runtime: claude-code</code> (or <code>copilot</code>) with <code>agent_backend: openchamber</code>. OpenChamber drives its own OpenCode server and can't run Claude Code or Copilot, so nothing would launch; the background job refuses to run. Set <code>agent_backend: orca</code> (or remove it), or go back to <code>agent_runtime: opencode</code>.</p>
 
+<h3>The doctor warns that neither setsid nor perl is on PATH</h3>
+
+<p>PABLO starts background runs (headless agents, their watchers, the conflict resolver) in a session of their own, so they outlive the background job that launched them. It uses <code>setsid</code> (util-linux, on Linux) or, when there is none, <code>perl</code> (stock macOS ships it). With neither, runs still start, but stay in the launcher's process group: stopping the scheduler's job can stop them too. Install <code>perl</code>, or util-linux's <code>setsid</code>. It is only a warning: the doctor still passes.</p>
+
 <h3>Loading a project fails: <code>default_model</code> looks like an OpenCode provider/model id</h3>
 
 <p>Under <code>agent_runtime: claude-code</code>, models are Claude aliases (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or full model ids, not <code>provider/model</code>. Fix <code>default_model</code> and <code>default_model_by_type</code> in <code>~/.pablo/config.yaml</code> and in the project files. Under <code>agent_runtime: copilot</code>, use Copilot's dotted ids (<code>claude-sonnet-5.5</code>, <code>gpt-5.3-codex</code>): <code>provider/model</code> ids and Claude Code names (<code>sonnet</code>, <code>claude-sonnet-5-5</code>) are refused too. See <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>.</p>
