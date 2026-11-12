@@ -17,6 +17,10 @@
   <a href="https://getpablo.dev/docs/quickstart/"><b>Quickstart</b></a>
 </p>
 
+<p align="center">
+  <img src="site/assets/dashboard.png" alt="The PABLO dashboard: tasks with their state, pull request, CI and agent activity">
+</p>
+
 ## Quickstart
 
 ```bash
@@ -29,5 +33,22 @@ pablo task:start <issue-url>       # branch + worktree + an agent writing the pl
 
 Then watch your tasks on http://127.0.0.1:8321 or with `pablo task:list`.
 
-**You need:** git, [OpenCode](https://opencode.ai) (or Claude Code, or Copilot CLI), and [`gh`](https://cli.github.com/) logged in. PABLO itself is a single binary: no PHP needed.
+**You need:**
+
+- Linux or macOS;
+- git and [`gh`](https://cli.github.com/), logged in;
+- an agent runtime: [OpenCode](https://opencode.ai), [Claude Code](https://www.anthropic.com/claude-code) or [GitHub Copilot CLI](https://github.com/features/copilot/cli);
+- an agent development environment, where agents run: [Orca](https://www.onorca.dev/) (default) or [OpenChamber](https://openchamber.dev/) (OpenCode only), or none (headless: agents run in the background).
+
+PABLO itself is a single binary: no PHP needed.
 Using Jira or Linear, or want the details? Read the [Quickstart](https://getpablo.dev/docs/quickstart/) and the [installation guide](https://getpablo.dev/docs/installation/).
+
+## What PABLO never does
+
+Agents propose; you decide. PABLO writes no code of its own: only the rebase conflict resolver agent edits files, to replay your branch. It never touches your issue tracker (GitHub Issues, Jira, Linear stay read-only), never merges or closes a pull request, and never comments or reviews. Commits and pushes happen only when you run `/pablo-commit-and-pr`; the one exception is sync with `sync.auto_apply` (off by default), which rebases (or merges, per `sync.strategy`) a clean worktree onto its base branch and pushes with `--force-with-lease`, never plain `--force`. The full list: [What PABLO may change](https://getpablo.dev/docs/how-it-works/#what-pablo-may-change).
+
+## Learn more
+
+- [Documentation](https://getpablo.dev/docs/): configuration, states, agents, dashboard, troubleshooting;
+- [Contributing](https://getpablo.dev/docs/development/): run it from a checkout, tests and QA;
+- [Licence](LICENSE).

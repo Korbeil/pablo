@@ -15,8 +15,11 @@ contributors run `php app/bin/pablo` from the checkout.
 pages live in `site/content/*.html` (published at
 https://getpablo.dev/docs/); read the relevant page before
 non-trivial changes, and update it in the same change when behaviour
-moves. There is no other documentation in the repo: `README.md` only
-links to the website, and there is no `docs/` folder.
+moves. There is no other documentation in the repo: `README.md` is a
+short pointer for GitHub visitors (install one-liner, first commands,
+requirements, the "never does" safety summary, links to the website) —
+keep it consistent with the website, never let it grow into docs — and
+there is no `docs/` folder.
 
 **Philosophy:** PABLO agents are read-only and analysis-first. PABLO never
 writes/modifies application code, never resolves merge conflicts
