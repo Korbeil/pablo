@@ -275,6 +275,33 @@ final class AnalyticsAggregator
         return $timeline;
     }
 
+    /**
+     * Sums the agent runs of a taskTimeline() — shared by task:history and
+     * the dashboard's task history page.
+     *
+     * @param list<array<string, mixed>> $timeline
+     *
+     * @return array{runs: int, duration_s: int, tokens_in: int, tokens_out: int, cache_read: int, cache_write: int, cost: float|null}
+     */
+    public static function timelineTotals(array $timeline): array
+    {
+        $totals = ['runs' => 0, 'duration_s' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'cache_read' => 0, 'cache_write' => 0, 'cost' => null];
+        foreach ($timeline as $entry) {
+            if ('agent_run_finished' !== $entry['event']) {
+                continue;
+            }
+            ++$totals['runs'];
+            foreach (['duration_s', 'tokens_in', 'tokens_out', 'cache_read', 'cache_write'] as $key) {
+                $totals[$key] += Numbers::int($entry[$key] ?? 0);
+            }
+            if (null !== ($entry['cost'] ?? null)) {
+                $totals['cost'] = round(($totals['cost'] ?? 0.0) + Numbers::float($entry['cost']), 4);
+            }
+        }
+
+        return $totals;
+    }
+
     /** @return array{duration_s: int, tokens_in: int, tokens_out: int, cache_read: int, cache_write: int, cost: float|null} */
     private static function runUsage(AnalyticsEvent $event): array
     {

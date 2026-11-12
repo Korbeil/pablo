@@ -1,0 +1,106 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}PABLO history — {{ project }}/{{ branch }}{% endblock %}
+
+{% block body %}
+    <header class="pablo-header">
+        <div class="pablo-container pablo-header-inner">
+            <a class="pablo-brand" href="{{ path('dashboard') }}">
+                <img class="pablo-logo" src="{{ asset('images/logo-light.svg') }}" alt="PABLO" width="125" height="42">
+                <span class="pablo-page-tag">Task history</span>
+            </a>
+            <h1 class="pablo-visually-hidden">Task history of {{ project }}/{{ branch }}</h1>
+            <div class="pablo-header-actions">
+                <twig:ThemeToggle />
+                <a class="button pablo-header-btn" href="{{ path('analytics') }}" title="Analytics" aria-label="Analytics">
+                    {{ ux_icon('lucide:arrow-left', {class: 'pablo-icon'}) }}
+                    <span class="pablo-btn-label">Analytics</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="pablo-container">
+        <section class="pablo-section" aria-labelledby="history-heading">
+            <h2 class="pablo-heading" id="history-heading">
+                {{ ux_icon('lucide:history', {class: 'pablo-icon'}) }}
+                <span><span class="has-text-grey">{{ project }}/</span><code>{{ branch }}</code></span>
+            </h2>
+
+            {% if timeline is empty %}
+                <p class="pablo-empty">No analytics recorded for this task yet.</p>
+            {% else %}
+                <div class="pablo-kpis">
+                    <div class="pablo-kpi">
+                        <span class="pablo-kpi-value">{{ totals.runs }}</span>
+                        <span class="pablo-kpi-label">Agent runs</span>
+                    </div>
+                    <div class="pablo-kpi">
+                        <span class="pablo-kpi-value">{{ totals.duration_s|pablo_duration(true) }}</span>
+                        <span class="pablo-kpi-label">Agent time</span>
+                    </div>
+                    <div class="pablo-kpi">
+                        <span class="pablo-kpi-value">{{ (totals.tokens_in + totals.tokens_out + totals.cache_read + totals.cache_write)|pablo_tokens }}</span>
+                        <span class="pablo-kpi-label">Tokens</span>
+                    </div>
+                    <div class="pablo-kpi">
+                        <span class="pablo-kpi-value">{{ totals.cost|pablo_cost }}</span>
+                        <span class="pablo-kpi-label">Cost</span>
+                    </div>
+                </div>
+
+                <div class="table-container pablo-card">
+                    <table class="table is-fullwidth is-hoverable pablo-table pablo-history-table">
+                        <caption class="pablo-visually-hidden">Timeline of {{ project }}/{{ branch }}, oldest first</caption>
+                        <thead>
+                        <tr>
+                            <th scope="col">When</th>
+                            <th scope="col">Event</th>
+                            <th scope="col">Detail</th>
+                            <th scope="col" class="has-text-right">Duration</th>
+                            <th scope="col" class="has-text-right">In</th>
+                            <th scope="col" class="has-text-right">Out</th>
+                            <th scope="col" class="has-text-right">Cache R/W</th>
+                            <th scope="col" class="has-text-right">Cost</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for entry in timeline %}
+                            <tr>
+                                <td class="pablo-nowrap has-text-grey"><time datetime="{{ entry.ts }}">{{ entry.ts|date('Y-m-d H:i') }}</time></td>
+                                {% if entry.event == 'task_opened' %}
+                                    <td>opened</td>
+                                    <td>in {{ entry.initial_state }}</td>
+                                    <td colspan="5"></td>
+                                {% elseif entry.event == 'state_entered' %}
+                                    <td>state</td>
+                                    <td>{{ entry.from }} → <strong>{{ entry.to }}</strong></td>
+                                    <td class="pablo-num" title="{{ entry.dwell_s < 0 ? 'still in this state' : 'time spent in this state' }}">{{ entry.dwell_s|pablo_duration(true) }}</td>
+                                    <td colspan="4"></td>
+                                {% elseif entry.event == 'agent_run_finished' %}
+                                    <td>agent run</td>
+                                    <td><strong>{{ entry.agent }}</strong> <span class="has-text-grey">({{ entry.models }})</span></td>
+                                    <td class="pablo-num">{{ entry.duration_s|pablo_duration }}</td>
+                                    <td class="pablo-num">{{ entry.tokens_in|pablo_tokens }}</td>
+                                    <td class="pablo-num">{{ entry.tokens_out|pablo_tokens }}</td>
+                                    <td class="pablo-num">{{ entry.cache_read|pablo_tokens }}/{{ entry.cache_write|pablo_tokens }}</td>
+                                    <td class="pablo-num">{{ entry.cost|pablo_cost }}</td>
+                                {% elseif entry.event == 'task_closed' %}
+                                    <td>closed</td>
+                                    <td>{{ entry.final_state }}, {{ entry.merged ? 'merged' : 'not merged' }}</td>
+                                    <td class="pablo-num" title="task lifetime">{{ entry.duration_s|pablo_duration(true) }}</td>
+                                    <td colspan="4"></td>
+                                {% else %}
+                                    <td>{{ entry.event }}</td>
+                                    <td colspan="6"></td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="pablo-note has-text-grey">Same timeline as <code>pablo task:history {{ branch }} --project={{ project }}</code>.</p>
+            {% endif %}
+        </section>
+    </main>
+{% endblock %}

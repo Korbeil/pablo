@@ -65,7 +65,20 @@ pablo web --port 9000 --open   # another port, and open the browser
 
 <h2>Analytics</h2>
 
-<p>The <b>Analytics</b> page charts the numbers <code>pablo stats</code> prints: tasks opened and closed per day, tokens and cache hit rate per agent, runtime, cost, and how long tasks sit in each state. Filter by period (7, 30, 90 days, all time) and by project type. See <a href="page:analytics">Analytics</a>.</p>
+<p>The <b>Analytics</b> page (<code>/analytics</code>) charts the numbers <code>pablo stats</code> prints: tasks opened and closed per day, tokens and cache hit rate per agent, runtime, cost, and how long tasks sit in each state. Filter by period (7, 30, 90 days, all time) and by project type. See <a href="page:analytics">Analytics</a>.</p>
+
+<dl>
+  <dt>Agent runs by…</dt>
+  <dd>Switch between agent, project, model and task (<code>?by=</code> in the URL; the period and type filters are kept when you switch, and the other way round). A chart stacks the tokens of the 10 groups with the most (the rest in one <code>(other)</code> bar) and a table lists the first 20 with the same columns as <a href="page:analytics#break-runs-down"><code>pablo stats --by</code></a>.</dd>
+  <dt>Top tasks by tokens</dt>
+  <dd>The 10 tasks whose agent runs used the most tokens, each linking to its history.</dd>
+  <dt>Tokens &amp; cost per model</dt>
+  <dd>Total tokens per model, and cost where the runtime reported one.</dd>
+</dl>
+
+<p>A task's history page (<code>/analytics/task/&lt;project&gt;/&lt;branch&gt;</code>) shows the same timeline as <a href="page:analytics#task-history"><code>pablo task:history</code></a>: each state with how long it lasted, each agent run with its model, duration, tokens and cost, and the totals. Every row of the task tables links to it (the history icon, first of its buttons), and it still works once a task is closed and gone from the tables. A project that is neither configured nor in the log, or a branch with no task and no history, gets a <code>404</code>.</p>
+
+<p>Like the rest of the page, Analytics only reads files on your machine: the event log under <code>~/.pablo/analytics/</code>, your project configuration and the task records. It never calls git, GitHub, Orca or your tracker.</p>
 
 <h2>Guarantees</h2>
 

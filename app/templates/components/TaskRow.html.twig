@@ -62,6 +62,10 @@
     <td class="pablo-nowrap pablo-cell-actions">
         {% set event = constant('Pablo\\Twig\\Components\\TaskActionsModal::OPEN_EVENT') %}
         <div class="buttons are-small pablo-row-actions">
+            <a class="button" href="{{ path('analytics_task', {project: task.project, branch: task.branch}) }}"
+               title="Task history" aria-label="Task history of {{ task.project }}/{{ task.branch }}">
+                {{ ux_icon('lucide:history', {class: 'pablo-icon'}) }}
+            </a>
             {% if task.state.value == 'ci-red' %}
                 <button type="button" class="button is-warning is-light"
                         title="Ignore failing CI checks"

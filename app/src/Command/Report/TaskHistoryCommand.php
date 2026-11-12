@@ -79,7 +79,7 @@ final class TaskHistoryCommand extends Command
         }
         $project = (string) array_key_first($projects);
         $timeline = $this->aggregator->taskTimeline($events, $project, $branch);
-        $totals = self::totals($timeline);
+        $totals = AnalyticsAggregator::timelineTotals($timeline);
 
         if ('json' === $format) {
             $json = json_encode(
@@ -140,29 +140,5 @@ final class TaskHistoryCommand extends Command
             'task_closed' => [$when, 'closed', $str('final_state').(true === ($entry['merged'] ?? false) ? ', merged' : ', not merged'), StatsCommand::humanDuration(Numbers::int($entry['duration_s'] ?? -1), true), '', '', '', ''],
             default => [$when, $event, '', '', '', '', '', ''],
         };
-    }
-
-    /**
-     * @param list<array<string, mixed>> $timeline
-     *
-     * @return array{runs: int, duration_s: int, tokens_in: int, tokens_out: int, cache_read: int, cache_write: int, cost: float|null}
-     */
-    private static function totals(array $timeline): array
-    {
-        $totals = ['runs' => 0, 'duration_s' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'cache_read' => 0, 'cache_write' => 0, 'cost' => null];
-        foreach ($timeline as $entry) {
-            if ('agent_run_finished' !== $entry['event']) {
-                continue;
-            }
-            ++$totals['runs'];
-            foreach (['duration_s', 'tokens_in', 'tokens_out', 'cache_read', 'cache_write'] as $key) {
-                $totals[$key] += Numbers::int($entry[$key] ?? 0);
-            }
-            if (null !== ($entry['cost'] ?? null)) {
-                $totals['cost'] = round(($totals['cost'] ?? 0.0) + Numbers::float($entry['cost']), 4);
-            }
-        }
-
-        return $totals;
     }
 }

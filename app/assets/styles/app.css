@@ -947,6 +947,27 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
     padding: 0.25rem 0.75rem 0.75rem;
 }
 
+/* Breakdown / history tables: right-aligned tabular figures. */
+.pablo-table .pablo-num {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.pablo-table th[scope=row] {
+    font-weight: 600;
+    color: var(--pablo-text);
+}
+
+.pablo-breakdown-chart {
+    margin-bottom: var(--pablo-gap);
+}
+
+.pablo-note {
+    font-size: 0.85rem;
+    margin-top: 0.6rem;
+}
+
 /* -------------------------------------------------------------- mobile -- */
 
 /* Bulma's own "mobile" breakpoint. Everything above stays the desktop

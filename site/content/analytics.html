@@ -38,11 +38,13 @@ pablo task:history my-branch              # one task's timeline
   <li><b>Output tokens</b> include reasoning tokens, as in the agents table.</li>
 </ul>
 
+<p>The dashboard's Analytics page shows the same breakdown (a switch between the four dimensions, a token chart and the table), a top-10 of tasks by tokens and a tokens-and-cost chart per model, computed by the same code. See <a href="page:dashboard#analytics">Dashboard</a>.</p>
+
 <p><code>--format csv</code> prints a header line, then one row per group, with raw numbers (seconds, token counts). Without <code>--by</code> it groups by agent. <code>--format json</code> with <code>--by</code> prints <code>{"days", "by", "groups"}</code>.</p>
 
 <h2 id="task-history">One task's history</h2>
 
-<p><code>pablo task:history &lt;branch&gt; [--project=&lt;name&gt;] [--format=json]</code> prints one task's timeline from the log, in order: when it was opened, each state it entered with how long it stayed there (until the next state or the close; <code>-</code> while it is still the current one), every finished agent run with its model, duration, tokens and cost, and the close. A summary line adds up the runs. It works for closed tasks too, since it only reads the log. When the same branch name exists in several projects, pass <code>--project</code>.</p>
+<p><code>pablo task:history &lt;branch&gt; [--project=&lt;name&gt;] [--format=json]</code> prints one task's timeline from the log, in order: when it was opened, each state it entered with how long it stayed there (until the next state or the close; <code>-</code> while it is still the current one), every finished agent run with its model, duration, tokens and cost, and the close. A summary line adds up the runs. It works for closed tasks too, since it only reads the log. When the same branch name exists in several projects, pass <code>--project</code>. On the dashboard, the same timeline is at <code>/analytics/task/&lt;project&gt;/&lt;branch&gt;</code>, linked from each task row and from the top tasks.</p>
 
 <p>The cache hit rate is <code>cache_read / (input + cache_read + cache_write)</code>, per run. If you're on a subscription plan, cost can legitimately stay at zero while token counts are real.</p>
 
