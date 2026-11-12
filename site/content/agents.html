@@ -25,7 +25,7 @@
 
 <h2>Read-only, enforced</h2>
 
-<p>The analysis agents can't edit files and can only run read-only commands, by <em>permission</em> rules in their OpenCode frontmatter, not just by instructions in their prompt. Even if a ticket says “just fix it quickly”, they can't. Under Claude Code the same rules are translated and enforced by Claude Code itself (<a href="page:runtimes#claude-code-permissions">mapping</a>), and under Copilot by Copilot CLI (<a href="page:runtimes#copilot-permissions">mapping</a>).</p>
+<p>The analysis agents can't edit files and can only run read-only commands, by <em>permission</em> rules in their OpenCode frontmatter, not just by instructions in their prompt. Even if an issue says “just fix it quickly”, they can't. Under Claude Code the same rules are translated and enforced by Claude Code itself (<a href="page:runtimes#claude-code-permissions">mapping</a>), and under Copilot by Copilot CLI (<a href="page:runtimes#copilot-permissions">mapping</a>).</p>
 
 <pre><code class="language-yaml">permissions:
   - { action: edit,  resource: "*",          effect: deny }   # edit, write, patch

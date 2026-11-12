@@ -1,6 +1,6 @@
 <h1>Sync &amp; rebase</h1>
 
-<p>PABLO keeps two things up to date for every project: your task branches, rebased onto the primary branch, and the project's main checkout, fast-forwarded to the remote. Both are cautious: they report by default, skip anything with local changes, and never resolve a conflict in code.</p>
+<p>PABLO keeps two things up to date for every project: your task branches, rebased onto the primary branch, and the project's primary checkout, fast-forwarded to the remote. Both are cautious: they report by default, skip anything with local changes, and never resolve a conflict in code.</p>
 
 <h2>Task branches</h2>
 
@@ -42,7 +42,7 @@ pablo sync:log               # what the last sync did, per project
 
 <h2 id="primary-checkout-update">Primary checkout update</h2>
 
-<p>On each project's <code>main_update.interval_minutes</code> (default 60, or when you run <code>pablo sync:main</code>), PABLO brings the project's <b>main checkout</b> (<code>repo.path</code>, not the task worktrees) up to date with <code>&lt;primary_remote&gt;/&lt;primary_branch&gt;</code>. Turn it off for a project with <code>main_update.enabled: false</code>.</p>
+<p>On each project's <code>main_update.interval_minutes</code> (default 60, or when you run <code>pablo sync:main</code>), PABLO brings the project's <b>primary checkout</b> (<code>repo.path</code>, not the task worktrees) up to date with <code>&lt;primary_remote&gt;/&lt;primary_branch&gt;</code>. Turn it off for a project with <code>main_update.enabled: false</code>.</p>
 
 <p>The checks run in this order; the first one that matches decides:</p>
 

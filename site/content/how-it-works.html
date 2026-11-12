@@ -87,7 +87,7 @@ openchamber session list --dir &lt;worktree&gt; --with-status
 
 <h3>Headless</h3>
 
-<p>With <code>agent_backend: headless</code>, and whenever Orca or OpenChamber is unreachable or doesn't know the repository, PABLO runs the runtime's command (<code>opencode run --agent &lt;agent&gt;</code> <code>claude -p … --agent &lt;agent&gt;</code> or <code>copilot --agent pablo-&lt;agent&gt; … -p</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Under Claude Code a headless run is a <a href="page:runtimes#claude-code-remote-control">Remote Control session</a> by default, so you can follow it live from claude.ai/code and the Claude apps. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
+<p>With <code>agent_backend: headless</code>, and whenever Orca or OpenChamber is unreachable or doesn't know the repository, PABLO runs the runtime's command (<code>opencode run --agent &lt;agent&gt;</code>, <code>claude -p … --agent &lt;agent&gt;</code> or <code>copilot --agent pablo-&lt;agent&gt; … -p</code>) in the background from the worktree, tracked with pid files in <code>~/.pablo/agents/</code>. Under Claude Code a headless run is a <a href="page:runtimes#claude-code-remote-control">Remote Control session</a> by default, so you can follow it live from claude.ai/code and the Claude apps. Headless runs always count as busy (🏃) while they run, since they can't report being idle. Project startup scripts and the rebase-conflict resolver always use this path.</p>
 
 <h3 id="headless-opencode-web-ui">Follow headless OpenCode runs in the browser</h3>
 
