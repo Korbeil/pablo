@@ -12,7 +12,9 @@ use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Listing\AgentCell;
 use Pablo\Listing\Listing;
+use Pablo\Listing\TaskRow;
 use Pablo\Provider\Gh\PrInfo;
 use Pablo\Provider\Tracker\Provider;
 use Pablo\Store\Store;
@@ -587,5 +589,69 @@ final class ListingTest extends TestCase
         $this->assertNotEmpty($dataLines);
         $widths = array_map(static fn (string $l) => substr_count($l, '|'), $dataLines);
         $this->assertCount(1, array_unique($widths), 'all rows must have the same column count');
+    }
+
+    public function testTasksTableRendersTheGatheredRows(): void
+    {
+        $this->store->save($this->finished($this->task('wk-45', State::InProgress, 7, new Issue('github', '45', 'u', 'Fix callbacks', 'WK'))));
+        $this->store->save($this->task('wk-46', State::NeedsTesting, null, null, 'fix flaky webhooks', '/tmp/y'));
+
+        $rows = $this->listing->taskRows($this->projects(), $this->store, $this->agents);
+        $this->assertSame(['wk-45', 'wk-46'], array_map(static fn (TaskRow $r): string => $r->task->branch, $rows));
+        $this->assertSame(
+            $this->listing->tasksTable($this->projects(), $this->store, $this->agents),
+            $this->listing->renderTasksTable($rows, $this->projects()),
+        );
+    }
+
+    public function testRenderTasksTableNeedsNoFetch(): void
+    {
+        $this->gh->onPrForBranch = static function (): never {
+            throw new \LogicException('rendering must not fetch');
+        };
+        $task = $this->task('wk-45', State::CiRed, 7, new Issue('github', '45', 'u', 'Fix callbacks', 'WK'));
+        $rows = [
+            new TaskRow($task, 'ci-red', '🔴', 'In Review', '📖 open #7', new AgentCell('1', '💤 1'), true, 'acme/wallet-kit'),
+            new TaskRow($this->task('wk-46', State::Draft, null, null, 'docs'), 'draft', '', 'N/A', '-', new AgentCell('0', '-'), false, null),
+        ];
+
+        $table = $this->listing->renderTasksTable($rows, $this->projects());
+        $this->assertStringStartsWith("💭 Waiting for feedback\n\n", $table);
+        $this->assertStringContainsString('🔴 ci-red', $table);
+        $this->assertStringContainsString('45 Fix callbacks', $table);
+        $this->assertStringContainsString('📖 open #7', $table);
+        $this->assertStringContainsString('💤 1', $table);
+        $this->assertStringContainsString("Other tasks\n\n", $table);
+        $this->assertMatchesRegularExpression('/\| draft\s+\|/', $table);
+        $this->assertSame('no active tasks', $this->listing->renderTasksTable([], $this->projects()));
+    }
+
+    public function testTaskRowsFilterByStateAndProject(): void
+    {
+        $this->store->save($this->task('wk-45', State::InProgress));
+        $this->store->save($this->task('wk-46', State::Draft, null, null, null, '/tmp/y'));
+        $this->store->save(new Task('elsewhere', 'el-1', '/tmp/z', State::Draft));
+
+        $rows = $this->listing->taskRows($this->projects(), $this->store, $this->agents, states: [State::Draft]);
+        $this->assertSame(['wk-46'], array_map(static fn (TaskRow $r): string => $r->task->branch, $rows));
+    }
+
+    public function testTaskRowsUseTheBulkPrefetchForUncachedTasks(): void
+    {
+        $this->gh->onPrForBranch = static function (): never {
+            throw new \LogicException('the bulk prefetch must answer');
+        };
+        $this->gh->prByBranch = ['wk-45' => new PrInfo(7, 'PR', 'OPEN', false, 'u', null)];
+        $this->agents->bulk = ['/tmp/x' => [new SessionInfo('a', 'waiting')]];
+        $this->provider->status = 'Doing';
+        $this->store->save($this->task('wk-45', State::InProgress, 7, new Issue('github', '45', 'u', 'Fix callbacks', 'WK')));
+
+        $rows = $this->listing->taskRows($this->projects(), $this->store, $this->agents);
+        $this->assertCount(1, $rows);
+        $this->assertSame('Doing', $rows[0]->tracker);
+        $this->assertStringContainsString('#7', $rows[0]->prCell);
+        $this->assertSame('1', $rows[0]->agentCell->count);
+        $this->assertTrue($rows[0]->waitingForFeedback);
+        $this->assertSame('acme/wallet-kit', $rows[0]->repoSlug);
     }
 }
