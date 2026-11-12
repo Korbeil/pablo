@@ -169,6 +169,88 @@ final class MainUpdateTest extends TestCase
         $this->assertSame('missing', $this->gitRepo->updatePrimary($this->tmp.'/nope', 'main')->status);
     }
 
+    /** HEAD, its branch, its reflog and the local main: what a dry run must never move. */
+    private function checkoutSnapshot(): string
+    {
+        return implode("\n", [
+            RepoHelper::git($this->clone, ['rev-parse', 'HEAD']),
+            RepoHelper::git($this->clone, ['branch', '--show-current']),
+            RepoHelper::git($this->clone, ['reflog', 'HEAD']),
+            $this->gitRepo->refExists($this->clone, 'refs/heads/main') ? RepoHelper::git($this->clone, ['rev-parse', 'refs/heads/main']) : '-',
+        ]);
+    }
+
+    public function testDryRunReportsUpdateWithoutResetting(): void
+    {
+        $old = RepoHelper::git($this->clone, ['rev-parse', 'HEAD']);
+        $new = $this->advanceOrigin();
+        $before = $this->checkoutSnapshot();
+
+        $report = $this->gitRepo->updatePrimary($this->clone, 'main', dryRun: true);
+
+        $this->assertSame('updated', $report->status);
+        $this->assertTrue($report->dryRun);
+        $this->assertSame($old, $report->oldSha);
+        $this->assertSame($new, $report->newSha);
+        $this->assertSame('🔍 would update main '.substr($old, 0, 7).' → '.substr($new, 0, 7), $report->render());
+        $this->assertSame($before, $this->checkoutSnapshot());
+        // The fetch did run: the remote-tracking ref moved.
+        $this->assertSame($new, RepoHelper::git($this->clone, ['rev-parse', 'origin/main']));
+
+        // And the real run then does exactly what the dry run announced.
+        $real = $this->gitRepo->updatePrimary($this->clone, 'main');
+        $this->assertSame([$report->status, $report->oldSha, $report->newSha], [$real->status, $real->oldSha, $real->newSha]);
+    }
+
+    public function testDryRunUpToDate(): void
+    {
+        $report = $this->gitRepo->updatePrimary($this->clone, 'main', dryRun: true);
+
+        $this->assertSame('up-to-date', $report->status);
+        $this->assertSame('= up-to-date main', $report->render());
+    }
+
+    public function testDryRunDoesNotSwitchBranches(): void
+    {
+        RepoHelper::git($this->clone, ['checkout', '-q', '-b', 'feature']);
+        RepoHelper::commitFile($this->clone, 'feature.txt', "f\n", 'feature');
+        $this->advanceOrigin();
+        $before = $this->checkoutSnapshot();
+
+        $report = $this->gitRepo->updatePrimary($this->clone, 'main', dryRun: true);
+
+        $this->assertSame('updated', $report->status);
+        $this->assertStringEndsWith('(would switch from feature)', $report->render());
+        $this->assertSame($before, $this->checkoutSnapshot());
+    }
+
+    public function testDryRunDoesNotCreateMissingLocalBranch(): void
+    {
+        RepoHelper::git($this->clone, ['checkout', '-q', '-b', 'feature']);
+        RepoHelper::git($this->clone, ['branch', '-q', '-D', 'main']);
+        $new = $this->advanceOrigin();
+        $before = $this->checkoutSnapshot();
+
+        $report = $this->gitRepo->updatePrimary($this->clone, 'main', dryRun: true);
+
+        $this->assertSame('🔍 would create main at '.substr($new, 0, 7).' (would switch from feature)', $report->render());
+        $this->assertSame($before, $this->checkoutSnapshot());
+        $this->assertFalse($this->gitRepo->refExists($this->clone, 'refs/heads/main'));
+    }
+
+    public function testDryRunRunsTheSameGuards(): void
+    {
+        $this->advanceOrigin();
+        $local = RepoHelper::commitFile($this->clone, 'local.txt', "l\n", 'unpushed');
+        $this->assertSame('ahead', $this->gitRepo->updatePrimary($this->clone, 'main', dryRun: true)->status);
+
+        file_put_contents($this->clone.'/scratch.txt', "x\n");
+        $report = $this->gitRepo->updatePrimary($this->clone, 'main', dryRun: true);
+        $this->assertSame('dirty', $report->status);
+        $this->assertSame('✋ dirty main — uncommitted changes; skipped', $report->render());
+        $this->assertSame($local, RepoHelper::git($this->clone, ['rev-parse', 'HEAD']));
+    }
+
     public function testUnknownRemoteThrows(): void
     {
         $this->expectException(PabloError::class);

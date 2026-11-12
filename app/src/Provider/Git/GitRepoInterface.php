@@ -61,8 +61,12 @@ interface GitRepoInterface
      * touches — a checkout with any git status output, an operation in
      * progress, local $branch commits missing from the remote, or $branch
      * checked out in another worktree. A failed fetch throws.
+     *
+     * With $dryRun every guard still runs (including the fetch, which only
+     * moves remote-tracking refs), but the checkout and the reset are
+     * skipped: the report says what would have happened.
      */
-    public function updatePrimary(string $repo, string $branch, string $remote = 'origin'): MainUpdateReport;
+    public function updatePrimary(string $repo, string $branch, string $remote = 'origin', bool $dryRun = false): MainUpdateReport;
 
     /**
      * Rebase/merge $upstream into the worktree; report on conflict,

@@ -8,6 +8,7 @@ use Pablo\Config\ProjectConfig;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Git\MainUpdateReport;
 use Pablo\Provider\Git\SyncReport;
+use Pablo\Provider\Git\WorktreeRef;
 use Pablo\Support\PabloError;
 
 /**
@@ -49,6 +50,12 @@ final class FakeGit implements GitRepoInterface
     /** @var list<array{0: string, 1: string, 2: string}> recorded (repo, branch, remote) updatePrimary calls */
     public array $primaryUpdates = [];
 
+    /** @var list<array{0: string, 1: string, 2: string}> recorded (repo, branch, remote) dry-run updatePrimary calls */
+    public array $primaryDryRuns = [];
+
+    /** @var list<WorktreeRef> canned listWorktrees() result */
+    public array $worktrees = [];
+
     /** @var list<array<string, mixed>> every syncWorktree() invocation */
     public array $syncCalls = [];
 
@@ -88,7 +95,7 @@ final class FakeGit implements GitRepoInterface
 
     public function listWorktrees(string $repo): array
     {
-        return [];
+        return $this->worktrees;
     }
 
     public function allBranchNames(string $repo): array
@@ -173,11 +180,15 @@ final class FakeGit implements GitRepoInterface
     {
     }
 
-    public function updatePrimary(string $repo, string $branch, string $remote = 'origin'): MainUpdateReport
+    public function updatePrimary(string $repo, string $branch, string $remote = 'origin', bool $dryRun = false): MainUpdateReport
     {
-        $this->primaryUpdates[] = [$repo, $branch, $remote];
+        if ($dryRun) {
+            $this->primaryDryRuns[] = [$repo, $branch, $remote];
+        } else {
+            $this->primaryUpdates[] = [$repo, $branch, $remote];
+        }
 
-        return $this->mainUpdateReport ?? new MainUpdateReport($repo, $branch, 'up-to-date');
+        return $this->mainUpdateReport ?? new MainUpdateReport($repo, $branch, 'up-to-date', dryRun: $dryRun);
     }
 
     public function syncWorktree(

@@ -292,7 +292,7 @@ final class GitRepo implements GitRepoInterface
         $this->git($worktree, ['push', '--force-with-lease', 'origin', $branch]);
     }
 
-    public function updatePrimary(string $repo, string $branch, string $remote = 'origin'): MainUpdateReport
+    public function updatePrimary(string $repo, string $branch, string $remote = 'origin', bool $dryRun = false): MainUpdateReport
     {
         if (!is_dir($repo) || 'true' !== $this->git($repo, ['rev-parse', '--is-inside-work-tree'], check: false)) {
             return new MainUpdateReport($repo, $branch, 'missing', detail: 'not a git checkout');
@@ -331,13 +331,20 @@ final class GitRepo implements GitRepoInterface
                     return new MainUpdateReport($repo, $branch, 'checked-out-elsewhere', $from, $oldSha, detail: "{$branch} is checked out in {$ref->path}");
                 }
             }
-            $this->git($repo, $hasLocal ? ['checkout', '-q', $branch] : ['checkout', '-q', '-b', $branch, $remoteRef]);
+            if (!$dryRun) {
+                $this->git($repo, $hasLocal ? ['checkout', '-q', $branch] : ['checkout', '-q', '-b', $branch, $remoteRef]);
+            }
         }
 
-        $this->git($repo, ['reset', '-q', '--hard', $remoteRef]);
-        $newSha = $this->git($repo, ['rev-parse', 'HEAD']);
+        if ($dryRun) {
+            // Every guard above ran; only the checkout and the reset are skipped.
+            $newSha = $this->git($repo, ['rev-parse', "{$remoteRef}^{commit}"]);
+        } else {
+            $this->git($repo, ['reset', '-q', '--hard', $remoteRef]);
+            $newSha = $this->git($repo, ['rev-parse', 'HEAD']);
+        }
 
-        return new MainUpdateReport($repo, $branch, $oldSha === $newSha ? 'up-to-date' : 'updated', $from, $oldSha, $newSha);
+        return new MainUpdateReport($repo, $branch, $oldSha === $newSha ? 'up-to-date' : 'updated', $from, $oldSha, $newSha, dryRun: $dryRun);
     }
 
     /**
