@@ -18,9 +18,11 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'task:relaunch', description: 're-fire the current state\'s agent/startup launchers on the current task')]
+#[AsCommand(name: 'task:relaunch', description: 're-fire the current state\'s agent/startup launchers on a task (by default the cwd\'s)')]
 final class RelaunchCommand extends Command
 {
+    use TargetsTask;
+
     public function __construct(
         private readonly StateMachine $stateMachine,
         private readonly Time $time,
@@ -35,13 +37,14 @@ final class RelaunchCommand extends Command
     protected function configure(): void
     {
         $this
+            ->addTaskTarget()
             ->addOption('only', null, InputOption::VALUE_REQUIRED, 're-fire only one label', null, ['task-analyst', 'startup-script', 'ci-analyst', 'pr-feedback', 'task-feedback']);
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $store = $this->store();
-        $ctx = $this->resolveCtx();
+        $ctx = $this->resolveTargetCtx($input);
         $onlyRaw = $input->getOption('only') ?: null;
         $only = null !== $onlyRaw ? Agent::tryByName($onlyRaw) : null;
         $fired = [];

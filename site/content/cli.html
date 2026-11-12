@@ -1,6 +1,6 @@
 <h1>Commands</h1>
 
-<p>Every <code>pablo</code> command, grouped by what it acts on. Commands marked “in a worktree” act on the task of the current directory. Run <code>pablo help &lt;command&gt;</code> for the full usage of any of them.</p>
+<p>Every <code>pablo</code> command, grouped by what it acts on. Commands that take <code>[&lt;branch&gt;]</code> act on the task of the current directory unless you <a href="#choosing-the-task">name another one</a>. Run <code>pablo help &lt;command&gt;</code> for the full usage of any of them.</p>
 
 <h2>Tasks</h2>
 
@@ -8,18 +8,29 @@
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
     <tr><td><code>task:start &lt;issue-url&gt;</code><br><code>task:start --project=&lt;name&gt; "&lt;prompt&gt;"</code></td><td>Start a task: branch, worktree, task-analyst. <a href="page:tasks#start-a-task">Guide</a></td></tr>
-    <tr><td><code>task:list [--live] [--refresh]</code></td><td>Active tasks, split into “waiting for feedback” and the rest. <code>--live</code> fetches fresh data, <code>--refresh</code> runs the poller first. <a href="page:tasks#see-your-tasks">Guide</a></td></tr>
-    <tr><td><code>task:waiting</code></td><td>In a worktree. Pause the task, or resume it. <a href="page:tasks#pause-a-task">Guide</a></td></tr>
-    <tr><td><code>task:state &lt;state&gt; [--no-trigger] [--worktree=&lt;path&gt;]</code></td><td>In a worktree. Force a state. <a href="page:tasks#force-a-state">Guide</a></td></tr>
+    <tr><td><code>task:list [--live] [--refresh] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--state=&lt;state&gt;…]</code></td><td>Active tasks, split into “waiting for feedback” and the rest. <code>--live</code> fetches fresh data, <code>--refresh</code> runs the poller first; <code>--project</code>, <code>--type</code> and <code>--state</code> (repeatable) narrow the list. <a href="page:tasks#see-your-tasks">Guide</a></td></tr>
+    <tr><td><code>task:waiting [&lt;branch&gt;]</code></td><td>Pause the task, or resume it. <a href="page:tasks#pause-a-task">Guide</a></td></tr>
+    <tr><td><code>task:state &lt;state&gt; [&lt;branch&gt;] [--no-trigger]</code></td><td>Force a state. <a href="page:tasks#force-a-state">Guide</a></td></tr>
     <tr><td><code>task:attach &lt;state&gt; [--project=&lt;name&gt;]</code></td><td>In a worktree. Adopt a worktree PABLO didn't create. <a href="page:tasks#adopt-an-existing-worktree">Guide</a></td></tr>
-    <tr><td><code>task:relaunch [--only=&lt;agent&gt;]</code></td><td>In a worktree. Launch the current state's agents again. <a href="page:tasks#relaunch-an-agent">Guide</a></td></tr>
-    <tr><td><code>task:retrigger-ci</code></td><td>In a worktree. Re-run the GitHub Actions workflows of the branch; the pull request goes back to draft. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
-    <tr><td><code>task:skip-ci</code></td><td>In a worktree, from <code>ci-red</code>. Ignore failing checks until the next <code>/pablo-commit-and-pr</code>. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
-    <tr><td><code>task:close [&lt;branch&gt;] [--project=&lt;name&gt;] [--yes]</code></td><td>Close a task: delete its worktree and record. <a href="page:tasks#close-a-task">Guide</a></td></tr>
-    <tr><td><code>task:info current</code></td><td>In a worktree. Print the task record as JSON.</td></tr>
-    <tr><td><code>task:precommit-check [--json] [--worktree=&lt;path&gt;]</code></td><td>Whether <code>/pablo-commit-and-pr</code> is allowed here. Used by that command.</td></tr>
+    <tr><td><code>task:relaunch [&lt;branch&gt;] [--only=&lt;agent&gt;]</code></td><td>Launch the agents of the task's current state again. <a href="page:tasks#relaunch-an-agent">Guide</a></td></tr>
+    <tr><td><code>task:retrigger-ci [&lt;branch&gt;]</code></td><td>Re-run the GitHub Actions workflows of the branch; the pull request goes back to draft. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
+    <tr><td><code>task:skip-ci [&lt;branch&gt;]</code></td><td>From <code>ci-red</code>. Ignore failing checks until the next <code>/pablo-commit-and-pr</code>. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
+    <tr><td><code>task:close [&lt;branch&gt;] [--yes]</code></td><td>Close a task: delete its worktree and record. <a href="page:tasks#close-a-task">Guide</a></td></tr>
+    <tr><td><code>task:info [&lt;branch&gt;]</code></td><td>Print the task record as JSON. <code>task:info current</code> still works: it means the current directory's task.</td></tr>
+    <tr><td><code>task:precommit-check [&lt;branch&gt;] [--json]</code></td><td>Whether <code>/pablo-commit-and-pr</code> is allowed here. Used by that command.</td></tr>
   </tbody>
 </table>
+
+<h3 id="choosing-the-task">Choosing the task</h3>
+
+<p>Every command above that acts on an existing task (<code>task:waiting</code>, <code>task:state</code>, <code>task:relaunch</code>, <code>task:retrigger-ci</code>, <code>task:skip-ci</code>, <code>task:close</code>, <code>task:info</code>, <code>task:precommit-check</code>) picks it the same way:</p>
+
+<ul>
+  <li><b>Nothing given</b>: the task of the worktree you're in.</li>
+  <li><b><code>&lt;branch&gt;</code></b>: that task, from anywhere. It is always the last argument, so <code>task:state</code> takes it after the state: <code>pablo task:state draft pim-123</code>.</li>
+  <li><b><code>--project=&lt;name&gt;</code></b>: with a branch, when several projects have a task with that branch (the error lists them). It needs a branch.</li>
+  <li><b><code>--worktree=&lt;path&gt;</code></b>: the task whose worktree is at that path. It can't be combined with a branch or <code>--project</code>.</li>
+</ul>
 
 <h2>Projects</h2>
 

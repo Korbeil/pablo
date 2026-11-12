@@ -15,9 +15,11 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'task:waiting', description: 'toggle the waiting pause for the current task')]
+#[AsCommand(name: 'task:waiting', description: 'toggle the waiting pause for a task (by default the cwd\'s)')]
 final class WaitingCommand extends Command
 {
+    use TargetsTask;
+
     public function __construct(
         private readonly StateMachine $stateMachine,
         Store $store,
@@ -28,10 +30,15 @@ final class WaitingCommand extends Command
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
 
+    protected function configure(): void
+    {
+        $this->addTaskTarget();
+    }
+
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $store = $this->store();
-        $ctx = $this->resolveCtx();
+        $ctx = $this->resolveTargetCtx($input);
         $lock = $store->taskLock($ctx->task->project, $ctx->task->branch);
         try {
             $endedIn = $this->stateMachine->toggleWaiting($ctx);
