@@ -129,6 +129,31 @@ final class LinearTest extends TestCase
         $this->assertEquals(new \DateTimeImmutable('2026-07-20T10:00:00.000Z'), $stamps[\count($stamps) - 1]);
     }
 
+    public function testEveryCliCallHasATimeout(): void
+    {
+        $this->configure([
+            'issue view' => json_encode(self::ISSUE_JSON, \JSON_THROW_ON_ERROR),
+            'issue list' => json_encode([], \JSON_THROW_ON_ERROR),
+        ]);
+        $svc = $this->svc();
+        $cfg = $this->cfg();
+        $svc->issueStatus('STA-335', $cfg);
+        $svc->listAssigned($cfg);
+        $task = new Task('stably', 'sta-335', $this->tmp, State::NeedsTesting);
+        $task->issue = $svc->getIssue('STA-335', $cfg);
+        $svc->failureSignalEvents($task, $cfg);
+        $this->assertSame(
+            ['STA-335' => 'In Progress', 'STA-336' => 'In Progress'],
+            $svc->batchIssueStatus(['STA-335' => $cfg, 'STA-336' => $cfg]),
+        );
+
+        $this->assertCount(6, $this->runner->calls);
+        foreach ($this->runner->calls as [$argv, , $timeout]) {
+            $this->assertSame('linear', $argv[0]);
+            $this->assertSame(30.0, $timeout, implode(' ', $argv));
+        }
+    }
+
     private function svc(): Linear
     {
         return new Linear($this->runner ?? new FakeProcessRunner(), new \Pablo\Domain\Time());

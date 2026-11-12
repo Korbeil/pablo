@@ -479,7 +479,7 @@ final class Poller
     /**
      * Batch tracker status lookups for every open task's issue in this project,
      * so the whole poll cycle costs one parallel fetch per provider instead of
-     * N sequential CLI calls (each up to JIRA_CALL_TIMEOUT_S). Falls back to a
+     * N sequential CLI calls (each up to the tracker's call timeout). Falls back to a
      * per-task live fetch if the batch fails.
      *
      * @return array<string, string> key => status
