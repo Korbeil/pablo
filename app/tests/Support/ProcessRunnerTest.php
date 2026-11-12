@@ -44,6 +44,18 @@ final class ProcessRunnerTest extends TestCase
         $this->assertStringContainsString('err', $probe->output);
     }
 
+    public function testRunTimeoutBecomesPabloErrorNamingTheTimeout(): void
+    {
+        $this->expectException(\Pablo\Support\PabloError::class);
+        $this->expectExceptionMessage('timed out after 0.2s');
+        (new ProcessRunner())->run(['sleep', '5'], timeout: 0.2);
+    }
+
+    public function testNullTimeoutKeepsABoundedDefault(): void
+    {
+        $this->assertSame(60.0, ProcessRunner::DEFAULT_TIMEOUT);
+    }
+
     public function testRunParallelPreservesOrder(): void
     {
         $outs = (new ProcessRunner())->runParallel([

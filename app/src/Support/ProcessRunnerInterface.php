@@ -8,6 +8,8 @@ namespace Pablo\Support;
  * Runs external CLIs (gh, the trackers', the runtimes' and the ADEs' CLIs). Abstraction over Symfony Process
  * so callers stay testable: tests inject a fake implementing this interface
  * instead of executing real binaries.
+ *
+ * A null $timeout means ProcessRunner::DEFAULT_TIMEOUT (60 s), never "no timeout".
  */
 interface ProcessRunnerInterface
 {

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Pablo\Provider\Git;
 
 use Pablo\Support\PabloError;
+use Symfony\Component\Process\Exception\ProcessTimedOutException;
+use Symfony\Component\Process\Exception\RuntimeException as ProcessRuntimeException;
 use Symfony\Component\Process\Process;
 
 /**
@@ -14,22 +16,94 @@ use Symfony\Component\Process\Process;
  * rebase/merge onto the primary branch; push rewritten history with
  * --force-with-lease only; on a lease failure roll back and let the next
  * cycle retry; never resolve conflicts — abort and report them.
+ *
+ * Every git call gets an explicit timeout chosen by the kind of operation
+ * (Symfony Process would otherwise kill it after 60 s), and a timeout surfaces
+ * as a PabloError so the lease rollback and the rebase/merge abort still run.
  */
 final class GitRepo implements GitRepoInterface
 {
+    /** Read-only plumbing (rev-parse, status, for-each-ref, diff, config…). */
+    public const TIMEOUT_LOCAL = 'local';
+    /** Operations rewriting the working tree (worktree add, checkout, reset, rebase, merge), hooks included. */
+    public const TIMEOUT_WORKTREE = 'worktree';
+    /** Network operations (fetch, push — a pre-push hook may run a test suite). */
+    public const TIMEOUT_NETWORK = 'network';
+    /** A full clone (backup restore). */
+    public const TIMEOUT_CLONE = 'clone';
+
+    /** Default seconds per kind; generous on purpose, they only stop a hung git. */
+    public const DEFAULT_TIMEOUTS = [
+        self::TIMEOUT_LOCAL => 120.0,
+        self::TIMEOUT_WORKTREE => 900.0,
+        self::TIMEOUT_NETWORK => 1200.0,
+        self::TIMEOUT_CLONE => 3600.0,
+    ];
+
+    private const NETWORK_COMMANDS = ['fetch', 'push', 'pull', 'ls-remote'];
+    private const WORKTREE_COMMANDS = ['worktree', 'checkout', 'switch', 'reset', 'rebase', 'merge', 'cherry-pick', 'revert'];
+
+    /** @var array<string, float> */
+    private readonly array $timeouts;
+
+    /**
+     * @param array<string, float> $timeouts per-kind overrides of DEFAULT_TIMEOUTS (tests shrink them)
+     */
+    public function __construct(array $timeouts = [])
+    {
+        $this->timeouts = array_merge(self::DEFAULT_TIMEOUTS, $timeouts);
+    }
+
     /**
      * @param list<string> $args
      */
     public function git(string $cwd, array $args, bool $check = true): string
     {
-        $process = new Process(array_merge(['git', '-C', $cwd], $args));
-        $process->run();
+        $process = $this->run(array_merge(['git', '-C', $cwd], $args), $this->kindOf($args));
         if ($check && !$process->isSuccessful()) {
             $err = '' !== trim($process->getErrorOutput()) ? trim($process->getErrorOutput()) : trim($process->getOutput());
             throw new PabloError('git '.implode(' ', $args)." failed in {$cwd}: {$err}");
         }
 
         return trim($process->getOutput());
+    }
+
+    /**
+     * The single place git processes are run: applies the kind's timeout and
+     * turns a timeout (or a git that cannot be executed) into a PabloError,
+     * whatever $check says — a killed git has no meaningful exit code.
+     *
+     * @param list<string> $argv
+     */
+    private function run(array $argv, string $kind): Process
+    {
+        $timeout = $this->timeouts[$kind];
+        $process = new Process($argv);
+        $process->setTimeout($timeout);
+        $command = implode(' ', \array_slice($argv, 'clone' === ($argv[1] ?? '') ? 1 : 3));
+        try {
+            $process->run();
+        } catch (ProcessTimedOutException) {
+            throw new PabloError(\sprintf('git %s timed out after %ss', $command, $timeout));
+        } catch (ProcessRuntimeException $e) {
+            throw new PabloError(\sprintf('git %s could not run: %s', $command, $e->getMessage()));
+        }
+
+        return $process;
+    }
+
+    /** @param list<string> $args */
+    private function kindOf(array $args): string
+    {
+        $command = $args[0] ?? '';
+        if (\in_array($command, self::NETWORK_COMMANDS, true)) {
+            return self::TIMEOUT_NETWORK;
+        }
+        if ('clone' === $command) {
+            return self::TIMEOUT_CLONE;
+        }
+
+        return \in_array($command, self::WORKTREE_COMMANDS, true) ? self::TIMEOUT_WORKTREE : self::TIMEOUT_LOCAL;
     }
 
     /** @return list<WorktreeRef> */
@@ -154,8 +228,7 @@ final class GitRepo implements GitRepoInterface
 
     public function refExists(string $cwd, string $ref): bool
     {
-        $process = new Process(['git', '-C', $cwd, 'rev-parse', '--verify', '--quiet', $ref]);
-        $process->run();
+        $process = $this->run(['git', '-C', $cwd, 'rev-parse', '--verify', '--quiet', $ref], self::TIMEOUT_LOCAL);
 
         return 0 === $process->getExitCode();
     }
@@ -197,8 +270,7 @@ final class GitRepo implements GitRepoInterface
         if (!is_dir($dir)) {
             @mkdir($dir, 0o777, true);
         }
-        $process = new Process(['git', 'clone', $originUrl, $path]);
-        $process->run();
+        $process = $this->run(['git', 'clone', $originUrl, $path], self::TIMEOUT_CLONE);
         if (!$process->isSuccessful()) {
             $err = '' !== trim($process->getErrorOutput()) ? trim($process->getErrorOutput()) : trim($process->getOutput());
             throw new PabloError("git clone {$originUrl} failed: {$err}");
@@ -270,21 +342,31 @@ final class GitRepo implements GitRepoInterface
 
     /**
      * Rebase/merge $upstream into the worktree; report on conflict,
-     * aborting the operation on failure.
+     * aborting the operation on failure. A timeout (or a git that cannot run)
+     * aborts too, then rethrows the PabloError: it is not a conflict.
      */
     private function integrate(string $wt, string $upstream, string $strategy): ?SyncReport
     {
         $op = 'rebase' === $strategy
             ? ['rebase', $upstream]
             : ['merge', '--no-edit', $upstream];
-        $process = new Process(['git', '-C', $wt, ...$op]);
-        $process->run();
+        $abort = 'rebase' === $strategy ? 'rebase' : 'merge';
+        try {
+            $process = $this->run(['git', '-C', $wt, ...$op], self::TIMEOUT_WORKTREE);
+        } catch (PabloError $e) {
+            try {
+                $this->git($wt, [$abort, '--abort'], check: false);
+            } catch (PabloError) {
+                // the abort hanging too must not hide the original failure
+            }
+
+            throw $e;
+        }
         if ($process->isSuccessful()) {
             return null;
         }
         $conflictFiles = $this->git($wt, ['diff', '--name-only', '--diff-filter=U'], check: false);
         $hunks = $this->git($wt, ['diff', '--diff-filter=U'], check: false);
-        $abort = 'rebase' === $strategy ? 'rebase' : 'merge';
         $this->git($wt, [$abort, '--abort'], check: false);
         $detail = implode("\n", \array_slice(preg_split('/\r?\n/', $hunks) ?: [], 0, 40));
         if ('' === $detail) {
@@ -376,20 +458,27 @@ final class GitRepo implements GitRepoInterface
 
         $origHead = $this->git($wt, ['rev-parse', 'HEAD']);
 
-        // 1. Integrate the branch's own remote first, so a collaborator's push
-        //    is never clobbered and the lease check won't trip on their commits.
-        if ($remoteNew) {
-            $conflict = $this->integrate($wt, $remoteBranch, $strategy);
-            if (null !== $conflict) {
-                $conflict->branch = $branch;
-                $conflict->target = $target;
+        try {
+            // 1. Integrate the branch's own remote first, so a collaborator's push
+            //    is never clobbered and the lease check won't trip on their commits.
+            if ($remoteNew) {
+                $conflict = $this->integrate($wt, $remoteBranch, $strategy);
+                if (null !== $conflict) {
+                    $conflict->branch = $branch;
+                    $conflict->target = $target;
 
-                return $conflict;
+                    return $conflict;
+                }
             }
-        }
 
-        // 2. Rebase/merge onto the target (primary branch, or the PR's base).
-        $conflict = $this->integrate($wt, $target, $strategy);
+            // 2. Rebase/merge onto the target (primary branch, or the PR's base).
+            $conflict = $this->integrate($wt, $target, $strategy);
+        } catch (PabloError $e) {
+            // integrate() already aborted; also undo a completed step 1.
+            $this->git($wt, ['reset', '--hard', $origHead], check: false);
+
+            throw $e;
+        }
         if (null !== $conflict) {
             $this->git($wt, ['reset', '--hard', $origHead], check: false);
             $conflict->branch = $branch;
@@ -411,7 +500,7 @@ final class GitRepo implements GitRepoInterface
                     'lease-failed',
                     behind: $behind,
                     ahead: $ahead,
-                    detail: "remote moved during sync; rolled back, will retry next cycle ({$e->getMessage()})",
+                    detail: "push failed (remote moved or timed out); rolled back, will retry next cycle ({$e->getMessage()})",
                 );
             }
         }
