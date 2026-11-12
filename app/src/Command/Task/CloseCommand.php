@@ -15,8 +15,9 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
-#[AsCommand(name: 'task:close', description: 'close a task (delete worktree + record), by default the cwd\'s task')]
+#[AsCommand(name: 'task:close', description: 'close a task (delete worktree + record), by default the cwd\'s task after confirmation')]
 final class CloseCommand extends Command
 {
     use TargetsTask;
@@ -35,7 +36,7 @@ final class CloseCommand extends Command
     {
         $this
             ->addTaskTarget()
-            ->addOption('yes', null, InputOption::VALUE_NONE, 'close even if agents are active');
+            ->addOption('yes', 'y', InputOption::VALUE_NONE, 'don\'t ask for confirmation, and close even if agents are active');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
@@ -43,9 +44,25 @@ final class CloseCommand extends Command
         $ctx = $this->resolveTargetCtx($input);
         $task = $ctx->task;
         $cfg = $ctx->cfg;
+        $yes = (bool) $input->getOption('yes');
         $sessions = $this->agents()->activeSessions($task->worktreePath);
-        if ([] !== $sessions && !(bool) $input->getOption('yes')) {
+        if ([] !== $sessions && !$yes) {
             throw new PabloError(\count($sessions).' agent session(s) still active on this worktree — wait for them or re-run with --yes');
+        }
+        // A task picked from the cwd was never named: deleting the worktree
+        // you are standing in deserves a confirmation. A named task (<branch>
+        // or --worktree) closes as before.
+        $implicit = '' === (string) $input->getArgument('branch') && '' === (string) $input->getOption('worktree');
+        if ($implicit && !$yes) {
+            if (!$input->isInteractive()) {
+                throw new PabloError("refusing to close {$task->branch} ({$task->project}), the current directory's task, without confirmation: name it (pablo task:close {$task->branch}) or pass --yes");
+            }
+            $question = "Close {$task->branch} ({$task->project})? This deletes its worktree {$task->worktreePath}, its local branch and the task record; the pull request is untouched.";
+            if (!(new SymfonyStyle($input, $output))->confirm($question, false)) {
+                $output->writeln('Nothing closed.');
+
+                return self::SUCCESS;
+            }
         }
         // Out of the worktree first: it is about to be deleted.
         chdir($cfg->repoPath);

@@ -134,12 +134,14 @@ pablo task:relaunch --only=task-analyst   # just one of them
 
 <p><b>By hand</b>, to abandon or clean up a task:</p>
 
-<pre><code class="language-bash">pablo task:close                              # the task of the current worktree
+<pre><code class="language-bash">pablo task:close                              # the task of the current worktree, after a y/N confirmation
 pablo task:close pim-123                      # any task, from anywhere
 pablo task:close pim-123 --project acme-pim   # when several projects have that branch
 </code></pre>
 
-<p>It refuses while agents are active (add <code>--yes</code> to close anyway), works even if the worktree folder is already gone, and moves you to the project's main checkout before deleting the worktree, so your shell isn't left in a deleted folder.</p>
+<p>With no branch, it asks before closing the task of the worktree you're in (the answer defaults to no), since you never named it. Without a terminal to ask in (a script, <code>-n</code>), it refuses instead: name the branch or add <code>--yes</code>. A named task (<code>&lt;branch&gt;</code> or <code>--worktree</code>) closes without asking.</p>
+
+<p>It refuses while agents are active (add <code>--yes</code> to close anyway, which also skips the confirmation), works even if the worktree folder is already gone, and moves you to the project's main checkout before deleting the worktree, so your shell isn't left in a deleted folder.</p>
 
 <h2 id="inspect-a-task">Inspect a task</h2>
 

@@ -15,7 +15,7 @@
     <tr><td><code>task:relaunch [&lt;branch&gt;] [--only=&lt;agent&gt;]</code></td><td>Launch the agents of the task's current state again. <a href="page:tasks#relaunch-an-agent">Guide</a></td></tr>
     <tr><td><code>task:retrigger-ci [&lt;branch&gt;]</code></td><td>Re-run the GitHub Actions workflows of the branch; the pull request goes back to draft. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
     <tr><td><code>task:skip-ci [&lt;branch&gt;]</code></td><td>From <code>ci-red</code>. Ignore failing checks until the next <code>/pablo-commit-and-pr</code>. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
-    <tr><td><code>task:close [&lt;branch&gt;] [--yes]</code></td><td>Close a task: delete its worktree and record. <a href="page:tasks#close-a-task">Guide</a></td></tr>
+    <tr><td><code>task:close [&lt;branch&gt;] [--yes]</code></td><td>Close a task: delete its worktree and record. Asks first when the task comes from the current directory; <code>--yes</code> (<code>-y</code>) skips that and the active-agents check. <a href="page:tasks#close-a-task">Guide</a></td></tr>
     <tr><td><code>task:info [&lt;branch&gt;]</code></td><td>Print the task record as JSON. <code>task:info current</code> still works: it means the current directory's task.</td></tr>
     <tr><td><code>task:precommit-check [&lt;branch&gt;] [--json]</code></td><td>Whether <code>/pablo-commit-and-pr</code> is allowed here. Used by that command.</td></tr>
   </tbody>
@@ -26,7 +26,7 @@
 <p>Every command above that acts on an existing task (<code>task:waiting</code>, <code>task:state</code>, <code>task:relaunch</code>, <code>task:retrigger-ci</code>, <code>task:skip-ci</code>, <code>task:close</code>, <code>task:info</code>, <code>task:precommit-check</code>) picks it the same way:</p>
 
 <ul>
-  <li><b>Nothing given</b>: the task of the worktree you're in.</li>
+  <li><b>Nothing given</b>: the task of the worktree you're in (<code>task:close</code> asks for confirmation first).</li>
   <li><b><code>&lt;branch&gt;</code></b>: that task, from anywhere. It is always the last argument, so <code>task:state</code> takes it after the state: <code>pablo task:state draft pim-123</code>.</li>
   <li><b><code>--project=&lt;name&gt;</code></b>: with a branch, when several projects have a task with that branch (the error lists them). It needs a branch.</li>
   <li><b><code>--worktree=&lt;path&gt;</code></b>: the task whose worktree is at that path. It can't be combined with a branch or <code>--project</code>.</li>
