@@ -12,10 +12,11 @@ use function Castor\context;
 use function Castor\finder;
 use function Castor\fs;
 use function Castor\io;
-use function Castor\PHPQa\php_cs_fixer;
+use function Castor\PHPQa\create_tools;
 use function Castor\PHPQa\phpstan;
 use function Castor\PHPQa\twig_cs_fixer;
 use function Castor\run;
+use function Castor\run_php;
 
 /**
  * PABLO QA tasks, powered by the remote `castor-php/php-qa` package
@@ -25,27 +26,34 @@ use function Castor\run;
 #[AsTask(name: 'cs-fixer', namespace: 'qa', description: 'Fix coding standards in app/{src,tests,config,public} and the site builder')]
 function qa_cs_fixer(): void
 {
-    // --path-mode intersection means only paths listed here are ever fixed,
-    // whatever the Finder in .php-cs-fixer.php sees. Keep the two in step.
-    php_cs_fixer([
-        'fix', '--config', __DIR__ . '/app/.php-cs-fixer.php',
-        '--path-mode', 'intersection',
-        __DIR__ . '/app/src', __DIR__ . '/app/tests',
-        __DIR__ . '/app/config', __DIR__ . '/app/public',
-        __DIR__ . '/site/build/src', __DIR__ . '/site/build/build.php',
-    ]);
+    cs_fixer([]);
 }
 
 #[AsTask(name: 'cs:check', namespace: 'qa', description: 'Check coding standards without modifying files (CI)')]
 function qa_cs_check(): void
 {
-    php_cs_fixer([
-        'fix', '--config', __DIR__ . '/app/.php-cs-fixer.php',
-        '--path-mode', 'intersection', '--dry-run', '--diff',
-        __DIR__ . '/app/src', __DIR__ . '/app/tests',
-        __DIR__ . '/app/config', __DIR__ . '/app/public',
-        __DIR__ . '/site/build/src', __DIR__ . '/site/build/build.php',
-    ]);
+    cs_fixer(['--dry-run', '--diff']);
+}
+
+/**
+ * php-cs-fixer over the files the Finder in app/.php-cs-fixer.php lists — the
+ * one place the covered paths are declared (no path arguments here). It runs
+ * from app/ so it reads app/composer.json (the project's minimum PHP version);
+ * the tool itself stays installed under the repo root's .castor/.
+ *
+ * @param list<string> $options
+ */
+function cs_fixer(array $options): void
+{
+    // Same as php_cs_fixer(), but with its own working directory: php_cs_fixer()
+    // would also move the tool sandbox, which create_tools() roots at the
+    // context's working directory.
+    $tool = create_tools('php-cs-fixer', ['friendsofphp/php-cs-fixer' => '*']);
+    run_php(
+        $tool . '/vendor/bin/php-cs-fixer',
+        ['fix', '--config', '.php-cs-fixer.php', ...$options],
+        context()->withWorkingDirectory(__DIR__ . '/app'),
+    );
 }
 
 #[AsTask(name: 'twig-cs-fixer', namespace: 'qa', description: 'Lint and fix Twig templates in app/templates')]

@@ -85,8 +85,9 @@ Code style is enforced by php-cs-fixer (`app/.php-cs-fixer.php`) and PHPStan
 at **level 8** (`app/phpstan.neon`), both over `src`, `tests`, `config` and
 `public` — raise it further by fixing reported errors, never by ignoring or
 baseline-suppressing them. Run both via `castor qa:*` before non-trivial
-changes. `qa:cs-fixer` uses `--path-mode intersection`, so a new top-level
-directory must be added to **both** `castor.php` and `.php-cs-fixer.php`.
+changes. `qa:cs-fixer` / `qa:cs:check` pass no paths: the Finder in
+`app/.php-cs-fixer.php` is the only list of covered paths, so a new top-level
+directory is added there (and nowhere in `castor.php`).
 
 ## Architecture
 

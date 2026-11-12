@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PhpCsFixer\Config;
 use PhpCsFixer\Finder;
 
+// The only list of covered paths: castor's qa:cs-fixer / qa:cs:check pass none.
 // bin/ is deliberately excluded: the entry points are extensionless and open
 // with a shebang, which the declare_strict_types fixer mishandles.
 $finder = (new Finder())
