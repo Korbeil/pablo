@@ -30,6 +30,7 @@ final class RebaseLogView
         'conflict' => ['is-danger', 'lucide:ban', 'conflict'],
         'lease-failed' => ['is-warning', 'lucide:rotate-ccw', 'lease failed'],
         'dirty' => ['is-warning', 'lucide:file-pen', 'dirty'],
+        'local-rewrite' => ['is-warning', 'lucide:pen-line', 'local rewrite'],
         'locked' => ['pablo-chip-muted', 'lucide:lock', 'locked'],
         'skipped' => ['pablo-chip-muted', 'lucide:git-pull-request-closed', 'skipped'],
         'error' => ['is-danger', 'lucide:circle-x', 'error'],
