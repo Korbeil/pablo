@@ -49,6 +49,7 @@ use Pablo\Task\TaskCloser;
 use Pablo\Task\TaskStarter;
 use Pablo\Task\TaskStateChanger;
 use Pablo\Update\Updater;
+use Pablo\Web\TrustedHostsSubscriber;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
@@ -157,6 +158,7 @@ return static function (ContainerConfigurator $container): void {
     $services->load('Pablo\\Controller\\', '../src/Controller');
     $services->load('Pablo\\Dashboard\\', '../src/Dashboard');
     $services->load('Pablo\\Twig\\', '../src/Twig');
+    $services->set(TrustedHostsSubscriber::class);
 
     $services->set(ConsoleApplication::class)
         ->public()

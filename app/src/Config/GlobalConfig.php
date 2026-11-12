@@ -6,6 +6,7 @@ namespace Pablo\Config;
 
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
+use Pablo\Web\TrustedHosts;
 use Symfony\Component\Yaml\Exception\ParseException;
 use Symfony\Component\Yaml\Yaml;
 
@@ -74,7 +75,38 @@ final class GlobalConfig
             'agent_runtime' => isset($data['agent_runtime']) ? (string) $data['agent_runtime'] : null,
             'claude_code' => \is_array($data['claude_code'] ?? null) ? $data['claude_code'] : [],
             'dashboard_port' => $data['dashboard_port'] ?? null,
+            'dashboard_trusted_hosts' => $data['dashboard_trusted_hosts'] ?? null,
         ];
+    }
+
+    /**
+     * The extra Host names the dashboard answers besides 127.0.0.1 and
+     * localhost (dashboard_trusted_hosts), normalized, empty when unset.
+     * Read per call, like every other key.
+     *
+     * @return list<string>
+     *
+     * @throws PabloError when the value is not a list of host names
+     */
+    public function dashboardTrustedHosts(): array
+    {
+        $hosts = $this->defaults()['dashboard_trusted_hosts'] ?? null;
+        if (null === $hosts) {
+            return [];
+        }
+        if (!\is_array($hosts) || !array_is_list($hosts)) {
+            throw new PabloError('config.yaml: dashboard_trusted_hosts must be a list of host names, got '.get_debug_type($hosts));
+        }
+        $normalized = [];
+        foreach ($hosts as $host) {
+            $name = \is_string($host) ? TrustedHosts::normalize($host) : null;
+            if (null === $name) {
+                throw new PabloError('config.yaml: dashboard_trusted_hosts: '.var_export($host, true).' is not a host name or IP address (no scheme, port or wildcard)');
+            }
+            $normalized[$name] = true;
+        }
+
+        return array_keys($normalized);
     }
 
     /**

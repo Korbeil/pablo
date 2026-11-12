@@ -59,6 +59,8 @@ ci:
   <dd>A model per project type; see below.</dd>
   <dt><code>dashboard_port</code></dt>
   <dd>The port of the <a href="page:dashboard">dashboard</a> (default <code>8321</code>): <code>pablo web</code> and its background service listen on <code>127.0.0.1:&lt;dashboard_port&gt;</code>. The installer sets it when 8321 is taken by another program; change it with <code>pablo system:install --port &lt;port&gt;</code> (or edit it here and restart the service).</dd>
+  <dt><code>dashboard_trusted_hosts</code></dt>
+  <dd>Extra host names the <a href="page:dashboard">dashboard</a> answers, besides <code>127.0.0.1</code> and <code>localhost</code> (default: none), for when you reach it through something that forwards to <code>127.0.0.1</code>: a reverse proxy, an SSH tunnel, an <code>/etc/hosts</code> alias. A list of exact host names or IP addresses, without scheme, port or wildcard, e.g. <code>[pablo.home.arpa]</code>. It doesn't change where the dashboard listens. Read on every request, so no restart is needed; an invalid value makes the dashboard answer the loopback names only, and <code>pablo web</code> refuses to start with it.</dd>
 </dl>
 
 <h2 id="choose-the-agent-model">Choose the agent model</h2>

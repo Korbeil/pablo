@@ -16,6 +16,8 @@ ci:
 default_model: opencode-go/glm-5.3-flash
 pr_description_locale: en
 # dashboard_port: 8321   # the port of `pablo web` and its service (127.0.0.1 only)
+# dashboard_trusted_hosts: [pablo.home.arpa]   # extra names the dashboard answers
+#                          # (exact names, besides 127.0.0.1 and localhost)
 # agent_runtime: opencode | claude-code | copilot  (default: opencode)
 # The program that runs the agents. With claude-code, PABLO launches
 # `claude -p` with its agents from ~/.pablo/runtime/claude/agents.json, links the

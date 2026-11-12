@@ -55,11 +55,17 @@ final class WebCommand extends Command
     {
         $port = $this->port($input);
         $url = 'http://'.self::HOST.':'.$port;
+        // Checked up front: the server itself fails closed on a bad value
+        // (loopback only), which would look like a mysterious 400.
+        $trustedHosts = $this->globalConfig->dashboardTrustedHosts();
 
         $process = new Process((new PhpServer())->command($port), env: PhpServer::environment($this->environment));
         $process->setTimeout(null);
 
         $output->writeln("PABLO dashboard → <info>{$url}</info>");
+        if ([] !== $trustedHosts) {
+            $output->writeln('also answering requests for: '.implode(', ', $trustedHosts));
+        }
         $output->writeln('<comment>(ctrl-c to stop)</comment>');
 
         $process->start();
