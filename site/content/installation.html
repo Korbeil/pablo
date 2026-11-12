@@ -10,7 +10,7 @@
 
 <ul>
   <li><b>git</b>: every task is a branch and a worktree.</li>
-  <li><b>A runtime</b>, the agent CLI that runs the agents: <a href="https://opencode.ai">OpenCode</a> set up with your usual model provider (the default), <a href="https://code.claude.com/docs">Claude Code</a> logged in to your Claude account, or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> logged in to your GitHub account. See <a href="page:runtimes">Runtimes &amp; ADEs</a>.</li>
+  <li><b>A runtime</b>, the agent CLI that runs the agents: <a href="https://opencode.ai">OpenCode</a> set up with your usual model provider (the default), <a href="https://code.claude.com/docs">Claude Code</a> logged in to your Claude account, or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> <span class="exp">experimental</span> logged in to your GitHub account. See <a href="page:runtimes">Runtimes &amp; ADEs</a>.</li>
   <li><b>An agent environment (ADE: Orca, OpenChamber or headless)</b>: <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a> is where agents run and where you chat with them. Optional in theory (without one, agents run headless in the background), but that's where you'll read their work. See <a href="page:runtimes#choose-an-ade">Choose an ADE</a>.</li>
   <li><b>curl</b>, to download PABLO, and <b>sha256sum</b> or <b>shasum</b> (one ships with every Linux and macOS) to verify it. Nothing else: the binary carries its own PHP.</li>
 </ul>
@@ -24,7 +24,7 @@
   <tbody>
     <tr><td>GitHub pull requests (every project: PABLO follows PRs and CI on GitHub, whatever the issue tracker)</td><td><a href="https://cli.github.com/"><code>gh</code></a></td><td><code>gh auth login</code></td></tr>
     <tr><td>Jira issues, or Confluence pages</td><td><a href="https://www.atlassian.com/software/cli"><code>acli</code></a></td><td><code>acli auth login</code> for Jira; Confluence has its own, <code>acli confluence auth login</code></td></tr>
-    <tr><td>Linear issues</td><td><a href="https://github.com/schpet/linear-cli"><code>linear</code></a></td><td>see its docs (checked with <code>linear auth status</code>)</td></tr>
+    <tr><td>Linear issues <span class="exp">experimental</span></td><td><a href="https://github.com/schpet/linear-cli"><code>linear</code></a></td><td>see its docs (checked with <code>linear auth status</code>)</td></tr>
   </tbody>
 </table>
 
@@ -34,7 +34,7 @@
 
 <h2 id="choose-an-agent-runtime">Choose an agent runtime and an ADE</h2>
 
-<p>The installer asks for two things. The <b>agent runtime</b> runs the agents: OpenCode (the default), Claude Code, or GitHub Copilot CLI (experimental); it lists the ones it finds on your <code>PATH</code>, takes a single one without asking, and stops with none. The <b>agent environment (ADE)</b> is where they run and where you read them: Orca (the default), OpenChamber (OpenCode only) or headless, which is also every ADE's fallback. Change either later with <code>pablo system:install --runtime …</code> or <code>--backend …</code>. Setup, limits and fallback rules of each are on <a href="page:runtimes">Runtimes &amp; ADEs</a>.</p>
+<p>The installer asks for two things. The <b>agent runtime</b> runs the agents: OpenCode (the default), Claude Code, or GitHub Copilot CLI <span class="exp">experimental</span>; it lists the ones it finds on your <code>PATH</code>, takes a single one without asking, and stops with none. The <b>agent environment (ADE)</b> is where they run and where you read them: Orca (the default), OpenChamber (OpenCode only) or headless, which is also every ADE's fallback. Change either later with <code>pablo system:install --runtime …</code> or <code>--backend …</code>. Setup, limits and fallback rules of each are on <a href="page:runtimes">Runtimes &amp; ADEs</a>.</p>
 
 <h2>Install</h2>
 

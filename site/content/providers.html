@@ -1,6 +1,6 @@
 <h1>Providers</h1>
 
-<p>PABLO talks to GitHub, Jira, Confluence and Linear through each service's own command-line tool. No API keys, no tokens in the configuration: every tool handles its own login, and when one isn't ready PABLO shows that tool's own message.</p>
+<p>PABLO talks to GitHub, Jira, Confluence and Linear <span class="exp">experimental</span> through each service's own command-line tool. No API keys, no tokens in the configuration: every tool handles its own login, and when one isn't ready PABLO shows that tool's own message.</p>
 
 <h2>GitHub: <code>gh</code></h2>
 
@@ -49,7 +49,7 @@
   <li>Login check: <code>acli confluence auth status</code>, separate from Jira's so the doctor can tell you which one isn't ready.</li>
 </ul>
 
-<h2>Linear: <code>linear</code></h2>
+<h2 id="linear">Linear: <code>linear</code> <span class="exp">experimental</span></h2>
 
 <p>Using <a href="https://github.com/schpet/linear-cli">schpet/linear-cli</a>: <code>linear issue view &lt;KEY&gt; --json</code>, <code>linear issue list --assignee &lt;id&gt; --json</code>; the QA signal is a transition into your <code>testing.failure_signal</code> status in the issue's history; login check: <code>linear auth status</code>. Every call has a 30-second timeout.</p>
 
