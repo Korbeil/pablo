@@ -11,14 +11,26 @@ namespace Pablo\Provider\Gh;
  */
 final readonly class CiCheck
 {
+    /**
+     * CANCELLED is deliberately absent: a run cancelled by a workflow
+     * concurrency group (superseded by a newer trigger) is not a failure, and
+     * a cancelled run that is never replaced says nothing about the code.
+     */
     private const FAILURE_CONCLUSIONS = [
-        'FAILURE', 'TIMED_OUT', 'CANCELLED', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'ERROR',
+        'FAILURE', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE', 'ERROR',
     ];
 
+    /**
+     * @param ?string $runKey    identifies the check across its runs (workflow + check name),
+     *                           null for legacy status contexts, which GitHub already reports once
+     * @param string  $startedAt ISO-8601 UTC start of the run ('' when unknown), orders runs of one $runKey
+     */
     public function __construct(
         public string $name,
         public bool $failed,
         public bool $pending,
+        public ?string $runKey = null,
+        public string $startedAt = '',
     ) {
     }
 
@@ -43,11 +55,14 @@ final readonly class CiCheck
         // Check run.
         $conclusion = strtoupper((string) ($raw['conclusion'] ?? ''));
         $failed = \in_array($conclusion, self::FAILURE_CONCLUSIONS, true);
+        $runKey = isset($raw['name']) ? ($raw['workflowName'] ?? '')."\0".$raw['name'] : null;
 
         return new self(
             $name,
             $failed,
             ($raw['status'] ?? null) !== 'COMPLETED' && !$failed,
+            $runKey,
+            (string) ($raw['startedAt'] ?? ''),
         );
     }
 }

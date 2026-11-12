@@ -88,6 +88,7 @@
   <li><b>Red</b> moves <code>draft</code> (or <code>waiting-review</code>) to <code>ci-red</code>. <b>Green</b> moves <code>draft</code> or <code>ci-red</code> to review.</li>
   <li><b>Pending is not a signal</b>: the task just stays where it is.</li>
   <li><b>No checks at all counts as green</b>, otherwise a project without CI could never leave draft.</li>
+  <li><b>A cancelled check is not a failure.</b> When a workflow runs more than once on the same commit, only its latest run counts, so a run cancelled or failed and then superseded by a newer one no longer turns the task red.</li>
   <li>Checks whose name matches <a href="page:configuration#ci-ignore-checks"><code>ci.ignore_checks</code></a> are left out.</li>
   <li>If CI turns red during review (after a sync push, for example), the task goes to <code>ci-red</code> and comes back the usual way. The pull request never left “ready” on GitHub, so reviews given before the blip still count.</li>
 </ul>
