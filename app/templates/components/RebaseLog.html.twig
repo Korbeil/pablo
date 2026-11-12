@@ -60,6 +60,36 @@
                             {% endfor %}
                         </ul>
                     {% endif %}
+
+                    {% if section.events is not empty %}
+                        <p class="pablo-log-earlier">Earlier</p>
+                        <ul class="pablo-log-list">
+                            {% for e in section.events %}{% set r = e.row %}
+                                <li class="pablo-log-row">
+                                    <span class="tag {{ r.color }}">
+                                        {{ ux_icon(r.icon, {class: 'pablo-icon'}) }}
+                                        <span>{{ r.label }}</span>
+                                    </span>
+
+                                    <code class="pablo-log-branch">{{ r.report.branch }}</code>
+
+                                    {% if e.timestamp %}
+                                        <span class="pablo-log-time" title="{{ e.timestamp }}">
+                                            {{ e.timestamp|date('d M H:i') }}{% if not e.apply %} · dry run{% endif %}
+                                        </span>
+                                    {% endif %}
+
+                                    {% if r.report.conflictFiles %}
+                                        <ul class="pablo-conflicts">
+                                            {% for f in r.report.conflictFiles %}
+                                                <li><code>{{ f }}</code></li>
+                                            {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>

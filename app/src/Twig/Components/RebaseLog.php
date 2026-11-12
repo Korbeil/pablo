@@ -13,8 +13,9 @@ use Symfony\UX\LiveComponent\Attribute\LiveProp;
 use Symfony\UX\LiveComponent\DefaultActionTrait;
 
 /**
- * The last sync/rebase session per project. Reads one small JSON file per
- * project; re-renders every minute.
+ * The last sync/rebase session per project, plus the notable events of the
+ * earlier runs. Reads two small local files per project (the last log and
+ * the sync history); re-renders every minute.
  *
  * Follows the TaskBoard's project-type filter: when it moves, this section
  * re-renders with only the matching projects.

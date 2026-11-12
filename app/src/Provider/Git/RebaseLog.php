@@ -6,8 +6,8 @@ namespace Pablo\Provider\Git;
 
 /**
  * The last sync/rebase session for one project, as persisted under
- * ~/.pablo/logs. One file per project, overwritten on every run — there is
- * no history, only "what the last sync did".
+ * ~/.pablo/logs. One file per project, overwritten on every run: "what the
+ * last sync did". Past runs are kept separately by SyncHistory.
  */
 final readonly class RebaseLog
 {

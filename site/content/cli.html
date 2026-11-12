@@ -49,7 +49,7 @@
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
     <tr><td><code>sync:run [&lt;project&gt;] [--apply|--dry-run] [--format=json]</code></td><td>Sync task branches with the primary branch. Dry run unless <code>--apply</code> or <code>sync.auto_apply</code>; <code>--dry-run</code> forces a dry run even with <code>sync.auto_apply</code> (it can't be combined with <code>--apply</code>). <a href="page:sync">Guide</a></td></tr>
-    <tr><td><code>sync:log [&lt;project&gt;] [--format=json]</code></td><td>What the last sync did.</td></tr>
+    <tr><td><code>sync:log [&lt;project&gt;] [--history [--limit=N] [--only=&lt;actions&gt;]] [--format=json]</code></td><td>What the last sync did; with <code>--history</code>, the past runs, newest first. <a href="page:sync#history">Guide</a></td></tr>
     <tr><td><code>sync:main [&lt;project&gt;] [--dry-run]</code></td><td>Update primary checkouts now. Naming a project runs it even if <code>main_update.enabled</code> is false. <code>--dry-run</code> runs every check and reports what it would do, without touching the checkout (it still fetches). <a href="page:sync#primary-checkout-update">Guide</a></td></tr>
   </tbody>
 </table>

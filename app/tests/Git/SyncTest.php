@@ -52,7 +52,8 @@ final class SyncTest extends TestCase
     {
         $this->tmp = sys_get_temp_dir().'/pablo-sync-'.uniqid();
         mkdir($this->tmp, 0o777, true);
-        // Keep the rebase log out of the real ~/.pablo/logs.
+        // syncProject writes rebase-last-*.json and the sync history: keep
+        // them out of the developer's ~/.pablo/logs.
         putenv('PABLO_LOGS_DIR='.$this->tmp.'/logs');
         $repos = RepoHelper::makeRepos($this->tmp);
         $this->clone = $repos['clone'];
@@ -129,6 +130,25 @@ final class SyncTest extends TestCase
         $cfg = $this->makeConfig(true);
         $reports = $this->sync()->syncProject($cfg, $this->store, null);
         $this->assertSame('synced', $this->byBranch($reports)['pr-1']->action);
+    }
+
+    public function testEachRunIsAppendedToTheHistory(): void
+    {
+        $this->sync()->syncProject($this->cfg, $this->store, null);
+        $this->sync()->syncProject($this->cfg, $this->store, true);
+
+        $runs = $this->sync()->history('proj');
+        $this->assertCount(2, $runs);
+        // newest first: the applied run, then the dry run
+        $this->assertTrue($runs[0]->apply);
+        $this->assertSame('synced', $runs[0]->log->reports[0]->action);
+        $this->assertFalse($runs[1]->apply);
+        $this->assertSame('would-sync', $runs[1]->log->reports[0]->action);
+        // the last-run file is still written, unchanged in shape
+        $last = $this->sync()->loadLastLog('proj');
+        $this->assertNotNull($last);
+        $this->assertSame('synced', $last->reports[0]->action);
+        $this->assertArrayNotHasKey('apply', (array) json_decode((string) file_get_contents($this->tmp.'/logs/rebase-last-proj.json'), true));
     }
 
     public function testPrimaryCheckoutNotSynced(): void

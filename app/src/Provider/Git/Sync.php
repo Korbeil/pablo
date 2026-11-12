@@ -51,6 +51,7 @@ final class Sync
         private readonly Time $time,
         private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
         private readonly float $lockTimeoutS = self::SYNC_LOCK_TIMEOUT_S,
+        private readonly SyncHistory $history = new SyncHistory(),
     ) {
     }
 
@@ -196,7 +197,9 @@ final class Sync
                 $report->agentHandle = null !== $sessionId ? $runtime->sessions()->handle($sessionId) : 'launched';
             }
         }
-        $this->saveLastLog($cfg->name, $cfg->syncStrategy, $reports);
+        $log = $this->saveLastLog($cfg->name, $cfg->syncStrategy, $reports);
+        // Best-effort (never throws): a lost history line must not fail the sync.
+        $this->history->append(new SyncRun($log, $effectiveApply));
 
         return $reports;
     }
@@ -207,7 +210,7 @@ final class Sync
     }
 
     /** @param list<SyncReport> $reports */
-    public function saveLastLog(string $projectName, string $strategy, array $reports): void
+    public function saveLastLog(string $projectName, string $strategy, array $reports): RebaseLog
     {
         $path = self::logsDir()."/rebase-last-{$projectName}.json";
         $dir = \dirname($path);
@@ -216,6 +219,20 @@ final class Sync
         }
         $log = new RebaseLog($projectName, $this->time->utcnow(), $strategy, $reports);
         file_put_contents($path, json_encode($log->toArray(), \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
+
+        return $log;
+    }
+
+    /**
+     * Past sync runs of a project, newest first (see SyncHistory).
+     *
+     * @param list<string> $only
+     *
+     * @return list<SyncRun>
+     */
+    public function history(string $projectName, ?int $limit = null, array $only = []): array
+    {
+        return $this->history->read($projectName, $limit, $only);
     }
 
     /**
