@@ -18,6 +18,7 @@ use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Store\Store;
 use Pablo\Support\Files;
 use Pablo\Support\PabloPaths;
+use Pablo\Update\Updater;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -70,6 +71,12 @@ final class UninstallCommand extends Command
 
         foreach (PathRc::remove(PabloPaths::home(), getenv('ZDOTDIR') ?: null) as $line) {
             $info($line);
+        }
+
+        // The binary `pablo update` kept for --rollback: only PABLO writes it.
+        $previous = Updater::previousOf(InstallPaths::binPath());
+        if (is_file($previous) && @unlink($previous)) {
+            $info('removed '.$previous);
         }
 
         // Last: when it is the running binary, it goes when this process exits.

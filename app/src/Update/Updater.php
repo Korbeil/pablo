@@ -21,6 +21,11 @@ use Pablo\Support\ProcessRunnerInterface;
  * checked against the release's sha256sums.txt, run once (`--version`, in a
  * throwaway HOME), then renamed over the current one — atomic, so a running
  * dashboard or dispatcher keeps its old inode until it restarts.
+ *
+ * The replaced binary is kept as `<binary>.previous` (one copy only) so
+ * `pablo update --rollback` can swap it back without a download. It lives
+ * next to the binary rather than under ~/.pablo: only the same directory is
+ * sure to be on the same filesystem, which rename() needs to be atomic.
  */
 final class Updater
 {
@@ -30,6 +35,8 @@ final class Updater
 
     /** A dispatch run is stopped by its service after 10 minutes (TimeoutStartSec). */
     public const DISPATCH_WAIT_S = 600.0;
+
+    public const PREVIOUS_SUFFIX = '.previous';
 
     /**
      * @param string|null $binaryPath override of the running binary (tests); '' outside one
@@ -48,6 +55,19 @@ final class Updater
     public function binaryPath(): string
     {
         return $this->binaryPath ?? PabloPaths::pharPath();
+    }
+
+    /** Where the replaced binary is kept, '' when PABLO runs from a checkout. */
+    public function previousPath(): string
+    {
+        $binary = $this->binaryPath();
+
+        return '' === $binary ? '' : self::previousOf($binary);
+    }
+
+    public static function previousOf(string $binary): string
+    {
+        return $binary.self::PREVIOUS_SUFFIX;
     }
 
     public function currentVersion(): string
@@ -112,21 +132,10 @@ final class Updater
      */
     public function update(string $version, \Closure $info): void
     {
-        $binary = $this->binaryPath();
-        if ('' === $binary) {
-            throw new PabloError('pablo runs from a repository checkout: update it with git pull, then php app/bin/pablo system:install');
-        }
-        $dir = \dirname($binary);
-        if (!is_writable($dir)) {
-            throw new PabloError("cannot replace {$binary}: {$dir} is not writable");
-        }
-
+        $binary = $this->writableBinary();
         $asset = Target::asset($this->target ?? Target::current());
         $base = self::releasesUrl().'/download/'.rawurlencode($version);
-        $tmp = $dir.'/.pablo-update-'.bin2hex(random_bytes(4));
-        if (!@mkdir($tmp, 0o700)) {
-            throw new PabloError("cannot create {$tmp}");
-        }
+        $tmp = $this->tempDir($binary);
 
         try {
             $info("downloading {$base}/{$asset}");
@@ -144,27 +153,147 @@ final class Updater
             $info('sha256 verified');
 
             @chmod($tmp.'/'.$asset, 0o755);
-            // Run it once before trusting it, in a throwaway HOME so its
-            // container cache does not land in ~/.pablo/cache.
-            @mkdir($tmp.'/home', 0o700);
-            $check = $this->runner->probe(['env', 'HOME='.$tmp.'/home', $tmp.'/'.$asset, '--version'], 120.0);
-            if (0 !== $check->exitCode) {
-                throw new PabloError("the downloaded binary does not run: {$check->output}");
-            }
+            $reported = $this->runVersion($tmp.'/'.$asset, $tmp, 'the downloaded binary');
             // It must report the release it was downloaded as, or every later
             // `pablo update` would see a different name and reinstall it.
-            $reported = trim(strtok($check->output, "\n") ?: '');
             if ("pablo {$version}" !== $reported) {
                 throw new PabloError("the downloaded binary reports '{$reported}', not 'pablo {$version}': nothing was changed");
             }
 
+            $this->keepPrevious($binary, $tmp);
             if (!@rename($tmp.'/'.$asset, $binary)) {
                 throw new PabloError("cannot replace {$binary}");
             }
-            $info("replaced {$binary} with {$version}");
+            $info("replaced {$binary} with {$version} (the previous binary is kept as {$this->previousPath()})");
         } finally {
             self::removeTree($tmp);
         }
+    }
+
+    /**
+     * Swap the binary kept by the last update back in, after checking it
+     * runs. The replaced one becomes the previous binary in turn, so a second
+     * rollback undoes the first.
+     *
+     * @param \Closure(string): void $info
+     *
+     * @return string the version of the restored binary
+     *
+     * @throws PabloError
+     */
+    public function rollback(\Closure $info): string
+    {
+        $binary = $this->writableBinary();
+        $previous = $this->previousPath();
+        if (!is_file($previous)) {
+            throw new PabloError("no previous binary to roll back to ({$previous} does not exist): pablo update keeps one when it replaces the binary; to install a given release, run pablo update <release>");
+        }
+
+        $tmp = $this->tempDir($binary);
+        try {
+            @chmod($previous, 0o755);
+            $reported = $this->runVersion($previous, $tmp, "the previous binary ({$previous})");
+            $version = 1 === preg_match('/^pablo (\S+)$/', $reported, $m) ? $m[1] : $reported;
+
+            // Stage a second name for the current binary first: once the
+            // previous one is renamed over it, nothing else points to it.
+            $staged = null;
+            if (is_file($binary)) {
+                $staged = $tmp.'/current';
+                self::linkOrCopy($binary, $staged);
+            }
+            if (!@rename($previous, $binary)) {
+                throw new PabloError("cannot restore {$previous} over {$binary}: nothing was changed");
+            }
+            if (null !== $staged && !@rename($staged, $previous)) {
+                $info("warning: could not keep the replaced binary as {$previous}");
+            }
+            $info("restored {$binary} to {$version}");
+
+            return $version;
+        } finally {
+            self::removeTree($tmp);
+        }
+    }
+
+    /** @throws PabloError */
+    private function writableBinary(): string
+    {
+        $binary = $this->binaryPath();
+        if ('' === $binary) {
+            throw new PabloError('pablo runs from a repository checkout: update it with git pull, then php app/bin/pablo system:install');
+        }
+        $dir = \dirname($binary);
+        if (!is_writable($dir)) {
+            throw new PabloError("cannot replace {$binary}: {$dir} is not writable");
+        }
+
+        return $binary;
+    }
+
+    /**
+     * A private scratch dir next to the binary: same filesystem, so what is
+     * staged in it can be renamed into place atomically.
+     *
+     * @throws PabloError
+     */
+    private function tempDir(string $binary): string
+    {
+        $tmp = \dirname($binary).'/.pablo-update-'.bin2hex(random_bytes(4));
+        if (!@mkdir($tmp, 0o700)) {
+            throw new PabloError("cannot create {$tmp}");
+        }
+
+        return $tmp;
+    }
+
+    /**
+     * Run $path once with `--version` before trusting it, in a throwaway
+     * HOME so its container cache does not land in ~/.pablo/cache. Returns
+     * the first line it prints.
+     *
+     * @throws PabloError
+     */
+    private function runVersion(string $path, string $tmp, string $what): string
+    {
+        @mkdir($tmp.'/home', 0o700);
+        $check = $this->runner->probe(['env', 'HOME='.$tmp.'/home', $path, '--version'], 120.0);
+        if (0 !== $check->exitCode) {
+            throw new PabloError("{$what} does not run: {$check->output}");
+        }
+
+        return trim(strtok($check->output, "\n") ?: '');
+    }
+
+    /**
+     * Keep the current binary as the previous one, replacing an older copy
+     * atomically. A hard link costs no space (the running processes hold
+     * that inode anyway); a copy when the filesystem has none.
+     *
+     * @throws PabloError
+     */
+    private function keepPrevious(string $binary, string $tmp): void
+    {
+        if (!is_file($binary)) {
+            return;
+        }
+        $staged = $tmp.'/previous';
+        self::linkOrCopy($binary, $staged);
+        if (!@rename($staged, $this->previousPath())) {
+            throw new PabloError("cannot keep the current binary as {$this->previousPath()}: nothing was changed");
+        }
+    }
+
+    /** @throws PabloError */
+    private static function linkOrCopy(string $from, string $to): void
+    {
+        if (@link($from, $to)) {
+            return;
+        }
+        if (!@copy($from, $to)) {
+            throw new PabloError("cannot copy {$from}: nothing was changed");
+        }
+        @chmod($to, 0o755);
     }
 
     /**

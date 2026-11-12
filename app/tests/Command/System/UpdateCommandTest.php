@@ -21,11 +21,19 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 final class UpdateCommandTest extends TestCase
 {
+    private const OLD = "#!/bin/sh\necho 'pablo v1.0.0'\n";
+
     private string $tmp;
     private string $binary;
     private FakeProcessRunner $runner;
     private string $latest = 'v2.0.0';
     private int $installExit = 0;
+
+    /** @var list<int> exit codes of the next system:install runs, before */
+    private array $installExits = [];
+
+    /** @var list<string> the content of the binary each system:install ran */
+    private array $installedBy = [];
 
     /** The release the fake curl last downloaded: what the fake new binary reports. */
     private string $downloaded = '';
@@ -38,7 +46,8 @@ final class UpdateCommandTest extends TestCase
         $this->tmp = sys_get_temp_dir().'/pablo-update-cmd-'.bin2hex(random_bytes(4));
         mkdir($this->tmp, 0o777, true);
         $this->binary = $this->tmp.'/pablo';
-        file_put_contents($this->binary, "OLD\n");
+        file_put_contents($this->binary, self::OLD);
+        chmod($this->binary, 0o755);
         foreach (['HOME', 'PABLO_STAMPS_DIR'] as $name) {
             $this->savedEnv[$name] = getenv($name);
         }
@@ -60,11 +69,20 @@ final class UpdateCommandTest extends TestCase
 
                 return new ProbeResult(0, '');
             }
+            if ('env' === $argv[0] && str_ends_with($argv[2], '.previous')) {
+                $out = [];
+                exec(escapeshellarg($argv[2]).' --version', $out, $code);
+
+                return new ProbeResult($code, implode("\n", $out));
+            }
             if ('env' === $argv[0]) {
                 return new ProbeResult(0, 'pablo '.$this->downloaded);
             }
+            if (\in_array('system:install', $argv, true)) {
+                $this->installedBy[] = trim((string) file_get_contents($argv[0]));
+            }
 
-            return new ProbeResult($this->installExit, 'install output');
+            return new ProbeResult(array_shift($this->installExits) ?? $this->installExit, 'install output');
         };
     }
 
@@ -93,7 +111,7 @@ final class UpdateCommandTest extends TestCase
 
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertStringContainsString('PABLO v2.0.0 is available (installed: v1.0.0)', $tester->getDisplay());
-        $this->assertSame("OLD\n", file_get_contents($this->binary));
+        $this->assertSame(self::OLD, file_get_contents($this->binary));
     }
 
     public function testUpToDateDoesNothing(): void
@@ -115,14 +133,81 @@ final class UpdateCommandTest extends TestCase
         $this->assertNotContains([$this->binary, 'system:install', '--no-interaction'], $this->runner->probeCalls);
     }
 
-    public function testAFailingSystemInstallIsReported(): void
+    public function testAFailingSystemInstallRollsBackToThePreviousBinary(): void
+    {
+        $this->installExits = [1];
+
+        $tester = $this->runUpdate([]);
+
+        $this->assertSame(1, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertStringContainsString('PABLO rolled back: v2.0.0 → v1.0.0 (system:install failed with v2.0.0)', $tester->getDisplay());
+        $this->assertSame(self::OLD, file_get_contents($this->binary));
+        $this->assertCount(2, $this->installedBy, 'the restored binary installs again');
+        $this->assertStringContainsString('pablo v2.0.0', $this->installedBy[0]);
+        $this->assertStringContainsString('pablo v1.0.0', $this->installedBy[1]);
+    }
+
+    public function testAFailingInstallOfTheRestoredBinaryIsReported(): void
     {
         $this->installExit = 1;
 
         $tester = $this->runUpdate([]);
 
         $this->assertSame(1, $tester->getStatusCode());
-        $this->assertStringContainsString('system:install failed', $tester->getDisplay());
+        $this->assertStringContainsString('PABLO rolled back: v2.0.0 → v1.0.0', $tester->getDisplay());
+        $this->assertStringContainsString("system:install failed: fix the error above, then run: {$this->binary} system:install", $tester->getDisplay());
+    }
+
+    public function testRollbackRestoresThePreviousBinaryAndInstallsWithIt(): void
+    {
+        $this->assertSame(0, $this->runUpdate([])->getStatusCode());
+        $this->runner->probeCalls = [];
+
+        $tester = $this->runUpdate(['--rollback' => true], new Updater($this->runner, $this->binary, 'v2.0.0', 'linux-x86_64'));
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertStringContainsString('PABLO rolled back: v2.0.0 → v1.0.0', $tester->getDisplay());
+        $this->assertSame(self::OLD, file_get_contents($this->binary));
+        $this->assertStringContainsString('pablo v2.0.0', (string) file_get_contents($this->binary.'.previous'));
+        $this->assertContains([$this->binary, 'system:install', '--no-interaction'], $this->runner->probeCalls);
+        $this->assertNotContains('curl', array_column($this->runner->probeCalls, 0), 'nothing is downloaded');
+    }
+
+    public function testRollbackKeepsAWithoutWebInstallWithoutTheDashboard(): void
+    {
+        $this->assertSame(0, $this->runUpdate([])->getStatusCode());
+        $this->withWebService(false);
+
+        $tester = $this->runUpdate(['--rollback' => true], new Updater($this->runner, $this->binary, 'v2.0.0', 'linux-x86_64'));
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertContains([$this->binary, 'system:install', '--no-interaction', '--without-web'], $this->runner->probeCalls);
+    }
+
+    public function testRollbackWithoutAPreviousBinaryIsAClearError(): void
+    {
+        $tester = $this->runUpdate(['--rollback' => true]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('no previous binary to roll back to', $tester->getDisplay());
+        $this->assertSame([], $this->runner->probeCalls);
+        $this->assertSame(self::OLD, file_get_contents($this->binary));
+    }
+
+    public function testRollbackTakesNoRelease(): void
+    {
+        $tester = $this->runUpdate(['--rollback' => true, 'release' => 'abc1234']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('--rollback takes no release', $tester->getDisplay());
+    }
+
+    public function testRollbackFromACheckoutPointsToGitPull(): void
+    {
+        $tester = $this->runUpdate(['--rollback' => true], new Updater($this->runner, '', 'dev', 'linux-x86_64'));
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('git pull', $tester->getDisplay());
     }
 
     public function testFromACheckoutItPointsToGitPull(): void
@@ -169,7 +254,7 @@ final class UpdateCommandTest extends TestCase
 
         $this->assertSame(1, $tester->getStatusCode());
         $this->assertStringContainsString('is nope123 a PABLO release?', $tester->getDisplay());
-        $this->assertSame("OLD\n", file_get_contents($this->binary));
+        $this->assertSame(self::OLD, file_get_contents($this->binary));
     }
 
     public function testAWithoutWebInstallStaysWithoutTheDashboard(): void
@@ -195,7 +280,7 @@ final class UpdateCommandTest extends TestCase
             $updater->lockDispatch(static function (string $line): void {}, 0.2, 0.05);
         } finally {
             fclose($held);
-            $this->assertSame("OLD\n", file_get_contents($this->binary));
+            $this->assertSame(self::OLD, file_get_contents($this->binary));
         }
     }
 
@@ -237,7 +322,7 @@ final class UpdateCommandTest extends TestCase
 
         $this->assertSame(1, $tester->getStatusCode());
         $this->assertStringContainsString("reports 'pablo aaaaaaa-3-gbbbbbbb', not 'pablo v2.0.0'", $tester->getDisplay());
-        $this->assertSame("OLD\n", file_get_contents($this->binary));
+        $this->assertSame(self::OLD, file_get_contents($this->binary));
     }
 
     public function testIsAlsoCalledUpdate(): void

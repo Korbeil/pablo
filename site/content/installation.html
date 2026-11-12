@@ -205,9 +205,16 @@ default_model: claude-sonnet-5.5   # or another Copilot model id, e.g. gpt-5.3-c
 <pre><code class="language-bash">pablo update           # or pablo system:update
 pablo update --check   # only tell whether a newer release exists
 pablo update 5b34e92   # install that release instead (an older one too)
+pablo update --rollback  # go back to the binary the last update replaced
 </code></pre>
 
 <p>PABLO updates itself: it finds the <a href="https://github.com/Korbeil/pablo/releases">release</a> flagged <em>latest</em> (releases are named after the commit they were built from) and, when it is not the one you run, downloads its binary for your OS and processor with <code>curl</code>, checks it against the release's <code>sha256sums.txt</code>, runs it once, then swaps it in place of the current one (a failed check changes nothing). It then runs <code>pablo system:install</code> with the new binary, which picks up new agents and links and restarts the dashboard; <code>--no-install</code> skips that step. A dashboard you opted out of (<code>--without-web</code>) stays off. If the background job is running (a sync or a poll), the update first waits for it to finish, up to 10 minutes, and no new run starts until the update is done. Your choices in <code>~/.pablo/config.yaml</code> and your data in <code>~/.pablo/</code> are kept. Each version compiles its own cache in <code>~/.pablo/cache/container/&lt;version&gt;/</code>; the install removes the ones of other versions.</p>
+
+<h3 id="rollback">Rolling back</h3>
+
+<p>Each update keeps the binary it replaces as <code>~/.local/bin/pablo.previous</code> (only one: the next update replaces it). It sits next to <code>pablo</code> rather than in <code>~/.pablo/</code> because only the same directory is sure to be on the same filesystem, which the swap needs to be atomic; it is a hard link where the filesystem allows, so it takes no extra space while a service still runs it. <code>pablo update --rollback</code> runs it once (<code>--version</code>), swaps it back in place under the same lock as an update, runs its <code>system:install</code> (keeping <code>--without-web</code>) and reports <code>PABLO rolled back: &lt;current&gt; → &lt;previous&gt;</code>. The binary it replaces becomes the previous one in turn, so a second rollback undoes the first. <code>--no-install</code> skips the install, <code>--check</code> only tells whether a previous binary is kept. Without one (a fresh install, or one that was never updated), it says so: install an older release by name with <code>pablo update &lt;release&gt;</code> instead.</p>
+
+<p>The rollback is automatic when the <code>system:install</code> that follows an update fails: the previous binary is restored, runs <code>system:install</code> in turn, and the update reports <code>PABLO rolled back: &lt;new&gt; → &lt;previous&gt;</code> and exits with an error. <code>pablo system:uninstall</code> removes <code>pablo.previous</code> along with <code>pablo</code>.</p>
 
 <p>Running the installer again (<code>curl -fsSL https://getpablo.dev/installer | bash</code>) does the same, and also takes a release with <code>--version</code>. The releases are listed on <a href="https://github.com/Korbeil/pablo/releases">GitHub</a>.</p>
 
