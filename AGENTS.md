@@ -406,6 +406,16 @@ global; validated by the runtime's `modelError()`), `pr_description_locale`,
 `worktrees_root`, `issue_tracker.{repo,site}`, `confluence.space`,
 `testing.failure_signal`, `startup_script`.
 
+Every key, with its type and range, is listed once in
+`src/Config/ConfigSchema.php`, which both loaders and `ConfigValidator`
+(`system:config:validate`, the doctor's config lines) check against: **a new
+key goes there too**, else it is reported as unknown. Unknown keys are
+warnings (validate/doctor only, never at load: no journal spam, forward
+compatible); an invalid value fails the project file (skipped), or, in
+`config.yaml`, every command for an inherited key and only its reader for a
+`deferred` global-only one; paths are checked by validate/doctor only.
+`ConfigSchemaTest` checks the `examples/` files have no issue.
+
 ## Naming note
 
 The command is `/pablo-commit-and-pr`, not `/commit-and-pr` — the spec's

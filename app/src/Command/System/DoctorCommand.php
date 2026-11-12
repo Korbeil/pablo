@@ -9,6 +9,8 @@ use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
+use Pablo\Config\ConfigIssue;
+use Pablo\Config\ConfigValidator;
 use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
 use Pablo\Doctor\SchedulerHealth;
@@ -30,6 +32,7 @@ final class DoctorCommand extends Command
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
         AgentLauncherInterface $agents,
+        private readonly ConfigValidator $configValidator,
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
@@ -51,11 +54,19 @@ final class DoctorCommand extends Command
         if ([] !== $configErrors) {
             $output->writeln($this->doctor->renderConfigErrors($configErrors));
         }
-        // A project file that fails to load is left out of dispatch: a hard
-        // failure here, even though the other projects keep running.
-        $projectErrors = array_values($this->projectsLoader->projectErrors());
-        if ([] !== $projectErrors) {
-            $output->writeln($this->doctor->renderConfigErrors($projectErrors));
+        // The config files (system:config:validate): an invalid value, a
+        // project file left out of dispatch or a missing path is a hard
+        // failure, an unknown key a warning.
+        $report = $this->configValidator->validate();
+        $configLines = $this->renderConfigIssues($report->issues);
+        if ('' !== $configLines) {
+            $output->writeln($configLines);
+        }
+        if (null !== $report->globalError) {
+            // Every other check reads it: nothing more to say until it loads.
+            $output->writeln('   → fix ~/.pablo/config.yaml (pablo system:config:validate lists every problem)');
+
+            return self::FAILURE;
         }
         $projects = $this->projects();
         $results = $this->doctor->checkAll($projects);
@@ -69,7 +80,7 @@ final class DoctorCommand extends Command
         if ([] !== $hookWarnings) {
             $output->writeln($this->doctor->renderHookWarnings($hookWarnings));
         }
-        $failed = [] !== $configErrors || [] !== $projectErrors;
+        $failed = [] !== $configErrors || $report->hasErrors();
         foreach ($results as $r) {
             if (!$r->ok()) {
                 $failed = true;
@@ -108,6 +119,15 @@ final class DoctorCommand extends Command
         foreach ($this->doctor->configErrors() as $error) {
             $checks[] = ['group' => 'config', 'name' => 'config', 'status' => 'fail', 'message' => $error, 'hint' => ''];
         }
+        $report = $this->configValidator->validate();
+        foreach ($report->issues as $issue) {
+            $checks[] = ['group' => 'config', 'name' => $issue->label.('' !== $issue->key ? ':'.$issue->key : ''), 'status' => $issue->isError() ? 'fail' : 'warn', 'message' => $issue->text(), 'hint' => '', 'file' => $issue->file];
+        }
+        if (null !== $report->globalError) {
+            $this->writeJson($output, ['ok' => false, 'checks' => $checks]);
+
+            return self::FAILURE;
+        }
         $projects = $this->projects();
         foreach ($this->doctor->checkAll($projects) as $r) {
             $checks[] = ['group' => 'cli', 'name' => $r->cli, 'status' => $r->ok() ? 'ok' : 'fail', 'message' => $r->detail, 'hint' => $r->hint, 'installed' => $r->installed, 'authenticated' => $r->authenticated];
@@ -123,5 +143,23 @@ final class DoctorCommand extends Command
         $this->writeJson($output, ['ok' => !$failed, 'checks' => $checks]);
 
         return $failed ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * The config section: errors as ❌, warnings (unknown keys) as ⚠️.
+     *
+     * @param list<ConfigIssue> $issues
+     */
+    private function renderConfigIssues(array $issues): string
+    {
+        $errors = array_values(array_map(static fn (ConfigIssue $i): string => $i->text(), array_filter($issues, static fn (ConfigIssue $i): bool => $i->isError())));
+        $lines = [] !== $errors ? [$this->doctor->renderConfigErrors($errors)] : [];
+        foreach ($issues as $issue) {
+            if (!$issue->isError()) {
+                $lines[] = \sprintf('⚠️  %-9s %s', 'config', $issue->text());
+            }
+        }
+
+        return implode("\n", $lines);
     }
 }

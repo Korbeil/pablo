@@ -18,6 +18,7 @@ use Pablo\App\ConsoleApplication;
 use Pablo\Backup\Backup;
 use Pablo\Command\Command as PabloCommand;
 use Pablo\Config\Config;
+use Pablo\Config\ConfigValidator;
 use Pablo\Config\GlobalConfig;
 use Pablo\Dispatch\Dispatch;
 use Pablo\Dispatch\DispatchHealth;
@@ -89,6 +90,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(RepoSlug::class);
     $services->set(GlobalConfig::class);
     $services->set(Config::class);
+    $services->set(ConfigValidator::class);
     $services->set(Store::class);
 
     // Analytics: append-only JSONL under ~/.pablo/analytics (root resolved at

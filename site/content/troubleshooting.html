@@ -5,6 +5,7 @@
 <h2>First checks</h2>
 
 <pre><code class="language-bash">pablo system:doctor     # is every tool installed and logged in? is the background job running?
+pablo system:config:validate  # do the config files hold what you meant?
 pablo task:list --live  # what GitHub and the tracker say right now
 pablo sync:log          # what the last sync did, per project
 </code></pre>
@@ -42,7 +43,15 @@ pablo sync:log          # what the last sync did, per project
 
 <h3>A project is missing, with “skipping invalid project config”</h3>
 
-<p>One of your project files doesn't load: invalid YAML, a missing or invalid key, or the same <code>name</code> as another file (both files are then skipped). PABLO leaves that project out and keeps running the others. The warning, the doctor's ❌ and the dashboard banner name the file and the problem. Fix the file and the project is back on the next run. Nothing else to restart. A command that targets the project (<code>pablo system:poll wallet-kit</code>) prints the same error. If <code>~/.pablo/config.yaml</code> itself is invalid, every command fails instead, since it applies to every project.</p>
+<p>One of your project files doesn't load: invalid YAML, a missing or invalid key, or the same <code>name</code> as another file (both files are then skipped). PABLO leaves that project out and keeps running the others. The warning, the doctor's ❌ and the dashboard banner name the file and the problem. Fix the file and the project is back on the next run. Nothing else to restart. A command that targets the project (<code>pablo system:poll wallet-kit</code>) prints the same error. If <code>~/.pablo/config.yaml</code> itself is invalid, every command fails instead, since it applies to every project. <code>pablo system:config:validate</code> lists every problem of every file at once, each with its key.</p>
+
+<h3>A setting has no effect</h3>
+
+<p>A misspelt key is ignored, not refused: with <code>ci.ignore_check</code> (instead of <code>ignore_checks</code>) or <code>sync.intervall_minutes</code>, the global value applies. Run <code>pablo system:config:validate</code> (or <code>pablo system:doctor</code>): each unknown key is a ⚠️ line with the key it was probably meant to be (<code>did you mean `ci.ignore_checks`?</code>), or where it belongs when it's a global-only key in a project file. See <a href="page:configuration#validate-your-config">Validate your config</a>.</p>
+
+<h3>The doctor fails on <code>repo.path</code>, <code>startup_script</code> or <code>worktrees_root</code></h3>
+
+<p>The doctor checks that a project's <code>repo.path</code> is a git checkout, that an absolute <code>startup_script</code> exists, and that the parent of <code>worktrees_root</code> exists. Fix the path in the project file. Commands and the background job don't check paths, so the other projects keep running meanwhile.</p>
 
 <h3>Loading a project fails about <code>default_model</code> or <code>pr_description_locale</code></h3>
 

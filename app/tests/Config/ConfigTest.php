@@ -257,6 +257,37 @@ YAML;
         $this->assertNull($projects['other']->hookCommand);
     }
 
+    public function testAnInvalidIntervalSkipsTheProject(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."sync:\n  interval_minutes: 0\n");
+        $this->assertSame('mini.yaml: sync.interval_minutes must be a whole number of minutes, at least 1, got 0', $this->onlyProjectError());
+    }
+
+    public function testANonListOfChecksSkipsTheProject(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."ci:\n  ignore_checks: approval\n");
+        $this->assertStringContainsString('mini.yaml: ci.ignore_checks must be a list of check names', $this->onlyProjectError());
+    }
+
+    public function testATypoNeverStopsTheProjectFromLoading(): void
+    {
+        // Ignored (validate and the doctor report it): the global value applies.
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."sync:\n  intervall_minutes: 5\nfuture_key: true\n");
+        $loader = $this->loader();
+        $this->assertSame(30, $loader->loadProjects($this->projectsDir)['mini']->syncInterval);
+        $this->assertSame([], $loader->projectErrors($this->projectsDir));
+    }
+
+    public function testAnInvalidInheritedGlobalValueIsFatal(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->writeGlobalConfig(str_replace('interval_minutes: 30', 'interval_minutes: abc', self::DEFAULTS));
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage("config.yaml: sync.interval_minutes must be a whole number of minutes, at least 1, got 'abc'");
+        $this->loader()->loadProjects($this->projectsDir);
+    }
+
     public function testHooksRejectAnUnknownState(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT."hooks:\n  command: notify\n  states: [red]\n");

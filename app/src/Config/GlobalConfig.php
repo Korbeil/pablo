@@ -55,10 +55,15 @@ final class GlobalConfig
             throw new PabloError(basename($path).': expected a mapping at top level');
         }
 
-        $byType = $data['default_model_by_type'] ?? null;
-        if (null !== $byType && !\is_array($byType)) {
-            throw new PabloError(basename($path).': default_model_by_type must be a mapping of project type to model');
+        // A bad value of a key every project inherits would fail them all:
+        // fatal here. Unknown keys are ignored (validate and the doctor
+        // report them), and global-only keys are refused by the command
+        // reading them (see ConfigSchema).
+        $error = ConfigSchema::loadError($data, ConfigSchema::GLOBAL, $path, 'config.yaml');
+        if (null !== $error) {
+            throw new PabloError($error->text());
         }
+        $byType = $data['default_model_by_type'] ?? null;
 
         return [
             'sync' => \is_array($data['sync'] ?? null) ? $data['sync'] : [],

@@ -284,6 +284,12 @@ final class Config
         $data = $this->loadYaml($path);
         $name = basename($path);
         $base = $path;
+        // Types and ranges of every key it sets (see ConfigSchema); unknown
+        // keys are ignored here, reported by validate and the doctor.
+        $error = ConfigSchema::loadError($data, ConfigSchema::PROJECT, $path, $name);
+        if (null !== $error) {
+            throw new PabloError($error->text());
+        }
 
         $projectName = (string) $this->require($data, 'name', $base);
         $type = (string) $this->require($data, 'type', $base);
