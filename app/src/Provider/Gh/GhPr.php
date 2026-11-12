@@ -29,12 +29,23 @@ query($owner: String!, $repo: String!, $pr: Int!) {
 }
 GQL;
 
+    /**
+     * Reviews are read newest-first page by page (`last` + `before`): every
+     * inline reply is a review of its own, so a long-lived PR easily holds
+     * more than 100 and `first: 100` would only ever see the oldest ones.
+     * Threads are read in full (`first` + `after`): an unresolved thread is
+     * a signal wherever it sits. Within a thread, the newest 100 comments
+     * are kept (`last`): the reviews that matter are each reviewer's latest.
+     * The `with*` flags drop a connection that is already complete from the
+     * follow-up pages.
+     */
     private const REVIEWS_QUERY = <<<'GQL'
-query($owner: String!, $repo: String!, $pr: Int!) {
+query($owner: String!, $repo: String!, $pr: Int!, $reviewsBefore: String, $threadsAfter: String, $withReviews: Boolean = true, $withThreads: Boolean = true) {
   repository(owner: $owner, name: $repo) {
     pullRequest(number: $pr) {
       author { login }
-      reviews(first: 100) {
+      reviews(last: 100, before: $reviewsBefore) @include(if: $withReviews) {
+        pageInfo { hasPreviousPage startCursor }
         nodes {
           id
           author { login __typename }
@@ -43,10 +54,11 @@ query($owner: String!, $repo: String!, $pr: Int!) {
           body
         }
       }
-      reviewThreads(first: 100) {
+      reviewThreads(first: 100, after: $threadsAfter) @include(if: $withThreads) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           isResolved
-          comments(first: 100) {
+          comments(last: 100) {
             nodes { pullRequestReview { id } }
           }
         }
@@ -55,6 +67,9 @@ query($owner: String!, $repo: String!, $pr: Int!) {
   }
 }
 GQL;
+
+    /** Upper bound on review/thread pages per fetch (100 items each). */
+    public const MAX_REVIEW_PAGES = 20;
 
     public function __construct(
         private readonly ProcessRunnerInterface $runner,
@@ -248,19 +263,57 @@ GQL;
     public function fetchReviews(string $repoSlug, int $prNumber): PrReviews
     {
         $ownerRepo = explode('/', $repoSlug, 2);
-        $out = $this->runner->run([
-            'gh', 'api', 'graphql',
-            '-f', 'query='.self::REVIEWS_QUERY,
-            '-F', 'owner='.$ownerRepo[0], '-F', 'repo='.$ownerRepo[1], '-F', 'pr='.$prNumber,
-        ], timeout: self::GH_CALL_TIMEOUT_S);
-        /** @var array<string, mixed> $data */
-        $data = json_decode($out, true);
-        $pr = $data['data']['repository']['pullRequest'];
-        $reviews = array_values(array_filter($pr['reviews']['nodes'] ?? [], static fn ($n) => null !== $n));
-        $threads = array_values(array_filter($pr['reviewThreads']['nodes'] ?? [], static fn ($n) => null !== $n));
+        $author = null;
+        /** @var list<list<array<string, mixed>>> $reviewPages newest page first */
+        $reviewPages = [];
+        /** @var list<array<string, mixed>> $threads */
+        $threads = [];
+        $reviewsBefore = null;
+        $threadsAfter = null;
+        $withReviews = true;
+        $withThreads = true;
+        for ($page = 0; $page < self::MAX_REVIEW_PAGES && ($withReviews || $withThreads); ++$page) {
+            $argv = [
+                'gh', 'api', 'graphql',
+                '-f', 'query='.self::REVIEWS_QUERY,
+                '-F', 'owner='.$ownerRepo[0], '-F', 'repo='.$ownerRepo[1], '-F', 'pr='.$prNumber,
+            ];
+            if (null !== $reviewsBefore) {
+                array_push($argv, '-f', 'reviewsBefore='.$reviewsBefore);
+            }
+            if (null !== $threadsAfter) {
+                array_push($argv, '-f', 'threadsAfter='.$threadsAfter);
+            }
+            if (!$withReviews) {
+                array_push($argv, '-F', 'withReviews=false');
+            }
+            if (!$withThreads) {
+                array_push($argv, '-F', 'withThreads=false');
+            }
+            $out = $this->runner->run($argv, timeout: self::GH_CALL_TIMEOUT_S);
+            /** @var array<string, mixed> $data */
+            $data = json_decode($out, true);
+            $pr = $data['data']['repository']['pullRequest'];
+            $author ??= (string) $pr['author']['login'];
+
+            if ($withReviews) {
+                $reviewPages[] = array_values(array_filter($pr['reviews']['nodes'] ?? [], static fn ($n) => null !== $n));
+                $info = $pr['reviews']['pageInfo'] ?? [];
+                $reviewsBefore = true === ($info['hasPreviousPage'] ?? false) ? ($info['startCursor'] ?? null) : null;
+                $withReviews = null !== $reviewsBefore;
+            }
+            if ($withThreads) {
+                array_push($threads, ...array_values(array_filter($pr['reviewThreads']['nodes'] ?? [], static fn ($n) => null !== $n)));
+                $info = $pr['reviewThreads']['pageInfo'] ?? [];
+                $threadsAfter = true === ($info['hasNextPage'] ?? false) ? ($info['endCursor'] ?? null) : null;
+                $withThreads = null !== $threadsAfter;
+            }
+        }
+        // Pages were read newest first: put them back in chronological order.
+        $reviews = array_merge(...array_reverse($reviewPages));
 
         return new PrReviews(
-            (string) $pr['author']['login'],
+            (string) $author,
             array_map(ReviewNode::fromNode(...), $reviews),
             array_map(ReviewThread::fromNode(...), $threads),
         );
