@@ -195,7 +195,7 @@ ci:
   ignore_checks: ["approval"]  # manual deploy gates that never finish
 </code></pre>
 
-<p>Check it with <code>pablo project:list</code> and <code>pablo system:doctor</code> (which now also checks the tracker's command-line tool). With <b>Orca</b>, register the repository once with <code>orca repo add ~/dev/wallet-kit</code>; with <b>OpenChamber</b> there's nothing to do. Skip it with Orca and agents still run, headless. Both examples are in the repository: <a href="repo:examples/acme-pim.yaml"><code>examples/acme-pim.yaml</code></a> and <a href="repo:examples/config.yaml"><code>examples/config.yaml</code></a>.</p>
+<p>Check it with <code>pablo project:list</code> and <code>pablo system:doctor</code> (which now also checks the tracker's command-line tool). An invalid project file never takes the others down: PABLO skips it and says so everywhere. <code>project:list</code> and <code>task:list</code> print a warning, the doctor reports it as a ❌, the dashboard shows a banner, and the background job logs it on every run. A command that names that project (<code>pablo sync:run wallet-kit</code>, <code>task:start --project wallet-kit</code>) fails with the file's own error. Two files with the same <code>name</code> are both skipped until you rename one. With <b>Orca</b>, register the repository once with <code>orca repo add ~/dev/wallet-kit</code>; with <b>OpenChamber</b> there's nothing to do. Skip it with Orca and agents still run, headless. Both examples are in the repository: <a href="repo:examples/acme-pim.yaml"><code>examples/acme-pim.yaml</code></a> and <a href="repo:examples/config.yaml"><code>examples/config.yaml</code></a>.</p>
 
 <h3>Remove a project</h3>
 

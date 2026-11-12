@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Controller;
 
+use Pablo\Dashboard\Dashboard;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
@@ -18,9 +19,15 @@ use Symfony\Component\Routing\Attribute\Route;
  */
 final class DashboardController extends AbstractController
 {
+    public function __construct(private readonly Dashboard $dashboard)
+    {
+    }
+
     #[Route('/', name: 'dashboard', methods: ['GET'])]
     public function index(): Response
     {
-        return $this->render('dashboard/index.html.twig');
+        return $this->render('dashboard/index.html.twig', [
+            'project_errors' => $this->dashboard->projectErrors(),
+        ]);
     }
 }

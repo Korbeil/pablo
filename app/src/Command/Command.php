@@ -44,6 +44,18 @@ abstract class Command extends SymfonyCommand
         return $this->projectsLoader->loadProjects();
     }
 
+    /**
+     * One stderr warning per project file that failed to load: those projects
+     * are silently missing from projects() otherwise.
+     */
+    protected function warnProjectErrors(OutputInterface $output): void
+    {
+        $err = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
+        foreach ($this->projectsLoader->projectErrors() as $file => $error) {
+            $err->writeln("pablo: warning: skipping invalid project config {$file}: {$error}");
+        }
+    }
+
     protected function agents(): AgentLauncherInterface
     {
         return $this->agents;
@@ -56,7 +68,7 @@ abstract class Command extends SymfonyCommand
             : $this->store->taskForCwd((string) getcwd());
         $cfg = $this->projects()[$task->project] ?? null;
         if (null === $cfg) {
-            throw new PabloError("task {$task->branch} belongs to project '{$task->project}', which has no config under projects/ anymore");
+            throw $this->projectsLoader->missingTaskProject($task->project, $task->branch);
         }
 
         return new TaskCtx(task: $task, cfg: $cfg, store: $this->store, agents: $this->agents());

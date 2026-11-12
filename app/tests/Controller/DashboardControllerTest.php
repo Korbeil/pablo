@@ -223,6 +223,29 @@ final class DashboardControllerTest extends WebTestCase
         $client->request('GET', '/', server: ['HTTP_HOST' => 'x.home.arpa']);
     }
 
+    public function testInvalidProjectFileShowsABannerAndTheOthersStillRender(): void
+    {
+        file_put_contents($this->tmp.'/projects/broken.yaml', "name: broken\ntype: work\n");
+        $this->seed('wk-1-draft', State::Draft);
+
+        $client = $this->browser();
+        $crawler = $client->request('GET', '/');
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSelectorTextContains('[role="alert"]', 'Invalid project config');
+        $this->assertSelectorTextContains('[role="alert"]', "broken.yaml: missing required key 'repo.path'");
+        $this->assertSame(1, $crawler->filter('td:contains("wk-1-draft")')->count());
+    }
+
+    public function testNoBannerWhenEveryProjectLoads(): void
+    {
+        $client = $this->browser();
+        $client->request('GET', '/');
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSelectorNotExists('[role="alert"]');
+    }
+
     public function testTablesAreOrderedAttentionRest(): void
     {
         // ci-red alone is not enough — an agent must actually be blocked on us.

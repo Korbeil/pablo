@@ -130,7 +130,11 @@ final class ProjectNewCommand extends Command
 
         // Validate it loads
         try {
-            $this->projectsLoader->loadProjects($destDir);
+            $this->projectsLoader->loadProjectFile($destPath);
+            $duplicate = $this->projectsLoader->projectErrors($destDir)[$destPath] ?? null;
+            if (null !== $duplicate) {
+                throw new PabloError($duplicate);
+            }
         } catch (PabloError $e) {
             @unlink($destPath);
             throw new PabloError('Generated config failed validation: '.$e->getMessage());

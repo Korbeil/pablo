@@ -29,6 +29,6 @@ final class DispatchCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        return $this->dispatch->run($this->projects(), $this->store());
+        return $this->dispatch->run($this->projects(), $this->store(), configErrors: $this->projectsLoader->projectErrors());
     }
 }

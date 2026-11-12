@@ -30,7 +30,7 @@
   </tbody>
 </table>
 
-<p>A job's “last run” time is only saved when it succeeds, so a failure is retried on the next run. One project failing never blocks the others. Adding or removing a project changes nothing in the scheduler: each project's cadence lives in its YAML file.</p>
+<p>A job's “last run” time is only saved when it succeeds, so a failure is retried on the next run. One project failing never blocks the others, and that includes its YAML file: a project file that doesn't load (invalid YAML, a missing or invalid key, a name another file already uses) only drops that project. Each run prints the file and its error on stderr, then dispatches the other projects and exits non-zero. An invalid <code>~/.pablo/config.yaml</code> is different: it affects every project, so nothing runs. Adding or removing a project changes nothing in the scheduler: each project's cadence lives in its YAML file.</p>
 
 <p>Because the dispatcher wakes up every 5 minutes, a job runs at the first wake-up <em>after</em> its interval has elapsed, not at the exact minute.</p>
 

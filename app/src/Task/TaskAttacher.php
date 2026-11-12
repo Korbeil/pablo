@@ -123,7 +123,7 @@ final class TaskAttacher
         if (null !== $project && '' !== $project) {
             $cfg = $projects[$project] ?? null;
             if (null === $cfg) {
-                throw new PabloError("unknown project '{$project}'; configured projects: ".implode(', ', array_keys($projects)));
+                throw $this->projectsLoader->unknownProject($project);
             }
 
             return $cfg;

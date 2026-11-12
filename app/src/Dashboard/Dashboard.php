@@ -59,6 +59,18 @@ final class Dashboard
     }
 
     /**
+     * Project files that failed to load, file path => error: shown as a
+     * banner (those projects are missing from every table). Local YAML reads
+     * only, like projects().
+     *
+     * @return array<string, string>
+     */
+    public function projectErrors(): array
+    {
+        return $this->config->projectErrors();
+    }
+
+    /**
      * Projects narrowed to one type; '' means all of them.
      *
      * @return array<string, ProjectConfig>

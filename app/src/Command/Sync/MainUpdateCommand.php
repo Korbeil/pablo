@@ -43,10 +43,11 @@ final class MainUpdateCommand extends Command
         $project = $input->getArgument('project') ?: null;
         if (null !== $project) {
             if (!isset($projects[$project])) {
-                throw new PabloError("unknown project '{$project}'; configured projects: ".implode(', ', array_keys($projects)));
+                throw $this->projectsLoader->unknownProject($project);
             }
             $projects = [$project => $projects[$project]];
         } else {
+            $this->warnProjectErrors($output);
             $projects = array_filter($projects, static fn ($cfg) => $cfg->mainUpdateEnabled);
         }
 

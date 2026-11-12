@@ -126,6 +126,18 @@ YAML;
         $this->assertStringContainsString('agents.json', $display);
     }
 
+    public function testInvalidProjectFileFailsWithItsError(): void
+    {
+        $this->installFreshAgents();
+        file_put_contents($this->tmp.'/projects/broken.yaml', "name: broken\ntype: work\n");
+
+        $tester = new CommandTester($this->command());
+        $tester->execute([]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("❌ config     broken.yaml: missing required key 'repo.path'", $tester->getDisplay());
+    }
+
     public function testStaleAgentWarnsSoftlyAndDoesNotFail(): void
     {
         $this->installFreshAgents();

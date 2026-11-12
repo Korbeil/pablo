@@ -38,6 +38,10 @@ pablo sync:log          # what the last sync did, per project
 
 <p>Your agents (in <code>~/.config/opencode/agents/</code>, <code>~/.pablo/runtime/claude/agents.json</code> and <code>~/.claude/agents/pablo-*.md</code> under Claude Code, or <code>~/.copilot/agents/</code> under Copilot) were generated from older templates or an older project list. Run <code>pablo system:generate-agents</code>. A ❌ instead means a missing file, a broken link, or a file PABLO doesn't manage in its place: <code>pablo system:install</code> recreates the missing ones.</p>
 
+<h3>A project is missing, with “skipping invalid project config”</h3>
+
+<p>One of your project files doesn't load: invalid YAML, a missing or invalid key, or the same <code>name</code> as another file (both files are then skipped). PABLO leaves that project out and keeps running the others. The warning, the doctor's ❌ and the dashboard banner name the file and the problem. Fix the file and the project is back on the next run. Nothing else to restart. A command that targets the project (<code>pablo system:poll wallet-kit</code>) prints the same error. If <code>~/.pablo/config.yaml</code> itself is invalid, every command fails instead, since it applies to every project.</p>
+
 <h3>Loading a project fails about <code>default_model</code> or <code>pr_description_locale</code></h3>
 
 <p>Both must be set, either in the project or in <code>~/.pablo/config.yaml</code>. See <a href="page:configuration#global-defaults">global defaults</a>.</p>

@@ -62,7 +62,7 @@ final class TaskStateChanger
             $task = $this->store->get($project, $branch)
                 ?? throw new PabloError("no task {$branch} in project '{$project}'");
             $cfg = $this->projectsLoader->loadProjects()[$project]
-                ?? throw new PabloError("task {$branch} belongs to project '{$project}', which has no config under projects/ anymore");
+                ?? throw $this->projectsLoader->missingTaskProject($project, $branch);
             $fn(new TaskCtx(task: $task, cfg: $cfg, store: $this->store, agents: $this->agents));
 
             return $task;
