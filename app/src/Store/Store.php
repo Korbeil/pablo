@@ -25,6 +25,12 @@ final class Store
 
     private readonly string $root;
 
+    /** @var array<string, string> unreadable record path => reason, see allTasks() */
+    private array $unreadable = [];
+
+    /** @var resource|null test seam: where allTasks() warns (default: php://stderr) */
+    public $stderr;
+
     /**
      * $root is resolved in the constructor rather than by the DI container:
      * see defaultRoot(). $time defaults to a wall-clock instance in the
@@ -81,8 +87,10 @@ final class Store
             return null;
         }
 
-        /** @var array<string, mixed> $data */
-        $data = json_decode((string) file_get_contents($path), true);
+        $data = $this->read($path);
+        if (\is_string($data)) {
+            throw new PabloError("cannot read task record {$path}: {$data} (fix or delete the file)");
+        }
 
         return Task::fromJson($data, $this->time->utcnow());
     }
@@ -95,9 +103,19 @@ final class Store
         if (!is_dir($dir)) {
             @mkdir($dir, 0o777, true);
         }
-        $tmp = $path.'.tmp';
-        file_put_contents($tmp, $this->encode($task->toJson()));
-        rename($tmp, $path);
+        // A unique temp name in the same directory (so rename() stays an
+        // atomic same-filesystem replace) and a checked write: a short write
+        // (full disk) or a failed rename must leave the previous record intact.
+        $tmp = $path.'.'.bin2hex(random_bytes(4)).'.tmp';
+        $content = $this->encode($task->toJson());
+        if (@file_put_contents($tmp, $content) !== \strlen($content)) {
+            @unlink($tmp);
+            throw new PabloError("cannot write task record {$path} (temp file {$tmp}): disk full or not writable?");
+        }
+        if (!@rename($tmp, $path)) {
+            @unlink($tmp);
+            throw new PabloError("cannot write task record {$path}: rename from {$tmp} failed");
+        }
     }
 
     public function delete(string $project, string $branch): void
@@ -110,7 +128,15 @@ final class Store
         }
     }
 
-    /** @return array<int, Task> */
+    /**
+     * Every readable task record. An unreadable one (truncated, not JSON, not
+     * a JSON object) is skipped rather than thrown: this feeds task:list, the
+     * dashboard, cwd resolution and polling across all projects, so one bad
+     * file must not take them all down. Each skipped file is warned about on
+     * stderr (once per Store instance) and listed by unreadableRecords().
+     *
+     * @return array<int, Task>
+     */
     public function allTasks(?string $project = null): array
     {
         if (!is_dir($this->root)) {
@@ -121,12 +147,29 @@ final class Store
             if (null !== $project && basename(\dirname($path)) !== $project) {
                 continue;
             }
-            /** @var array<string, mixed> $data */
-            $data = json_decode((string) file_get_contents($path), true);
+            $data = $this->read($path);
+            if (\is_string($data)) {
+                if (!isset($this->unreadable[$path])) {
+                    $this->unreadable[$path] = $data;
+                    $this->warn("pablo: warning: skipping unreadable task record {$path}: {$data} (fix or delete the file)\n");
+                }
+                continue;
+            }
+            unset($this->unreadable[$path]);
             $tasks[] = Task::fromJson($data, $this->time->utcnow());
         }
 
         return $tasks;
+    }
+
+    /**
+     * Task records allTasks() skipped because they could not be decoded.
+     *
+     * @return array<string, string> path => reason
+     */
+    public function unreadableRecords(): array
+    {
+        return $this->unreadable;
     }
 
     /**
@@ -205,6 +248,39 @@ final class Store
         } catch (\Throwable $e) {
             fclose($fd);
             throw $e;
+        }
+    }
+
+    /**
+     * The decoded record, or the reason it cannot be used.
+     *
+     * @return array<string, mixed>|string
+     */
+    private function read(string $path): array|string
+    {
+        $raw = @file_get_contents($path);
+        if (false === $raw) {
+            return 'not readable';
+        }
+        try {
+            $data = json_decode($raw, true, 512, \JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            return 'invalid JSON ('.$e->getMessage().')';
+        }
+        if (!\is_array($data) || ([] !== $data && array_is_list($data))) {
+            return 'not a JSON object';
+        }
+
+        /* @var array<string, mixed> $data */
+        return $data;
+    }
+
+    private function warn(string $message): void
+    {
+        // No STDERR constant under the dashboard's cli-server SAPI.
+        $stream = $this->stderr ?? @fopen('php://stderr', 'w');
+        if (\is_resource($stream)) {
+            fwrite($stream, $message);
         }
     }
 

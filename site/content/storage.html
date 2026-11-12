@@ -48,6 +48,10 @@
   </tbody>
 </table>
 
+<p>A task record is written to a uniquely named temporary file next to it, then renamed over it; if the write fails (a full disk, a read-only folder), the command stops with <code>cannot write task record &lt;path&gt;</code> and the previous record is left untouched.</p>
+
+<p id="unreadable-records">A record that cannot be decoded (truncated, not JSON) never takes the other tasks down: <code>pablo task:list</code>, the dashboard, the poller and worktree resolution skip it, warning on stderr with <code>pablo: warning: skipping unreadable task record &lt;path&gt;</code>. Reading that one task directly fails with <code>cannot read task record &lt;path&gt;</code>. Fix the file, or delete it (and its <code>.lock</code>) to forget the task; its worktree and branch are untouched.</p>
+
 <p>The record also holds a <b>display cache</b> written by the poller, the rendered cells of <code>pablo task:list</code>, so the listing and the dashboard show instantly without calling GitHub. A task the poller hasn't seen yet has no cache, and the listing fetches live instead.</p>
 
 <h2>Locks</h2>
