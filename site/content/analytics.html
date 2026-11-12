@@ -9,6 +9,10 @@ pablo stats --days 7 --project wallet-kit
 pablo stats --type open-source            # work | open-source | personal
 pablo stats --agent ci-analyst            # filter the agents table
 pablo stats --format json                 # for scripts
+pablo stats --by task                     # top tasks by tokens
+pablo stats --by model --days 90          # agent | project | model | task
+pablo stats --by project --format csv     # one row per group, for a spreadsheet
+pablo task:history my-branch              # one task's timeline
 </code></pre>
 
 <p>The same numbers are charted on the dashboard's <a href="page:dashboard#analytics">Analytics page</a>.</p>
@@ -23,6 +27,22 @@ pablo stats --format json                 # for scripts
   <dt>State dwell times</dt>
   <dd>Average time spent in each state, and how many times tasks entered it. A high count for <code>ci-red</code> or <code>request-changes</code> means rework loops.</dd>
 </dl>
+
+<h2>Break runs down</h2>
+
+<p><code>pablo stats --by &lt;dimension&gt;</code> replaces the three default tables with one table of finished agent runs grouped by <code>agent</code>, <code>project</code>, <code>model</code> or <code>task</code> (<code>project/branch</code>): runs, total and average run time, tokens in, out, cache read and cache write, their total, and cost. Groups are sorted by total tokens, so <code>--by task</code> lists the tasks that cost the most first; <code>--limit</code> keeps the first N (20 by default, <code>0</code> for all). <code>--agent</code> still restricts the runs counted.</p>
+
+<ul>
+  <li><b>Models</b>: a run records its tokens, not a split per model, so a run that used several models is grouped under all of them together (<code>m/a, m/b</code>). Runs with no model recorded are grouped as <code>(unknown)</code>.</li>
+  <li><b>Cost</b> is shown only when at least one run of the group reported one (<code>null</code> in JSON and empty in CSV otherwise).</li>
+  <li><b>Output tokens</b> include reasoning tokens, as in the agents table.</li>
+</ul>
+
+<p><code>--format csv</code> prints a header line, then one row per group, with raw numbers (seconds, token counts). Without <code>--by</code> it groups by agent. <code>--format json</code> with <code>--by</code> prints <code>{"days", "by", "groups"}</code>.</p>
+
+<h2 id="task-history">One task's history</h2>
+
+<p><code>pablo task:history &lt;branch&gt; [--project=&lt;name&gt;] [--format=json]</code> prints one task's timeline from the log, in order: when it was opened, each state it entered with how long it stayed there (until the next state or the close; <code>-</code> while it is still the current one), every finished agent run with its model, duration, tokens and cost, and the close. A summary line adds up the runs. It works for closed tasks too, since it only reads the log. When the same branch name exists in several projects, pass <code>--project</code>.</p>
 
 <p>The cache hit rate is <code>cache_read / (input + cache_read + cache_write)</code>, per run. If you're on a subscription plan, cost can legitimately stay at zero while token counts are real.</p>
 
@@ -82,6 +102,8 @@ pablo stats --format json                 # for scripts
 │   └── YYYY-MM.jsonl      # one event per line, one file per month
 └── analytics-errors.log   # write failures; normally empty
 </code></pre>
+
+<p><code>pablo stats</code> and the dashboard only open the month files that overlap the period you ask for (<code>--days</code>); <code>--days 0</code> and <code>task:history</code> read them all.</p>
 
 <p>Recording is best-effort: a failure goes to <code>analytics-errors.log</code> and never breaks a task operation. Set <code>PABLO_ANALYTICS_DIR</code> to store the log elsewhere.</p>
 

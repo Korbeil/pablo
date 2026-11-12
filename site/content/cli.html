@@ -79,7 +79,8 @@
     <tr><td><code>archive:backup [&lt;destination&gt;]</code></td><td>Write a backup of <code>~/.pablo/</code>. <a href="page:backups">Guide</a></td></tr>
     <tr><td><code>archive:restore &lt;archive&gt; [--skip-worktrees] [--skip-ade] [--yes]</code></td><td>Restore a backup and recreate the worktrees.</td></tr>
     <tr><td><code>web [--port=&lt;port&gt;] [--open]</code></td><td>Serve the dashboard on <code>127.0.0.1</code>, on <code>dashboard_port</code> (default 8321) unless <code>--port</code> is given. <a href="page:dashboard">Guide</a></td></tr>
-    <tr><td><code>stats [--days=&lt;n&gt;] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--agent=&lt;agent&gt;] [--format=json]</code></td><td>Task lifetimes, agent runs, tokens and cost. <a href="page:analytics">Guide</a></td></tr>
+    <tr><td><code>stats [--days=&lt;n&gt;] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--agent=&lt;agent&gt;] [--by=agent|project|model|task] [--limit=&lt;n&gt;] [--format=table|json|csv]</code></td><td>Task lifetimes, agent runs, tokens and cost; <code>--by</code> breaks runs down instead (top tasks by tokens with <code>--by task</code>). <a href="page:analytics#break-runs-down">Guide</a></td></tr>
+    <tr><td><code>task:history &lt;branch&gt; [--project=&lt;name&gt;] [--format=json]</code></td><td>One task's timeline from the analytics log: state transitions with their durations, agent runs with their tokens and cost. <a href="page:analytics#task-history">Guide</a></td></tr>
   </tbody>
 </table>
 

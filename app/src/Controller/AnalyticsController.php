@@ -63,7 +63,9 @@ final class AnalyticsController extends AbstractController
         /** @var list<AnalyticsEvent> $events */
         $events = [];
         $anyEvents = false;
-        foreach ($this->reader->read(null) as $payload) {
+        // Only months overlapping the window are read; when that yields
+        // nothing, has_any_events is settled by a full read below.
+        foreach ($this->reader->read(null, $since) as $payload) {
             $event = AnalyticsEvent::fromEvent($payload);
             $anyEvents = true;
             if ('' !== $event->ts() && $this->tsOf($event) < $cutoffTs) {
@@ -73,6 +75,9 @@ final class AnalyticsController extends AbstractController
                 continue;
             }
             $events[] = $event;
+        }
+        if (!$anyEvents && null !== $since) {
+            $anyEvents = [] !== $this->reader->read(null);
         }
 
         $tasks = $this->aggregator->taskStats($events);

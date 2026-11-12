@@ -51,12 +51,25 @@ final class StatsCommand extends Command
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'restrict to one project')
             ->addOption('type', null, InputOption::VALUE_REQUIRED, 'restrict to one project type (work/open-source/personal)', '', Dashboard::TYPES)
             ->addOption('agent', null, InputOption::VALUE_REQUIRED, 'restrict the agents table to one agent')
-            ->addOption('format', null, InputOption::VALUE_REQUIRED, 'output format', 'table', ['table', 'json']);
+            ->addOption('format', null, InputOption::VALUE_REQUIRED, 'output format', 'table', ['table', 'json', 'csv'])
+            ->addOption('by', null, InputOption::VALUE_REQUIRED, 'break agent runs down by agent, project, model or task (csv defaults to agent)', null, AnalyticsAggregator::BREAKDOWNS)
+            ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'with --by: keep the N groups with the most tokens (0 = all)', '20');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $days = max(0, (int) $input->getOption('days'));
+        $format = (string) $input->getOption('format');
+        if (!\in_array($format, ['table', 'json', 'csv'], true)) {
+            throw new PabloError(\sprintf("invalid --format '%s'; expected one of: table, json, csv", $format));
+        }
+        $by = (string) ($input->getOption('by') ?? '');
+        if ('' !== $by && !\in_array($by, AnalyticsAggregator::BREAKDOWNS, true)) {
+            throw new PabloError(\sprintf("invalid --by '%s'; expected one of: %s", $by, implode(', ', AnalyticsAggregator::BREAKDOWNS)));
+        }
+        if ('csv' === $format && '' === $by) {
+            $by = 'agent';
+        }
         $cutoffTs = 0 === $days ? 0 : $this->time->parseTs($this->time->utcnow())->getTimestamp() - $days * 86_400;
         $projectFilter = (string) ($input->getOption('project') ?: '') ?: null;
         $typeFilter = (string) $input->getOption('type');
@@ -66,7 +79,8 @@ final class StatsCommand extends Command
 
         /** @var list<AnalyticsEvent> $events */
         $events = [];
-        foreach ($this->reader->read($projectFilter) as $payload) {
+        $since = $cutoffTs > 0 ? new \DateTimeImmutable('@'.$cutoffTs) : null;
+        foreach ($this->reader->read($projectFilter, $since) as $payload) {
             $event = AnalyticsEvent::fromEvent($payload);
             if ('' !== $event->ts() && $cutoffTs > 0 && $this->tsOf($event) < $cutoffTs) {
                 continue;
@@ -75,6 +89,16 @@ final class StatsCommand extends Command
                 continue;
             }
             $events[] = $event;
+        }
+
+        if ('' !== $by) {
+            $this->renderBreakdown($output, $format, $days, $by, $this->aggregator->runBreakdown(
+                $events,
+                $by,
+                (string) ($input->getOption('agent') ?: ''),
+            ), max(0, (int) $input->getOption('limit')));
+
+            return self::SUCCESS;
         }
 
         if ([] === $events) {
@@ -109,6 +133,68 @@ final class StatsCommand extends Command
     }
 
     // --------------------------------------------------------- rendering ---
+
+    /**
+     * One row per group of finished agent runs (--by), as a table, JSON or
+     * CSV (header line first). Groups arrive sorted by total tokens.
+     *
+     * @param array<string, array{runs: int, duration_s: int, avg_run_s: int, tokens_in: int, tokens_out: int, cache_read: int, cache_write: int, tokens_total: int, cost: float|null}> $groups
+     */
+    private function renderBreakdown(OutputInterface $output, string $format, int $days, string $by, array $groups, int $limit): void
+    {
+        if ($limit > 0) {
+            $groups = \array_slice($groups, 0, $limit, true);
+        }
+        if ('json' === $format) {
+            $json = json_encode(['days' => $days, 'by' => $by, 'groups' => $groups], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
+            $output->writeln(false !== $json ? $json : '{}', OutputInterface::OUTPUT_RAW);
+
+            return;
+        }
+        if ('csv' === $format) {
+            $columns = ['runs', 'duration_s', 'avg_run_s', 'tokens_in', 'tokens_out', 'cache_read', 'cache_write', 'tokens_total', 'cost'];
+            $buffer = fopen('php://temp', 'w+');
+            if (false === $buffer) {
+                throw new PabloError('cannot open a buffer for the CSV output');
+            }
+            fputcsv($buffer, [$by, ...$columns], escape: '');
+            foreach ($groups as $key => $row) {
+                fputcsv($buffer, [$key, ...array_map(static fn (string $c) => $row[$c] ?? '', $columns)], escape: '');
+            }
+            rewind($buffer);
+            $output->write((string) stream_get_contents($buffer), false, OutputInterface::OUTPUT_RAW);
+            fclose($buffer);
+
+            return;
+        }
+
+        $output->writeln(\sprintf('<info>PABLO analytics — agent runs by %s, %s</info>', $by, 0 === $days ? 'all time' : "last {$days}d"));
+        $output->writeln('');
+        if ([] === $groups) {
+            $output->writeln('  (no agent runs recorded)');
+
+            return;
+        }
+        $rows = [];
+        foreach ($groups as $key => $g) {
+            $rows[] = [
+                $key,
+                (string) $g['runs'],
+                self::humanDuration($g['duration_s'], true),
+                self::humanDuration($g['avg_run_s']),
+                self::humanTokens($g['tokens_in']),
+                self::humanTokens($g['tokens_out']),
+                self::humanTokens($g['cache_read']),
+                self::humanTokens($g['cache_write']),
+                self::humanTokens($g['tokens_total']),
+                null !== $g['cost'] && $g['cost'] > 0.0 ? \sprintf('%.2f', $g['cost']) : '-',
+            ];
+        }
+        $output->write($this->listing->render(
+            [ucfirst($by), 'Runs', 'Time', 'Avg time', 'In', 'Out', 'Cache R', 'Cache W', 'Total', 'Cost'],
+            $rows,
+        ));
+    }
 
     /**
      * @param array<string, array<string, float|int|string>> $tasks

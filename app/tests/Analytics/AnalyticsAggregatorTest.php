@@ -173,6 +173,100 @@ final class AnalyticsAggregatorTest extends TestCase
         $this->assertSame(700, $agent['cache_read']);
     }
 
+    /**
+     * Three finished runs over two tasks / projects / model sets, plus a
+     * usage-less sweep twin of the first that must not be counted.
+     *
+     * @return list<AnalyticsEvent>
+     */
+    private function runs(): array
+    {
+        $run = static fn (string $project, string $branch, string $agent, string $started, array $models, ?int $in, ?float $cost, string $backend = 'orca') => AnalyticsEvent::fromEvent([
+            'ts' => '2026-01-10T12:00:00+00:00', 'type' => 'agent_run_finished', 'project' => $project, 'branch' => $branch,
+            'agent' => $agent, 'backend' => $backend, 'started_at' => $started, 'finished_at' => '2026-01-10T12:00:00+00:00',
+            'duration_s' => 100, 'input' => $in, 'output' => null === $in ? null : 10, 'reasoning' => null === $in ? null : 5,
+            'cache_read' => null === $in ? null : 1000, 'cache_write' => null === $in ? null : 20, 'cost' => $cost,
+            'models' => $models, 'harvest' => null === $in ? 'none' : 'exact',
+        ]);
+
+        return [
+            $run('proj', 'wk-1', 'task-analyst', '2026-01-10T11:00:00+00:00', ['m/b', 'm/a'], 100, 0.5),
+            $run('proj', 'wk-1', 'task-analyst', '2026-01-10T11:00:00+00:00', [], null, null, 'unknown'),
+            $run('proj', 'wk-1', 'ci-analyst', '2026-01-10T11:10:00+00:00', ['m/a'], 5000, null),
+            $run('other', 'wk-2', 'task-analyst', '2026-01-10T11:20:00+00:00', [], 1, 0.25),
+        ];
+    }
+
+    public function testRunBreakdownByTaskSumsUsageAndSortsByTokens(): void
+    {
+        $groups = $this->aggregator()->runBreakdown($this->runs(), 'task');
+
+        $this->assertSame(['proj/wk-1', 'other/wk-2'], array_keys($groups));
+        $task = $groups['proj/wk-1'];
+        $this->assertSame(2, $task['runs']); // the sweep twin is skipped
+        $this->assertSame(200, $task['duration_s']);
+        $this->assertSame(100, $task['avg_run_s']);
+        $this->assertSame(5100, $task['tokens_in']);
+        $this->assertSame(30, $task['tokens_out']); // output + reasoning
+        $this->assertSame(2000, $task['cache_read']);
+        $this->assertSame(40, $task['cache_write']);
+        $this->assertSame(5100 + 30 + 2000 + 40, $task['tokens_total']);
+        $this->assertSame(0.5, $task['cost']); // the cost-less run adds nothing
+    }
+
+    public function testRunBreakdownByModelGroupsTheRunsModelSet(): void
+    {
+        $groups = $this->aggregator()->runBreakdown($this->runs(), 'model');
+
+        $this->assertSame(['m/a', 'm/a, m/b', '(unknown)'], array_keys($groups));
+        $this->assertNull($groups['m/a']['cost']); // no run reported a cost
+    }
+
+    public function testRunBreakdownByProjectAndAgentFilter(): void
+    {
+        $groups = $this->aggregator()->runBreakdown($this->runs(), 'project', 'task-analyst');
+
+        $this->assertSame(['proj', 'other'], array_keys($groups));
+        $this->assertSame(1, $groups['proj']['runs']);
+        $byAgent = $this->aggregator()->runBreakdown($this->runs(), 'agent');
+        $this->assertSame(['ci-analyst', 'task-analyst'], array_keys($byAgent));
+        $this->assertSame(2, $byAgent['task-analyst']['runs']);
+        $this->assertSame(0.75, $byAgent['task-analyst']['cost']);
+    }
+
+    public function testRunBreakdownRejectsAnUnknownDimension(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->aggregator()->runBreakdown([], 'day');
+    }
+
+    public function testTaskTimelineHasDwellTimesAndRunUsage(): void
+    {
+        $timeline = $this->aggregator()->taskTimeline($this->lifecycle(), 'proj', 'wk-1');
+
+        $this->assertSame(
+            ['task_opened', 'state_entered', 'state_entered', 'agent_run_finished', 'state_entered', 'task_closed'],
+            array_column($timeline, 'event'),
+        );
+        $this->assertSame(600, $timeline[1]['dwell_s']);
+        $this->assertSame(4200, $timeline[2]['dwell_s']);
+        $this->assertSame(4800, $timeline[4]['dwell_s']); // until the close
+        $this->assertSame('task-analyst', $timeline[3]['agent']);
+        $this->assertSame(1000, $timeline[3]['tokens_in']);
+        $this->assertSame(250, $timeline[3]['tokens_out']);
+        $this->assertSame('anthropic/claude', $timeline[3]['models']);
+        $this->assertTrue($timeline[5]['merged']);
+        $this->assertSame([], $this->aggregator()->taskTimeline($this->lifecycle(), 'proj', 'nope'));
+    }
+
+    public function testTaskTimelineLastStateIsOpenWhileTheTaskLives(): void
+    {
+        $events = \array_slice($this->lifecycle(), 0, 6); // no task_closed
+        $timeline = $this->aggregator()->taskTimeline($events, 'proj', 'wk-1');
+
+        $this->assertSame(-1, $timeline[4]['dwell_s']);
+    }
+
     private function aggregator(): AnalyticsAggregator
     {
         return new AnalyticsAggregator(new Time());
