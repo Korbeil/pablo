@@ -150,13 +150,13 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
             $this->projectsLoader,
             $this->agentLaunchers,
             $this->agents,
-            $this->analytics,
             new class implements UsageHarvesterInterface {
                 public function harvest(string $worktree, string $launchedAt, ?string $fingerprint): ?UsageSnapshot
                 {
                     throw new \LogicException('a startup script has no usage to harvest');
                 }
             },
+            $this->analytics,
         );
         $input = new ArrayInput([
             '--project' => 'wallet-kit',
