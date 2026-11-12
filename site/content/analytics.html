@@ -79,7 +79,7 @@ pablo task:history my-branch              # one task's timeline
   <li>Nothing found: usage is empty (<code>none</code>), and the timing is still recorded.</li>
 </ul>
 
-<p>With <a href="page:configuration#claude-code">Claude Code</a>:</p>
+<p>With <a href="page:runtimes#claude-code">Claude Code</a>:</p>
 
 <ul>
   <li><b>Tokens</b> come from the run's transcript, <code>~/.claude/projects/&lt;worktree&gt;/&lt;session id&gt;.jsonl</code> (under <code>CLAUDE_CONFIG_DIR</code> when set): input, output, cache read and cache write, summed over the assistant messages, each counted once. Thinking tokens are part of output, so reasoning stays at 0. The models are recorded too.</li>
@@ -87,7 +87,7 @@ pablo task:history my-branch              # one task's timeline
   <li><b>Cost is not measured</b> and is recorded as 0: with a Pro or Max subscription a run has no price of its own.</li>
 </ul>
 
-<p>With <a href="page:configuration#copilot">GitHub Copilot CLI</a>:</p>
+<p>With <a href="page:runtimes#copilot">GitHub Copilot CLI</a>:</p>
 
 <ul>
   <li><b>Tokens</b> come from <code>~/.copilot/session-state/&lt;session id&gt;/events.jsonl</code> (under <code>COPILOT_HOME</code> when set): the per-model <code>usage</code> of the latest <code>session.shutdown</code> (or <code>session.usage_checkpoint</code>) event, giving input (minus cached), output, cache read and cache write.</li>
