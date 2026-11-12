@@ -8,6 +8,7 @@ use Pablo\Agents\Ade\Detached;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Config\ProjectConfig;
 use Pablo\Support\PabloError;
+use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
 use Symfony\Component\Process\ExecutableFinder;
 
@@ -289,6 +290,71 @@ final class Doctor
         }
 
         return $results;
+    }
+
+    /**
+     * Soft warnings about the user's hook command (hooks.command): the
+     * executable it starts with cannot be found. Never a failure — a hook
+     * is the user's own business and never blocks PABLO.
+     *
+     * @param array<string, ProjectConfig> $projects
+     *
+     * @return list<string>
+     */
+    public function hookWarnings(array $projects): array
+    {
+        $byCommand = [];
+        foreach ($projects as $cfg) {
+            if (null !== $cfg->hookCommand) {
+                $byCommand[$cfg->hookCommand][] = $cfg->name;
+            }
+        }
+        $warnings = [];
+        foreach ($byCommand as $command => $names) {
+            $bin = self::hookExecutable((string) $command);
+            if (null === $bin) {
+                continue; // starts with shell syntax: nothing to look up
+            }
+            $found = str_contains($bin, '/') ? is_file($bin) && is_executable($bin) : null !== $this->which($bin);
+            if (!$found) {
+                $warnings[] = \sprintf("hooks.command: '%s' not found (projects: %s)", $bin, implode(', ', $names));
+            }
+        }
+
+        return $warnings;
+    }
+
+    /** @param list<string> $warnings */
+    public function renderHookWarnings(array $warnings): string
+    {
+        return implode("\n", array_map(static fn (string $w): string => \sprintf('⚠️  %-9s %s', 'hooks', $w), $warnings));
+    }
+
+    /**
+     * The executable a hook command starts with (leading VAR=value
+     * assignments skipped, quotes stripped, ~/ expanded), or null when it
+     * starts with shell syntax or a builtin there is nothing to look up for.
+     */
+    public static function hookExecutable(string $command): ?string
+    {
+        $tokens = preg_split('/\s+/', trim($command)) ?: [];
+        foreach ($tokens as $token) {
+            if (1 === preg_match('/^[A-Za-z_][A-Za-z0-9_]*=/', $token)) {
+                continue;
+            }
+            $token = trim($token, '"\'');
+            if ('' === $token || 1 === preg_match('/^(if|for|while|until|case|function|\{|\(|\[\[?|!|exec|command|builtin|source|\.|eval|test|echo|printf|cd|true|false|:)$/', $token)
+                || str_contains($token, '$') || str_contains($token, '`')) {
+                return null;
+            }
+            if (str_starts_with($token, '~/')) {
+                $token = PabloPaths::home().substr($token, 1);
+            }
+
+            return $token;
+        }
+
+        return null;
     }
 
     /** @param array<int, CheckResult> $results */

@@ -15,6 +15,14 @@ ci:
 # Copilot model id (dotted, e.g. claude-sonnet-5.5) for Copilot.
 default_model: opencode-go/glm-5.3-flash
 pr_description_locale: en
+# hooks:                 # your own command on task events (PABLO sends nothing itself)
+#   command: 'notify-send PABLO "$PABLO_TASK: ${PABLO_TO:-$PABLO_AGENT finished}"'
+#   # macOS: 'osascript -e "display notification \"$PABLO_TASK: $PABLO_TO\" with title \"PABLO\""'
+#   states: [request-changes, testing-failed, ci-red, approved, closed]  # optional filter
+#   agent_finished: true  # also when an auto-launched agent's analysis is ready
+# Runs detached with PABLO_EVENT (transition | agent-finished), PABLO_TASK,
+# PABLO_PROJECT, PABLO_FROM, PABLO_TO, PABLO_STATE, PABLO_AGENT, PABLO_PR_URL,
+# PABLO_ISSUE_KEY, PABLO_WORKTREE. A project file can override it per key.
 # dashboard_port: 8321   # the port of `pablo web` and its service (127.0.0.1 only)
 # dashboard_trusted_hosts: [pablo.home.arpa]   # extra names the dashboard answers
 #                          # (exact names, besides 127.0.0.1 and localhost)

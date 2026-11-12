@@ -9,6 +9,7 @@ use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Hooks\Hooks;
 use Pablo\StateMachine\StateMachine;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Store\Store;
@@ -392,6 +393,120 @@ final class StateMachineTest extends TestCase
         $this->task->state = State::WaitingReview;
         $this->sm->enterState($this->ctx, State::NeedsTesting);
         $this->assertSame('A FIX', $this->task->lastSeenIssueStatus);
+    }
+
+    private FakeGit $hookGit;
+
+    /** @param list<State>|null $states */
+    private function hooked(?array $states = null): FakeHookRunner
+    {
+        $runner = new FakeHookRunner();
+        $git = $this->hookGit = new FakeGit();
+        $git->originUrl = 'git@github.com:acme/wallet-kit.git';
+        $repoSlug = new RepoSlug($git);
+        $this->sm = new StateMachine($this->gh, new StubProviders(), $repoSlug, new Time(), new FakeAnalytics(), new Hooks($runner, $repoSlug));
+        $args = $this->cfg->toArray();
+        $this->ctx = new TaskCtx(task: $this->task, cfg: new ProjectConfig(
+            name: $this->cfg->name,
+            type: $this->cfg->type,
+            repoPath: $this->cfg->repoPath,
+            primaryBranch: $this->cfg->primaryBranch,
+            worktreesRoot: $this->cfg->worktreesRoot,
+            provider: $this->cfg->provider,
+            identity: $this->cfg->identity,
+            projectKey: $this->cfg->projectKey,
+            syncStrategy: $this->cfg->syncStrategy,
+            syncAutoApply: $this->cfg->syncAutoApply,
+            syncInterval: $this->cfg->syncInterval,
+            pollInterval: $this->cfg->pollInterval,
+            failureSignal: null,
+            botWhitelist: [],
+            ciIgnoreChecks: [],
+            defaultModel: (string) $args['default_model'],
+            prDescriptionLocale: 'en',
+            hookCommand: 'notify',
+            hookStates: $states,
+        ), store: $this->store, agents: $this->agents);
+
+        return $runner;
+    }
+
+    public function testHookFiresOnceAfterTheSave(): void
+    {
+        $runner = $this->hooked();
+        $this->task->state = State::WaitingReview;
+        $this->sm->enterState($this->ctx, State::RequestChanges);
+
+        $this->assertCount(1, $runner->runs);
+        $env = $runner->runs[0]['env'];
+        $this->assertSame('transition', $env['PABLO_EVENT']);
+        $this->assertSame('waiting-review', $env['PABLO_FROM']);
+        $this->assertSame('request-changes', $env['PABLO_TO']);
+        // The hook saw a persisted transition.
+        $this->assertSame(State::RequestChanges, $this->store->get('wallet-kit', 'wk-45')?->state);
+    }
+
+    public function testHookFiresOnceForAPassThroughState(): void
+    {
+        $runner = $this->hooked();
+        $this->task->state = State::Draft;
+        $this->sm->enterState($this->ctx, State::ReadyToReview);
+
+        $this->assertCount(1, $runner->runs);
+        $this->assertSame('draft', $runner->runs[0]['env']['PABLO_FROM']);
+        $this->assertSame('waiting-review', $runner->runs[0]['env']['PABLO_TO']);
+
+        // And again on the next, independent transition.
+        $this->sm->enterState($this->ctx, State::Approved);
+        $this->assertCount(2, $runner->runs);
+        $this->assertSame('waiting-review', $runner->runs[1]['env']['PABLO_FROM']);
+        $this->assertSame('needs-testing', $runner->runs[1]['env']['PABLO_TO']);
+    }
+
+    public function testHookStatesFilterSeesPassThroughStates(): void
+    {
+        $runner = $this->hooked([State::Approved]);
+        $this->task->state = State::WaitingReview;
+        $this->sm->enterState($this->ctx, State::Approved);
+        $this->assertCount(1, $runner->runs);
+
+        $this->sm->enterState($this->ctx, State::Waiting);
+        $this->assertCount(1, $runner->runs);
+    }
+
+    public function testHookDoesNotFireWhenTheStateDidNotChange(): void
+    {
+        $runner = $this->hooked();
+        $this->task->state = State::WaitingReview;
+        $this->sm->enterState($this->ctx, State::WaitingReview);
+
+        $this->assertSame([], $runner->runs);
+    }
+
+    public function testHookDoesNotFireWhenTheTransitionFails(): void
+    {
+        $runner = $this->hooked();
+        $this->task->state = State::RequestChanges;
+        try {
+            $this->sm->enterState($this->ctx, State::Waiting);
+            $this->fail('expected a PabloError');
+        } catch (PabloError) {
+        }
+        // A pass-through whose on-enter throws (no origin remote to mark the PR ready).
+        $this->hookGit->originUrl = null;
+        $this->task->state = State::Draft;
+        try {
+            $this->sm->enterState($this->ctx, State::ReadyToReview);
+            $this->fail('expected a PabloError');
+        } catch (PabloError) {
+        }
+        $this->assertSame([], $runner->runs);
+
+        // The nesting counter recovered: the next transition fires.
+        $this->hookGit->originUrl = 'git@github.com:acme/wallet-kit.git';
+        $this->task->state = State::Draft;
+        $this->sm->enterState($this->ctx, State::ReadyToReview);
+        $this->assertCount(1, $runner->runs);
     }
 }
 

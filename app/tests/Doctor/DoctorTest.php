@@ -90,7 +90,7 @@ YAML;
         $this->unsetGlobalConfig();
     }
 
-    private function makeCfg(string $name, string $provider, ?string $confluenceSpace = null): ProjectConfig
+    private function makeCfg(string $name, string $provider, ?string $confluenceSpace = null, ?string $hookCommand = null): ProjectConfig
     {
         return new ProjectConfig(
             name: $name,
@@ -110,8 +110,36 @@ YAML;
             ciIgnoreChecks: [],
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
+            hookCommand: $hookCommand,
             confluenceSpace: $confluenceSpace,
         );
+    }
+
+    public function testHookExecutable(): void
+    {
+        $this->assertSame('notify-send', Doctor::hookExecutable('notify-send "PABLO" "$PABLO_TASK"'));
+        $this->assertSame('osascript', Doctor::hookExecutable("FOO=1 'osascript' -e x"));
+        $this->assertSame(getenv('HOME').'/bin/notify', Doctor::hookExecutable('~/bin/notify'));
+        $this->assertNull(Doctor::hookExecutable('if true; then :; fi'));
+        $this->assertNull(Doctor::hookExecutable('$HOME/bin/notify'));
+        $this->assertNull(Doctor::hookExecutable('   '));
+    }
+
+    public function testHookWarningsOnlyForAMissingExecutable(): void
+    {
+        $this->onWhich = static fn (string $bin): ?string => 'notify-send' === $bin ? '/usr/bin/notify-send' : null;
+        $warnings = $this->doctor()->hookWarnings([
+            'a' => $this->makeCfg('a', 'github', hookCommand: 'notify-send hi'),
+            'b' => $this->makeCfg('b', 'github', hookCommand: 'terminal-notifier -message hi'),
+            'c' => $this->makeCfg('c', 'github', hookCommand: 'terminal-notifier -message hi'),
+            'd' => $this->makeCfg('d', 'github', hookCommand: '/nonexistent/pablo-hook'),
+            'e' => $this->makeCfg('e', 'github'),
+        ]);
+        $this->assertSame([
+            "hooks.command: 'terminal-notifier' not found (projects: b, c)",
+            "hooks.command: '/nonexistent/pablo-hook' not found (projects: d)",
+        ], $warnings);
+        $this->assertStringStartsWith('⚠️  hooks', $this->doctor()->renderHookWarnings($warnings));
     }
 
     public function testRequiredSetWithoutJiraLinear(): void

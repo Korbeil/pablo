@@ -26,6 +26,9 @@ use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
 use Pablo\Doctor\SchedulerHealth;
 use Pablo\Domain\Time;
+use Pablo\Hooks\DetachedHookRunner;
+use Pablo\Hooks\HookRunnerInterface;
+use Pablo\Hooks\Hooks;
 use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Listing\Listing;
 use Pablo\Poller\Poller;
@@ -124,6 +127,11 @@ return static function (ContainerConfigurator $container): void {
         ->factory([service(AgentLauncherFactory::class), 'create'])
         ->lazy()
         ->public();
+
+    // The user's own hook command on transitions / finished agents (detached).
+    $services->set(DetachedHookRunner::class);
+    $services->alias(HookRunnerInterface::class, DetachedHookRunner::class);
+    $services->set(Hooks::class);
 
     // Engine orchestration.
     $services->set(StateMachine::class);

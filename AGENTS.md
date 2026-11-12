@@ -161,7 +161,11 @@ agent runtimes, one folder each, plus the shared `PermissionRules` — see
 task lifetimes, state transitions, agent runs with token/cost usage
 harvested from the selected runtime's own storage; best-effort, never throws into task
 flows, never persists prompt content — see `site/content/analytics.html`) ·
-`src/Doctor/` (preflight checks) · `src/Dispatch/` (cron entry point) ·
+`src/Doctor/` (preflight checks) · `src/Hooks/` (the user's own `hooks.command`,
+run detached after a saved transition or a finished agent through
+`HookRunnerInterface` — `tests/FakeHookRunner.php` in tests; PABLO itself
+sends nothing, see `site/content/states.html#get-notified`) ·
+`src/Dispatch/` (cron entry point) ·
 `src/Support/` (`PabloError`, `PabloPaths` — every `~/.pablo` path and the
 phar/resources helpers —, `ProcessRunner`, `Files`, `Naming`, `Numbers`,
 `RepoSlug`, `TaskSummarizer`).

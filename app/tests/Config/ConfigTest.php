@@ -6,6 +6,7 @@ namespace Pablo\Tests;
 
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
+use Pablo\Domain\State;
 use Pablo\Support\PabloError;
 use PHPUnit\Framework\TestCase;
 
@@ -228,6 +229,54 @@ YAML;
         $this->assertSame('qa-failed', $cfg->failureSignal);
         $this->assertSame(getenv('HOME').'/dev/wallet-kit-worktrees', $cfg->worktreesRoot);
         $this->assertSame(getenv('HOME').'/dev/wallet-kit', $cfg->repoPath);
+    }
+
+    public function testHooksOffByDefault(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
+        $this->assertNull($cfg->hookCommand);
+        $this->assertNull($cfg->hookStates);
+        $this->assertTrue($cfg->hookAgentFinished);
+    }
+
+    public function testHooksComeFromGlobalConfigPerKey(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nhooks:\n  command: notify-send PABLO\n  states: [ci-red, approved]\n  agent_finished: false\n");
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."hooks:\n  states: [closed]\n");
+        $this->write('other.yaml', str_replace(['name: mini', 'MI'], ['name: other', 'OT'], self::MINIMAL_PROJECT)."hooks:\n  command: ~\n");
+        $projects = $this->loader()->loadProjects($this->projectsDir);
+
+        $mini = $projects['mini'];
+        $this->assertSame('notify-send PABLO', $mini->hookCommand);
+        $this->assertSame([State::Closed], $mini->hookStates);
+        $this->assertFalse($mini->hookAgentFinished);
+        $this->assertSame(['command' => 'notify-send PABLO', 'states' => ['closed'], 'agent_finished' => false], $mini->toArray()['hooks']);
+
+        // A project setting command to null turns the hook off for itself.
+        $this->assertNull($projects['other']->hookCommand);
+    }
+
+    public function testHooksRejectAnUnknownState(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."hooks:\n  command: notify\n  states: [red]\n");
+        $this->assertStringContainsString("mini.yaml: hooks.states has unknown state 'red'", $this->onlyProjectError());
+    }
+
+    public function testHooksRejectANonStringCommand(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."hooks:\n  command: [notify]\n");
+        $this->assertStringContainsString('mini.yaml: hooks.command must be a shell command string', $this->onlyProjectError());
+    }
+
+    /** An invalid global hooks block would break every project: fatal, like the other global errors. */
+    public function testInvalidGlobalHooksAreFatal(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->writeGlobalConfig(self::DEFAULTS."\nhooks:\n  states: [red]\n");
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage("config.yaml: hooks.states has unknown state 'red'");
+        $this->loader()->loadProjects($this->projectsDir);
     }
 
     public function testWorktreesRootDefault(): void

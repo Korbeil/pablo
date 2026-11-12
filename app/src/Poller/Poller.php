@@ -17,6 +17,7 @@ use Pablo\Domain\DisplayCache;
 use Pablo\Domain\PrBadge;
 use Pablo\Domain\State;
 use Pablo\Domain\Time;
+use Pablo\Hooks\Hooks;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
@@ -55,6 +56,7 @@ final class Poller
         private readonly Time $time,
         private readonly UsageHarvesterInterface $usage,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
+        private readonly Hooks $hooks = new Hooks(),
     ) {
     }
 
@@ -211,6 +213,7 @@ final class Poller
         $task = $ctx->task;
         $now = $this->time->parseTs($this->time->utcnow())->getTimestamp();
         $changed = false;
+        $finished = [];
         foreach ($task->agentLaunches as $label => $record) {
             if ($record->reported || null === $record->launchedAt) {
                 continue;
@@ -230,6 +233,7 @@ final class Poller
                 // PABLO-owned, so it never depends on the ADE reporting the agent.
                 $finishedAt = $this->time->utcnow();
                 $events[] = "{$task->branch}: {$record->agent->value} finished → waiting for feedback";
+                $finished[] = $record->agent;
             }
             $runId = $record->runId ?? bin2hex(random_bytes(8));
             try {
@@ -260,6 +264,11 @@ final class Poller
         }
         if ($changed) {
             $ctx->store->save($task);
+        }
+        // Only after the save, and only for runs this sweep declared finished
+        // (the watcher fires its own): the user's hook, never blocking.
+        foreach ($finished as $agent) {
+            $this->hooks->agentFinished($ctx->cfg, $task, $agent);
         }
     }
 
