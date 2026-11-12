@@ -18,6 +18,9 @@ use Pablo\Support\Numbers;
  */
 final class AnalyticsAggregator
 {
+    /** Dimensions runBreakdown() groups finished agent runs by. */
+    public const BREAKDOWNS = ['agent', 'project', 'model', 'task'];
+
     public function __construct(
         private readonly Time $time = new Time(),
     ) {
@@ -161,6 +164,143 @@ final class AnalyticsAggregator
         uasort($stats, static fn (array $a, array $b) => $b['runs'] <=> $a['runs']);
 
         return $stats;
+    }
+
+    /**
+     * Finished agent runs grouped by one dimension (see BREAKDOWNS), sorted by
+     * total tokens descending (ties: runs). A run used several models is
+     * grouped under the comma-joined, sorted model list: the log records the
+     * run's tokens, not a per-model split.
+     *
+     * @param list<AnalyticsEvent> $events
+     *
+     * @return array<string, array{runs: int, duration_s: int, avg_run_s: int, tokens_in: int, tokens_out: int, cache_read: int, cache_write: int, tokens_total: int, cost: float|null}>
+     */
+    public function runBreakdown(array $events, string $by, string $agentFilter = ''): array
+    {
+        if (!\in_array($by, self::BREAKDOWNS, true)) {
+            throw new \InvalidArgumentException("unknown breakdown '{$by}'");
+        }
+        $superseded = self::supersededFinishedEvents($events);
+        $groups = [];
+        foreach ($events as $event) {
+            if ('agent_run_finished' !== $event->type() || isset($superseded[spl_object_id($event)])) {
+                continue;
+            }
+            if ('' !== $agentFilter && (string) $event->get('agent') !== $agentFilter) {
+                continue;
+            }
+            $key = match ($by) {
+                'agent' => (string) $event->get('agent'),
+                'project' => $event->project(),
+                'model' => self::modelKey($event),
+                default => $event->project().'/'.$event->branch(),
+            };
+            $row = $groups[$key] ?? ['runs' => 0, 'duration_s' => 0, 'avg_run_s' => 0, 'tokens_in' => 0, 'tokens_out' => 0, 'cache_read' => 0, 'cache_write' => 0, 'tokens_total' => 0, 'cost' => null];
+            $usage = self::runUsage($event);
+            ++$row['runs'];
+            $row['duration_s'] += $usage['duration_s'];
+            $row['tokens_in'] += $usage['tokens_in'];
+            $row['tokens_out'] += $usage['tokens_out'];
+            $row['cache_read'] += $usage['cache_read'];
+            $row['cache_write'] += $usage['cache_write'];
+            $row['tokens_total'] += $usage['tokens_in'] + $usage['tokens_out'] + $usage['cache_read'] + $usage['cache_write'];
+            if (null !== $usage['cost']) {
+                $row['cost'] = round(($row['cost'] ?? 0.0) + $usage['cost'], 4);
+            }
+            $row['avg_run_s'] = (int) round($row['duration_s'] / $row['runs']);
+            $groups[$key] = $row;
+        }
+        uksort($groups, static fn (string $a, string $b) => [$groups[$b]['tokens_total'], $groups[$b]['runs'], $a] <=> [$groups[$a]['tokens_total'], $groups[$a]['runs'], $b]);
+
+        return $groups;
+    }
+
+    /**
+     * One task's analytics as a chronological timeline: its open/close, every
+     * state entry with its dwell time (until the next entry or the close; -1
+     * while still open) and every finished agent run with its usage.
+     *
+     * @param list<AnalyticsEvent> $events
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function taskTimeline(array $events, string $project, string $branch): array
+    {
+        $own = array_values(array_filter(
+            $events,
+            static fn (AnalyticsEvent $e) => $e->project() === $project && $e->branch() === $branch,
+        ));
+        usort($own, fn (AnalyticsEvent $a, AnalyticsEvent $b) => $this->tsOf($a) <=> $this->tsOf($b));
+        $superseded = self::supersededFinishedEvents($own);
+
+        $timeline = [];
+        foreach ($own as $i => $event) {
+            $base = ['ts' => $event->ts(), 'event' => $event->type()];
+            switch ($event->type()) {
+                case 'task_opened':
+                    $timeline[] = $base + ['initial_state' => (string) $event->get('initial_state')];
+                    break;
+                case 'state_entered':
+                    $dwell = -1;
+                    foreach (\array_slice($own, $i + 1) as $next) {
+                        if (\in_array($next->type(), ['state_entered', 'task_closed'], true)) {
+                            $dwell = max(0, $this->tsOf($next) - $this->tsOf($event));
+                            break;
+                        }
+                    }
+                    $timeline[] = $base + ['from' => (string) $event->get('from'), 'to' => (string) $event->get('to'), 'dwell_s' => $dwell];
+                    break;
+                case 'agent_run_finished':
+                    if (isset($superseded[spl_object_id($event)])) {
+                        break;
+                    }
+                    $timeline[] = $base + [
+                        'agent' => (string) $event->get('agent'),
+                        'started_at' => (string) $event->get('started_at'),
+                        'models' => self::modelKey($event),
+                        'harvest' => (string) $event->get('harvest', 'none'),
+                    ] + self::runUsage($event);
+                    break;
+                case 'task_closed':
+                    $timeline[] = $base + [
+                        'final_state' => (string) $event->get('final_state'),
+                        'merged' => (bool) $event->get('merged', false),
+                        'duration_s' => Numbers::int($event->get('duration_s')),
+                    ];
+                    break;
+            }
+        }
+
+        return $timeline;
+    }
+
+    /** @return array{duration_s: int, tokens_in: int, tokens_out: int, cache_read: int, cache_write: int, cost: float|null} */
+    private static function runUsage(AnalyticsEvent $event): array
+    {
+        $cost = $event->get('cost');
+
+        return [
+            'duration_s' => max(0, Numbers::int($event->get('duration_s'))),
+            'tokens_in' => max(0, Numbers::int($event->get('input'))),
+            // Same convention as agentStats: reasoning counts as output.
+            'tokens_out' => max(0, Numbers::int($event->get('output'))) + max(0, Numbers::int($event->get('reasoning'))),
+            'cache_read' => max(0, Numbers::int($event->get('cache_read'))),
+            'cache_write' => max(0, Numbers::int($event->get('cache_write'))),
+            'cost' => null === $cost ? null : abs(Numbers::float($cost)),
+        ];
+    }
+
+    private static function modelKey(AnalyticsEvent $event): string
+    {
+        $models = $event->get('models');
+        $names = \is_array($models) ? array_values(array_unique(array_filter(array_map(
+            static fn (mixed $m) => \is_scalar($m) ? (string) $m : '',
+            $models,
+        )))) : [];
+        sort($names);
+
+        return [] === $names ? '(unknown)' : implode(', ', $names);
     }
 
     /**

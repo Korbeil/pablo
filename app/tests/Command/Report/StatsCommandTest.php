@@ -286,6 +286,94 @@ YAML;
         $this->assertSame(['bk', 'gone', 'wk'], array_keys($payload['tasks']));
     }
 
+    /** A second task in another project with a bigger, multi-model run. */
+    private function seedSecondTask(): void
+    {
+        mkdir($this->root.'/other', 0o777, true);
+        $ts = gmdate('Y-m-d\TH:i:sP', time() - 3600);
+        file_put_contents($this->root.'/other/'.gmdate('Y-m').'.jsonl', json_encode([
+            'ts' => $ts, 'type' => 'agent_run_finished', 'project' => 'other', 'branch' => 'big',
+            'agent' => 'ci-analyst', 'backend' => 'orca', 'started_at' => $ts, 'finished_at' => $ts,
+            'duration_s' => 60, 'input' => 90_000, 'output' => 1000, 'reasoning' => 0, 'cache_read' => 0,
+            'cache_write' => 0, 'cost' => null, 'models' => ['m/y', 'm/x'], 'harvest' => 'window',
+        ], \JSON_UNESCAPED_SLASHES).\PHP_EOL);
+    }
+
+    public function testByTaskListsTopTasksByTokens(): void
+    {
+        $this->seedLifecycle();
+        $this->seedSecondTask();
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--by' => 'task']);
+
+        $display = $tester->getDisplay();
+        $this->assertStringContainsString('agent runs by task', $display);
+        $this->assertLessThan(strpos($display, 'proj/wk-1'), strpos($display, 'other/big'));
+        $this->assertStringContainsString('91k', $display);
+        $this->assertStringContainsString('0.25', $display);
+        // The default sections are not printed with --by.
+        $this->assertStringNotContainsString('States (entries', $display);
+
+        $tester->execute(['--by' => 'task', '--limit' => '1', '--format' => 'json']);
+        /** @var array<string, mixed> $payload */
+        $payload = json_decode($tester->getDisplay(), true);
+        $this->assertSame('task', $payload['by']);
+        $this->assertSame(['other/big'], array_keys($payload['groups']));
+        $this->assertSame(91_000, $payload['groups']['other/big']['tokens_total']);
+        $this->assertNull($payload['groups']['other/big']['cost']);
+    }
+
+    public function testByModelJson(): void
+    {
+        $this->seedLifecycle();
+        $this->seedSecondTask();
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--by' => 'model', '--format' => 'json']);
+
+        /** @var array<string, mixed> $payload */
+        $payload = json_decode($tester->getDisplay(), true);
+        $this->assertSame(['m/x, m/y', 'anthropic/claude'], array_keys($payload['groups']));
+        $this->assertSame(1200, $payload['groups']['anthropic/claude']['duration_s']);
+    }
+
+    public function testCsvHasAHeaderAndOneRowPerGroup(): void
+    {
+        $this->seedLifecycle();
+        $this->seedSecondTask();
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'csv', '--by' => 'project']);
+
+        $lines = explode("\n", trim($tester->getDisplay()));
+        $this->assertSame('project,runs,duration_s,avg_run_s,tokens_in,tokens_out,cache_read,cache_write,tokens_total,cost', $lines[0]);
+        $this->assertSame('other,1,60,60,90000,1000,0,0,91000,', $lines[1]);
+        $this->assertSame('proj,1,1200,1200,1000,250,500,100,1850,0.25', $lines[2]);
+        $this->assertCount(3, $lines);
+
+        // Without --by, CSV groups by agent.
+        $tester->execute(['--format' => 'csv']);
+        $this->assertStringStartsWith('agent,runs,', $tester->getDisplay());
+    }
+
+    public function testCsvOnAnEmptyLogIsJustTheHeader(): void
+    {
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'csv']);
+
+        $this->assertSame("agent,runs,duration_s,avg_run_s,tokens_in,tokens_out,cache_read,cache_write,tokens_total,cost\n", $tester->getDisplay());
+    }
+
+    public function testInvalidByAndFormatFail(): void
+    {
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--by' => 'day']);
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("invalid --by 'day'", $tester->getDisplay());
+
+        $tester->execute(['--format' => 'xml']);
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("invalid --format 'xml'", $tester->getDisplay());
+    }
+
     public function testInvalidTypeFails(): void
     {
         $this->seedLifecycle();

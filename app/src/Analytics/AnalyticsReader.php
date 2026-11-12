@@ -13,15 +13,24 @@ namespace Pablo\Analytics;
 final class AnalyticsReader
 {
     /**
-     * All recorded events, oldest first.
+     * All recorded events, oldest first. With $since, monthly files
+     * (<YYYY-MM>.jsonl, named after the UTC month they were written in) that
+     * end before $since's month are not even opened; the caller still filters
+     * events by timestamp within the overlapping months. A file not named
+     * after a month is always read.
      *
      * @return list<array<string, mixed>>
      */
-    public function read(?string $project = null): array
+    public function read(?string $project = null, ?\DateTimeImmutable $since = null): array
     {
+        $firstMonth = $since?->setTimezone(new \DateTimeZone('UTC'))->format('Y-m');
         $events = [];
         foreach (glob(JsonlAnalytics::root().'/*/*.jsonl') ?: [] as $file) {
             if (null !== $project && basename(\dirname($file)) !== $project) {
+                continue;
+            }
+            $month = basename($file, '.jsonl');
+            if (null !== $firstMonth && 1 === preg_match('/^\d{4}-\d{2}$/', $month) && $month < $firstMonth) {
                 continue;
             }
             $lines = @file($file, \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES);
