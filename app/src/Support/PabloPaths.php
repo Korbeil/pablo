@@ -19,9 +19,59 @@ namespace Pablo\Support;
  */
 final class PabloPaths
 {
+    /**
+     * The user's home directory (HOME), read on every call.
+     *
+     * @throws PabloError when HOME is unset or empty: every PABLO path hangs off
+     *                    it, and guessing would scatter files under a relative "~/"
+     */
     public static function home(): string
     {
-        return getenv('HOME') ?: '~';
+        $home = getenv('HOME');
+        if (false === $home || '' === $home) {
+            throw new PabloError('HOME is not set: PABLO keeps its files under ~/.pablo and needs it to find your home directory');
+        }
+
+        return $home;
+    }
+
+    /**
+     * Expands a leading "~" or "~/" to HOME; any other path is returned as-is.
+     * "~user/…" is deliberately left untouched: PABLO only knows the current
+     * user's home, and that syntax belongs to the shell.
+     *
+     * @throws PabloError when the path needs HOME and it is unset
+     */
+    public static function expandTilde(string $path): string
+    {
+        if ('~' === $path) {
+            return self::home();
+        }
+        if (str_starts_with($path, '~/')) {
+            return self::home().substr($path, 1);
+        }
+
+        return $path;
+    }
+
+    /**
+     * The reverse of expandTilde(): a path inside HOME written as "~/…" (HOME
+     * itself as "~"); anything else — or any path when HOME is unset — as-is.
+     */
+    public static function contractTilde(string $path): string
+    {
+        $home = rtrim((string) getenv('HOME'), '/');
+        if ('' === $home) {
+            return $path;
+        }
+        if ($path === $home) {
+            return '~';
+        }
+        if (str_starts_with($path, $home.'/')) {
+            return '~'.substr($path, \strlen($home));
+        }
+
+        return $path;
     }
 
     /** ~/.pablo: state, stamps, worktrees, logs, config, caches. */
