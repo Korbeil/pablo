@@ -24,8 +24,8 @@
 <table>
   <thead><tr><th>Job</th><th>What it does</th><th>Interval setting</th><th>Default</th></tr></thead>
   <tbody>
-    <tr><td>poll</td><td>checks every task's pull request and moves it through the <a href="page:states">state machine</a></td><td><code>state_polling.interval_minutes</code></td><td>10 min</td></tr>
-    <tr><td>sync</td><td>rebases or merges task branches onto the primary branch (<a href="page:sync">details</a>)</td><td><code>sync.interval_minutes</code></td><td>30 min (the installed <code>config.yaml</code> sets 720, every 12 h)</td></tr>
+    <tr><td>poll</td><td>checks every task's pull request and moves it through the <a href="page:states">state machine</a></td><td><code>state_polling.interval_minutes</code></td><td>none, required (the installed <code>config.yaml</code> sets 10)</td></tr>
+    <tr><td>sync</td><td>rebases or merges task branches onto the primary branch (<a href="page:sync">details</a>)</td><td><code>sync.interval_minutes</code></td><td>none, required (the installed <code>config.yaml</code> sets 720, every 12 h)</td></tr>
     <tr><td>main</td><td>fast-forwards the project's primary checkout (<a href="page:sync#primary-checkout-update">details</a>)</td><td><code>main_update.interval_minutes</code></td><td>60 min</td></tr>
   </tbody>
 </table>
