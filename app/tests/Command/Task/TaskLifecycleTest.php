@@ -19,6 +19,7 @@ use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Tests\Command\CommandTestBed;
 use Pablo\Tests\FakeAnalytics;
+use Symfony\Component\Console\Tester\CommandTester;
 
 final class TaskLifecycleTest extends CommandTestBed
 {
@@ -87,6 +88,56 @@ final class TaskLifecycleTest extends CommandTestBed
         $tester = $this->runCommand(new CloseCommand($this->taskCloser(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--yes' => true]);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame([[$this->wt, 'wk-45']], $this->git->removed);
+        $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
+    }
+
+    private function closeCommand(): CloseCommand
+    {
+        return new CloseCommand($this->taskCloser(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+    }
+
+    public function testCloseOfTheCwdTaskAsksFirstAndDefaultsToNo(): void
+    {
+        $tester = new CommandTester($this->closeCommand());
+        $tester->setInputs(['']);
+        $tester->execute([]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString('Close wk-45 (wallet-kit)?', $tester->getDisplay());
+        $this->assertStringContainsString('Nothing closed.', $tester->getDisplay());
+        $this->assertSame([], $this->git->removed);
+        $this->assertNotNull($this->store->get('wallet-kit', 'wk-45'));
+    }
+
+    public function testCloseOfTheCwdTaskClosesOnYes(): void
+    {
+        $tester = new CommandTester($this->closeCommand());
+        $tester->setInputs(['y']);
+        $tester->execute([]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertSame([[$this->wt, 'wk-45']], $this->git->removed);
+        $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
+    }
+
+    public function testCloseOfTheCwdTaskRefusesWithoutATerminal(): void
+    {
+        $tester = $this->runCommand($this->closeCommand(), [], ['interactive' => false, 'capture_stderr_separately' => true]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('pablo task:close wk-45', $tester->getErrorOutput());
+        $this->assertStringContainsString('--yes', $tester->getErrorOutput());
+        $this->assertSame([], $this->git->removed);
+    }
+
+    public function testCloseOfANamedTaskDoesNotAsk(): void
+    {
+        // Interactive, but no answer queued: a prompt would fail the run.
+        $tester = new CommandTester($this->closeCommand());
+        $tester->execute(['--worktree' => $this->wt]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringNotContainsString('Close wk-45', $tester->getDisplay());
         $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
     }
 
