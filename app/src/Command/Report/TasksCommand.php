@@ -56,21 +56,8 @@ final class TasksCommand extends Command
         );
         $states = $this->parseStates((array) $input->getOption('state'));
 
-        if ($this->wantsJson($input)) {
-            $rows = $this->listing->taskRows(
-                $projects,
-                $this->store(),
-                $this->agents(),
-                (bool) $input->getOption('live'),
-                (bool) $input->getOption('refresh'),
-                $states,
-            );
-            $this->writeJson($output, ['tasks' => array_map(static fn (TaskRow $r): array => $r->toArray(), $rows)]);
-
-            return self::SUCCESS;
-        }
-
-        $render = $this->listing->tasksTable(
+        // One gather for both outputs, so the JSON and the table cannot drift.
+        $rows = $this->listing->taskRows(
             $projects,
             $this->store(),
             $this->agents(),
@@ -78,7 +65,14 @@ final class TasksCommand extends Command
             (bool) $input->getOption('refresh'),
             $states,
         );
-        $output->writeln($render);
+
+        if ($this->wantsJson($input)) {
+            $this->writeJson($output, ['tasks' => array_map(static fn (TaskRow $r): array => $r->toArray(), $rows)]);
+
+            return self::SUCCESS;
+        }
+
+        $output->writeln($this->listing->renderTasksTable($rows, $projects));
         $this->warnProjectErrors($output);
 
         return self::SUCCESS;

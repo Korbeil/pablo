@@ -103,20 +103,24 @@ final class Listing
         } catch (\Throwable) {
             return '?';
         }
-        $seconds = (int) ((new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->getTimestamp() - $dt->getTimestamp());
+
+        return $this->ago((int) ((new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->getTimestamp() - $dt->getTimestamp()));
+    }
+
+    /** "just now", "5m ago", "3h ago", "2d ago" (each unit rounded down). */
+    private function ago(int $seconds): string
+    {
         if ($seconds < 60) {
             return 'just now';
         }
-        $minutes = intdiv($seconds, 60);
-        if ($minutes < 60) {
-            return "{$minutes}m ago";
+        if ($seconds < 3600) {
+            return intdiv($seconds, 60).'m ago';
         }
-        $hours = intdiv($minutes, 60);
-        if ($hours < 24) {
-            return "{$hours}h ago";
+        if ($seconds < 86400) {
+            return intdiv($seconds, 3600).'h ago';
         }
 
-        return intdiv($hours, 24).'d ago';
+        return intdiv($seconds, 86400).'d ago';
     }
 
     /** @param array<string, ProjectConfig> $projects */
@@ -137,18 +141,8 @@ final class Listing
             return '';
         }
         $now = new \DateTimeImmutable('now', new \DateTimeZone(date_default_timezone_get()));
-        $seconds = (int) ($now->getTimestamp() - $latest->getTimestamp());
-        if ($seconds < 60) {
-            $ago = 'just now';
-        } elseif ($seconds < 3600) {
-            $ago = intdiv($seconds, 60).'m ago';
-        } elseif ($seconds < 86400) {
-            $ago = intdiv($seconds, 3600).'h ago';
-        } else {
-            $ago = intdiv($seconds, 86400).'d ago';
-        }
 
-        return 'Poller last ran: '.$ago.' ('.$latest->format('H:i').')';
+        return 'Poller last ran: '.$this->ago((int) ($now->getTimestamp() - $latest->getTimestamp())).' ('.$latest->format('H:i').')';
     }
 
     /**
@@ -360,21 +354,30 @@ final class Listing
     }
 
     /**
-     * Tasks split into two sections, each sorted by state (ties keep store
-     * insertion order — stable): "💭 Waiting for feedback" = states in
-     * WAITING_FEEDBACK_STATES with a waiting agent, and the tail ("Other
-     * tasks") for everything else — including tasks with a running agent,
-     * whose 🏃 activity cell keeps them visible.
-     *
-     * Only tasks of $projects are listed; a non-empty $states keeps only the
-     * tasks in one of those states (see taskRows()).
+     * The tasks table, gathered (taskRows()) then rendered
+     * (renderTasksTable()).
      *
      * @param array<string, ProjectConfig> $projects
      * @param list<State>                  $states
      */
     public function tasksTable(array $projects, Store $store, AgentLauncherInterface $agents, bool $live = false, bool $refresh = false, array $states = []): string
     {
-        $rows = $this->taskRows($projects, $store, $agents, $live, $refresh, $states);
+        return $this->renderTasksTable($this->taskRows($projects, $store, $agents, $live, $refresh, $states), $projects);
+    }
+
+    /**
+     * Renders rows from taskRows() as the terminal listing, split into two
+     * sections, each sorted by state (ties keep store insertion order —
+     * stable): "💭 Waiting for feedback" = states in WAITING_FEEDBACK_STATES
+     * with a waiting agent, and the tail ("Other tasks") for everything else
+     * — including tasks with a running agent, whose 🏃 activity cell keeps
+     * them visible. Only reads the poll stamps of $projects for the header.
+     *
+     * @param list<TaskRow>                $rows
+     * @param array<string, ProjectConfig> $projects
+     */
+    public function renderTasksTable(array $rows, array $projects): string
+    {
         if ([] === $rows) {
             return 'no active tasks';
         }
@@ -383,19 +386,24 @@ final class Listing
         $rest = array_values(array_filter($rows, static fn (TaskRow $r) => !$r->waitingForFeedback));
 
         $sections = [];
-        if ([] !== $waiting) {
-            $sections[] = "💭 Waiting for feedback\n\n".$this->table(self::TASKS_HEADERS, array_map($this->taskCells(...), $waiting));
-        }
-        if ([] !== $rest) {
-            $header = [] !== $waiting ? "Other tasks\n\n" : '';
-            $sections[] = $header.$this->table(self::TASKS_HEADERS, array_map($this->taskCells(...), $rest));
-        }
         $pollHeader = $this->lastPollHeader($projects);
         if ('' !== $pollHeader) {
-            array_unshift($sections, $pollHeader);
+            $sections[] = $pollHeader;
+        }
+        if ([] !== $waiting) {
+            $sections[] = "💭 Waiting for feedback\n\n".$this->tasksSection($waiting);
+        }
+        if ([] !== $rest) {
+            $sections[] = ([] !== $waiting ? "Other tasks\n\n" : '').$this->tasksSection($rest);
         }
 
         return implode("\n\n", $sections);
+    }
+
+    /** @param list<TaskRow> $rows */
+    private function tasksSection(array $rows): string
+    {
+        return $this->table(self::TASKS_HEADERS, array_map($this->taskCells(...), $rows));
     }
 
     /** @return list<string> */
@@ -415,10 +423,10 @@ final class Listing
     }
 
     /**
-     * The rows of tasksTable(), resolved once from the display cache (or
+     * The rows of `pablo task:list`, resolved once from the display cache (or
      * fetched live with $live / $refresh; $refresh also persists them as the
      * new cache), in display order: waiting-for-feedback first, each part by
-     * state rank. `task:list --format=json` serialises these, the table
+     * state rank. `--format=json` serialises these, renderTasksTable()
      * renders them.
      *
      * Only tasks of $projects are kept; a non-empty $states keeps only the
@@ -432,101 +440,162 @@ final class Listing
     public function taskRows(array $projects, Store $store, AgentLauncherInterface $agents, bool $live = false, bool $refresh = false, array $states = []): array
     {
         $fetchLive = $live || $refresh;
-        $tasks = array_values(array_filter(
-            $store->allTasks(),
-            static fn (Task $t) => isset($projects[$t->project]) && ([] === $states || \in_array($t->state, $states, true)),
-        ));
-
-        $needsAgentCheck = array_values(array_filter(
-            $tasks,
-            static fn (Task $t) => $fetchLive || null === $t->displayCache->agentCount,
-        ));
-        $sessionsByWorktree = [] !== $needsAgentCheck
-            ? $agents->bulkDisplaySessions(array_map(static fn (Task $t) => $t->worktreePath, $needsAgentCheck))
-            : [];
-
-        $needsTracker = array_values(array_filter(
-            $tasks,
-            static fn (Task $t) => null !== $t->issue && ($fetchLive || null === $t->displayCache->trackerStatus),
-        ));
-        $trackerStatuses = [];
-        if ([] !== $needsTracker) {
-            $byProvider = [];
-            foreach ($needsTracker as $task) {
-                $cfg = $projects[$task->project];
-                $issue = $task->issue;
-                if (null === $issue) {
-                    continue;
-                }
-                $byProvider[$cfg->provider][$issue->key] = $cfg;
-            }
-            foreach ($byProvider as $providerName => $pairs) {
-                try {
-                    $trackerStatuses[$providerName] = $this->providers->get($providerName)->batchIssueStatus($pairs);
-                } catch (PabloError) {
-                    $trackerStatuses[$providerName] = [];
-                }
-            }
-        }
-
-        $needsPrCheck = array_values(array_filter(
-            $tasks,
-            static fn (Task $t) => !$t->merged && null !== $t->prNumber && ($fetchLive || null === $t->displayCache->prState),
-        ));
-        $repoBranches = [];
-        $seen = [];
-        foreach ($needsPrCheck as $task) {
-            $slug = $this->repoSlug->for($projects[$task->project]);
-            if (!isset($seen[$slug])) {
-                $seen[$slug] = [];
-            }
-            $seen[$slug][] = $task->branch;
-        }
-        foreach ($seen as $slug => $branches) {
-            $repoBranches[] = [$slug, $branches];
-        }
-        $prsByRepo = [] !== $repoBranches
-            ? $this->gh->prsForBranchesBulk($repoBranches)
-            : [];
+        $tasks = $this->listedTasks($store, $projects, $states);
+        $prefetch = $this->prefetch($tasks, $projects, $agents, $fetchLive);
 
         $rows = [];
         foreach ($tasks as $task) {
-            $cfg = $projects[$task->project];
-            $tracker = $this->remoteStatusCell($task, $cfg, $fetchLive, $trackerStatuses[$cfg->provider] ?? null);
-            $slug = $this->repoSlug->for($cfg);
-            $pr = $this->prCell($task, $cfg, $fetchLive, $prsByRepo[$slug] ?? null);
-            $cell = $this->agentCells(
-                $task,
-                $fetchLive,
-                $agents,
-                $sessionsByWorktree[$task->worktreePath] ?? null,
-            );
+            $row = $this->taskRow($task, $projects[$task->project], $agents, $prefetch, $fetchLive);
             if ($refresh) {
-                $task->displayCache = new DisplayCache(
-                    trackerStatus: (null !== $task->issue && '?' !== $tracker) ? $tracker : $task->displayCache->trackerStatus,
-                    prState: $pr,
-                    agentCount: (int) $cell->count,
-                    agentActivity: $cell->activity,
-                    at: $this->time->utcnow(),
-                );
-                $store->save($task);
+                $this->persistDisplayCache($row, $store);
             }
-            $def = $this->stateMachine->states()[$task->state->value] ?? null;
-            $rows[] = new TaskRow(
-                task: $task,
-                stateLabel: $def['label'] ?? $task->state->value,
-                stateEmoji: $def['emoji'] ?? '',
-                tracker: $tracker,
-                prCell: $pr,
-                agentCell: $cell,
-                waitingForFeedback: $this->isWaitingForFeedback($task, AgentActivity::fromDisplay((int) $cell->count, $cell->activity)),
-                repoSlug: $slug,
-            );
+            $rows[] = $row;
         }
 
         usort($rows, fn (TaskRow $a, TaskRow $b): int => ($b->waitingForFeedback <=> $a->waitingForFeedback) ?: $this->rankEntries($a->task, $b->task));
 
         return $rows;
+    }
+
+    /**
+     * @param array<string, ProjectConfig> $projects
+     * @param list<State>                  $states
+     *
+     * @return list<Task>
+     */
+    private function listedTasks(Store $store, array $projects, array $states): array
+    {
+        return array_values(array_filter(
+            $store->allTasks(),
+            static fn (Task $t) => isset($projects[$t->project]) && ([] === $states || \in_array($t->state, $states, true)),
+        ));
+    }
+
+    /**
+     * Bulk-fetches what the display cache cannot answer (everything when
+     * $fetchLive): agent sessions, then tracker statuses, then PRs.
+     *
+     * @param list<Task>                   $tasks
+     * @param array<string, ProjectConfig> $projects
+     */
+    private function prefetch(array $tasks, array $projects, AgentLauncherInterface $agents, bool $fetchLive): TaskPrefetch
+    {
+        return new TaskPrefetch(
+            $this->prefetchSessions($tasks, $agents, $fetchLive),
+            $this->prefetchTrackerStatuses($tasks, $projects, $fetchLive),
+            $this->prefetchPrs($tasks, $projects, $fetchLive),
+        );
+    }
+
+    /**
+     * @param list<Task> $tasks
+     *
+     * @return array<string, list<SessionInfo>>
+     */
+    private function prefetchSessions(array $tasks, AgentLauncherInterface $agents, bool $fetchLive): array
+    {
+        $worktrees = [];
+        foreach ($tasks as $task) {
+            if ($fetchLive || null === $task->displayCache->agentCount) {
+                $worktrees[] = $task->worktreePath;
+            }
+        }
+
+        return [] !== $worktrees ? $agents->bulkDisplaySessions($worktrees) : [];
+    }
+
+    /**
+     * @param list<Task>                   $tasks
+     * @param array<string, ProjectConfig> $projects
+     *
+     * @return array<string, array<string, string>> provider => issue key => status
+     */
+    private function prefetchTrackerStatuses(array $tasks, array $projects, bool $fetchLive): array
+    {
+        $byProvider = [];
+        foreach ($tasks as $task) {
+            $issue = $task->issue;
+            if (null === $issue || (!$fetchLive && null !== $task->displayCache->trackerStatus)) {
+                continue;
+            }
+            $cfg = $projects[$task->project];
+            $byProvider[$cfg->provider][$issue->key] = $cfg;
+        }
+
+        $statuses = [];
+        foreach ($byProvider as $providerName => $pairs) {
+            try {
+                $statuses[$providerName] = $this->providers->get($providerName)->batchIssueStatus($pairs);
+            } catch (PabloError) {
+                $statuses[$providerName] = [];
+            }
+        }
+
+        return $statuses;
+    }
+
+    /**
+     * @param list<Task>                   $tasks
+     * @param array<string, ProjectConfig> $projects
+     *
+     * @return array<string, array<string, PrInfo>> repo slug => branch => PR
+     */
+    private function prefetchPrs(array $tasks, array $projects, bool $fetchLive): array
+    {
+        $branchesBySlug = [];
+        foreach ($tasks as $task) {
+            if ($task->merged || null === $task->prNumber || (!$fetchLive && null !== $task->displayCache->prState)) {
+                continue;
+            }
+            $branchesBySlug[$this->repoSlug->for($projects[$task->project])][] = $task->branch;
+        }
+        if ([] === $branchesBySlug) {
+            return [];
+        }
+
+        $repoBranches = [];
+        foreach ($branchesBySlug as $slug => $branches) {
+            $repoBranches[] = [$slug, $branches];
+        }
+
+        return $this->gh->prsForBranchesBulk($repoBranches);
+    }
+
+    private function taskRow(Task $task, ProjectConfig $cfg, AgentLauncherInterface $agents, TaskPrefetch $prefetch, bool $fetchLive): TaskRow
+    {
+        $tracker = $this->remoteStatusCell($task, $cfg, $fetchLive, $prefetch->trackerStatusesFor($cfg->provider));
+        $slug = $this->repoSlug->for($cfg);
+        $pr = $this->prCell($task, $cfg, $fetchLive, $prefetch->prsFor($slug));
+        $cell = $this->agentCells($task, $fetchLive, $agents, $prefetch->sessionsFor($task));
+        $def = $this->stateMachine->states()[$task->state->value] ?? null;
+
+        return new TaskRow(
+            task: $task,
+            stateLabel: $def['label'] ?? $task->state->value,
+            stateEmoji: $def['emoji'] ?? '',
+            tracker: $tracker,
+            prCell: $pr,
+            agentCell: $cell,
+            waitingForFeedback: $this->isWaitingForFeedback($task, AgentActivity::fromDisplay((int) $cell->count, $cell->activity)),
+            repoSlug: $slug,
+        );
+    }
+
+    /**
+     * --refresh: the freshly fetched cells become the task's display cache. A
+     * tracker lookup that failed ('?') keeps the previous status.
+     */
+    private function persistDisplayCache(TaskRow $row, Store $store): void
+    {
+        $task = $row->task;
+        $task->displayCache = new DisplayCache(
+            trackerStatus: (null !== $task->issue && '?' !== $row->tracker) ? $row->tracker : $task->displayCache->trackerStatus,
+            prState: $row->prCell,
+            agentCount: (int) $row->agentCell->count,
+            agentActivity: $row->agentCell->activity,
+            at: $this->time->utcnow(),
+        );
+        $store->save($task);
     }
 
     /**
