@@ -1,6 +1,6 @@
 <h1>How it works</h1>
 
-<p>PABLO has two layers: the commands you run, and a background job that runs every 5 minutes, checks each project and does whatever is due. Agents run through your agent environment (ADE), and everything else is plain, deterministic code.</p>
+<p>PABLO has two layers: the commands you run, and a background job that runs every 5 minutes, checks each project and does whatever is due. Agents run in your <a href="page:glossary#ade">agent environment (ADE: Orca, OpenChamber or headless)</a>, and everything else is plain, deterministic code.</p>
 
 <h2>Two layers</h2>
 
@@ -8,16 +8,16 @@
   <dt>Interactive</dt>
   <dd>What you run: the <a href="page:cli"><code>pablo</code> commands</a>, the <code>/pablo-commit-and-pr</code> command (OpenCode, Claude Code or Copilot), and the agent sessions you open in Orca or OpenChamber.</dd>
   <dt>Background</dt>
-  <dd>A scheduler (systemd user timer on Linux, launchd agent on macOS) runs <code>pablo system:dispatch</code> every 5 minutes.</dd>
+  <dd>A <a href="page:glossary#scheduler">scheduler</a> (systemd user timer on Linux, launchd agent on macOS) runs <code>pablo system:dispatch</code> every 5 minutes.</dd>
 </dl>
 
 <h2>The background job</h2>
 
-<p>On each run, the dispatcher:</p>
+<p>On each run, the <a href="page:glossary#dispatcher">dispatcher</a>:</p>
 
 <ol>
   <li>takes a global lock, so two runs never overlap (a second one exits immediately);</li>
-  <li>checks the tools it needs. A problem with <code>gh</code>, with the agent runtime's command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), or an impossible agent setup (OpenChamber with Claude Code or Copilot) stops the run; a problem with a tracker tool or the ADE only produces a warning, and only the projects using that tool are affected;</li>
+  <li>checks the tools it needs. A problem with <code>gh</code>, with the <a href="page:glossary#runtime">runtime</a>'s command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), or an impossible agent setup (OpenChamber with Claude Code or Copilot) stops the run; a problem with a tracker tool or the ADE only produces a warning, and only the projects using that tool are affected;</li>
   <li>for each project, runs the jobs whose interval has elapsed since their last success.</li>
 </ol>
 
@@ -50,9 +50,9 @@
 
 <h2 id="agent-backends">Agent environments (ADEs)</h2>
 
-<p>PABLO doesn't run agents itself. It hands them to an agent environment (ADE), exactly the way you would, and asks it which agents are busy.</p>
+<p>PABLO doesn't run agents itself. It hands them to the agent environment (ADE: Orca, OpenChamber or headless), exactly the way you would, and asks it which agents are busy. The ADE is chosen with the <code>agent_backend</code> config key (or the <code>PABLO_AGENT_BACKEND</code> environment variable).</p>
 
-<p>The ADE decides <em>where</em> an agent runs; the <a href="page:runtimes">agent runtime</a> (<code>agent_runtime</code>) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/runtime/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code, or <code>copilot --agent pablo-&lt;agent&gt; --session-id &lt;uuid&gt; … -p '&lt;prompt&gt;'</code> with <a href="page:runtimes#copilot">Copilot</a>. Orca and headless run any of them; OpenChamber only runs OpenCode. How to choose both is on <a href="page:runtimes">Runtimes &amp; ADEs</a>; this section shows what each ADE runs.</p>
+<p>The ADE decides <em>where</em> an agent runs; the <a href="page:runtimes">runtime</a> (<code>agent_runtime</code>: the agent CLI, OpenCode, Claude Code or Copilot CLI) decides <em>what</em> runs there: <code>opencode run --agent &lt;agent&gt; '&lt;prompt&gt;'</code> by default, or <code>claude -p --agents ~/.pablo/runtime/claude/agents.json --agent &lt;agent&gt; --session-id &lt;id&gt; … -- '&lt;prompt&gt;'</code> with Claude Code, or <code>copilot --agent pablo-&lt;agent&gt; --session-id &lt;uuid&gt; … -p '&lt;prompt&gt;'</code> with <a href="page:runtimes#copilot">Copilot</a>. Orca and headless run any of them; OpenChamber only runs OpenCode. How to choose both is on <a href="page:runtimes">Runtimes &amp; ADEs</a>; this section shows what each ADE runs.</p>
 
 <h3>Orca (default)</h3>
 

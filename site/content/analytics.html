@@ -57,7 +57,7 @@ pablo task:history my-branch              # one task's timeline
   <tbody>
     <tr><td><code>task_opened</code></td><td>a task is created</td><td>initial state, issue (or none), prompt length, worktree</td></tr>
     <tr><td><code>state_entered</code></td><td>a task changes state</td><td>from, to</td></tr>
-    <tr><td><code>agent_run_started</code></td><td>an agent is launched</td><td>run id, agent, backend, worktree</td></tr>
+    <tr><td><code>agent_run_started</code></td><td>an agent is launched</td><td>run id, agent, ADE (<code>backend</code>), worktree</td></tr>
     <tr><td><code>agent_run_finished</code></td><td>the run is over</td><td>duration, tokens (input, output, reasoning, cache read, cache write, total), cost, models, session</td></tr>
     <tr><td><code>task_closed</code></td><td>a task is closed (merge or <code>task:close</code>)</td><td>lifetime, final state, merged or not, pull request, attempts per agent</td></tr>
   </tbody>
@@ -71,7 +71,7 @@ pablo task:history my-branch              # one task's timeline
 
 <h2>Where tokens and cost come from</h2>
 
-<p>PABLO reads usage from the agent runtime once a run is over. With OpenCode:</p>
+<p>PABLO reads usage from the runtime once a run is over. With OpenCode:</p>
 
 <ul>
   <li><b>Orca and headless runs</b>: from OpenCode's local storage. When the run's fingerprint matches a session's first message, the match is <code>exact</code>; otherwise every session created in that worktree since the launch is counted (<code>window</code>).</li>
