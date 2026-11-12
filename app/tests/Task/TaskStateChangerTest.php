@@ -41,7 +41,7 @@ final class TaskStateChangerTest extends CommandTestBed
         $this->store->save($task);
 
         $this->expectException(PabloError::class);
-        $this->expectExceptionMessage('waiting is impossible');
+        $this->expectExceptionMessage('waiting is impossible — address the feedback and use /pablo-commit-and-pr instead');
         $this->stateChanger()->forceState('wallet-kit', 'wk-45', State::Waiting);
     }
 

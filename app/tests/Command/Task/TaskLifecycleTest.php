@@ -184,6 +184,12 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->assertFalse($data['allowed']);
     }
 
+    public function testPrecommitCheckDescriptionNamesPabloCommand(): void
+    {
+        $command = new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        $this->assertSame('check /pablo-commit-and-pr is allowed here', $command->getDescription());
+    }
+
     public function testPrecommitCheckRefusesNonTaskDir(): void
     {
         chdir($this->tmp);

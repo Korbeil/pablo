@@ -196,7 +196,7 @@ final class OrcaLauncher extends AbstractAgentLauncher
                         continue; // a finished agent (e.g. "done") must not count as an active session
                     }
                     // For the display/split path a finished analyst is parked
-                    // awaiting the user (review the plan and /commit-and-pr), so
+                    // awaiting the user (review the plan and /pablo-commit-and-pr), so
                     // it reports as waiting so the "💭 Waiting for feedback" split
                     // surfaces it. It still never blocks closure or relaunch,
                     // which keep using activeSessions() (this flag off).
