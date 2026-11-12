@@ -34,11 +34,15 @@ final class SyncCommand extends Command
     {
         $this
             ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project')
-            ->addOption('apply', null, InputOption::VALUE_NONE, 'actually sync (default dry-run unless sync.auto_apply is set)');
+            ->addOption('apply', null, InputOption::VALUE_NONE, 'actually sync (default dry-run unless sync.auto_apply is set)')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'only report, even when sync.auto_apply is set');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
+        if ($input->getOption('apply') && $input->getOption('dry-run')) {
+            throw new PabloError('--apply and --dry-run are mutually exclusive');
+        }
         $projects = $this->projects();
         $project = $input->getArgument('project') ?: null;
         if (null !== $project) {
@@ -49,7 +53,12 @@ final class SyncCommand extends Command
         }
         $store = $this->store();
         $agents = $this->agents();
-        $apply = $input->getOption('apply') ? true : null;
+        // null defers to each project's sync.auto_apply.
+        $apply = match (true) {
+            (bool) $input->getOption('apply') => true,
+            (bool) $input->getOption('dry-run') => false,
+            default => null,
+        };
         foreach ($projects as $name => $cfg) {
             $reports = $this->sync->syncProject($cfg, $store, $apply, $agents);
             $output->writeln("# {$name}");

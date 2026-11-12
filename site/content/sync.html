@@ -14,10 +14,11 @@
 
 <h3>Report first, apply when you're ready</h3>
 
-<p>By default sync is a <b>dry run</b>: it reports what it would do. It applies changes only with <code>sync.auto_apply: true</code> in the project (or the global config), or when you run <code>pablo sync:run --apply</code>. Turn <code>auto_apply</code> on for the projects where you know the shape of the work.</p>
+<p>By default sync is a <b>dry run</b>: it reports what it would do. It applies changes only with <code>sync.auto_apply: true</code> in the project (or the global config), or when you run <code>pablo sync:run --apply</code>. Turn <code>auto_apply</code> on for the projects where you know the shape of the work; <code>pablo sync:run --dry-run</code> still previews them. <code>--apply</code> and <code>--dry-run</code> can't be combined.</p>
 
 <pre><code class="language-bash">pablo sync:run               # every project, dry run
 pablo sync:run acme-pim --apply
+pablo sync:run --dry-run     # preview, even where sync.auto_apply is on
 pablo sync:log               # what the last sync did, per project
 </code></pre>
 
@@ -58,4 +59,7 @@ pablo sync:log               # what the last sync did, per project
 
 <pre><code class="language-bash">pablo sync:main             # every project with main_update enabled
 pablo sync:main acme-pim    # this one, even if main_update is disabled
+pablo sync:main --dry-run   # what it would do, checkouts untouched
 </code></pre>
+
+<p><code>--dry-run</code> runs every check above in the same order and reports the outcome per project — <code>🔍 would update main 1a2b3c4 → 5d6e7f8</code> (with <code>(would switch from &lt;branch&gt;)</code> when another branch is checked out), <code>up-to-date</code>, or why it would skip — but never checks out, creates a branch or resets. It still runs <code>git fetch --prune</code>: that only updates remote-tracking refs, never your branches or working tree.</p>
