@@ -790,6 +790,15 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
     font-size: 0.82rem;
 }
 
+.pablo-log-earlier {
+    margin: 0.85rem 0 0.4rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--pablo-muted);
+}
+
 .pablo-conflicts {
     flex-basis: 100%;
     margin: 0.15rem 0 0 1.5rem;

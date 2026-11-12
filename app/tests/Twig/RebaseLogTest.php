@@ -120,6 +120,22 @@ final class RebaseLogTest extends WebTestCase
         $this->assertStringContainsString('bookkeeper', $html);
     }
 
+    public function testEarlierConflictsStayVisible(): void
+    {
+        (new \Pablo\Provider\Git\SyncHistory())->append(new \Pablo\Provider\Git\SyncRun(
+            new \Pablo\Provider\Git\RebaseLog('wallet-kit', '2020-01-01T00:00:00+00:00', 'rebase', [
+                new SyncReport(worktree: '/wt/a', branch: 'wk-old-conflict', action: 'conflict', conflictFiles: ['src/Old.php']),
+            ]),
+            true,
+        ));
+
+        $html = $this->renderAfter(null);
+
+        $this->assertStringContainsString('Earlier', $html);
+        $this->assertStringContainsString('wk-old-conflict', $html);
+        $this->assertStringContainsString('src/Old.php', $html);
+    }
+
     public function testLogsFollowTheTypeChangeEvent(): void
     {
         $html = $this->renderAfter('open-source');

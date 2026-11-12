@@ -6,15 +6,21 @@ namespace Pablo\Dashboard;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Provider\Git\Sync;
+use Pablo\Provider\Git\SyncReport;
 
 /**
- * The last sync/rebase session per project, decoded for rendering.
- *
- * Sync writes one file per project and overwrites it on every run, so there is
- * no history — only "what the last sync did".
+ * The last sync/rebase session per project, decoded for rendering, plus the
+ * last few notable events (conflicts, lease failures, local rewrites left alone, errors) of the earlier runs,
+ * read from the project's sync history. Local files only: no CLI call.
  */
 final class RebaseLogView
 {
+    /** Earlier events shown per project. */
+    public const EVENTS_SHOWN = 5;
+
+    /** The actions worth keeping visible after a later clean sync. */
+    public const NOTABLE_ACTIONS = ['conflict', 'lease-failed', 'local-rewrite', 'error'];
+
     public function __construct(private readonly Sync $sync)
     {
     }
@@ -65,16 +71,35 @@ final class RebaseLogView
 
         $rows = [];
         foreach ($log->reports as $report) {
-            [$color, $icon, $label] = self::ACTION_STYLE[$report->action] ?? ['pablo-chip-muted', 'lucide:circle-alert', $report->action];
-            $rows[] = new RebaseLogRow(
-                report: $report,
-                color: $color,
-                icon: $icon,
-                label: $label,
-                emoji: Sync::ACTION_ICONS[$report->action] ?? '•',
-            );
+            $rows[] = $this->row($report);
         }
 
-        return new RebaseLogSection($log, $rows);
+        $events = [];
+        foreach ($this->sync->history($project, null, self::NOTABLE_ACTIONS) as $run) {
+            if ($run->log->timestamp === $log->timestamp) {
+                continue; // the last run, already shown above
+            }
+            foreach ($run->log->reports as $report) {
+                $events[] = new RebaseLogEvent($run->log->timestamp, $run->apply, $this->row($report));
+                if (\count($events) >= self::EVENTS_SHOWN) {
+                    break 2;
+                }
+            }
+        }
+
+        return new RebaseLogSection($log, $rows, $events);
+    }
+
+    private function row(SyncReport $report): RebaseLogRow
+    {
+        [$color, $icon, $label] = self::ACTION_STYLE[$report->action] ?? ['pablo-chip-muted', 'lucide:circle-alert', $report->action];
+
+        return new RebaseLogRow(
+            report: $report,
+            color: $color,
+            icon: $icon,
+            label: $label,
+            emoji: Sync::ACTION_ICONS[$report->action] ?? '•',
+        );
     }
 }

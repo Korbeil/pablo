@@ -6,8 +6,11 @@ namespace Pablo\Tests\Dashboard;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Dashboard\RebaseLogView;
+use Pablo\Provider\Git\RebaseLog;
 use Pablo\Provider\Git\Sync;
+use Pablo\Provider\Git\SyncHistory;
 use Pablo\Provider\Git\SyncReport;
+use Pablo\Provider\Git\SyncRun;
 use PHPUnit\Framework\TestCase;
 
 final class RebaseLogViewTest extends TestCase
@@ -146,6 +149,54 @@ final class RebaseLogViewTest extends TestCase
         $this->assertNotNull($section);
         $this->assertSame('pablo-chip-muted', $section->rows[0]->color);
         $this->assertSame('•', $section->rows[0]->emoji);
+    }
+
+    public function testShowsEarlierNotableEventsFromTheHistory(): void
+    {
+        $history = new SyncHistory();
+        $history->append(new SyncRun(new RebaseLog('web', '2026-01-01T00:00:00+00:00', 'rebase', [
+            new SyncReport(worktree: '/wt/a', branch: 'a', action: 'conflict', conflictFiles: ['src/A.php']),
+        ]), true));
+        $history->append(new SyncRun(new RebaseLog('web', '2026-01-02T00:00:00+00:00', 'rebase', [
+            new SyncReport(worktree: '/wt/b', branch: 'b', action: 'dirty'),
+            new SyncReport(worktree: '/wt/c', branch: 'c', action: 'lease-failed'),
+            new SyncReport(worktree: '/wt/r', branch: 'r', action: 'local-rewrite'),
+            new SyncReport(worktree: '/wt/e', branch: 'e', action: 'error', detail: 'not a git repository'),
+            new SyncReport(worktree: '/wt/f', branch: 'f', action: 'skipped'),
+        ]), false));
+        // the last run: shown as the card's rows, not repeated as an event
+        $last = $this->sync()->saveLastLog('web', 'rebase', [
+            new SyncReport(worktree: '/wt/d', branch: 'd', action: 'conflict'),
+        ]);
+        $history->append(new SyncRun($last, true));
+
+        $section = $this->view->forProject('web');
+
+        $this->assertNotNull($section);
+        $this->assertSame(['c', 'r', 'e', 'a'], array_map(static fn ($e): string => $e->row->report->branch, $section->events));
+        $this->assertSame('2026-01-02T00:00:00+00:00', $section->events[0]->timestamp);
+        $this->assertFalse($section->events[0]->apply);
+        $this->assertSame('is-warning', $section->events[0]->row->color);
+        $this->assertSame('is-warning', $section->events[1]->row->color);
+        $this->assertSame('is-danger', $section->events[2]->row->color);
+        $this->assertSame(['src/A.php'], $section->events[3]->row->report->conflictFiles);
+    }
+
+    public function testEarlierEventsAreCapped(): void
+    {
+        $history = new SyncHistory();
+        for ($i = 1; $i <= RebaseLogView::EVENTS_SHOWN + 3; ++$i) {
+            $history->append(new SyncRun(new RebaseLog('web', \sprintf('2026-01-%02dT00:00:00+00:00', $i), 'rebase', [
+                new SyncReport(worktree: '/wt', branch: "b{$i}", action: 'conflict'),
+            ]), true));
+        }
+        $this->sync()->saveLastLog('web', 'rebase', []);
+
+        $section = $this->view->forProject('web');
+
+        $this->assertNotNull($section);
+        $this->assertCount(RebaseLogView::EVENTS_SHOWN, $section->events);
+        $this->assertSame('b8', $section->events[0]->row->report->branch);
     }
 
     public function testForProjectsSkipsMissingAndSortsNewestFirst(): void

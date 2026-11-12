@@ -22,6 +22,7 @@
 pablo sync:run acme-pim --apply
 pablo sync:run --dry-run     # preview, even where sync.auto_apply is on
 pablo sync:log               # what the last sync did, per project
+pablo sync:log --history     # past runs, see History below
 </code></pre>
 
 <h3>Skipped on purpose</h3>
@@ -38,7 +39,19 @@ pablo sync:log               # what the last sync did, per project
 
 <p>PABLO's code never resolves a conflict. When an applied sync hits one, it aborts the rebase cleanly, records the worktree, the branch, the conflicting files and a summary of the hunks, then launches the <a href="page:agents#the-rebase-conflict-resolver"><b>rebase-conflict-resolver</b></a> agent headless. The agent replays the rebase onto the exact target sync used, resolves the conflicts and pushes with <code>--force-with-lease</code>; if it can't resolve something safely, it stops without pushing.</p>
 
-<p>The last sync of each project is shown by <code>pablo sync:log</code> and on the <a href="page:dashboard">dashboard</a>, including the command to open the resolver's session. Each sync replaces the previous log: there's no history, only what the last one did.</p>
+<p>The last sync of each project is shown by <code>pablo sync:log</code> and on the <a href="page:dashboard">dashboard</a>, including the command to open the resolver's session.</p>
+
+<h3 id="history">History</h3>
+
+<p>Each sync run, dry run or applied, is also added to the project's history, <code>~/.pablo/logs/sync-history-&lt;project&gt;.jsonl</code>: one line per run with its time, strategy, whether it applied, and what it did to each branch. Only the last 200 runs are kept. So a conflict or a lease failure isn't lost when a later sync is clean. Writing the history is best-effort: if it fails, the sync still succeeds.</p>
+
+<pre><code class="language-bash">pablo sync:log --history                          # past runs, newest first (20 per project)
+pablo sync:log acme-pim --history --limit=50
+pablo sync:log --history --only=conflict,lease-failed   # only these outcomes
+pablo sync:log --history --format=json            # {"runs": [...]}, same filters
+</code></pre>
+
+<p><code>--only</code> takes the outcomes sync reports: <code>up-to-date</code>, <code>would-sync</code>, <code>synced</code>, <code>conflict</code>, <code>lease-failed</code>, <code>local-rewrite</code>, <code>dirty</code>, <code>locked</code>, <code>skipped</code>, <code>error</code>. It keeps the runs with at least one of them, and shows only those branches. The <a href="page:dashboard">dashboard</a> lists the last few conflicts, lease failures, local rewrites and errors of earlier runs under each project's last sync.</p>
 
 <h2 id="primary-checkout-update">Primary checkout update</h2>
 

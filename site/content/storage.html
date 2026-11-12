@@ -14,7 +14,8 @@
 ├── stamps/dispatch.health            # the last dispatcher run: start, end, outcome
 ├── agents/                           # headless runs: pid files and logs
 ├── analytics/&lt;project&gt;/YYYY-MM.jsonl # analytics events
-├── logs/                             # sync logs (rebase-last-&lt;project&gt;.json), macOS service logs
+├── logs/                             # last sync (rebase-last-&lt;project&gt;.json), sync history
+│                                     # (sync-history-&lt;project&gt;.jsonl, last 200 runs), macOS service logs
 ├── cache/                            # small lookup caches (e.g. Jira site ids)
 │   └── container/&lt;version&gt;/          # the binary's compiled application cache, one per version
 ├── runtime/                          # generated: the agents, commands and skills linked into your runtime
