@@ -39,7 +39,7 @@ issue_tracker:
 sync:
   auto_apply: true
 testing:
-  failure_signal: "A FIX"      # the Jira status QA moves the ticket to when it fails
+  failure_signal: "A FIX"      # the Jira status QA moves the issue to when it fails
 ci:
   ignore_checks: ["approval"]  # manual deploy gates that never finish
 </code></pre>
@@ -69,7 +69,7 @@ review:
   bot_whitelist: []
 ci:
   ignore_checks: ["approval"]
-# agent_runtime: claude-code        # global only, default opencode (or copilot)
+# agent_runtime: claude-code        # global only, default: opencode
 # agent_backend: openchamber        # global only, default orca
 # default_model_by_type:            # global only
 #   work: anthropic/claude-opus-4
@@ -89,7 +89,7 @@ ci:
     <tr><td><code>sync.auto_apply</code></td><td><b>required</b> somewhere (installed config: <code>false</code>)</td><td><code>false</code>: sync only reports</td></tr>
     <tr><td><code>sync.interval_minutes</code></td><td><b>required</b> somewhere (installed config: <code>720</code>)</td><td>How often branches are synced</td></tr>
     <tr><td><code>state_polling.interval_minutes</code></td><td><b>required</b> somewhere (installed config: <code>10</code>)</td><td>How often pull requests are checked</td></tr>
-    <tr><td><code>main_update.enabled</code></td><td><code>true</code></td><td>Keep the main checkout up to date</td></tr>
+    <tr><td><code>main_update.enabled</code></td><td><code>true</code></td><td>Keep the primary checkout up to date</td></tr>
     <tr><td><code>main_update.interval_minutes</code></td><td><code>60</code></td><td>How often</td></tr>
     <tr><td><code>testing.enabled</code></td><td><code>true</code></td><td>Whether the project has a QA step</td></tr>
     <tr><td><code>review.bot_whitelist</code></td><td><b>required</b> somewhere (installed config: <code>[]</code>)</td><td>Bot accounts whose reviews count (login with or without its <code>[bot]</code> suffix)</td></tr>
@@ -150,7 +150,7 @@ default_model_by_type:
 type: open-source             # required: work | open-source | personal
 
 repo:
-  path: ~/dev/wallet-kit      # required: the main checkout
+  path: ~/dev/wallet-kit      # required: the primary checkout
   primary_branch: main        # required
   primary_remote: upstream    # optional, default "origin": the remote sync and new
                               # branches use, e.g. when origin is your fork

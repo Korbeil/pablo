@@ -74,7 +74,16 @@
 
 <h3 id="what-pablo-system-install-does">What <code>pablo system:install</code> does</h3>
 
-<p>The installer hands over to <code>pablo system:install</code>, which you can also run yourself at any time: it is safe to run again. Without options it keeps the choices already in <code>~/.pablo/config.yaml</code>, or on a first install picks the tools it finds. Two options record a choice there instead: <code>--runtime opencode|claude-code|copilot</code> and <code>--backend orca|openchamber|headless</code> (the installer leaves <code>--backend</code> out when it only falls back to headless because it found no ADE). Changing the runtime also resets <code>default_model</code> to a model of that runtime. <code>--without-web</code> skips (and removes) the dashboard service, and <code>--port &lt;port&gt;</code> records the dashboard's port (<code>dashboard_port</code>). It:</p>
+<p>The installer hands over to <code>pablo system:install</code>, which you can also run yourself at any time: it is safe to run again. Without options it keeps the choices already in <code>~/.pablo/config.yaml</code>; on a first install it picks the tools it finds. Its options:</p>
+
+<ul>
+  <li><code>--runtime opencode|claude-code|copilot</code> records the runtime in the config. Changing it also resets <code>default_model</code> to a model of that runtime.</li>
+  <li><code>--backend orca|openchamber|headless</code> records the ADE. The installer leaves it out when it only falls back to headless because it found no ADE.</li>
+  <li><code>--without-web</code> skips (and removes) the dashboard service.</li>
+  <li><code>--port &lt;port&gt;</code> records the dashboard's port (<code>dashboard_port</code>).</li>
+</ul>
+
+<p>It:</p>
 
 <ol>
   <li>creates <code>~/.pablo/</code> and, if you don't have one yet, a default <a href="page:configuration#global-defaults">global config</a> in <code>~/.pablo/config.yaml</code>, set to the tools you have installed (Claude Code when it finds Claude Code but no OpenCode, Copilot when it finds Copilot CLI but neither, OpenChamber when it finds OpenChamber but no Orca);</li>

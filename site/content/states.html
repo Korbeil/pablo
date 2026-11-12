@@ -37,7 +37,7 @@
 <figcaption>Thick yellow arrows are commands you type (<code>pablo task:start</code>, then <code>/pablo-commit-and-pr</code>). Thin arrows are detected by the poller. Yellow states bring work back to you, with an agent's analysis. A merge closes the task from any state; a pull request closed without merging parks it in <code>closed</code>.</figcaption>
 </figure>
 
-<p>There's no <code>todo</code> state on purpose: a ticket nobody has started has no task, it only exists in your tracker.</p>
+<p>There's no <code>todo</code> state on purpose: an issue nobody has started has no task, it only exists in your tracker.</p>
 
 <h2>Every state</h2>
 
@@ -104,12 +104,12 @@
   <li><b>The latest review of each reviewer wins.</b> Every review and every comment thread is read, however long the pull request: each reply to a comment is a review of its own, so a busy pull request can hold hundreds.</li>
   <li><b>Resolved comments clear a comment review.</b> A review whose comment threads were all resolved, and that carries no top-level body text, no longer counts as a changes signal — resolving is the reviewer's way of saying "addressed". A non-empty review body without a thread to resolve keeps counting, and resolving threads never withdraws an explicit “changes requested” verdict.</li>
   <li><b>Any “changes requested” or plain comment review beats every approval.</b> If someone took the time to write, you read it before QA.</li>
-  <li><b>Re-enters review when everything is addressed (🔁 only).</b> While in <code>request-changes</code>, once <b>pr-feedback</b> has finished and no review signal stands anymore (every comment review resolved-cleared, no “changes requested”, no approval pending), the poller puts the pull request back to review itself: it marks it ready on GitHub and settles the task in <code>waiting-review</code>. Nothing is committed or pushed — address the feedback in the worktree and let the reviewers look again.</li>
+  <li><b>Back to review once everything is addressed (only from <code>request-changes</code>).</b> Once <b>pr-feedback</b> has finished and no review signal stands anymore (every comment review cleared by resolving its threads, no “changes requested” verdict, and no approval either, since an approval would move the task to <code>approved</code> instead), the poller puts the pull request back to review itself: it marks it ready on GitHub and settles the task in <code>waiting-review</code>. Nothing is committed or pushed — address the feedback in the worktree and let the reviewers look again.</li>
 </ul>
 
 <h3>QA failure signal</h3>
 
-<p>From <code>needs-testing</code>, the task moves to <code>testing-failed</code> when the project's <code>testing.failure_signal</code> fires: a label added to the pull request (GitHub), or the issue reaching a status (Jira, Linear). It must be a <b>new</b> event, newer than both the task's entry into <code>needs-testing</code> and the last signal already handled. An old label never triggers, and a label that stays never triggers twice. PABLO never removes the label or touches the ticket.</p>
+<p>From <code>needs-testing</code>, the task moves to <code>testing-failed</code> when the project's <code>testing.failure_signal</code> fires: a label added to the pull request (GitHub), or the issue reaching a status (Jira, Linear). It must be a <b>new</b> event, newer than both the task's entry into <code>needs-testing</code> and the last signal already handled. An old label never triggers, and a label that stays never triggers twice. PABLO never removes the label or touches the issue.</p>
 
 <h3>Known gaps, on purpose</h3>
 
@@ -131,4 +131,4 @@
 
 <h2>Launches that never start</h2>
 
-<p>Agent launches are fire-and-forget, so they never block a command. If no agent session appears for an agent-launching state (<code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>) within a short window, which happens when Orca hangs on a brand-new worktree, the poller fires the launches again, up to a few attempts, startup script included. In <code>in-progress</code> it also sets the Orca workspace name to the issue key. Then the normal checks run, so a <code>ci-red</code> task that turned green still moves on. You can always force it with <code>pablo task:relaunch</code>.</p>
+<p>Agent launches are fire-and-forget, so they never block a command. If no agent session appears for an agent-launching state (<code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>) within 4 minutes (240 s) of the launch, which happens when Orca hangs on a brand-new worktree, the poller fires the launches again, startup script included, up to 3 attempts in all. In <code>in-progress</code> it also sets the Orca workspace name to the issue key. Then the normal checks run, so a <code>ci-red</code> task that turned green still moves on. You can always force it with <code>pablo task:relaunch</code>.</p>

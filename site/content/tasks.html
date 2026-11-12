@@ -28,7 +28,7 @@ pablo task:start https://acme.atlassian.net/browse/PIM-123
 <pre><code class="language-bash">pablo task:start --project wallet-kit "fix callback verification"
 </code></pre>
 
-<p>For work without a ticket. The branch name comes from a short AI summary of your prompt (for example <code>wk-fix-callback-verification</code>), and task-analyst works from the prompt instead of an issue.</p>
+<p>For work without an issue. The branch name comes from a short AI summary of your prompt (for example <code>wk-fix-callback-verification</code>), and task-analyst works from the prompt instead of an issue.</p>
 
 <p>If your prompt mentions a Jira or Linear key belonging to one of your projects (“fix the export per PIM-123”), PABLO treats it like the issue link and names the branch <code>pim-123</code>.</p>
 
@@ -105,7 +105,7 @@ pablo task:state draft pim-123                # another task: its branch comes a
 pablo task:attach draft
 </code></pre>
 
-<p>Turns a worktree you created yourself into a PABLO task, starting in the state you choose. It only writes the task record: no branch, no worktree, no agent, no pull request change. Requirements: run it inside a worktree (not the main checkout), on a branch that isn't the primary one and isn't already a task, in a repository that belongs to a project (or pass <code>--project &lt;name&gt;</code>).</p>
+<p>Turns a worktree you created yourself into a PABLO task, starting in the state you choose. It only writes the task record: no branch, no worktree, no agent, no pull request change. Requirements: run it inside a worktree (not the primary checkout), on a branch that isn't the primary one and isn't already a task, in a repository that belongs to a project (or pass <code>--project &lt;name&gt;</code>).</p>
 
 <h2 id="relaunch-an-agent">Relaunch an agent</h2>
 
@@ -141,7 +141,7 @@ pablo task:close pim-123 --project acme-pim   # when several projects have that 
 
 <p>With no branch, it asks before closing the task of the worktree you're in (the answer defaults to no), since you never named it. Without a terminal to ask in (a script, <code>-n</code>), it refuses instead: name the branch or add <code>--yes</code>. A named task (<code>&lt;branch&gt;</code> or <code>--worktree</code>) closes without asking.</p>
 
-<p>It refuses while agents are active (add <code>--yes</code> to close anyway, which also skips the confirmation), works even if the worktree folder is already gone, and moves you to the project's main checkout before deleting the worktree, so your shell isn't left in a deleted folder.</p>
+<p>It refuses while agents are active (add <code>--yes</code> to close anyway, which also skips the confirmation), works even if the worktree folder is already gone, and moves you to the project's primary checkout before deleting the worktree, so your shell isn't left in a deleted folder.</p>
 
 <h2 id="inspect-a-task">Inspect a task</h2>
 

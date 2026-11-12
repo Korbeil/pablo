@@ -10,7 +10,18 @@ pablo update 5b34e92   # install that release instead (an older one too)
 pablo update --rollback  # go back to the binary the last update replaced
 </code></pre>
 
-<p>PABLO updates itself: it finds the <a href="https://github.com/Korbeil/pablo/releases">release</a> flagged <em>latest</em> (releases are named after the commit they were built from) and, when it is not the one you run, downloads its binary for your OS and processor with <code>curl</code>, checks it against the release's <code>sha256sums.txt</code>, runs it once, then swaps it in place of the current one (a failed check changes nothing). It then runs <a href="page:installation#what-pablo-system-install-does"><code>pablo system:install</code></a> with the new binary, which picks up new agents and links and restarts the dashboard; <code>--no-install</code> skips that step. A dashboard you opted out of (<code>--without-web</code>) stays off. If the background job is running (a sync or a poll), the update first waits for it to finish, up to 10 minutes, and no new run starts until the update is done. Your choices in <code>~/.pablo/config.yaml</code> and your data in <code>~/.pablo/</code> are kept. Each version compiles its own cache in <code>~/.pablo/cache/container/&lt;version&gt;/</code>; the install removes the ones of other versions.</p>
+<p>PABLO updates itself. It finds the <a href="https://github.com/Korbeil/pablo/releases">release</a> flagged <em>latest</em> (releases are named after the commit they were built from) and, when it is not the one you run:</p>
+
+<ol>
+  <li>downloads its binary for your OS and processor with <code>curl</code>;</li>
+  <li>checks it against the release's <code>sha256sums.txt</code> and runs it once (a failed check changes nothing);</li>
+  <li>swaps it in place of the current binary;</li>
+  <li>runs <a href="page:installation#what-pablo-system-install-does"><code>pablo system:install</code></a> with the new binary, which picks up new agents and links and restarts the dashboard (<code>--no-install</code> skips this step). A dashboard you opted out of (<code>--without-web</code>) stays off.</li>
+</ol>
+
+<p>If the background job is running (a sync or a poll), the update first waits up to 10 minutes for it to finish, and no new run starts until the update is done.</p>
+
+<p>Your choices in <code>~/.pablo/config.yaml</code> and your data in <code>~/.pablo/</code> are kept. Each version compiles its own cache in <code>~/.pablo/cache/container/&lt;version&gt;/</code>; the install removes the caches of other versions.</p>
 
 <p>Running the installer again (<code>curl -fsSL https://getpablo.dev/installer | bash</code>) does the same, and also takes a release with <code>--version</code>. The releases are listed on <a href="https://github.com/Korbeil/pablo/releases">GitHub</a>.</p>
 

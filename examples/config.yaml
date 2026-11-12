@@ -43,5 +43,6 @@ pr_description_locale: en
 # The agent environment (ADE: Orca, OpenChamber or headless): where the
 # agents run. OpenChamber is an alternative ADE (directory-based; no Orca repo
 # registration or worktree adoption needed). Set it here or via the
-# PABLO_AGENT_BACKEND env var. When it differs from `orca`, `pablo
-# system:doctor`/`system:setup` check the openchamber CLI too.
+# PABLO_AGENT_BACKEND env var. The doctor (`pablo system:doctor`/`system:setup`)
+# only checks the selected backend's CLI: openchamber instead of orca
+# (neither with headless).
