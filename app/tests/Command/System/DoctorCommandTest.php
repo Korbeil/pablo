@@ -9,8 +9,11 @@ use Pablo\Agents\AgentTemplates;
 use Pablo\Command\System\DoctorCommand;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
+use Pablo\Dispatch\DispatchHealth;
 use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
+use Pablo\Doctor\SchedulerHealth;
+use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Store\Store;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
@@ -63,7 +66,7 @@ YAML;
         $global = new GlobalConfig();
         $staleness = new AgentStaleness(new AgentTemplates(new Config($global)));
 
-        return new DoctorCommand($this->doctor(), $staleness, new Store(), new Config($global), new AgentLauncherFactory($global, $this->runner), new FakeAgents());
+        return new DoctorCommand($this->doctor(), $staleness, new SchedulerHealth(new SchedulerFactory($this->runner, 'Linux'), new DispatchHealth()), new Store(), new Config($global), new AgentLauncherFactory($global, $this->runner), new FakeAgents());
     }
 
     protected function setUp(): void
@@ -108,6 +111,34 @@ YAML;
         foreach (AgentTemplates::AGENT_NAMES as $name) {
             $this->assertStringContainsString("✅ {$name}", $display, $name);
         }
+    }
+
+    public function testSchedulerSectionWarnsWithoutChangingTheExitCode(): void
+    {
+        $this->installFreshAgents();
+        file_put_contents($this->tmp.'/projects/wallet-kit.yaml', <<<YAML
+            name: wallet-kit
+            type: work
+            repo:
+                path: {$this->tmp}/wallet-kit
+                primary_branch: main
+            issue_tracker:
+                provider: github
+                identity: octocat
+                project_key: WK
+            YAML);
+        (new DispatchHealth())->recordFailure('wallet-kit', 'sync', microtime(true), 'git fetch: could not resolve host');
+
+        $tester = new CommandTester($this->command());
+        $tester->execute([]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $display = $tester->getDisplay();
+        $this->assertStringContainsString('scheduler:', $display);
+        $this->assertStringContainsString('pablo-dispatch.timer is not installed', $display);
+        $this->assertStringContainsString('no dispatch recorded yet', $display);
+        $this->assertStringContainsString('wallet-kit sync failing since', $display);
+        $this->assertStringContainsString('(1×): git fetch: could not resolve host', $display);
     }
 
     public function testOpenChamberWithClaudeCodeFailsWithAClearMessage(): void

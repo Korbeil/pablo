@@ -368,6 +368,23 @@ html[data-theme=dark] .tabs.is-boxed.pablo-tabs li.is-active a {
     color: var(--pablo-ink);
 }
 
+.pablo-health-banner {
+    margin: 1rem 0;
+}
+
+.pablo-health-title {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+}
+
+.pablo-health-list {
+    margin: 0.5rem 0 0 1.4rem;
+    list-style: disc;
+    overflow-wrap: anywhere;
+}
+
 .pablo-empty {
     color: var(--pablo-muted);
     font-style: italic;

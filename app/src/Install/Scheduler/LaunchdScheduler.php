@@ -58,6 +58,17 @@ final class LaunchdScheduler implements SchedulerInterface
         return ServiceFiles::isOurs($this->plist(self::WEB), self::WEB);
     }
 
+    public function dispatchStatus(): SchedulerStatus
+    {
+        $installed = ServiceFiles::isOurs($this->plist(self::DISPATCH), self::DISPATCH);
+
+        return new SchedulerStatus(
+            self::DISPATCH,
+            $installed,
+            $installed && 0 === $this->runner->probe(['launchctl', 'print', $this->domain().'/'.self::DISPATCH], 10)->exitCode,
+        );
+    }
+
     /** @throws PabloError */
     private function load(string $label, string $pabloBin): void
     {

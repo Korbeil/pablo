@@ -4,7 +4,7 @@
 
 <h2>First checks</h2>
 
-<pre><code class="language-bash">pablo system:doctor     # is every tool installed and logged in?
+<pre><code class="language-bash">pablo system:doctor     # is every tool installed and logged in? is the background job running?
 pablo task:list --live  # what GitHub and the tracker say right now
 pablo sync:log          # what the last sync did, per project
 </code></pre>
@@ -109,6 +109,22 @@ pablo sync:log          # what the last sync did, per project
 <h3>A merged task doesn't disappear</h3>
 
 <p>An agent is still running on its worktree: the task shows ✅ merged and closes on a later poll. To close it now: <code>pablo task:close &lt;branch&gt; --yes</code>.</p>
+
+<h2 id="background-job">Background job</h2>
+
+<h3>Tasks stopped moving</h3>
+
+<p>Look at the <code>scheduler:</code> section of <code>pablo system:doctor</code>:</p>
+
+<ul>
+  <li><b>“pablo-dispatch.timer is not installed” / “not active”</b> (<code>com.pablo.dispatch</code> on macOS): the scheduler isn't running the dispatcher. Run <code>pablo system:install</code> again.</li>
+  <li><b>“last dispatch N min ago”</b> with N over 15: the dispatcher hasn't run for three ticks. Check the scheduler and its <a href="page:troubleshooting#where-the-logs-are">logs</a>.</li>
+  <li><b>“(preflight-failed)”</b>: the last run stopped on its tool check, before touching any project. The line says which tool; the checks above it tell you how to fix it.</li>
+</ul>
+
+<h3>A job keeps failing</h3>
+
+<p>The doctor lists each failing job, for example <code>acme poll failing since 2026-11-12 09:40 CET (3×): gh: HTTP 502</code>, and the dashboard shows the same list in a banner. After two failures in a row the job <a href="page:how-it-works#dispatcher-health">backs off</a>, so it is retried less and less often. Run it by hand to see its full output: <code>pablo system:poll &lt;project&gt;</code> or <code>pablo sync:run &lt;project&gt;</code>. Once it works, the failure count and the back-off are reset. A line like <code>acme poll: 2 task check(s) failed on the last run</code> means the job itself worked but some tasks couldn't be checked; <code>pablo system:poll &lt;project&gt;</code> prints which ones and why.</p>
 
 <h2>Sync</h2>
 

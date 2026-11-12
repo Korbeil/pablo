@@ -10,6 +10,8 @@
 ├── state/&lt;project&gt;/&lt;branch&gt;.json     # one task record per file
 ├── state/&lt;project&gt;/&lt;branch&gt;.lock     # per-task lock
 ├── stamps/&lt;project&gt;.{sync,poll,main} # last successful run of each job (+ dispatch.lock)
+├── stamps/&lt;project&gt;.&lt;job&gt;.health  # each job's health: last attempt/success/error, failures in a row
+├── stamps/dispatch.health            # the last dispatcher run: start, end, outcome
 ├── agents/                           # headless runs: pid files and logs
 ├── analytics/&lt;project&gt;/YYYY-MM.jsonl # analytics events
 ├── logs/                             # sync logs (rebase-last-&lt;project&gt;.json), macOS service logs

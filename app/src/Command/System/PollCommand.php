@@ -8,6 +8,7 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Dispatch\DispatchHealth;
 use Pablo\Poller\Poller;
 use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -20,6 +21,7 @@ final class PollCommand extends Command
 {
     public function __construct(
         private readonly Poller $poller,
+        private readonly DispatchHealth $health,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -52,6 +54,8 @@ final class PollCommand extends Command
             foreach ($this->poller->pollProject($cfg, $store, $agents) as $event) {
                 $output->writeln("[{$name}] {$event}");
             }
+            // A manual run that works clears the dispatcher's failure streak and back-off.
+            $this->health->recordSuccess($name, 'poll', microtime(true), $this->poller->lastCheckFailures());
         }
 
         return self::SUCCESS;

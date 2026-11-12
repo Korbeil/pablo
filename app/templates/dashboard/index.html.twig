@@ -23,6 +23,7 @@
     </header>
 
     <main class="pablo-container">
+        <twig:DispatchHealthBanner />
         <twig:TaskActionsModal />
         {% if project_errors is not empty %}
             <div class="notification is-danger is-light pablo-section" role="alert">

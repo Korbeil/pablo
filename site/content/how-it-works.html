@@ -32,6 +32,20 @@
 
 <p>A job's “last run” time is only saved when it succeeds, so a failure is retried on the next run. One project failing never blocks the others, and that includes its YAML file: a project file that doesn't load (invalid YAML, a missing or invalid key, a name another file already uses) only drops that project. Each run prints the file and its error on stderr, then dispatches the other projects and exits non-zero. An invalid <code>~/.pablo/config.yaml</code> is different: it affects every project, so nothing runs. Adding or removing a project changes nothing in the scheduler: each project's cadence lives in its YAML file.</p>
 
+<h3 id="dispatcher-health">Health and back-off</h3>
+
+<p>The dispatcher records how each run and each job went, next to the stamps (see <a href="page:storage">Storage</a>):</p>
+
+<ul>
+  <li>per project and job: the last attempt, the last success, the last error (one line, cut at 300 characters) and how many times in a row it failed;</li>
+  <li>for the poll job, how many tasks' checks failed on its last run. A task whose check fails doesn't fail the job: the other tasks are still polled;</li>
+  <li>for the whole run: when it started and finished, and whether it went fine, had a failing job, or stopped on the tool check.</li>
+</ul>
+
+<p>A job that fails twice in a row backs off instead of retrying every 5 minutes: it waits 5 minutes × 2<sup>failures − 1</sup> after its last attempt (10, 20, 40 minutes…), never longer than its own interval. One success ends the back-off, and so does running the job by hand: <code>pablo system:poll</code> and <code>pablo sync:run</code> ignore the back-off and, when they work, reset the failure count (not <code>pablo sync:run --dry-run</code>, which proves too little).</p>
+
+<p><code>pablo system:doctor</code> shows all this in its <a href="page:providers#the-doctor">scheduler section</a>, and the <a href="page:dashboard">dashboard</a> shows a banner while a job is failing. Recording is best-effort: a problem writing these files never stops a run.</p>
+
 <p>Because the dispatcher wakes up every 5 minutes, a job runs at the first wake-up <em>after</em> its interval has elapsed, not at the exact minute.</p>
 
 <h2 id="agent-backends">Agent backends</h2>

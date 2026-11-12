@@ -32,4 +32,10 @@ interface SchedulerInterface
      * `--without-web`, which `pablo update` must keep.
      */
     public function hasWebService(): bool;
+
+    /**
+     * Whether the dispatcher's timer/agent is PABLO's and currently active —
+     * read-only, for system:doctor.
+     */
+    public function dispatchStatus(): SchedulerStatus;
 }

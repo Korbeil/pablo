@@ -6,6 +6,7 @@ namespace Pablo\Tests\Dispatch;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Dispatch\Dispatch;
+use Pablo\Dispatch\DispatchHealth;
 use Pablo\Doctor\Doctor;
 use Pablo\Store\Store;
 use PHPUnit\Framework\TestCase;
@@ -81,8 +82,8 @@ final class DispatchTest extends TestCase
         );
     }
 
-    /** @param array<string, callable(ProjectConfig, Store): void>|null $runners */
-    /** @param array<string, callable(ProjectConfig, Store): void>|null $runners
+    /** @param array<string, callable(ProjectConfig, Store): mixed>|null $runners */
+    /** @param array<string, callable(ProjectConfig, Store): mixed>|null $runners
      * @return array{projects: array<string, ProjectConfig>, store: Store, runners: array<string, callable>}
      */
     private function env(?array $runners = null): array
@@ -98,7 +99,7 @@ final class DispatchTest extends TestCase
     }
 
     /** @param array<string, ProjectConfig> $projects
-     * @param array<string, callable(ProjectConfig, Store): void> $runners
+     * @param array<string, callable(ProjectConfig, Store): mixed> $runners
      */
     private function runDispatch(array $projects, Store $store, array $runners, ?float $now = null): int
     {
@@ -209,6 +210,12 @@ YAML);
         $this->assertFileExists($this->stamps.'/good.poll');
         rewind($err);
         $this->assertStringContainsString("pablo dispatch: skipping invalid project config {$dir}/bad.yaml: bad.yaml: invalid YAML", (string) stream_get_contents($err));
+
+        // The health record says why the run failed, though no job did.
+        $last = (new DispatchHealth())->lastDispatch();
+        $this->assertNotNull($last);
+        $this->assertSame(DispatchHealth::OUTCOME_FAILED, $last->outcome);
+        $this->assertSame('invalid project config: bad.yaml', $last->detail);
     }
 
     public function testFailedJobDoesNotWriteStamp(): void
@@ -417,5 +424,123 @@ YAML);
         $pairs = array_map(static fn ($p) => $p[1].':'.$p[0], $this->ran);
         sort($pairs);
         $this->assertSame(['a:poll', 'a:sync', 'b:poll', 'b:sync'], $pairs);
+    }
+
+    private function syncFailures(): int
+    {
+        $health = (new DispatchHealth())->read('a', 'sync');
+        $this->assertNotNull($health);
+
+        return $health->consecutiveFailures;
+    }
+
+    private function failingSync(string $message = 'gh: HTTP 502'): \Closure
+    {
+        return function (ProjectConfig $c, Store $s) use ($message): void {
+            $this->ran[] = ['sync', $c->name];
+            throw new \RuntimeException($message);
+        };
+    }
+
+    public function testFailureIsRecordedInJobHealth(): void
+    {
+        $env = $this->env();
+        $env['runners']['sync'] = $this->failingSync("gh: HTTP 502\nmore lines");
+        $now = 1_800_000_000.0;
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now);
+
+        $health = new DispatchHealth();
+        $sync = $health->read('a', 'sync');
+        $this->assertNotNull($sync);
+        $this->assertSame(1, $sync->consecutiveFailures);
+        $this->assertSame('gh: HTTP 502 more lines', $sync->lastError);
+        $this->assertSame('2027-01-15T08:00:00+00:00', $sync->lastAttemptAt);
+        $this->assertSame('2027-01-15T08:00:00+00:00', $sync->failingSince);
+        $this->assertNull($sync->lastSuccessAt);
+
+        $poll = $health->read('a', 'poll');
+        $this->assertNotNull($poll);
+        $this->assertFalse($poll->failing());
+        $this->assertSame('2027-01-15T08:00:00+00:00', $poll->lastSuccessAt);
+
+        $last = $health->lastDispatch();
+        $this->assertNotNull($last);
+        $this->assertSame(DispatchHealth::OUTCOME_FAILED, $last->outcome);
+        $this->assertNotNull($last->finishedAt);
+    }
+
+    public function testRepeatedFailuresBackOff(): void
+    {
+        $env = $this->env();
+        $env['runners']['sync'] = $this->failingSync();
+        $now = 1_800_000_000.0;
+
+        // Two failures in a row (one tick apart): retried, now backing off.
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now);
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 300);
+        $this->assertSame(2, $this->syncFailures());
+
+        // 5 min × 2^(2-1) = 10 min after the last attempt.
+        $this->ran = [];
+        ob_start();
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 600);
+        $out = (string) ob_get_clean();
+        $this->assertNotContains(['sync', 'a'], $this->ran);
+        $this->assertStringContainsString('[a] sync: backing off', $out);
+
+        $this->ran = [];
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 900);
+        $this->assertContains(['sync', 'a'], $this->ran);
+        $this->assertSame(3, $this->syncFailures());
+    }
+
+    public function testSuccessResetsFailureStreak(): void
+    {
+        $env = $this->env();
+        $env['runners']['sync'] = $this->failingSync();
+        $now = 1_800_000_000.0;
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now);
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 300);
+
+        $env['runners']['sync'] = function (ProjectConfig $c, Store $s): void { $this->ran[] = ['sync', $c->name]; };
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 900);
+
+        $sync = (new DispatchHealth())->read('a', 'sync');
+        $this->assertNotNull($sync);
+        $this->assertSame(0, $sync->consecutiveFailures);
+        $this->assertNull($sync->lastError);
+        $this->assertNull($sync->failingSince);
+        $this->assertSame([], (new DispatchHealth())->failing($env['projects']));
+        $this->assertSame(DispatchHealth::OUTCOME_OK, (new DispatchHealth())->lastDispatch()?->outcome);
+    }
+
+    public function testPollCheckFailuresAreRecordedButNotAJobFailure(): void
+    {
+        $env = $this->env();
+        $env['runners']['poll'] = static fn (ProjectConfig $c, Store $s): int => 2;
+        $rc = $this->runDispatch($env['projects'], $env['store'], $env['runners']);
+
+        $this->assertSame(0, $rc);
+        $poll = (new DispatchHealth())->read('a', 'poll');
+        $this->assertNotNull($poll);
+        $this->assertFalse($poll->failing());
+        $this->assertSame(2, $poll->checkFailures);
+        $this->assertFileExists($this->stamps.'/a.poll');
+    }
+
+    public function testPreflightFailureIsRecorded(): void
+    {
+        $env = $this->env();
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => 'gh' === $argv[0]
+            ? new \Pablo\Support\ProbeResult(1, 'not authenticated')
+            : new \Pablo\Support\ProbeResult(0, 'ok');
+        ob_start();
+        $this->runDispatch($env['projects'], $env['store'], $env['runners']);
+        ob_end_clean();
+
+        $last = (new DispatchHealth())->lastDispatch();
+        $this->assertNotNull($last);
+        $this->assertSame(DispatchHealth::OUTCOME_PREFLIGHT_FAILED, $last->outcome);
+        $this->assertStringContainsString('gh: not authenticated', (string) $last->detail);
     }
 }

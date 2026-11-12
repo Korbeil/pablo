@@ -77,6 +77,18 @@ final class SystemdScheduler implements SchedulerInterface
         return ServiceFiles::isOurs($this->unitDir.'/'.self::WEB_UNIT, self::WEB_UNIT);
     }
 
+    public function dispatchStatus(): SchedulerStatus
+    {
+        $timer = 'pablo-dispatch.timer';
+        $installed = ServiceFiles::isOurs($this->unitDir.'/'.$timer, $timer);
+
+        return new SchedulerStatus(
+            $timer,
+            $installed,
+            $installed && 0 === $this->runner->probe(['systemctl', '--user', 'is-active', '--quiet', $timer], 10)->exitCode,
+        );
+    }
+
     private function writeUnit(string $unit): void
     {
         ServiceFiles::write($this->unitDir.'/'.$unit, $unit, ServiceFiles::bundled($this->sourceDir.'/'.$unit));

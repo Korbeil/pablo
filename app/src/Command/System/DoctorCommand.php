@@ -10,6 +10,7 @@ use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
+use Pablo\Doctor\SchedulerHealth;
 use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -21,6 +22,7 @@ final class DoctorCommand extends Command
     public function __construct(
         private readonly Doctor $doctor,
         private readonly AgentStaleness $agentStaleness,
+        private readonly SchedulerHealth $schedulerHealth,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -43,7 +45,8 @@ final class DoctorCommand extends Command
         if ([] !== $projectErrors) {
             $output->writeln($this->doctor->renderConfigErrors($projectErrors));
         }
-        $results = $this->doctor->checkAll($this->projects());
+        $projects = $this->projects();
+        $results = $this->doctor->checkAll($projects);
         $output->writeln($this->doctor->render($results));
         $detachWarning = $this->doctor->detachWarning();
         if (null !== $detachWarning) {
@@ -65,6 +68,11 @@ final class DoctorCommand extends Command
             $output->writeln('agents:');
             $output->writeln($agentLines);
         }
+
+        // The background dispatcher: warnings only, never the exit code.
+        $output->writeln('');
+        $output->writeln('scheduler:');
+        $output->writeln($this->schedulerHealth->lines($projects));
 
         if ($failed || $this->agentStaleness->hasHardFailure($agentResults)) {
             return self::FAILURE;
