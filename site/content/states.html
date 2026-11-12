@@ -54,7 +54,7 @@
     <tr><td>🧪 <code>needs-testing</code></td><td>right after <code>approved</code></td><td>record the time, as the baseline for QA signals</td></tr>
     <tr><td>🔁 <code>request-changes</code></td><td>poller: changes requested or a comment review</td><td>launch <b>pr-feedback</b>; when it finishes, put the pull request back in draft — and once every review signal is addressed (see <a href="#reviews">Reviews</a>), back to review</td></tr>
     <tr><td>🚨 <code>testing-failed</code></td><td>poller: QA's failure signal</td><td>launch <b>task-feedback</b>; when it finishes, put the pull request back in draft</td></tr>
-    <tr><td>🚫 <code>closed</code></td><td>poller: the pull request was closed without being merged (from any state, even <code>waiting</code>)</td><td>— nothing is deleted: the worktree stays until you <a href="page:tasks#close-a-task">close the task</a>. If the pull request is reopened, the task goes back to <code>draft</code></td></tr>
+    <tr><td>🚫 <code>closed</code></td><td>poller: the pull request was closed without being merged (from any state, even <code>waiting</code>)</td><td>— nothing is deleted: the worktree stays until you <a href="page:tasks#close-a-task">close the task</a>, and <a href="page:sync#skipped-on-purpose">sync</a> no longer rebases or pushes it. If the pull request is reopened, the task goes back to <code>draft</code></td></tr>
   </tbody>
 </table>
 

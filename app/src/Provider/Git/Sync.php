@@ -8,6 +8,7 @@ use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Config\ProjectConfig;
+use Pablo\Domain\State;
 use Pablo\Domain\Time;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
@@ -16,6 +17,7 @@ use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
+use Symfony\Component\Process\Exception\ExceptionInterface as ProcessException;
 
 /**
  * Per-project worktree sync.
@@ -36,6 +38,8 @@ final class Sync
         'lease-failed' => '🔁',
         'dirty' => '📝',
         'locked' => '🔐',
+        'skipped' => '⏭️',
+        'error' => '❌',
     ];
 
     public function __construct(
@@ -116,10 +120,23 @@ final class Sync
         foreach ($this->discover($cfg) as $ref) {
             $path = $ref->path;
             $branch = $ref->branch;
-            if ('' === $branch || null === $store->get($cfg->name, $branch)) {
+            $task = '' === $branch ? null : $store->get($cfg->name, $branch);
+            if (null === $task) {
                 // Not (or no longer) a PABLO task worktree: leave it alone. Only
                 // active tasks are kept in sync, so an orphaned or foreign
                 // worktree is never rebased and never shows up in the log.
+                continue;
+            }
+            if (State::Closed === $task->state) {
+                // PR closed without merging: the worktree is only kept for a
+                // last look, so it is never rebased nor force-pushed. Reported
+                // so sync:log says why the task was left alone.
+                $reports[] = new SyncReport(
+                    worktree: $path,
+                    branch: $branch,
+                    action: 'skipped',
+                    detail: 'pull request closed without merging; not synced',
+                );
                 continue;
             }
             $branches[] = $branch;
@@ -149,6 +166,16 @@ final class Sync
                     branch: $branch,
                     action: 'locked',
                     detail: 'task busy (state poller or a command holds it); will retry next cycle',
+                );
+            } catch (PabloError|ProcessException $e) {
+                // One broken worktree (e.g. deleted by hand but still listed by
+                // git) must not stop the others from syncing, nor the log from
+                // being written.
+                $reports[] = new SyncReport(
+                    worktree: $path,
+                    branch: $branch,
+                    action: 'error',
+                    detail: $e->getMessage().'; will retry next cycle',
                 );
             }
         }
