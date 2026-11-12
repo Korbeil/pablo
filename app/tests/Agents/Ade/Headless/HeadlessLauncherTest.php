@@ -102,6 +102,25 @@ final class HeadlessLauncherTest extends TestCase
         $this->assertStringContainsString('detached in '.$worktree."\n", $log);
     }
 
+    /**
+     * A real detached startup script runs from the worktree, never from the
+     * caller's cwd (the user's shell, the scheduler's).
+     */
+    public function testStartupScriptActuallyRunsInTheWorktree(): void
+    {
+        $worktree = $this->tmp.'/wt dir';
+        mkdir($worktree);
+        $script = $this->tmp.'/startup.sh';
+        file_put_contents($script, "echo \"script ran in \$PWD\"\n");
+
+        $handle = $this->agents->doRunStartupScript($worktree, $script);
+        $this->agents->waitForHandle($handle, 10);
+
+        $logs = Files::list($this->agentsDir.'/logs', '*-startup-script.log');
+        $this->assertCount(1, $logs);
+        $this->assertSame('script ran in '.realpath($worktree)."\n", file_get_contents($logs[0]));
+    }
+
     public function testDisplayNameIsANoOpAndWaitReturnsForADeadPid(): void
     {
         $this->agents->setWorktreeDisplayName($this->tmp, 'PROJ-1', null);

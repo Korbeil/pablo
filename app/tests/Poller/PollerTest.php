@@ -900,6 +900,45 @@ final class PollerTest extends TestCase
         $this->assertSame(['/setup.sh'], $this->stubs['startups']);
     }
 
+    /**
+     * The watcher stamps the startup script finished once it exits: with no
+     * session left, the poller re-fires only the launch that never showed up.
+     */
+    public function testFinishedStartupScriptIsNotReRun(): void
+    {
+        $e = $this->newEnv();
+        $cfg = new ProjectConfig(
+            name: 'proj',
+            type: 'work',
+            repoPath: $e['tmp'].'/repo',
+            primaryBranch: 'main',
+            worktreesRoot: $e['tmp'].'/wt',
+            provider: 'github',
+            identity: 'octocat',
+            projectKey: 'PR',
+            syncStrategy: 'rebase',
+            syncAutoApply: false,
+            syncInterval: 30,
+            pollInterval: 10,
+            failureSignal: 'qa-failed',
+            botWhitelist: [],
+            ciIgnoreChecks: [],
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
+            startupScript: '/setup.sh',
+        );
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::InProgress));
+        $this->setState($store, State::InProgress, ['prNumber' => null]);
+        $this->setLaunch($store, 'task-analyst', 1, 301);
+        $this->setLaunch($store, 'startup-script', 1, 301, $this->freshTs(200), reported: true);
+        $this->agents->startupScript = &$this->stubs['startups'];
+        $this->poll($cfg, $store);
+        $this->assertSame(['task-analyst'], $this->agents->launch);
+        $this->assertSame([], $this->stubs['startups']);
+        $this->assertSame(1, $this->taskOrFail($store)->agentLaunches['startup-script']->attempts);
+    }
+
     public function testNoRelaunchWhenFinishedAgentInOrca(): void
     {
         $e = $this->newEnv();

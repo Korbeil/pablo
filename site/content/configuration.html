@@ -264,7 +264,7 @@ branch_prefix: pablo/
 
 <h3>Startup script</h3>
 
-<p><code>startup_script</code> runs once per task when it starts, in parallel with task-analyst, in its own terminal that stays open as a shell afterwards, so you can see its output. Use it to install dependencies or prepare the worktree. It's launched in the background and never blocks <code>pablo task:start</code>. It may run again if PABLO relaunches a launch that never started, so keep it safe to re-run.</p>
+<p><code>startup_script</code> runs once per task when it starts, in parallel with task-analyst, in its own terminal that stays open as a shell afterwards, so you can see its output. Use it to install dependencies or prepare the worktree: it runs from the worktree's directory. It's launched in the background and never blocks <code>pablo task:start</code>. Once it exits, PABLO counts it as done and never runs it again on its own. It may only run again if PABLO relaunches a launch that never started, so keep it safe to re-run.</p>
 
 <h2 id="branch-names">Branch names</h2>
 
