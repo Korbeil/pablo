@@ -24,7 +24,7 @@ final class AgentLauncherTest extends TestCase
     public function testDefaultBackendIsOrca(): void
     {
         putenv('PABLO_AGENT_BACKEND');
-        $this->writeGlobalConfig("sync:\n  strategy: manual\n");
+        $this->writeGlobalConfig("sync:\n  strategy: rebase\n");
         $this->assertInstanceOf(OrcaLauncher::class, (new AgentLauncherFactory(new \Pablo\Config\GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()))->create());
     }
 

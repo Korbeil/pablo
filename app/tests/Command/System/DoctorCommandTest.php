@@ -8,6 +8,7 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Command\System\DoctorCommand;
 use Pablo\Config\Config;
+use Pablo\Config\ConfigValidator;
 use Pablo\Config\GlobalConfig;
 use Pablo\Dispatch\DispatchHealth;
 use Pablo\Doctor\AgentStaleness;
@@ -66,7 +67,7 @@ YAML;
         $global = new GlobalConfig();
         $staleness = new AgentStaleness(new AgentTemplates(new Config($global)));
 
-        return new DoctorCommand($this->doctor(), $staleness, new SchedulerHealth(new SchedulerFactory($this->runner, 'Linux'), new DispatchHealth()), new Store(), new Config($global), new AgentLauncherFactory($global, $this->runner), new FakeAgents());
+        return new DoctorCommand($this->doctor(), $staleness, new SchedulerHealth(new SchedulerFactory($this->runner, 'Linux'), new DispatchHealth()), new Store(), new Config($global), new AgentLauncherFactory($global, $this->runner), new FakeAgents(), new ConfigValidator($global, new Config($global)));
     }
 
     protected function setUp(): void
@@ -75,6 +76,8 @@ YAML;
         $this->agentsDir = $this->tmp.'/home/.config/opencode/agents';
         mkdir($this->agentsDir, 0o777, true);
         mkdir($this->tmp.'/projects', 0o777, true);
+        // The checkout the test projects point at (the config section checks repo.path).
+        mkdir($this->tmp.'/wallet-kit/.git', 0o777, true);
 
         $oldHome = getenv('HOME');
         $this->oldHome = false !== $oldHome ? $oldHome : '';
@@ -167,6 +170,60 @@ YAML;
 
         $this->assertSame(1, $tester->getStatusCode());
         $this->assertStringContainsString("❌ config     broken.yaml: missing required key 'repo.path'", $tester->getDisplay());
+    }
+
+    public function testConfigSectionWarnsAboutUnknownKeysWithoutFailing(): void
+    {
+        $this->installFreshAgents();
+        $this->writeGlobalConfig(str_replace("ci:\n  ignore_checks: []", "ci:\n  ignore_check: []", self::DEFAULTS));
+
+        $tester = new CommandTester($this->command());
+        $tester->execute([]);
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString('⚠️  config    config.yaml: ci.ignore_check is not a known key, ignored; did you mean `ci.ignore_checks`?', $tester->getDisplay());
+
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'json']);
+        $this->assertSame(0, $tester->getStatusCode());
+        $payload = json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertIsArray($payload);
+        $config = array_values(array_filter($payload['checks'], static fn (array $c): bool => 'config' === $c['group']));
+        $this->assertSame('warn', $config[0]['status']);
+        $this->assertSame('config.yaml:ci.ignore_check', $config[0]['name']);
+    }
+
+    public function testConfigSectionFailsOnAMissingRepository(): void
+    {
+        $this->installFreshAgents();
+        file_put_contents($this->tmp.'/projects/gone.yaml', <<<YAML
+            name: gone
+            type: work
+            repo:
+                path: {$this->tmp}/gone
+                primary_branch: main
+            issue_tracker:
+                provider: github
+                identity: octocat
+                project_key: GO
+            YAML);
+
+        $tester = new CommandTester($this->command());
+        $tester->execute([]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("❌ config     gone.yaml: repo.path is not a directory: {$this->tmp}/gone", $tester->getDisplay());
+    }
+
+    public function testABrokenGlobalConfigStopsTheDoctorWithItsError(): void
+    {
+        $this->writeGlobalConfig(str_replace('interval_minutes: 30', 'interval_minutes: 0', self::DEFAULTS));
+
+        $tester = new CommandTester($this->command());
+        $tester->execute([]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('❌ config     config.yaml: sync.interval_minutes must be a whole number of minutes, at least 1, got 0', $tester->getDisplay());
+        $this->assertStringContainsString('pablo system:config:validate', $tester->getDisplay());
     }
 
     public function testStaleAgentWarnsSoftlyAndDoesNotFail(): void

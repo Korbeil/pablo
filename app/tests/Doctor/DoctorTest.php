@@ -45,9 +45,9 @@ YAML;
 name: wallet-kit
 type: open-source
 repo:
-  path: /tmp/pablo-doctor/wallet-kit
+  path: %ROOT%/wallet-kit
   primary_branch: main
-worktrees_root: /tmp/pablo-doctor/wt
+worktrees_root: %ROOT%/wt
 issue_tracker:
   provider: github
   identity: octocat
@@ -78,7 +78,9 @@ YAML;
         $this->projectsDir = sys_get_temp_dir().'/pablo-projects-'.uniqid();
         mkdir($this->projectsDir, 0o777, true);
         $this->writeGlobalConfig(self::DEFAULTS);
-        file_put_contents($this->projectsDir.'/wallet-kit.yaml', self::PROJECT);
+        // A real checkout: the doctor's config section checks repo.path.
+        mkdir($this->projectsDir.'/wallet-kit/.git', 0o777, true);
+        file_put_contents($this->projectsDir.'/wallet-kit.yaml', str_replace('%ROOT%', $this->projectsDir, self::PROJECT));
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
         putenv('PABLO_STAMPS_DIR='.$this->projectsDir.'/stamps');
     }
@@ -385,12 +387,12 @@ YAML;
         $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
         $staleness = $this->staleness();
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents()));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents(), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::SUCCESS, $tester->getStatusCode());
 
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(1, 'login please');
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents()));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents(), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
     }

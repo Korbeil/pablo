@@ -145,6 +145,35 @@ final class GlobalConfigTest extends TestCase
         (new GlobalConfig())->pruneKeepDays(10);
     }
 
+    public function testUnknownKeysAreIgnoredWhenLoading(): void
+    {
+        $this->writeGlobalConfig("default_model: x\ndashbord_port: 9000\nsync:\n  strategy: rebase\n  intervall: 5\n");
+
+        $defaults = (new GlobalConfig())->defaults();
+        $this->assertSame(['strategy' => 'rebase', 'intervall' => 5], $defaults['sync']);
+        $this->assertSame(8321, (new GlobalConfig())->dashboardPort(8321));
+    }
+
+    public function testAGlobalOnlyKeyFailsOnlyWhereItIsRead(): void
+    {
+        // Every other command keeps working; pablo web refuses it.
+        $this->writeGlobalConfig("default_model: x\ndashboard_port: 99999\n");
+
+        $this->assertSame('x', (new GlobalConfig())->defaults()['default_model']);
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('dashboard_port must be a port number');
+        (new GlobalConfig())->dashboardPort(8321);
+    }
+
+    public function testAnInvalidInheritedKeyIsFatal(): void
+    {
+        $this->writeGlobalConfig("sync:\n  auto_apply: sometimes\n");
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage("config.yaml: sync.auto_apply must be true or false, got 'sometimes'");
+        (new GlobalConfig())->defaults();
+    }
+
     public function testIsPort(): void
     {
         foreach ([1, 8321, 65535, '8400'] as $port) {

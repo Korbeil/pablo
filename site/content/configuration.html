@@ -234,6 +234,38 @@ branch_prefix: pablo/
 
 <p>With <code>branch_prefix: pablo/</code>, the issue above gives <code>pablo/pim-123</code>.</p>
 
+<h2 id="validate-your-config">Validate your config</h2>
+
+<p>PABLO knows every key it reads, with the type and range of its value. Run <code>pablo system:config:validate</code> after editing a config file: it checks <code>~/.pablo/config.yaml</code> and every file in <code>~/.pablo/projects/</code>, changes nothing, and prints each problem with its key:</p>
+
+<pre><code class="language-text">$ pablo system:config:validate
+✅ /home/you/.pablo/config.yaml
+❌ /home/you/.pablo/projects/wallet-kit.yaml
+   ⚠️  ci.ignore_check is not a known key, ignored; did you mean `ci.ignore_checks`?
+   ❌ sync.interval_minutes must be a whole number of minutes, at least 1, got 0
+
+2 files checked: 1 error, 1 warning
+</code></pre>
+
+<p>It exits with 1 when there is an error, 0 when there are only warnings. <code>--format=json</code> prints the same report as JSON (<a href="page:cli#machine-readable-output">shape</a>). <code>pablo system:doctor</code> runs the same checks in its <code>config</code> lines.</p>
+
+<dl>
+  <dt>Unknown keys: a warning</dt>
+  <dd>A key PABLO doesn't know, usually a typo, is ignored, so the value you meant isn't applied: with <code>ci.ignore_check</code>, the global <code>ci.ignore_checks</code> applies instead. The warning suggests the closest known key, or says where a key belongs when you put a global-only key (<code>agent_backend</code>) in a project file, or a project key (<code>repo</code>) in <code>config.yaml</code>. It's never an error, so a file written for a newer PABLO still loads.</dd>
+  <dt>Invalid values: an error</dt>
+  <dd>Intervals (<code>*.interval_minutes</code>, <code>prune.keep_days</code>) must be whole numbers, at least 1; booleans (<code>sync.auto_apply</code>, <code>testing.enabled</code>, …) must be <code>true</code> or <code>false</code>; lists (<code>ci.ignore_checks</code>, <code>review.bot_whitelist</code>, <code>hooks.states</code>, <code>dashboard_trusted_hosts</code>) must be lists, even of one item (<code>[approval]</code>); <code>sync.strategy</code>, <code>type</code> and <code>issue_tracker.provider</code> must be one of their values; a section (<code>sync</code>, <code>repo</code>, …) must be a mapping; <code>dashboard_port</code> must be a port. A key left empty (<code>branch_prefix:</code>) counts as unset.</dd>
+  <dt>Paths: an error, only here</dt>
+  <dd><code>repo.path</code> must be a git checkout, an absolute <code>startup_script</code> must exist (a relative one runs from the task's worktree and isn't checked), and the parent of a <code>worktrees_root</code> you set must exist (the directory itself is created with the first worktree).</dd>
+</dl>
+
+<p>Loading applies the same rules, so every command behaves the same way:</p>
+
+<ul>
+  <li>An invalid value in a <b>project file</b> leaves that project out, like a missing key: the warning, the doctor and the dashboard banner name the file and the key, and the other projects keep running.</li>
+  <li>An invalid value in <code>~/.pablo/config.yaml</code>, for a key projects inherit (the <a href="#global-defaults">table above</a>), stops every command, since it applies to every project. A global-only key (<code>dashboard_port</code>, <code>dashboard_trusted_hosts</code>, <code>scheduler.path</code>, <code>prune.keep_days</code>, <code>claude_code.remote_control</code>, <code>shell_completion</code>) is refused only by the command that reads it (<code>pablo web</code>, <code>system:install</code>, <code>system:prune</code>, …), so a bad port doesn't stop the background job. <code>agent_runtime</code> and <code>agent_backend</code> are checked by the doctor and the background job, as before.</li>
+  <li>Unknown keys and paths are not checked when loading. A warning every five minutes in the background job's log would be noise, and a repository on a disk that isn't mounted yet must not stop the other projects. <code>system:config:validate</code> and the doctor, which <code>system:install</code> and <code>pablo update</code> run, are where you see them.</li>
+</ul>
+
 <h2>Environment variables</h2>
 
 <table>
