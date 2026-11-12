@@ -364,4 +364,17 @@ YAML;
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
     }
+
+    public function testDetachWarningOnlyWhenNoSessionHelperIsOnPath(): void
+    {
+        $this->onWhich = static fn (string $bin): ?string => 'perl' === $bin ? '/usr/bin/perl' : null;
+        $this->assertNull($this->doctor()->detachWarning());
+
+        $this->onWhich = static fn (string $bin): ?string => 'setsid' === $bin ? '/usr/bin/setsid' : null;
+        $this->assertNull($this->doctor()->detachWarning());
+
+        $this->onWhich = static fn (string $bin): ?string => null;
+        $warning = (string) $this->doctor()->detachWarning();
+        $this->assertStringContainsString('neither setsid nor perl', $warning);
+    }
 }
