@@ -1,36 +1,134 @@
 <h1>Quickstart</h1>
 
-<p>From nothing to your first task in four steps.</p>
+<p>From nothing to your first task in five steps, with what you see after each one.</p>
 
-<h2>Before you start</h2>
+<h2 id="requirements">Before you start</h2>
 
-<p>You need <b>git</b>, <b>curl</b>, <a href="https://opencode.ai"><b>OpenCode</b></a>, <a href="https://code.claude.com/docs"><b>Claude Code</b></a> or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli"><b>GitHub Copilot CLI</b></a>, and the GitHub CLI <a href="https://cli.github.com/"><code>gh</code></a> (<code>gh auth login</code>). The <a href="page:glossary#runtime">runtime</a> is the agent CLI that runs PABLO's agents; the <a href="page:glossary#ade">agent environment (ADE: Orca, OpenChamber or headless)</a> is where they run. An ADE like <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a> is where you read their work (headless runs them in the background instead). Using Jira or Linear? See <a href="page:installation#prerequisites">Prerequisites</a>.</p>
+<ul>
+  <li><b>Linux or macOS</b>;</li>
+  <li><b>git</b>;</li>
+  <li>the GitHub CLI <a href="https://cli.github.com/"><code>gh</code></a>, logged in (<code>gh auth login</code>): PABLO follows pull requests and CI on GitHub, whatever the issue tracker;</li>
+  <li><b>curl</b>, and <b>sha256sum</b> or <b>shasum</b> (one ships with every Linux and macOS) for the installer to verify the download;</li>
+  <li>a <a href="page:glossary#runtime">runtime</a>, the agent CLI that runs PABLO's agents: <a href="https://opencode.ai">OpenCode</a> (the default), <a href="https://code.claude.com/docs">Claude Code</a>, or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> <span class="exp">experimental</span>;</li>
+  <li>an <a href="page:glossary#ade">agent environment (ADE)</a>, where the agents run and where you read their work: <a href="https://www.onorca.dev/">Orca</a> (the default), <a href="https://openchamber.dev/">OpenChamber</a> (OpenCode only), or none: headless, in the background.</li>
+</ul>
 
-<h2>1. Install</h2>
+<p>No PHP: PABLO is a single binary. Issues in Jira or Linear need their own CLI too: see <a href="page:installation#prerequisites">Prerequisites</a>.</p>
+
+<h2 id="install">1. Install</h2>
 
 <pre><code class="language-bash">curl -fsSL https://getpablo.dev/installer | bash
 </code></pre>
 
-<p>It picks the runtime and the ADE it finds on your machine, puts <code>pablo</code> on your <code>PATH</code>, starts the <a href="page:glossary#scheduler">scheduler</a> and the dashboard, and checks your tools. If a check fails, <code>pablo system:setup</code> walks you through each fix. More in <a href="page:installation">Installation</a>.</p>
+<p>It picks the runtime and the ADE it finds on your machine, puts <code>pablo</code> on your <code>PATH</code>, starts the <a href="page:glossary#scheduler">scheduler</a> and the dashboard, and ends with <code>pablo system:doctor</code>. A healthy setup (OpenCode in Orca, on Linux) looks like this; run the doctor again any time:</p>
 
-<h2>2. Add your project</h2>
+<pre><code class="language-text">$ pablo system:doctor          # example output
+✅ gh         github.com
+✅ opencode   opencode v2.2.7
+✅ orca       appRunning: true
+
+agents:
+✅ task-analyst             ok
+✅ task-feedback            ok
+✅ ci-analyst               ok
+✅ pr-feedback              ok
+✅ rebase-conflict-resolver ok
+
+scheduler:
+✅ scheduler  pablo-dispatch.timer active
+✅ dispatch   last dispatch 3 min ago (ok)
+</code></pre>
+
+<p>A ❌ line comes with the fix under it (<code>→ run: gh auth login</code>), and <code>pablo system:setup</code> walks you through each one. The lines follow your setup: <code>claude</code> or <code>copilot</code> instead of <code>opencode</code>, <code>openchamber</code> instead of <code>orca</code> (no ADE line when headless), <code>acli</code> or <code>linear</code> once a project uses them, and <code>com.pablo.dispatch</code> instead of the timer on macOS. More in <a href="page:installation">Installation</a> and <a href="page:providers#the-doctor">The doctor</a>.</p>
+
+<h2 id="set-your-model">2. Set your model</h2>
+
+<p>The installer writes a <code>default_model</code> into <code>~/.pablo/config.yaml</code> for the runtime it picked: <code>opencode-go/glm-5.3-flash</code> under OpenCode, <code>sonnet</code> under Claude Code, <code>claude-sonnet-5.5</code> under Copilot. Your runtime must be able to use it: under OpenCode, that model's provider (here, OpenCode Go) has to be set up in OpenCode itself (<code>opencode auth login</code>). Otherwise, put a model you already use:</p>
+
+<pre><code class="language-yaml"># ~/.pablo/config.yaml
+default_model: anthropic/claude-sonnet-5-5   # OpenCode: provider/model
+# per project type, if you want:
+default_model_by_type:
+  work: anthropic/claude-opus-5-5
+  personal: opencode-go/glm-5.3-flash
+</code></pre>
+
+<p>A project file can set its own <code>default_model</code> too. The format follows the runtime (<code>provider/model</code> for OpenCode, <code>sonnet</code> or a full Claude id for Claude Code, a dotted Copilot id for Copilot), and a wrong one is refused when the project loads. The full order and formats: <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>.</p>
+
+<h2 id="add-your-project">3. Add your project</h2>
 
 <pre><code class="language-bash">cd ~/path/to/your/repository
 pablo project:new
 </code></pre>
 
-<p>A short wizard: it detects the repository, asks for the issue tracker, and writes the project file. With Orca, also run <code>orca repo add .</code> once so agents show up as Orca terminals. Prefer YAML, want another model, or need to remove a project? See <a href="page:configuration#add-a-project">Add a project</a>.</p>
+<p>A short wizard: it detects the repository, asks for the issue tracker, and shows the project file before writing it:</p>
 
-<h2>3. Start a task</h2>
+<pre><code class="language-text">--- YAML preview ---
+name: storefront
+type: work
+repo:
+  path: ~/Sites/storefront
+  primary_branch: main
+issue_tracker:
+  provider: github
+  identity: you@example.com
+  project_key: STOREFRONT
+  repo: you/storefront
 
-<pre><code class="language-bash">pablo task:start https://github.com/you/your-repo/issues/42
-# no issue? describe it instead:
-pablo task:start --project your-repo "fix callback verification"
+--------------------
+[y/N] Write this config to ~/.pablo/projects/? y
+Config written: /home/you/.pablo/projects/storefront.yaml
 </code></pre>
 
-<p>PABLO creates a <a href="page:glossary#task">task</a>: a branch and a <a href="page:glossary#worktree">worktree</a>, and the <b>task-analyst</b> <a href="page:glossary#agent">agent</a> reads the issue and the code to write an action plan. Check on it with <code>pablo task:list</code> or the dashboard at <a href="http://127.0.0.1:8321"><code>http://127.0.0.1:8321</code></a>.</p>
+<p>With Orca, also run <code>orca repo add .</code> once so agents show up as Orca terminals. Prefer YAML, or need to remove a project? See <a href="page:configuration#add-a-project">Add a project</a>.</p>
 
-<h2>4. Ship it, then let PABLO follow</h2>
+<h2 id="start-a-task">4. Start a task</h2>
+
+<pre><code class="language-bash">pablo task:start https://github.com/you/shop/issues/42
+# no issue? describe it instead:
+pablo task:start --project shop "fix callback verification"
+</code></pre>
+
+<p>PABLO creates a <a href="page:glossary#task">task</a>: a branch and a <a href="page:glossary#worktree">worktree</a>, and the <b>task-analyst</b> <a href="page:glossary#agent">agent</a> reads the issue and the code to write an action plan:</p>
+
+<pre><code class="language-text">started 42 (Verify payment callback signatures) in project shop
+worktree: /home/you/.pablo/worktrees/shop/shop-42 (branch shop-42)
+state: in-progress — task-analyst is running
+</code></pre>
+
+<p>Where you read the plan depends on your ADE:</p>
+
+<ul>
+  <li><b>Orca</b>: a new terminal tab, <code>pablo:task-analyst</code>, on the task's worktree. No tab after about 20 seconds means Orca didn't take it and the agent ran headless; the reason is in <code>~/.pablo/agents/logs/orca-fallback.log</code>.</li>
+  <li><b>OpenChamber</b>: a new session on the worktree's directory.</li>
+  <li><b>Headless</b>: nothing opens; the agent runs in the background. Once it's done, open its session from the worktree: <code>opencode -s &lt;session&gt;</code> (<code>opencode session list</code> shows the latest first), <code>claude --resume &lt;session&gt;</code> under Claude Code (also followable live from claude.ai/code, see <a href="page:runtimes#claude-code-remote-control">Remote Control</a>), or <code>copilot --resume=&lt;session&gt;</code> under Copilot.</li>
+</ul>
+
+<p>Check on all your tasks with <code>pablo task:list</code>, or the dashboard at <a href="http://127.0.0.1:8321"><code>http://127.0.0.1:8321</code></a>. Tasks that need you come first:</p>
+
+<pre><code class="language-text">$ pablo task:list
+💭 Waiting for feedback
+
++---------+---------+-----------+--------+----------+--------------------------------+---------+---------------+---------+
+| Project | Task    | State     | Agents | Activity | Issue                          | Tracker | PR            | Since   |
++---------+---------+-----------+--------+----------+--------------------------------+---------+---------------+---------+
+| shop    | shop-57 | 🔴 ci-red | 1      | 💭 1     | 57 Cart total rounds VAT twice | OPEN    | 📝 draft #158 | 40m ago |
++---------+---------+-----------+--------+----------+--------------------------------+---------+---------------+---------+
+
+
+Other tasks
+
++---------+---------+-------------------+--------+----------+---------------------------------------+---------+--------------+--------+
+| Project | Task    | State             | Agents | Activity | Issue                                 | Tracker | PR           | Since  |
++---------+---------+-------------------+--------+----------+---------------------------------------+---------+--------------+--------+
+| shop    | shop-61 | 👀 waiting-review | 0      | -        | 61 Export orders as CSV               | OPEN    | 📖 open #163 | 1d ago |
+| shop    | shop-42 | 🔨 in-progress    | 1      | 🏃 1     | 42 Verify payment callback signatures | OPEN    | -            | 2m ago |
++---------+---------+-------------------+--------+----------+---------------------------------------+---------+--------------+--------+
+</code></pre>
+
+<p>🏃 is an agent at work, 💭 one that has finished and waits for you. The columns and the sort order: <a href="page:tasks#see-your-tasks">See your tasks</a>.</p>
+
+<h2 id="ship-it">5. Ship it, then let PABLO follow</h2>
 
 <p>Read the plan, write the code, then run <code>/pablo-commit-and-pr</code> in your agent session inside the worktree: it commits, pushes and opens a <b>draft</b> pull request. From there:</p>
 

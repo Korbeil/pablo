@@ -11,7 +11,7 @@
   <tbody>
     <tr><td><code>opencode</code> (default)</td><td><code>opencode run --agent &lt;agent&gt;</code></td><td><code>provider/model</code>, e.g. <code>opencode-go/glm-5.3-flash</code></td><td>Orca, OpenChamber, headless</td></tr>
     <tr><td><code>claude-code</code></td><td><code>claude -p --agents … --agent &lt;agent&gt;</code></td><td>an alias (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or a full id such as <code>claude-sonnet-5-5</code></td><td>Orca, headless</td></tr>
-    <tr><td><code>copilot</code> (experimental)</td><td><code>copilot --agent pablo-&lt;agent&gt; … -p</code></td><td>Copilot's dotted ids, such as <code>claude-sonnet-5.5</code> or <code>gpt-5.3-codex</code></td><td>Orca, headless</td></tr>
+    <tr><td><code>copilot</code> <span class="exp">experimental</span></td><td><code>copilot --agent pablo-&lt;agent&gt; … -p</code></td><td>Copilot's dotted ids, such as <code>claude-sonnet-5.5</code> or <code>gpt-5.3-codex</code></td><td>Orca, headless</td></tr>
   </tbody>
 </table>
 
@@ -110,7 +110,7 @@ pablo system:doctor         # checks claude and the generated files
 
 <p>Without a generated <code>agents.json</code> or a <code>script</code> command, runs fall back to <code>claude -p</code>.</p>
 
-<h2 id="copilot">GitHub Copilot CLI</h2>
+<h2 id="copilot">GitHub Copilot CLI <span class="exp">experimental</span></h2>
 
 <aside class="callout warning"><p><b>Experimental.</b> This runtime was built from <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">Copilot CLI's documentation</a>, without the CLI at hand: loading agents from <code>~/.copilot/agents</code> during <code>-p</code>, compound commands (<code>a &amp;&amp; b</code>) against prefix denies, and skill argument passing are not verified live yet.</p></aside>
 

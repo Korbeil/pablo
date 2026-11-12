@@ -36,12 +36,14 @@ Then watch your tasks on http://127.0.0.1:8321 or with `pablo task:list`.
 **You need:**
 
 - Linux or macOS;
-- git and [`gh`](https://cli.github.com/), logged in;
-- a runtime, the agent CLI: [OpenCode](https://opencode.ai), [Claude Code](https://www.anthropic.com/claude-code) or [GitHub Copilot CLI](https://github.com/features/copilot/cli);
-- an agent environment (ADE), where agents run: [Orca](https://www.onorca.dev/) (default) or [OpenChamber](https://openchamber.dev/) (OpenCode only), or none (headless: agents run in the background).
+- git;
+- [`gh`](https://cli.github.com/), logged in (`gh auth login`);
+- curl, and `sha256sum` or `shasum`, to download and verify PABLO;
+- a runtime, the agent CLI: [OpenCode](https://opencode.ai) (default), [Claude Code](https://code.claude.com/docs) or [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli) (experimental);
+- an agent environment (ADE), where agents run: [Orca](https://www.onorca.dev/) (default), [OpenChamber](https://openchamber.dev/) (OpenCode only), or none (headless: agents run in the background).
 
 PABLO itself is a single binary: no PHP needed.
-Using Jira or Linear, or want the details? Read the [Quickstart](https://getpablo.dev/docs/quickstart/) and the [installation guide](https://getpablo.dev/docs/installation/).
+Using Jira or Linear (experimental), or want the details, such as setting your model? Read the [Quickstart](https://getpablo.dev/docs/quickstart/) and the [installation guide](https://getpablo.dev/docs/installation/).
 
 ## What PABLO never does
 
