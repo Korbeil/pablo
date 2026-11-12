@@ -38,4 +38,25 @@ final class SyncReport
             agentHandle: (string) ($data['agent_handle'] ?? ''),
         );
     }
+
+    /**
+     * The machine-readable form (`sync:run|sync:log --format=json`). Not the
+     * persisted log entry: RebaseLog::toArray() owns that format.
+     *
+     * @return array{branch: string, worktree: string, action: string, behind: int, ahead: int, conflict_files: list<string>, detail: string, agent_handle: string, target: string}
+     */
+    public function toArray(): array
+    {
+        return [
+            'branch' => $this->branch,
+            'worktree' => $this->worktree,
+            'action' => $this->action,
+            'behind' => $this->behind,
+            'ahead' => $this->ahead,
+            'conflict_files' => array_values($this->conflictFiles),
+            'detail' => $this->detail,
+            'agent_handle' => $this->agentHandle,
+            'target' => $this->target,
+        ];
+    }
 }

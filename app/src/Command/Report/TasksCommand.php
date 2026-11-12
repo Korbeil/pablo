@@ -7,10 +7,12 @@ namespace Pablo\Command\Report;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\State;
 use Pablo\Listing\Listing;
+use Pablo\Listing\TaskRow;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -21,6 +23,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'task:list', description: 'active task worktrees and their states', aliases: ['tasks'])]
 final class TasksCommand extends Command
 {
+    use FormatsOutput;
+
     public function __construct(
         private readonly Listing $listing,
         Store $store,
@@ -38,7 +42,8 @@ final class TasksCommand extends Command
             ->addOption('refresh', null, InputOption::VALUE_NONE, 'fetch fresh data and persist it as the new cache before rendering')
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'only this project\'s tasks')
             ->addOption('type', null, InputOption::VALUE_REQUIRED, 'only tasks of this project type (work/open-source/personal)', null, Config::PROJECT_TYPES)
-            ->addOption('state', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'only tasks in this state (repeatable)', [], array_map(static fn (State $s): string => $s->value, State::cases()));
+            ->addOption('state', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'only tasks in this state (repeatable)', [], array_map(static fn (State $s): string => $s->value, State::cases()))
+            ->addFormatOption();
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
@@ -48,13 +53,29 @@ final class TasksCommand extends Command
             (string) $input->getOption('project'),
             (string) $input->getOption('type'),
         );
+        $states = $this->parseStates((array) $input->getOption('state'));
+
+        if ($this->wantsJson($input)) {
+            $rows = $this->listing->taskRows(
+                $projects,
+                $this->store(),
+                $this->agents(),
+                (bool) $input->getOption('live'),
+                (bool) $input->getOption('refresh'),
+                $states,
+            );
+            $this->writeJson($output, ['tasks' => array_map(static fn (TaskRow $r): array => $r->toArray(), $rows)]);
+
+            return self::SUCCESS;
+        }
+
         $render = $this->listing->tasksTable(
             $projects,
             $this->store(),
             $this->agents(),
             (bool) $input->getOption('live'),
             (bool) $input->getOption('refresh'),
-            $this->parseStates((array) $input->getOption('state')),
+            $states,
         );
         $output->writeln($render);
         $this->warnProjectErrors($output);

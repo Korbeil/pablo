@@ -11,6 +11,7 @@ use Pablo\Analytics\AnalyticsEvent;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Command\Command;
+use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
 use Pablo\Dashboard\Dashboard;
 use Pablo\Domain\Time;
@@ -31,6 +32,10 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'stats', description: 'aggregate analytics: task lifetimes, agent runs/tokens/cost, state dwell times')]
 final class StatsCommand extends Command
 {
+    use FormatsOutput;
+
+    private const STATS_FORMATS = [...self::FORMATS, 'csv'];
+
     public function __construct(
         private readonly AnalyticsReader $reader,
         private readonly AnalyticsAggregator $aggregator,
@@ -51,7 +56,7 @@ final class StatsCommand extends Command
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'restrict to one project')
             ->addOption('type', null, InputOption::VALUE_REQUIRED, 'restrict to one project type (work/open-source/personal)', '', Dashboard::TYPES)
             ->addOption('agent', null, InputOption::VALUE_REQUIRED, 'restrict the agents table to one agent')
-            ->addOption('format', null, InputOption::VALUE_REQUIRED, 'output format', 'table', ['table', 'json', 'csv'])
+            ->addOption('format', null, InputOption::VALUE_REQUIRED, 'output format: table, json or csv (csv: a --by breakdown)', 'table', self::STATS_FORMATS)
             ->addOption('by', null, InputOption::VALUE_REQUIRED, 'break agent runs down by agent, project, model or task (csv defaults to agent)', null, AnalyticsAggregator::BREAKDOWNS)
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'with --by: keep the N groups with the most tokens (0 = all)', '20');
     }
@@ -59,10 +64,12 @@ final class StatsCommand extends Command
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $days = max(0, (int) $input->getOption('days'));
+        // The shared table|json convention (FormatsOutput), plus csv for a breakdown.
         $format = (string) $input->getOption('format');
-        if (!\in_array($format, ['table', 'json', 'csv'], true)) {
-            throw new PabloError(\sprintf("invalid --format '%s'; expected one of: table, json, csv", $format));
+        if (!\in_array($format, self::STATS_FORMATS, true)) {
+            throw new PabloError(\sprintf("invalid --format '%s'; expected one of: %s", $format, implode(', ', self::STATS_FORMATS)));
         }
+        $json = 'json' === $format;
         $by = (string) ($input->getOption('by') ?? '');
         if ('' !== $by && !\in_array($by, AnalyticsAggregator::BREAKDOWNS, true)) {
             throw new PabloError(\sprintf("invalid --by '%s'; expected one of: %s", $by, implode(', ', AnalyticsAggregator::BREAKDOWNS)));
@@ -101,7 +108,7 @@ final class StatsCommand extends Command
             return self::SUCCESS;
         }
 
-        if ([] === $events) {
+        if ([] === $events && !$json) {
             $output->writeln(\sprintf('no analytics events recorded yet (log: %s)', JsonlAnalytics::root()));
 
             return self::SUCCESS;
@@ -111,14 +118,13 @@ final class StatsCommand extends Command
         $agents = $this->aggregator->agentStats($events, (string) ($input->getOption('agent') ?: ''));
         $states = $this->aggregator->stateStats($events);
 
-        if ('json' === $input->getOption('format')) {
-            $json = json_encode([
+        if ($json) {
+            $this->writeJson($output, [
                 'days' => $days,
                 'tasks' => $tasks,
                 'agents' => $agents,
                 'states' => $states,
-            ], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
-            $output->writeln(false !== $json ? $json : '{}');
+            ]);
 
             return self::SUCCESS;
         }
@@ -146,8 +152,7 @@ final class StatsCommand extends Command
             $groups = \array_slice($groups, 0, $limit, true);
         }
         if ('json' === $format) {
-            $json = json_encode(['days' => $days, 'by' => $by, 'groups' => $groups], \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE);
-            $output->writeln(false !== $json ? $json : '{}', OutputInterface::OUTPUT_RAW);
+            $this->writeJson($output, ['days' => $days, 'by' => $by, 'groups' => $groups]);
 
             return;
         }

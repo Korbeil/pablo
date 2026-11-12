@@ -8,8 +8,10 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Command\Command;
+use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
 use Pablo\Provider\Git\Sync;
+use Pablo\Provider\Git\SyncReport;
 use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
@@ -19,6 +21,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'sync:log', description: 'show the last sync/rebase session log')]
 final class RebaseLogCommand extends Command
 {
+    use FormatsOutput;
+
     public function __construct(
         private readonly Sync $sync,
         Store $store,
@@ -32,11 +36,13 @@ final class RebaseLogCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project');
+            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project')
+            ->addFormatOption();
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
+        $json = $this->wantsJson($input);
         $projects = $this->projects();
         $project = $input->getArgument('project') ?: null;
         if (null !== $project && !isset($projects[$project])) {
@@ -44,6 +50,25 @@ final class RebaseLogCommand extends Command
         }
         $names = null !== $project ? [$project] : array_keys($projects);
         sort($names);
+
+        if ($json) {
+            $logs = [];
+            foreach ($names as $name) {
+                $log = $this->sync->loadLastLog($name);
+                if (null === $log) {
+                    continue;
+                }
+                $logs[] = [
+                    'project' => $name,
+                    'timestamp' => $log->timestamp,
+                    'strategy' => $log->strategy,
+                    'reports' => array_map(static fn (SyncReport $r): array => $r->toArray(), $log->reports),
+                ];
+            }
+            $this->writeJson($output, ['logs' => $logs]);
+
+            return self::SUCCESS;
+        }
 
         $found = false;
         foreach ($names as $name) {

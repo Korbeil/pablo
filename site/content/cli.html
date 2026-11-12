@@ -8,7 +8,7 @@
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
     <tr><td><code>task:start &lt;issue-url&gt;</code><br><code>task:start --project=&lt;name&gt; "&lt;prompt&gt;"</code></td><td>Start a task: branch, worktree, task-analyst. <a href="page:tasks#start-a-task">Guide</a></td></tr>
-    <tr><td><code>task:list [--live] [--refresh] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--state=&lt;state&gt;…]</code></td><td>Active tasks, split into “waiting for feedback” and the rest. <code>--live</code> fetches fresh data, <code>--refresh</code> runs the poller first; <code>--project</code>, <code>--type</code> and <code>--state</code> (repeatable) narrow the list. <a href="page:tasks#see-your-tasks">Guide</a></td></tr>
+    <tr><td><code>task:list [--live] [--refresh] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--state=&lt;state&gt;…] [--format=json]</code></td><td>Active tasks, split into “waiting for feedback” and the rest. <code>--live</code> fetches fresh data, <code>--refresh</code> runs the poller first; <code>--project</code>, <code>--type</code> and <code>--state</code> (repeatable) narrow the list, in the table and in the JSON alike. <a href="page:tasks#see-your-tasks">Guide</a></td></tr>
     <tr><td><code>task:waiting [&lt;branch&gt;]</code></td><td>Pause the task, or resume it. <a href="page:tasks#pause-a-task">Guide</a></td></tr>
     <tr><td><code>task:state &lt;state&gt; [&lt;branch&gt;] [--no-trigger]</code></td><td>Force a state. <a href="page:tasks#force-a-state">Guide</a></td></tr>
     <tr><td><code>task:attach &lt;state&gt; [--project=&lt;name&gt;]</code></td><td>In a worktree. Adopt a worktree PABLO didn't create. <a href="page:tasks#adopt-an-existing-worktree">Guide</a></td></tr>
@@ -38,7 +38,7 @@
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
     <tr><td><code>project:new</code></td><td>Interactive wizard that writes a project file to <code>~/.pablo/projects/</code>. <a href="page:configuration#add-a-project">Guide</a></td></tr>
-    <tr><td><code>project:list</code></td><td>Configured projects and their settings.</td></tr>
+    <tr><td><code>project:list [--format=json]</code></td><td>Configured projects and their settings.</td></tr>
     <tr><td><code>project:remove &lt;name&gt;</code></td><td>Delete a project's file (refused while it has active tasks).</td></tr>
   </tbody>
 </table>
@@ -48,8 +48,8 @@
 <table class="cmds">
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
-    <tr><td><code>sync:run [&lt;project&gt;] [--apply|--dry-run]</code></td><td>Sync task branches with the primary branch. Dry run unless <code>--apply</code> or <code>sync.auto_apply</code>; <code>--dry-run</code> forces a dry run even with <code>sync.auto_apply</code> (it can't be combined with <code>--apply</code>). <a href="page:sync">Guide</a></td></tr>
-    <tr><td><code>sync:log [&lt;project&gt;]</code></td><td>What the last sync did.</td></tr>
+    <tr><td><code>sync:run [&lt;project&gt;] [--apply|--dry-run] [--format=json]</code></td><td>Sync task branches with the primary branch. Dry run unless <code>--apply</code> or <code>sync.auto_apply</code>; <code>--dry-run</code> forces a dry run even with <code>sync.auto_apply</code> (it can't be combined with <code>--apply</code>). <a href="page:sync">Guide</a></td></tr>
+    <tr><td><code>sync:log [&lt;project&gt;] [--format=json]</code></td><td>What the last sync did.</td></tr>
     <tr><td><code>sync:main [&lt;project&gt;] [--dry-run]</code></td><td>Update primary checkouts now. Naming a project runs it even if <code>main_update.enabled</code> is false. <code>--dry-run</code> runs every check and reports what it would do, without touching the checkout (it still fetches). <a href="page:sync#primary-checkout-update">Guide</a></td></tr>
   </tbody>
 </table>
@@ -59,10 +59,10 @@
 <table class="cmds">
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
-    <tr><td><code>system:doctor</code></td><td>Check every required tool is installed and logged in, and that the agents are up to date. <a href="page:providers#the-doctor">Details</a></td></tr>
+    <tr><td><code>system:doctor [--format=json]</code></td><td>Check every required tool is installed and logged in, and that the agents are up to date. <a href="page:providers#the-doctor">Details</a></td></tr>
     <tr><td><code>system:setup</code></td><td>The same checks as a wizard, one fix at a time.</td></tr>
     <tr><td><code>system:install [--runtime=opencode|claude-code|copilot] [--backend=orca|openchamber|headless] [--without-web] [--port=&lt;port&gt;]</code></td><td>Install or update PABLO for your user: config, the <code>pablo</code> command on your <code>PATH</code>, the agents and their links, the scheduler and dashboard services. Safe to run again. <a href="page:installation#what-pablo-system-install-does">Details</a></td></tr>
-    <tr><td><code>system:update [&lt;release&gt;] [--check] [--no-install] [--rollback]</code> (alias <code>update</code>)</td><td>Replace the <code>pablo</code> binary with the latest release for your OS and processor, or the release named (an older one too), checksum-verified, then run <code>system:install</code> with it; the replaced binary is kept, and put back automatically if that install fails. <code>--rollback</code> swaps the kept binary back (<a href="page:installation#rollback">Rolling back</a>). <code>--check</code> only reports. From a checkout, use <code>git pull</code> instead. <a href="page:installation#update">Details</a></td></tr>
+    <tr><td><code>system:update [&lt;release&gt;] [--check [--format=json]] [--no-install] [--rollback]</code> (alias <code>update</code>)</td><td>Replace the <code>pablo</code> binary with the latest release for your OS and processor, or the release named (an older one too), checksum-verified, then run <code>system:install</code> with it; the replaced binary is kept, and put back automatically if that install fails. <code>--rollback</code> swaps the kept binary back (<a href="page:installation#rollback">Rolling back</a>). <code>--check</code> only reports. From a checkout, use <code>git pull</code> instead. <a href="page:installation#update">Details</a></td></tr>
     <tr><td><code>system:uninstall</code></td><td>Remove what <code>system:install</code> created; keeps your data in <code>~/.pablo/</code>.</td></tr>
     <tr><td><code>system:generate-agents [--runtime=opencode|claude-code|copilot] [--agents-dir=&lt;dir&gt;] [--output-dir=&lt;dir&gt;] [--runtime-dir=&lt;dir&gt;]</code></td><td>Regenerate the agents from their templates into <code>~/.pablo/runtime/</code>: the OpenCode agent files with the command and the skill, plus, under Claude Code, <code>claude/agents.json</code>, the <code>pablo-&lt;agent&gt;.md</code> files and the command, or, under Copilot, the agent files and skills in <code>copilot/</code>. <code>--output-dir</code> moves the shared OpenCode render, <code>--runtime-dir</code> the runtime's own files (default <code>~/.pablo/runtime/&lt;runtime&gt;</code>). The runtime defaults to <code>agent_runtime</code>. <a href="page:agents#customise-the-agents">Details</a></td></tr>
     <tr><td><code>system:dispatch</code></td><td>The background job: run every due poll, sync and main update. Called by the scheduler every 5 minutes.</td></tr>
@@ -83,6 +83,66 @@
     <tr><td><code>task:history &lt;branch&gt; [--project=&lt;name&gt;] [--format=json]</code></td><td>One task's timeline from the analytics log: state transitions with their durations, agent runs with their tokens and cost. <a href="page:analytics#task-history">Guide</a></td></tr>
   </tbody>
 </table>
+
+<h2>Machine-readable output</h2>
+
+<p>The read commands take <code>--format=table|json</code> (default <code>table</code>): <code>task:list</code>, <code>project:list</code>, <code>sync:run</code>, <code>sync:log</code>, <code>system:doctor</code>, <code>system:update --check</code> and <code>stats</code> (which also takes <code>csv</code> for a <code>--by</code> breakdown). With <code>--format=json</code>, standard output holds one pretty-printed JSON object and nothing else; warnings and errors go to standard error, and the exit code is the same as with the table (<code>system:doctor</code> still exits non-zero on a hard failure). An unknown format is refused. <code>task:info</code> and <code>task:precommit-check</code> always print JSON; <code>--json</code> is accepted there for compatibility.</p>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>JSON shape</th></tr></thead>
+  <tbody>
+    <tr><td><code>task:list</code></td><td><code>{"tasks": [...]}</code>, in the table's order (waiting for feedback first). Each task: <code>project</code>, <code>branch</code>, <code>state</code>, <code>state_label</code> (no emoji), <code>waiting_for_feedback</code>, <code>summary</code>, <code>issue</code> (<code>provider</code>, <code>key</code>, <code>title</code>, <code>url</code>, or <code>null</code>), <code>tracker_status</code>, <code>pr</code> (<code>number</code>, <code>url</code>, <code>state</code>: <code>open</code>, <code>draft</code>, <code>merged</code>, <code>closed</code> or <code>unknown</code>, <code>draft</code>; <code>null</code> without a pull request), <code>ci</code> (<code>red</code>, <code>ignored</code>), <code>agents</code> (<code>total</code>, <code>running</code>, <code>waiting</code>), <code>worktree_path</code>, <code>state_entered_at</code>, <code>created_at</code>, <code>updated_at</code>, <code>cached_at</code>. <code>--live</code> and <code>--refresh</code> work as for the table.</td></tr>
+    <tr><td><code>project:list</code></td><td><code>{"projects": [...]}</code>: <code>name</code>, <code>type</code>, <code>provider</code>, <code>project_key</code>, <code>repo_path</code>, <code>primary_branch</code>, <code>worktrees_root</code>.</td></tr>
+    <tr><td><code>sync:run</code></td><td><code>{"projects": [...]}</code>: <code>project</code>, <code>strategy</code>, <code>applied</code>, and <code>reports</code>, one per task worktree: <code>branch</code>, <code>worktree</code>, <code>action</code> (<code>up-to-date</code>, <code>would-sync</code>, <code>synced</code>, <code>conflict</code>, <code>lease-failed</code>, <code>dirty</code>, <code>locked</code>, <code>skipped</code>, <code>error</code>), <code>behind</code>, <code>ahead</code>, <code>conflict_files</code>, <code>detail</code>, <code>agent_handle</code>, <code>target</code>.</td></tr>
+    <tr><td><code>sync:log</code></td><td><code>{"logs": [...]}</code>: <code>project</code>, <code>timestamp</code>, <code>strategy</code> and the same <code>reports</code> (the log does not keep <code>worktree</code> and <code>target</code>: they are empty). An empty list when no sync ran yet.</td></tr>
+    <tr><td><code>system:doctor</code></td><td><code>{"ok": bool, "checks": [...]}</code>: <code>group</code> (<code>config</code>, <code>cli</code>, <code>agents</code>), <code>name</code>, <code>status</code> (<code>ok</code>, <code>warn</code>, <code>fail</code>), <code>message</code>, <code>hint</code>. A stale agent is a <code>warn</code>; everything that makes the table fail is a <code>fail</code>.</td></tr>
+    <tr><td><code>system:update --check</code></td><td><code>current</code>, <code>latest</code>, <code>requested</code> (the release named, or <code>null</code>; when one is named, <code>latest</code> is not looked up and is <code>null</code>), <code>update_available</code>. Only with <code>--check</code>.</td></tr>
+    <tr><td><code>stats</code></td><td><code>days</code>, <code>tasks</code>, <code>agents</code>, <code>states</code>; with <code>--by</code>, <code>days</code>, <code>by</code> and <code>groups</code> instead. <a href="page:analytics">Guide</a></td></tr>
+  </tbody>
+</table>
+
+<pre><code class="language-bash">$ pablo task:list --format=json | jq '.tasks[] | select(.waiting_for_feedback) | .branch'
+"wk-45-fix-callbacks"
+$ pablo task:list --format=json
+{
+    "tasks": [
+        {
+            "project": "wallet-kit",
+            "branch": "wk-45-fix-callbacks",
+            "state": "request-changes",
+            "state_label": "request-changes",
+            "waiting_for_feedback": true,
+            "summary": null,
+            "issue": {
+                "provider": "github",
+                "key": "45",
+                "title": "Fix callbacks",
+                "url": "https://github.com/acme/wallet-kit/issues/45"
+            },
+            "tracker_status": "OPEN",
+            "pr": {
+                "number": 7,
+                "url": "https://github.com/acme/wallet-kit/pull/7",
+                "state": "draft",
+                "draft": true
+            },
+            "ci": {
+                "red": false,
+                "ignored": false
+            },
+            "agents": {
+                "total": 1,
+                "running": 0,
+                "waiting": 1
+            },
+            "worktree_path": "/home/me/.pablo/worktrees/wallet-kit/wk-45-fix-callbacks",
+            "state_entered_at": "2026-11-12T09:41:07Z",
+            "created_at": "2026-11-10T14:02:55Z",
+            "updated_at": "2026-11-12T09:41:07Z",
+            "cached_at": "2026-11-12T10:00:03Z"
+        }
+    ]
+}</code></pre>
 
 <h2>Agent command</h2>
 

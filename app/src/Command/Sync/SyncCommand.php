@@ -7,9 +7,11 @@ namespace Pablo\Command\Sync;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
 use Pablo\Dispatch\DispatchHealth;
 use Pablo\Provider\Git\Sync;
+use Pablo\Provider\Git\SyncReport;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -21,6 +23,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'sync:run', description: 'sync task worktrees with the primary branch')]
 final class SyncCommand extends Command
 {
+    use FormatsOutput;
+
     public function __construct(
         private readonly Sync $sync,
         private readonly DispatchHealth $health,
@@ -37,7 +41,8 @@ final class SyncCommand extends Command
         $this
             ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project')
             ->addOption('apply', null, InputOption::VALUE_NONE, 'actually sync (default dry-run unless sync.auto_apply is set)')
-            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'only report, even when sync.auto_apply is set');
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'only report, even when sync.auto_apply is set')
+            ->addFormatOption();
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
@@ -45,6 +50,7 @@ final class SyncCommand extends Command
         if ($input->getOption('apply') && $input->getOption('dry-run')) {
             throw new PabloError('--apply and --dry-run are mutually exclusive');
         }
+        $json = $this->wantsJson($input);
         $projects = $this->projects();
         $project = $input->getArgument('project') ?: null;
         if (null !== $project) {
@@ -63,8 +69,18 @@ final class SyncCommand extends Command
             (bool) $input->getOption('dry-run') => false,
             default => null,
         };
+        $results = [];
         foreach ($projects as $name => $cfg) {
             $reports = $this->sync->syncProject($cfg, $store, $apply, $agents);
+            if ($json) {
+                $results[] = [
+                    'project' => $name,
+                    'strategy' => $cfg->syncStrategy,
+                    'applied' => $apply ?? $cfg->syncAutoApply,
+                    'reports' => array_map(static fn (SyncReport $r): array => $r->toArray(), $reports),
+                ];
+                continue;
+            }
             $output->writeln("# {$name}");
             $output->writeln(Sync::renderReports($reports));
             // A manual run that works clears the dispatcher's failure streak and
@@ -72,6 +88,9 @@ final class SyncCommand extends Command
             if (false !== $apply) {
                 $this->health->recordSuccess($name, 'sync', microtime(true));
             }
+        }
+        if ($json) {
+            $this->writeJson($output, ['projects' => $results]);
         }
 
         return self::SUCCESS;

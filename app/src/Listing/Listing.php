@@ -276,16 +276,6 @@ final class Listing
 
     // ---------------------------------------------------- tasks table ----
 
-    private function stateCell(Task $task): string
-    {
-        $def = $this->stateMachine->states()[$task->state->value] ?? null;
-        if (null === $def) {
-            return $task->state->value;
-        }
-
-        return "{$def['emoji']} {$def['label']}";
-    }
-
     private function issueCell(Task $task): string
     {
         if (null !== $task->issue) {
@@ -377,12 +367,69 @@ final class Listing
      * whose 🏃 activity cell keeps them visible.
      *
      * Only tasks of $projects are listed; a non-empty $states keeps only the
-     * tasks in one of those states.
+     * tasks in one of those states (see taskRows()).
      *
      * @param array<string, ProjectConfig> $projects
      * @param list<State>                  $states
      */
     public function tasksTable(array $projects, Store $store, AgentLauncherInterface $agents, bool $live = false, bool $refresh = false, array $states = []): string
+    {
+        $rows = $this->taskRows($projects, $store, $agents, $live, $refresh, $states);
+        if ([] === $rows) {
+            return 'no active tasks';
+        }
+
+        $waiting = array_values(array_filter($rows, static fn (TaskRow $r) => $r->waitingForFeedback));
+        $rest = array_values(array_filter($rows, static fn (TaskRow $r) => !$r->waitingForFeedback));
+
+        $sections = [];
+        if ([] !== $waiting) {
+            $sections[] = "💭 Waiting for feedback\n\n".$this->table(self::TASKS_HEADERS, array_map($this->taskCells(...), $waiting));
+        }
+        if ([] !== $rest) {
+            $header = [] !== $waiting ? "Other tasks\n\n" : '';
+            $sections[] = $header.$this->table(self::TASKS_HEADERS, array_map($this->taskCells(...), $rest));
+        }
+        $pollHeader = $this->lastPollHeader($projects);
+        if ('' !== $pollHeader) {
+            array_unshift($sections, $pollHeader);
+        }
+
+        return implode("\n\n", $sections);
+    }
+
+    /** @return list<string> */
+    private function taskCells(TaskRow $row): array
+    {
+        return [
+            $row->task->project,
+            $row->task->branch,
+            $row->stateCell(),
+            $row->agentCell->count,
+            $row->agentCell->activity,
+            $this->issueCell($row->task),
+            $row->tracker,
+            $row->prCell,
+            $this->timeSince($row->task->stateEnteredAt),
+        ];
+    }
+
+    /**
+     * The rows of tasksTable(), resolved once from the display cache (or
+     * fetched live with $live / $refresh; $refresh also persists them as the
+     * new cache), in display order: waiting-for-feedback first, each part by
+     * state rank. `task:list --format=json` serialises these, the table
+     * renders them.
+     *
+     * Only tasks of $projects are kept; a non-empty $states keeps only the
+     * tasks in one of those states.
+     *
+     * @param array<string, ProjectConfig> $projects
+     * @param list<State>                  $states
+     *
+     * @return list<TaskRow>
+     */
+    public function taskRows(array $projects, Store $store, AgentLauncherInterface $agents, bool $live = false, bool $refresh = false, array $states = []): array
     {
         $fetchLive = $live || $refresh;
         $tasks = array_values(array_filter(
@@ -442,7 +489,7 @@ final class Listing
             ? $this->gh->prsForBranchesBulk($repoBranches)
             : [];
 
-        $entries = [];
+        $rows = [];
         foreach ($tasks as $task) {
             $cfg = $projects[$task->project];
             $tracker = $this->remoteStatusCell($task, $cfg, $fetchLive, $trackerStatuses[$cfg->provider] ?? null);
@@ -454,65 +501,32 @@ final class Listing
                 $agents,
                 $sessionsByWorktree[$task->worktreePath] ?? null,
             );
-            $count = $cell->count;
-            $activity = $cell->activity;
             if ($refresh) {
                 $task->displayCache = new DisplayCache(
                     trackerStatus: (null !== $task->issue && '?' !== $tracker) ? $tracker : $task->displayCache->trackerStatus,
                     prState: $pr,
-                    agentCount: (int) $count,
-                    agentActivity: $activity,
+                    agentCount: (int) $cell->count,
+                    agentActivity: $cell->activity,
                     at: $this->time->utcnow(),
                 );
                 $store->save($task);
             }
-            $entries[] = [$task, [
-                $task->project,
-                $task->branch,
-                $this->stateCell($task),
-                $count,
-                $activity,
-                $this->issueCell($task),
-                $tracker,
-                $pr,
-                $this->timeSince($task->stateEnteredAt),
-            ]];
+            $def = $this->stateMachine->states()[$task->state->value] ?? null;
+            $rows[] = new TaskRow(
+                task: $task,
+                stateLabel: $def['label'] ?? $task->state->value,
+                stateEmoji: $def['emoji'] ?? '',
+                tracker: $tracker,
+                prCell: $pr,
+                agentCell: $cell,
+                waitingForFeedback: $this->isWaitingForFeedback($task, AgentActivity::fromDisplay((int) $cell->count, $cell->activity)),
+                repoSlug: $slug,
+            );
         }
 
-        if ([] === $entries) {
-            return 'no active tasks';
-        }
+        usort($rows, fn (TaskRow $a, TaskRow $b): int => ($b->waitingForFeedback <=> $a->waitingForFeedback) ?: $this->rankEntries($a->task, $b->task));
 
-        $waitingEntries = [];
-        $restEntries = [];
-        foreach ($entries as $entry) {
-            $activity = AgentActivity::fromDisplay((int) $entry[1][3], $entry[1][4]);
-            if ($this->isWaitingForFeedback($entry[0], $activity)) {
-                $waitingEntries[] = $entry;
-            } else {
-                $restEntries[] = $entry;
-            }
-        }
-
-        usort($waitingEntries, fn (array $a, array $b): int => $this->rankEntries($a[0], $b[0]));
-        usort($restEntries, fn (array $a, array $b): int => $this->rankEntries($a[0], $b[0]));
-
-        $sections = [];
-        if ([] !== $waitingEntries) {
-            $rows = array_map(static fn ($e) => $e[1], $waitingEntries);
-            $sections[] = "💭 Waiting for feedback\n\n".$this->table(self::TASKS_HEADERS, $rows);
-        }
-        if ([] !== $restEntries) {
-            $rows = array_map(static fn ($e) => $e[1], $restEntries);
-            $header = [] !== $waitingEntries ? "Other tasks\n\n" : '';
-            $sections[] = $header.$this->table(self::TASKS_HEADERS, $rows);
-        }
-        $pollHeader = $this->lastPollHeader($projects);
-        if ('' !== $pollHeader) {
-            array_unshift($sections, $pollHeader);
-        }
-
-        return implode("\n\n", $sections);
+        return $rows;
     }
 
     /**
