@@ -5,7 +5,7 @@
 <h2>The map</h2>
 
 <figure class="sm-figure">
-<div class="sm-scroll"><svg class="sm-svg" viewBox="0 0 984 340" role="img" aria-label="PABLO's task state machine">
+<div class="sm-scroll"><svg class="sm-svg" viewBox="0 0 984 340" role="img" aria-label="Diagram of PABLO's task states: pablo task:start enters in-progress, /pablo-commit-and-pr moves the task to draft, then the poller moves it through ci-red, ready-to-review, waiting-review, approved, needs-testing, request-changes and testing-failed; waiting is a pause from almost any state" aria-describedby="state-table">
   <defs>
     <marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9a968a"/></marker>
     <marker id="arr-y" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#c9ab12"/></marker>
@@ -41,7 +41,7 @@
 
 <h2>Every state</h2>
 
-<table>
+<table id="state-table">
   <thead><tr><th>State</th><th>Entered when</th><th>On entering</th></tr></thead>
   <tbody>
     <tr><td>🔨 <code>in-progress</code></td><td><code>pablo task:start</code></td><td>launch <b>task-analyst</b> and the project's startup script (each only once per task)</td></tr>

@@ -19,6 +19,7 @@
 
   let entries = null;
   let loading = null;
+  let failed = false;
   let results = [];
   let selected = 0;
   let lastFocus = null;
@@ -33,16 +34,18 @@
     <div class="search-panel" role="dialog" aria-modal="true" aria-label="Search the documentation">
       <div class="search-field">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-        <input type="search" placeholder="Search the docs…" aria-label="Search the docs" aria-controls="search-results" autocomplete="off" spellcheck="false">
+        <input type="search" placeholder="Search the docs…" aria-label="Search the docs" role="combobox" aria-expanded="false" aria-controls="search-results" aria-autocomplete="list" autocomplete="off" spellcheck="false">
         <kbd>Esc</kbd>
       </div>
-      <ul class="search-results" id="search-results" role="listbox"></ul>
+      <ul class="search-results" id="search-results" role="listbox" aria-label="Results"></ul>
+      <p class="visually-hidden" role="status" aria-live="polite"></p>
       <div class="search-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> to move</span><span><kbd>↵</kbd> to open</span><span><kbd>Esc</kbd> to close</span></div>
     </div>`;
   document.body.appendChild(root);
 
   const input = root.querySelector('input');
   const list = root.querySelector('.search-results');
+  const status = root.querySelector('[role="status"]');
 
   // ---------------------------------------------------------------- index
 
@@ -53,12 +56,16 @@
   function load() {
     if (entries) return Promise.resolve();
     if (!loading) {
+      failed = false;
       loading = fetch(indexUrl)
-        .then((r) => r.json())
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          return r.json();
+        })
         .then((data) => {
           entries = data.map((e) => ({ ...e, P: fold(e.p), H: fold(e.h), T: fold(e.t) }));
         })
-        .catch(() => { loading = null; });
+        .catch(() => { loading = null; failed = true; });
     }
     return loading;
   }
@@ -146,7 +153,7 @@
   function item(e, i, tokens) {
     const title = e.h || e.p;
     const page = e.h ? (e.s ? `${e.s} › ${e.p}` : e.p) : (e.s || 'Documentation');
-    return `<li role="option" id="search-opt-${i}"><a href="${esc(e.u)}" data-i="${i}">`
+    return `<li role="option" id="search-opt-${i}" aria-selected="false"><a href="${esc(e.u)}" data-i="${i}" tabindex="-1">`
       + `<span class="search-hit-page">${esc(page)}</span>`
       + `<span class="search-hit-title">${tokens ? mark(title, tokens) : esc(title)}</span>`
       + `<span class="search-hit-text">${tokens ? mark(snippet(e.t, tokens), tokens) : esc(snippet(e.t, []))}</span>`
@@ -155,27 +162,43 @@
 
   function render() {
     const q = input.value.trim();
+    results = [];
     if (!entries) {
-      list.innerHTML = '<li class="search-empty">Loading…</li>';
+      const message = failed
+        ? 'Search is unavailable: the index could not be loaded. Check your connection, then type again to retry.'
+        : 'Loading…';
+      list.innerHTML = `<li class="search-empty${failed ? ' search-error' : ''}" role="presentation">${message}</li>`;
+      announce(message);
       return;
     }
     if (!q) {
       results = SUGGESTED.map((p) => entries.find((e) => e.p === p && !e.h)).filter(Boolean);
-      list.innerHTML = '<li class="search-label">Popular pages</li>' + results.map((e, i) => item(e, i, null)).join('');
+      list.innerHTML = '<li class="search-label" role="presentation">Popular pages</li>' + results.map((e, i) => item(e, i, null)).join('');
+      announce('');
     } else {
       results = search(q);
       list.innerHTML = results.length
         ? results.map((e, i) => item(e, i, e.tokens)).join('')
-        : `<li class="search-empty">No results for “${esc(q)}”. Try fewer or shorter words, or a command such as <b>task:start</b>.</li>`;
+        : `<li class="search-empty" role="presentation">No results for “${esc(q)}”. Try fewer or shorter words, or a command such as <b>task:start</b>.</li>`;
+      announce(results.length ? `${results.length} result${results.length > 1 ? 's' : ''}` : `No results for ${q}`);
     }
     select(0);
+  }
+
+  function announce(message) {
+    if (status.textContent !== message) status.textContent = message;
+    input.setAttribute('aria-expanded', String(results.length > 0));
+    if (!results.length) input.removeAttribute('aria-activedescendant');
   }
 
   function select(i) {
     const links = list.querySelectorAll('a');
     if (!links.length) return;
     selected = (i + links.length) % links.length;
-    links.forEach((a, j) => a.classList.toggle('is-selected', j === selected));
+    links.forEach((a, j) => {
+      a.classList.toggle('is-selected', j === selected);
+      a.parentElement.setAttribute('aria-selected', String(j === selected));
+    });
     input.setAttribute('aria-activedescendant', `search-opt-${selected}`);
     links[selected].scrollIntoView({ block: 'nearest' });
   }
@@ -197,12 +220,16 @@
     if (root.hidden) return;
     root.hidden = true;
     document.body.classList.remove('search-open');
+    input.setAttribute('aria-expanded', 'false');
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
 
   // --------------------------------------------------------------- events
 
-  input.addEventListener('input', render);
+  input.addEventListener('input', () => {
+    render();
+    if (failed && !loading) load().then(render);
+  });
 
   input.addEventListener('keydown', (ev) => {
     if (ev.key === 'ArrowDown') { ev.preventDefault(); select(selected + 1); }

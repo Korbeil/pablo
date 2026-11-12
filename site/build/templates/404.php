@@ -9,11 +9,12 @@
 $title = 'Page not found';
 $description = 'This page does not exist. Search the PABLO docs or start from the documentation home.';
 $current = '-';
+$path = null; // served for any missing URL: no canonical of its own
 require __DIR__.'/_header.php';
 ?>
 <div class="docs-layout nav-wide">
   <?php require __DIR__.'/_sidebar.php'; ?>
-  <main class="docs-main" id="content">
+  <main class="docs-main" id="content" tabindex="-1">
     <article class="prose">
       <h1>Page not found</h1>
       <p class="lead">This page doesn't exist, or it moved when the docs were reorganised.</p>

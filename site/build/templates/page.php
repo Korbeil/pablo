@@ -15,12 +15,13 @@
  * @var callable                                                                                   $e
  */
 $description = $page['description'];
+$path = 'index' === $current ? 'docs/' : 'docs/'.$current.'/';
 require __DIR__.'/_header.php';
 ?>
 <div class="docs-layout nav-wide">
   <?php require __DIR__.'/_sidebar.php'; ?>
 
-  <main class="docs-main" id="content">
+  <main class="docs-main" id="content" tabindex="-1">
     <?php if ('' !== $page['section']) { ?>
       <p class="tag docs-section"><?= $e($page['section']) ?></p>
     <?php } ?>

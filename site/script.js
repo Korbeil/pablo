@@ -57,36 +57,59 @@
     while (log.children.length > 5) log.removeChild(log.firstChild);
   }
 
+  function apply(e, flash) {
+    if (e.set) {
+      const [id, patch] = e.set;
+      rows = rows.map((r) => (r.id === id ? { ...r, ...patch } : r));
+      renderRows(flash ? id : undefined);
+    } else if (e.remove) {
+      rows = rows.filter((r) => r.id !== e.remove);
+      renderRows();
+    }
+    addLog(e.t, e.msg);
+  }
+
+  // The loop never ends, so it gets a pause button (WCAG 2.2.2). With
+  // reduced motion it starts paused, half-way through the night.
   function runTerminal() {
     if (!tbody || !log) return;
-    renderRows();
-    if (reduceMotion) {
-      timeline.slice(0, 4).forEach((e) => addLog(e.t, e.msg));
-      return;
-    }
+    const toggle = document.getElementById('term-toggle');
     let i = 0;
+    let timer = null;
+    let paused = reduceMotion;
+
+    const schedule = (delay) => {
+      clearTimeout(timer);
+      timer = paused ? null : setTimeout(tick, delay);
+    };
     const tick = () => {
       if (i === timeline.length) {
         rows = initialRows();
         log.innerHTML = '';
         renderRows();
         i = 0;
-        setTimeout(tick, 1800);
+        schedule(1800);
         return;
       }
-      const e = timeline[i++];
-      if (e.set) {
-        const [id, patch] = e.set;
-        rows = rows.map((r) => (r.id === id ? { ...r, ...patch } : r));
-        renderRows(id);
-      } else if (e.remove) {
-        rows = rows.filter((r) => r.id !== e.remove);
-        renderRows();
-      }
-      addLog(e.t, e.msg);
-      setTimeout(tick, i === timeline.length ? 4200 : 2400);
+      apply(timeline[i++], true);
+      schedule(i === timeline.length ? 4200 : 2400);
     };
-    setTimeout(tick, 1400);
+
+    renderRows();
+    if (reduceMotion) {
+      while (i < 4) apply(timeline[i++], false);
+    }
+    if (toggle) {
+      const label = () => { toggle.textContent = paused ? 'Play animation' : 'Pause animation'; };
+      toggle.hidden = false;
+      label();
+      toggle.addEventListener('click', () => {
+        paused = !paused;
+        label();
+        schedule(800);
+      });
+    }
+    schedule(1400);
   }
 
   document.querySelectorAll('[data-copy]').forEach((btn) => {
