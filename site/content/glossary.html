@@ -1,0 +1,73 @@
+<h1>Glossary</h1>
+
+<p>The words the documentation uses for PABLO's moving parts, one name per concept, each with a link to the page that explains it.</p>
+
+<h2>Agents and where they run</h2>
+
+<h3 id="ade">ADE (agent environment)</h3>
+
+<p>Where agents run and where you open them: Orca (the default), OpenChamber, or headless (in the background, without an application). Chosen with the <code>agent_backend</code> config key or the <code>PABLO_AGENT_BACKEND</code> environment variable. See <a href="page:runtimes#choose-an-ade">Choose an ADE</a> and <a href="page:how-it-works#agent-backends">Agent environments (ADEs)</a>.</p>
+
+<h3 id="runtime">Runtime</h3>
+
+<p>The agent CLI that runs the agents inside the ADE: OpenCode (the default), Claude Code or GitHub Copilot CLI. Chosen with <code>agent_runtime</code> or <code>PABLO_AGENT_RUNTIME</code>. See <a href="page:runtimes#choose-an-agent-runtime">Choose a runtime</a>.</p>
+
+<h3 id="agent">Agent</h3>
+
+<p>One of PABLO's five agents, each launched by a state: <b>task-analyst</b>, <b>ci-analyst</b>, <b>pr-feedback</b> and <b>task-feedback</b>, which only read and analyse, and <b>rebase-conflict-resolver</b>, the one that may edit code. See <a href="page:agents#the-agents">The agents</a>.</p>
+
+<h3 id="launch-record">Launch record</h3>
+
+<p>What a task remembers of each agent launch (<code>agent_launches</code>: when, how many attempts), so the poller can relaunch an agent whose session never appeared. See <a href="page:states#launches-that-never-start">Launches that never start</a>.</p>
+
+<h2>Tasks</h2>
+
+<h3 id="task">Task</h3>
+
+<p>One piece of work, from an issue or a prompt: a branch, its worktree, and later its pull request, followed by PABLO until it is merged or closed. See <a href="page:tasks#start-a-task">Start a task</a>.</p>
+
+<h3 id="worktree">Worktree</h3>
+
+<p>The git worktree of a task's branch, created from the remote primary branch. Agents run in it, and you work in it; it is removed when the pull request is merged or when you close the task (a pull request closed without merging only moves the task to <code>closed</code>). See <a href="page:tasks#start-a-task">Start a task</a>.</p>
+
+<h3 id="state">State</h3>
+
+<p>Where a task stands in PABLO's state machine (<code>in-progress</code>, <code>draft</code>, <code>ci-red</code>, <code>waiting-review</code>…). Entering a state may launch an agent. See <a href="page:states#every-state">Every state</a>.</p>
+
+<h3 id="failure-signal">Failure signal</h3>
+
+<p>How QA says a task failed testing: a label on the pull request (GitHub) or an issue status (Jira, Linear), set by <code>testing.failure_signal</code>. Only a new one moves a task to <code>testing-failed</code>. See <a href="page:states#qa-failure-signal">QA failure signal</a>.</p>
+
+<h3 id="ready-anchor">Ready anchor</h3>
+
+<p>The time of GitHub's last “ready for review” event on a pull request. Only reviews submitted after it count, so an approval from a previous round doesn't leak into this one. See <a href="page:states#reviews">Reviews</a>.</p>
+
+<h3 id="display-cache">Display cache</h3>
+
+<p>The rendered cells of <code>pablo task:list</code>, written into each task record by the poller, so the listing and the dashboard show instantly without calling GitHub. See <a href="page:storage#task-records">Task records</a>.</p>
+
+<h2>The background job</h2>
+
+<h3 id="scheduler">Scheduler</h3>
+
+<p>The systemd user timer (Linux) or launchd agent (macOS) that starts the dispatcher every 5 minutes. See <a href="page:how-it-works#two-layers">Two layers</a>.</p>
+
+<h3 id="dispatcher">Dispatcher</h3>
+
+<p><code>pablo system:dispatch</code>, the background job the scheduler runs: under a global lock, it runs each project's poll, sync and main jobs when their interval has elapsed. See <a href="page:how-it-works#the-background-job">The background job</a>.</p>
+
+<h3 id="stamp">Stamp</h3>
+
+<p>A file in <code>~/.pablo/stamps/</code> holding the last successful run of one job for one project; the dispatcher compares it with the job's interval. See <a href="page:storage#the-pablo-folder">The <code>~/.pablo</code> folder</a>.</p>
+
+<h3 id="poller">Poller</h3>
+
+<p>The poll job: it checks each task's pull request, CI, reviews and failure signal, and moves the task through the state machine. See <a href="page:states#what-the-poller-watches">What the poller watches</a>.</p>
+
+<h3 id="sync">Sync</h3>
+
+<p>The job that rebases (or merges) task branches onto the primary branch: only a report by default (unless <code>sync.auto_apply</code> is on), never resolving a conflict in code. See <a href="page:sync#task-branches">Task branches</a>.</p>
+
+<h3 id="primary-branch">Primary branch, primary checkout</h3>
+
+<p>The primary branch is the project's main branch (<code>main</code>, say), which tasks start from and sync onto. The primary checkout is your own clone of the project, which the main job fast-forwards when it is clean. See <a href="page:sync#primary-checkout-update">Primary checkout update</a>.</p>

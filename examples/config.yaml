@@ -21,7 +21,7 @@ pr_description_locale: en
 # scheduler:
 #   path: [~/tools/bin]  # extra dirs first on the services' PATH (re-run system:install)
 # agent_runtime: opencode | claude-code | copilot  (default: opencode)
-# The program that runs the agents. With claude-code, PABLO launches
+# The runtime: the agent CLI that runs the agents. With claude-code, PABLO launches
 # `claude -p` with its agents from ~/.pablo/runtime/claude/agents.json, links the
 # agents into ~/.claude/agents as pablo-<agent> (visible in /agents and the
 # @ picker), links /pablo-commit-and-pr and the pablo-task skill into ~/.claude, and needs a Claude model above, e.g.
@@ -39,8 +39,9 @@ pr_description_locale: en
 # fallback, the rebase-conflict resolver) are Remote Control sessions you can
 # follow live from claude.ai/code and the Claude apps; false keeps `claude -p`.
 # Also settable with PABLO_CLAUDE_REMOTE_CONTROL=0/1.
-# agent_backend: orca | openchamber  (default: orca)
-# OpenChamber is an alternative agent runner (directory-based; no Orca repo
+# agent_backend: orca | openchamber | headless  (default: orca)
+# The agent environment (ADE: Orca, OpenChamber or headless): where the
+# agents run. OpenChamber is an alternative ADE (directory-based; no Orca repo
 # registration or worktree adoption needed). Set it here or via the
 # PABLO_AGENT_BACKEND env var. When it differs from `orca`, `pablo
 # system:doctor`/`system:setup` check the openchamber CLI too.

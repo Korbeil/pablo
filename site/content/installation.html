@@ -10,8 +10,8 @@
 
 <ul>
   <li><b>git</b>: every task is a branch and a worktree.</li>
-  <li><b>An agent runtime</b> that runs the agents: <a href="https://opencode.ai">OpenCode</a> set up with your usual model provider (the default), <a href="https://code.claude.com/docs">Claude Code</a> logged in to your Claude account, or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> logged in to your GitHub account. See <a href="page:runtimes">Runtimes &amp; ADEs</a>.</li>
-  <li><b>An agent environment (ADE)</b>, <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a>: where agents run and where you chat with them. Optional in theory (without one, agents run headless in the background), but that's where you'll read their work. See <a href="page:runtimes#choose-an-ade">Choose an agent environment</a>.</li>
+  <li><b>A runtime</b>, the agent CLI that runs the agents: <a href="https://opencode.ai">OpenCode</a> set up with your usual model provider (the default), <a href="https://code.claude.com/docs">Claude Code</a> logged in to your Claude account, or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> logged in to your GitHub account. See <a href="page:runtimes">Runtimes &amp; ADEs</a>.</li>
+  <li><b>An agent environment (ADE: Orca, OpenChamber or headless)</b>: <a href="https://www.onorca.dev/">Orca</a> or <a href="https://openchamber.dev/">OpenChamber</a> is where agents run and where you chat with them. Optional in theory (without one, agents run headless in the background), but that's where you'll read their work. See <a href="page:runtimes#choose-an-ade">Choose an ADE</a>.</li>
   <li><b>curl</b>, to download PABLO. Nothing else: the binary carries its own PHP.</li>
 </ul>
 
@@ -45,13 +45,13 @@
 
 <ol>
   <li>checks that <code>git</code> and <code>curl</code> are there, and which binary your OS and processor need;</li>
-  <li>looks for the <a href="page:runtimes#choose-an-agent-runtime">agent runtimes</a> you have (OpenCode, Claude Code, GitHub Copilot CLI) and asks which one to use;</li>
-  <li>looks for the <a href="page:runtimes#choose-an-ade">agent environments (ADEs)</a> you have (Orca, OpenChamber) and asks which one to use. It only offers the ones that can run your runtime;</li>
+  <li>looks for the <a href="page:runtimes#choose-an-agent-runtime">runtimes</a> you have (OpenCode, Claude Code, GitHub Copilot CLI) and asks which one to use;</li>
+  <li>looks for the <a href="page:runtimes#choose-an-ade">ADEs</a> you have (Orca, OpenChamber) and asks which one to use. It only offers the ones that can run your runtime;</li>
   <li>asks whether to install the <a href="#the-dashboard-service">dashboard service</a>. If another program already uses its port (8321, or the <code>dashboard_port</code> of your config), it suggests the next free port and lets you type another; without a terminal it takes the suggestion. A port already used by PABLO's own dashboard (a re-install) is kept. Then it shows a summary;</li>
   <li>downloads <code>pablo-&lt;os&gt;-&lt;arch&gt;</code> from the latest <a href="https://github.com/Korbeil/pablo/releases">GitHub release</a>, checks it against the release's <code>sha256sums.txt</code> (a mismatch installs nothing), installs it as <code>~/.local/bin/pablo</code>, then runs <a href="#what-pablo-system-install-does"><code>pablo system:install</code></a> with your answers.</li>
 </ol>
 
-<p>If it finds no agent runtime, it stops and sends you back to the <a href="#prerequisites">prerequisites</a>. If it finds no agent environment (ADE), it says so with the same pointer and offers to carry on headless (the agents then run in the background) or to stop so you can install one first. Without a terminal, it carries on headless.</p>
+<p>If it finds no runtime, it stops and sends you back to the <a href="#prerequisites">prerequisites</a>. If it finds no ADE (neither Orca nor OpenChamber), it says so with the same pointer and offers to carry on headless (the agents then run in the background) or to stop so you can install one first. Without a terminal, it carries on headless.</p>
 
 <p>Every question has an option, so you can script it. Pass options after <code>bash -s --</code>:</p>
 
@@ -79,7 +79,7 @@
 <ol>
   <li>creates <code>~/.pablo/</code> and, if you don't have one yet, a default <a href="page:configuration#global-defaults">global config</a> in <code>~/.pablo/config.yaml</code>, set to the tools you have installed (Claude Code when it finds Claude Code but no OpenCode, Copilot when it finds Copilot CLI but neither, OpenChamber when it finds OpenChamber but no Orca);</li>
   <li>makes sure <code>~/.local/bin/pablo</code> is this binary and, if that directory isn't on your <code>PATH</code> yet, adds it (see below);</li>
-  <li>renders the agents for your <a href="page:runtimes">agent runtime</a>, and extracts the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, into <code>~/.pablo/runtime/</code>;</li>
+  <li>renders the agents for your <a href="page:runtimes">runtime</a>, and extracts the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, into <code>~/.pablo/runtime/</code>;</li>
   <li>links them into <code>~/.config/opencode/</code> (OpenCode), <code>~/.claude/</code> (Claude Code) or <code>~/.copilot/</code> (Copilot);</li>
   <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary), with the <a href="#the-services-path">services' <code>PATH</code></a> computed from yours;</li>
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
@@ -152,11 +152,11 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
 <ol>
   <li>the directories listed under <code>scheduler.path</code> in <code>~/.pablo/config.yaml</code>, if any (see <a href="page:configuration#global-only-keys">Configuration</a>);</li>
   <li><code>~/.local/bin</code> and <code>~/bin</code>;</li>
-  <li>the directory where it finds, on your <code>PATH</code>, each command PABLO may call: the selected runtime's CLI (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), the selected environment's CLI (<code>orca-ide</code> on Linux, <code>orca</code> on macOS, or <code>openchamber</code>), <code>git</code>, <code>gh</code>, <code>node</code> (npm and pnpm shims need it), <code>acli</code>, <code>linear</code>, <code>bash</code>, <code>setsid</code>, <code>perl</code> (the macOS fallback for <code>setsid</code>), <code>script</code> and <code>brew</code>;</li>
+  <li>the directory where it finds, on your <code>PATH</code>, each command PABLO may call: the selected runtime's CLI (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), the selected ADE's CLI (<code>orca-ide</code> on Linux, <code>orca</code> on macOS, or <code>openchamber</code>), <code>git</code>, <code>gh</code>, <code>node</code> (npm and pnpm shims need it), <code>acli</code>, <code>linear</code>, <code>bash</code>, <code>setsid</code>, <code>perl</code> (the macOS fallback for <code>setsid</code>), <code>script</code> and <code>brew</code>;</li>
   <li>the system directories (<code>/usr/local/bin</code>, <code>/usr/bin</code>, <code>/bin</code>, …).</li>
 </ol>
 
-<p>Install prints it as <code>services PATH: …</code>. It is computed once: after installing or moving one of those tools, or changing the runtime or environment, run <code>pablo system:install</code> again.</p>
+<p>Install prints it as <code>services PATH: …</code>. It is computed once: after installing or moving one of those tools, or changing the runtime or ADE, run <code>pablo system:install</code> again.</p>
 
 <h3>First install on macOS</h3>
 
