@@ -31,6 +31,8 @@ final class RebaseLogView
         'lease-failed' => ['is-warning', 'lucide:rotate-ccw', 'lease failed'],
         'dirty' => ['is-warning', 'lucide:file-pen', 'dirty'],
         'locked' => ['pablo-chip-muted', 'lucide:lock', 'locked'],
+        'skipped' => ['pablo-chip-muted', 'lucide:git-pull-request-closed', 'skipped'],
+        'error' => ['is-danger', 'lucide:circle-x', 'error'],
         'unregistered' => ['pablo-chip-muted', 'lucide:circle-alert', 'unregistered'],
     ];
 

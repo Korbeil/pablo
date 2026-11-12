@@ -26,6 +26,8 @@ pablo sync:log               # what the last sync did, per project
 <ul>
   <li>✋ <b>Dirty worktrees</b>, with uncommitted changes, are never rebased.</li>
   <li>🔒 <b>Busy tasks</b>: sync and the poller never work on the same task at the same time. A locked task is skipped and retried next time.</li>
+  <li>⏭️ <b>Closed tasks</b>: a task in <code>closed</code> (pull request closed without merging) is never rebased or pushed; its worktree is only kept for a last look. It shows as <code>skipped</code> in the log. A paused (<code>waiting</code>) task, on the other hand, keeps being synced.</li>
+  <li>❌ <b>Broken worktrees</b>: if git fails in one worktree (for example a worktree deleted by hand that git still lists), that task is reported as <code>error</code> with git's message and retried next time; the other tasks still sync and the log is still written. <code>git worktree prune</code> removes a deleted worktree from git's list.</li>
 </ul>
 
 <h3>Conflicts</h3>

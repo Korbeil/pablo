@@ -50,6 +50,8 @@ final class SyncTest extends TestCase
     {
         $this->tmp = sys_get_temp_dir().'/pablo-sync-'.uniqid();
         mkdir($this->tmp, 0o777, true);
+        // Keep the rebase log out of the real ~/.pablo/logs.
+        putenv('PABLO_LOGS_DIR='.$this->tmp.'/logs');
         $repos = RepoHelper::makeRepos($this->tmp);
         $this->clone = $repos['clone'];
         $this->other = $repos['other'];
@@ -67,6 +69,7 @@ final class SyncTest extends TestCase
 
     protected function tearDown(): void
     {
+        putenv('PABLO_LOGS_DIR');
     }
 
     private function makeConfig(bool $autoApply, string $provider = 'github'): ProjectConfig
@@ -143,6 +146,51 @@ final class SyncTest extends TestCase
         }
         $this->assertSame('locked', $this->byBranch($reports)['pr-1']->action);
         $this->assertFileDoesNotExist($this->wt.'/new.txt');
+    }
+
+    public function testOneBrokenWorktreeDoesNotStopTheOthers(): void
+    {
+        // A task worktree deleted by hand stays listed by git, so every git
+        // call in it fails; the other tasks must still sync and be logged.
+        $broken = $this->realGit()->createWorktree($this->clone, $this->cfg->worktreesRoot, 'pr-2', 'main');
+        $this->store->save(new Task('proj', 'pr-2', $broken, State::Draft));
+        (new \Symfony\Component\Filesystem\Filesystem())->remove($broken);
+
+        $reports = $this->byBranch($this->sync()->syncProject($this->cfg, $this->store, true));
+
+        $this->assertSame('error', $reports['pr-2']->action);
+        $this->assertStringContainsString('will retry next cycle', $reports['pr-2']->detail);
+        $this->assertSame('synced', $reports['pr-1']->action);
+        $this->assertFileExists($this->wt.'/new.txt');
+
+        $log = $this->sync()->loadLastLog('proj');
+        $this->assertNotNull($log);
+        $actions = array_map(static fn ($r) => $r->action, $log->reports);
+        $this->assertContains('error', $actions);
+        $this->assertContains('synced', $actions);
+        $this->assertStringContainsString('pr-2', Sync::renderReports($log->reports));
+    }
+
+    public function testClosedTaskIsNotSynced(): void
+    {
+        $this->store->save(new Task('proj', 'pr-1', $this->wt, State::Closed));
+
+        $reports = $this->sync()->syncProject($this->makeConfig(true), $this->store, null);
+
+        $report = $this->byBranch($reports)['pr-1'];
+        $this->assertSame('skipped', $report->action);
+        $this->assertStringContainsString('closed', $report->detail);
+        $this->assertFileDoesNotExist($this->wt.'/new.txt');
+    }
+
+    public function testWaitingTaskIsStillSynced(): void
+    {
+        // Pausing a task never pauses its worktree sync.
+        $this->store->save(new Task('proj', 'pr-1', $this->wt, State::Waiting));
+
+        $reports = $this->sync()->syncProject($this->cfg, $this->store, true);
+
+        $this->assertSame('synced', $this->byBranch($reports)['pr-1']->action);
     }
 
     public function testUntrackedWorktreeIsSkipped(): void
