@@ -19,6 +19,13 @@ return static function (ContainerConfigurator $container): void {
 
     $container->extension('framework', [
         'secret' => '%env(default:pablo.secret_fallback:PABLO_SECRET)%',
+        // The dashboard only listens on 127.0.0.1 (Pablo\Web\PhpServer), but a
+        // web page whose host name re-resolves to 127.0.0.1 (DNS rebinding)
+        // would become same-origin and could drive its write actions (New
+        // task, Force state, Skip CI). Its requests carry that foreign Host
+        // header: answer them with a 400. Symfony strips the port before
+        // matching and wraps each pattern as {pattern}i, hence the anchors.
+        'trusted_hosts' => ['^(?:127\.0\.0\.1|localhost)$'],
         'session' => ['enabled' => false],
         'router' => ['utf8' => true],
         'asset_mapper' => [
