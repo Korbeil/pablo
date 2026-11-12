@@ -20,7 +20,7 @@ final class TaskCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addTaskTarget()
+            ->addTaskTarget([self::CURRENT_ALIAS])
             ->addOption('json', null, InputOption::VALUE_NONE, 'emit JSON (accepted for back-compat)');
     }
 

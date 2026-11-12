@@ -15,6 +15,7 @@ use Pablo\Install\Links;
 use Pablo\Install\PabloCommand;
 use Pablo\Install\PathRc;
 use Pablo\Install\Scheduler\SchedulerFactory;
+use Pablo\Install\ShellCompletion;
 use Pablo\Store\Store;
 use Pablo\Support\Files;
 use Pablo\Support\PabloPaths;
@@ -26,7 +27,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * Removes what `pablo system:install` created — the background services, the
  * links PABLO owns in every runtime's user directory (links of a clone
- * install included), the `pablo` command, the PATH block — plus
+ * install included), the `pablo` command, the PATH block, the shell
+ * completion — plus
  * the generated ~/.pablo/runtime and container caches. Runtime data in
  * ~/.pablo (config, projects, state, stamps, worktrees, logs) is kept.
  */
@@ -72,6 +74,7 @@ final class UninstallCommand extends Command
         foreach (PathRc::remove(PabloPaths::home(), getenv('ZDOTDIR') ?: null) as $line) {
             $info($line);
         }
+        array_map($info, ShellCompletion::remove(PabloPaths::home()));
 
         // The binary `pablo update` kept for --rollback: only PABLO writes it.
         $previous = Updater::previousOf(InstallPaths::binPath());

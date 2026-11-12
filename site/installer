@@ -111,6 +111,7 @@ Usage: installer [options]
   --runtime <name>      opencode, claude-code or copilot
   --backend <name>      orca, openchamber or headless (OpenChamber: OpenCode only)
   --without-web         do not install the dashboard service
+  --without-completion  do not install the shell completion
   --port <port>         port of the dashboard (default: 8321, or the next free
                         one when another program uses it)
   --no-interaction      never ask: use the options, then what is detected
@@ -577,6 +578,9 @@ run_install() {
     elif [ "$PORT" != "$CONFIGURED_PORT" ]; then
         set -- "$@" --port "$PORT"
     fi
+    if ! $WITH_COMPLETION; then
+        set -- "$@" --without-completion
+    fi
     if ! "$BIN" system:install "$@" </dev/null; then
         fail "pablo system:install failed. Fix the error above, then run: $BIN system:install $*"
     fi
@@ -593,6 +597,7 @@ main() {
     # later is used without re-running the installer.
     BACKEND_FALLBACK=false
     WITH_WEB=true
+    WITH_COMPLETION=true
     PORT=""
     CONFIGURED_PORT=""
     NO_INTERACTION=false
@@ -625,6 +630,7 @@ main() {
             ;;
         --without-web) WITH_WEB=false ;;
         --with-web) WITH_WEB=true ;;
+        --without-completion) WITH_COMPLETION=false ;;
         --no-interaction | -n) NO_INTERACTION=true ;;
         -h | --help)
             usage

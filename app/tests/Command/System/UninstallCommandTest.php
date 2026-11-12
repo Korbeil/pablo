@@ -28,6 +28,7 @@ final class UninstallCommandTest extends TestCase
     public function testRemovesWhatInstallCreatedAndKeepsTheData(): void
     {
         $this->assertSame(0, $this->install(['--runtime' => 'claude-code'])->getStatusCode());
+        $this->assertFileExists($this->home.'/.local/share/bash-completion/completions/pablo');
         file_put_contents($this->home.'/.bashrc', "# mine\n".(string) file_get_contents($this->home.'/.bashrc'));
         file_put_contents($this->home.'/.claude/agents/my-own.md', "mine\n");
         mkdir($this->home.'/.pablo/state', 0o777, true);
@@ -49,6 +50,7 @@ final class UninstallCommandTest extends TestCase
         $this->assertFileDoesNotExist($this->home.'/.config/systemd/user/pablo-prune.service');
         $this->assertContains('systemctl --user disable --now pablo-prune.timer', $this->serviceCalls());
         $this->assertSame("# mine\n", file_get_contents($this->home.'/.bashrc'));
+        $this->assertFileDoesNotExist($this->home.'/.local/share/bash-completion/completions/pablo');
 
         $this->assertSame("mine\n", file_get_contents($this->home.'/.claude/agents/my-own.md'));
         $this->assertFileExists($this->home.'/.pablo/config.yaml');

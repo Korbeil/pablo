@@ -53,7 +53,7 @@ final class StatsCommand extends Command
     {
         $this
             ->addOption('days', null, InputOption::VALUE_REQUIRED, 'look back N days (0 = all time)', '30')
-            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'restrict to one project')
+            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'restrict to one project', null, $this->suggestions()->projectCompleter())
             ->addOption('type', null, InputOption::VALUE_REQUIRED, 'restrict to one project type (work/open-source/personal)', '', Dashboard::TYPES)
             ->addOption('agent', null, InputOption::VALUE_REQUIRED, 'restrict the agents table to one agent')
             ->addOption('format', null, InputOption::VALUE_REQUIRED, 'output format: table, json or csv (csv: a --by breakdown)', 'table', self::STATS_FORMATS)

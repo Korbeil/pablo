@@ -79,6 +79,7 @@ final class GlobalConfig
             'scheduler' => \is_array($data['scheduler'] ?? null) ? $data['scheduler'] : [],
             'hooks' => \is_array($data['hooks'] ?? null) ? $data['hooks'] : [],
             'prune' => $data['prune'] ?? null,
+            'shell_completion' => $data['shell_completion'] ?? null,
         ];
     }
 
@@ -181,6 +182,16 @@ final class GlobalConfig
         }
 
         return (int) $port;
+    }
+
+    /**
+     * Whether `pablo system:install` installs the shell completion: on unless
+     * shell_completion is false (what --without-completion records, so a
+     * `pablo update` keeps the choice).
+     */
+    public function shellCompletion(): bool
+    {
+        return !\in_array($this->defaults()['shell_completion'] ?? null, [false, 'false'], true);
     }
 
     /** A TCP port: an integer (or digits) between 1 and 65535. */

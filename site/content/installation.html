@@ -66,6 +66,7 @@
     <tr><td><code>--backend &lt;name&gt;</code></td><td><code>orca</code>, <code>openchamber</code> (OpenCode only) or <code>headless</code></td></tr>
     <tr><td><code>--without-web</code></td><td>skip the dashboard service</td></tr>
     <tr><td><code>--with-web</code></td><td>install the dashboard service (the default; cancels an earlier <code>--without-web</code>)</td></tr>
+    <tr><td><code>--without-completion</code></td><td>skip the <a href="#shell-completion">shell completion</a></td></tr>
     <tr><td><code>--port &lt;port&gt;</code></td><td>the dashboard's port, instead of 8321 (or the next free one)</td></tr>
     <tr><td><code>-n</code>, <code>--no-interaction</code></td><td>never ask: use the options, then what it detected. It is also what happens when there is no terminal</td></tr>
     <tr><td><code>-h</code>, <code>--help</code></td><td>print the options and exit</td></tr>
@@ -83,13 +84,14 @@
   <li><code>--backend orca|openchamber|headless</code> records the ADE. The installer leaves it out when it only falls back to headless because it found no ADE.</li>
   <li><code>--without-web</code> skips (and removes) the dashboard service.</li>
   <li><code>--port &lt;port&gt;</code> records the dashboard's port (<code>dashboard_port</code>).</li>
+  <li><code>--without-completion</code> / <code>--with-completion</code> turn the <a href="#shell-completion">shell completion</a> off or back on (<code>shell_completion</code>).</li>
 </ul>
 
 <p>It:</p>
 
 <ol>
   <li>creates <code>~/.pablo/</code> and, if you don't have one yet, a default <a href="page:configuration#global-defaults">global config</a> in <code>~/.pablo/config.yaml</code>, set to the tools you have installed (Claude Code when it finds Claude Code but no OpenCode, Copilot when it finds Copilot CLI but neither, OpenChamber when it finds OpenChamber but no Orca);</li>
-  <li>makes sure <code>~/.local/bin/pablo</code> is this binary and, if that directory isn't on your <code>PATH</code> yet, adds it (see below);</li>
+  <li>makes sure <code>~/.local/bin/pablo</code> is this binary and, if that directory isn't on your <code>PATH</code> yet, adds it (see below), then writes the <a href="#shell-completion">shell completion</a> of your shell;</li>
   <li>renders the agents for your <a href="page:runtimes">runtime</a>, and extracts the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, into <code>~/.pablo/runtime/</code>;</li>
   <li>links them into <code>~/.config/opencode/</code> (OpenCode), <code>~/.claude/</code> (Claude Code) or <code>~/.copilot/</code> (Copilot);</li>
   <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, the daily <a href="page:storage#what-grows-and-how-its-pruned">housekeeping job</a> (03:00), and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary), with the <a href="#the-services-path">services' <code>PATH</code></a> computed from yours;</li>
@@ -113,6 +115,18 @@ php app/bin/pablo system:install    # or: castor install
 <h3>The <code>pablo</code> command on your <code>PATH</code></h3>
 
 <p>When <code>~/.local/bin</code> isn't on your <code>PATH</code> already, the installer appends a short block, between <code># &gt;&gt;&gt; pablo &gt;&gt;&gt;</code> and <code># &lt;&lt;&lt; pablo &lt;&lt;&lt;</code> markers, to <code>~/.zshrc</code> (zsh) or <code>~/.bashrc</code> (bash; <code>~/.bash_profile</code> on macOS). For fish it writes <code>~/.config/fish/conf.d/pablo.fish</code> instead. Open a new terminal afterwards. Running the installer again never adds the block twice, and <code>pablo system:uninstall</code> removes it. With another shell, the installer prints the line to add yourself.</p>
+
+<h3 id="shell-completion">Shell completion</h3>
+
+<p>The install also writes the <a href="page:cli#shell-completion">shell completion</a> for the shell in your <code>$SHELL</code>, so <kbd>Tab</kbd> completes commands, task branches, project names and states:</p>
+
+<ul>
+  <li><strong>bash:</strong> <code>~/.local/share/bash-completion/completions/pablo</code>, loaded by the <code>bash-completion</code> package (version 2 or later) in new shells;</li>
+  <li><strong>zsh:</strong> <code>~/.local/share/zsh/site-functions/_pablo</code>. zsh loads it when that directory is in your <code>fpath</code> before <code>compinit</code> runs; if <kbd>Tab</kbd> doesn't complete <code>pablo</code> in a new terminal, add <code>fpath=(~/.local/share/zsh/site-functions $fpath)</code> before <code>compinit</code> in <code>~/.zshrc</code>;</li>
+  <li><strong>fish:</strong> <code>~/.config/fish/completions/pablo.fish</code>.</li>
+</ul>
+
+<p>The file is the script <code>pablo completion &lt;shell&gt;</code> prints, with a PABLO marker line: running the install again rewrites it, <code>pablo system:uninstall</code> removes it, and a file of yours at that path is never replaced. Another shell gets a note instead. Don't want it? Install with <code>--without-completion</code>: it removes an installed one and records <code>shell_completion: false</code> in <code>~/.pablo/config.yaml</code>, so later installs and <code>pablo update</code> leave it out too, until <code>pablo system:install --with-completion</code>.</p>
 
 <h2>Check your setup</h2>
 

@@ -271,7 +271,10 @@ idempotent; never touches a pre-existing non-PABLO file in
 points into `~/.pablo/runtime` or into a PABLO checkout — the clone install's
 links, taken over on migration); systemd units / launchd plists are bundled
 and **written** (marker line, never symlinked), pointing at
-`~/.local/bin/pablo`; the dashboard's port is `dashboard_port` in
+`~/.local/bin/pablo`; the shell completion (`ShellCompletion`, `$SHELL`'s
+only, opted out by `shell_completion: false`) is written the same way, with
+a marker line; its values come from `Completion\Suggestions` (local files
+only, errors swallowed, never `gh`/`git`); the dashboard's port is `dashboard_port` in
 `~/.pablo/config.yaml` (default 8321, read by `pablo web`, so never baked into
 a unit; `system:install --port` writes it, and `site/installer` picks a free
 one when another program holds 8321). `SystemdScheduler` is the one file `PortabilityTest`

@@ -35,7 +35,7 @@ final class StartCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'project name for plain-prompt tasks')
+            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'project name for plain-prompt tasks', null, $this->suggestions()->projectCompleter())
             ->addArgument('input', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'issue URL or task prompt');
     }
 

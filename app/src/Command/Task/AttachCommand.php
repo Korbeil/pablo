@@ -7,6 +7,7 @@ namespace Pablo\Command\Task;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Completion\Suggestions;
 use Pablo\Config\Config;
 use Pablo\Domain\State;
 use Pablo\Store\Store;
@@ -39,8 +40,8 @@ final class AttachCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('state', InputArgument::REQUIRED, 'state the task starts in (e.g. in-progress)')
-            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'project when the repo is not matched from configured projects');
+            ->addArgument('state', InputArgument::REQUIRED, 'state the task starts in (e.g. in-progress)', null, Suggestions::states())
+            ->addOption('project', null, InputOption::VALUE_REQUIRED, 'project when the repo is not matched from configured projects', null, $this->suggestions()->projectCompleter());
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

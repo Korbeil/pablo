@@ -33,7 +33,7 @@ final class PollCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project');
+            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project', null, $this->suggestions()->projectCompleter());
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

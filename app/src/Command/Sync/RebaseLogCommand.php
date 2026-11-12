@@ -38,7 +38,7 @@ final class RebaseLogCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project')
+            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project', null, $this->suggestions()->projectCompleter())
             ->addOption('history', null, InputOption::VALUE_NONE, 'show past sync runs (newest first) instead of the last one')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'with --history: runs shown per project', (string) self::HISTORY_LIMIT)
             ->addOption('only', null, InputOption::VALUE_REQUIRED, 'with --history: only these actions, comma-separated (e.g. conflict,lease-failed)')
