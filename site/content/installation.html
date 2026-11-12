@@ -90,7 +90,7 @@
   <li>makes sure <code>~/.local/bin/pablo</code> is this binary and, if that directory isn't on your <code>PATH</code> yet, adds it (see below);</li>
   <li>renders the agents for your <a href="page:runtimes">runtime</a>, and extracts the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, into <code>~/.pablo/runtime/</code>;</li>
   <li>links them into <code>~/.config/opencode/</code> (OpenCode), <code>~/.claude/</code> (Claude Code) or <code>~/.copilot/</code> (Copilot);</li>
-  <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary), with the <a href="#the-services-path">services' <code>PATH</code></a> computed from yours;</li>
+  <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, the daily <a href="page:storage#what-grows-and-how-its-pruned">housekeeping job</a> (03:00), and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary), with the <a href="#the-services-path">services' <code>PATH</code></a> computed from yours;</li>
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
 </ol>
 
@@ -136,7 +136,7 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
 
 <h2>Platform notes</h2>
 
-<p>PABLO itself is portable. Only the scheduler and the dashboard service differ:</p>
+<p>PABLO itself is portable. Only the scheduler, the housekeeping job and the dashboard service differ:</p>
 
 <table>
   <thead><tr><th></th><th>Linux</th><th>macOS</th></tr></thead>
@@ -144,6 +144,8 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
     <tr><td>Scheduler</td><td>systemd user timer <code>pablo-dispatch.timer</code></td><td>launchd agent <code>com.pablo.dispatch</code> (every 300 s)</td></tr>
     <tr><td>Scheduler logs</td><td><code>journalctl --user -u pablo-dispatch.service</code></td><td><code>~/.pablo/logs/dispatch.log</code> (and <code>.err.log</code>)</td></tr>
     <tr><td>Scheduler status</td><td><code>systemctl --user list-timers pablo-dispatch.timer</code></td><td><code>launchctl print gui/$UID/com.pablo.dispatch</code></td></tr>
+    <tr><td>Housekeeping (<a href="page:storage#what-grows-and-how-its-pruned"><code>system:prune</code></a>)</td><td>systemd user timer <code>pablo-prune.timer</code>, daily at 03:00 (<code>Persistent=true</code>: a missed run happens after boot or wake-up)</td><td>launchd agent <code>com.pablo.prune</code>, daily at 03:00 (a missed run happens at wake-up)</td></tr>
+    <tr><td>Housekeeping logs</td><td><code>journalctl --user -u pablo-prune.service</code></td><td><code>~/.pablo/logs/prune.log</code> (and <code>.err.log</code>)</td></tr>
     <tr><td>Dashboard service</td><td><code>pablo-web.service</code>, restarts automatically</td><td><code>com.pablo.web</code>, kept alive</td></tr>
     <tr><td>Dashboard logs</td><td><code>journalctl --user -u pablo-web.service</code></td><td><code>~/.pablo/logs/web.log</code> (and <code>.err.log</code>)</td></tr>
     <tr><td>Dashboard status</td><td><code>systemctl --user status pablo-web.service</code></td><td><code>launchctl print gui/$UID/com.pablo.web</code></td></tr>

@@ -115,6 +115,36 @@ final class GlobalConfigTest extends TestCase
         (new GlobalConfig())->schedulerPath();
     }
 
+    public function testPruneKeepDays(): void
+    {
+        $this->writeGlobalConfig("default_model: x\n");
+        $this->assertSame(10, (new GlobalConfig())->pruneKeepDays(10));
+
+        $this->writeGlobalConfig("prune:\n  keep_days: 45\n");
+        $this->assertSame(45, (new GlobalConfig())->pruneKeepDays(10));
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function invalidPruneKeepDays(): iterable
+    {
+        yield 'zero' => ["prune:\n  keep_days: 0\n"];
+        yield 'negative' => ["prune:\n  keep_days: -3\n"];
+        yield 'not a number' => ["prune:\n  keep_days: soon\n"];
+        yield 'not a mapping' => ["prune: 10\n"];
+    }
+
+    #[DataProvider('invalidPruneKeepDays')]
+    public function testAnInvalidPruneKeepDaysIsAClearError(string $yaml): void
+    {
+        $this->writeGlobalConfig($yaml);
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('config.yaml: prune');
+        (new GlobalConfig())->pruneKeepDays(10);
+    }
+
     public function testIsPort(): void
     {
         foreach ([1, 8321, 65535, '8400'] as $port) {

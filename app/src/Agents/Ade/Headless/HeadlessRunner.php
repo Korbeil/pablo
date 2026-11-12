@@ -55,11 +55,12 @@ final class HeadlessRunner
         // Runtimes attach the session to the working directory (OpenCode v2
         // removed `run --dir`), so the detached subshell cd's into the
         // worktree before exec'ing the agent CLI (and never runs it elsewhere).
+        $log = $this->logFor($agent);
         $pid = $this->exec(
             'cd '.escapeshellarg($worktree).' && exec '.$this->runtime->launchCommand($agent, $prompt, $model, $sessionId, $worktree),
-            $agent,
+            $log,
         );
-        $this->writePidfile($pid, $worktree, $agent, $sessionId);
+        $this->writePidfile($pid, $worktree, $agent, $log, $sessionId);
 
         return self::HANDLE_PREFIX.$pid;
     }
@@ -69,28 +70,31 @@ final class HeadlessRunner
     {
         // Like launch(): never from the caller's cwd (the user's shell for
         // task:start, the scheduler's for a relaunch).
-        $pid = $this->exec('cd '.escapeshellarg($worktree).' && '.$command, $label);
-        $this->writePidfile($pid, $worktree, $label);
+        $log = $this->logFor($label);
+        $pid = $this->exec('cd '.escapeshellarg($worktree).' && '.$command, $log);
+        $this->writePidfile($pid, $worktree, $label, $log);
 
         return self::HANDLE_PREFIX.$pid;
     }
 
-    private function exec(string $command, string $label): int
+    private function exec(string $command, string $log): int
     {
         $out = [];
         // The group's redirection covers every command in it, `cd` included,
         // and survives the final exec.
-        exec(Detached::command('{ '.$command.'; } >>'.escapeshellarg($this->logFor($label)).' 2>&1'), $out);
+        exec(Detached::command('{ '.$command.'; } >>'.escapeshellarg($log).' 2>&1'), $out);
 
         return (int) trim((string) ($out[0] ?? ''));
     }
 
-    private function writePidfile(int $pid, string $worktree, string $label, ?string $sessionId = null): void
+    /** The log path is recorded so `system:prune` never removes a live run's log. */
+    private function writePidfile(int $pid, string $worktree, string $label, string $log, ?string $sessionId = null): void
     {
         $record = [
             'pid' => $pid,
             'worktree' => $worktree,
             'agent' => $label,
+            'log' => $log,
             'started_at' => $this->time->utcnow(),
         ];
         if (null !== $sessionId) {

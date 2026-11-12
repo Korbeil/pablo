@@ -201,7 +201,10 @@ directly — commands wrap `pablo` CLI calls; agents are read-only,
 auto-launched on certain state transitions) and background
 (`pablo system:dispatch`, run every 5 min by systemd/launchd; global flock, per
 project × {sync, poll, main} checks a stamp in `~/.pablo/stamps/` against that
-project's own interval; one project's failure never blocks others). `DispatchHealth`
+project's own interval; one project's failure never blocks others), plus the
+daily housekeeping (`pablo system:prune`, `src/Housekeeping/`, its own
+`pablo-prune.timer` / `com.pablo.prune` at 03:00; only content older than
+`prune.keep_days` (default 10) is ever removed, service logs are copy-truncated in place). `DispatchHealth`
 records each job's last attempt/success/error and failure streak next to the
 stamps (`<project>.<job>.health`, `dispatch.health`), backs off a failing job,
 and feeds `system:doctor`'s scheduler section and the dashboard banner;

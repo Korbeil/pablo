@@ -29,6 +29,7 @@ use Pablo\Domain\Time;
 use Pablo\Hooks\DetachedHookRunner;
 use Pablo\Hooks\HookRunnerInterface;
 use Pablo\Hooks\Hooks;
+use Pablo\Housekeeping\Pruner;
 use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Listing\Listing;
 use Pablo\Poller\Poller;
@@ -143,6 +144,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(Stamps::class);
     $services->set(DispatchHealth::class);
     $services->set(Dispatch::class);
+    $services->set(Pruner::class);
     $services->set(Listing::class);
     $services->set(TaskStarter::class);
     $services->set(TaskAttacher::class);

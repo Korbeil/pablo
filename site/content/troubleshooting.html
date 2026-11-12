@@ -16,6 +16,8 @@ pablo sync:log          # what the last sync did, per project
   <tbody>
     <tr><td>Background runs (poll, sync)</td><td><code>journalctl --user -u pablo-dispatch.service -f</code></td><td><code>~/.pablo/logs/dispatch.log</code></td></tr>
     <tr><td>Dashboard service</td><td><code>journalctl --user -u pablo-web.service</code></td><td><code>~/.pablo/logs/web.log</code></td></tr>
+    <tr><td>Daily housekeeping (<code>system:prune</code>)</td><td><code>journalctl --user -u pablo-prune.service</code></td><td><code>~/.pablo/logs/prune.log</code></td></tr>
+    <tr><td>Older macOS service logs</td><td>—</td><td><code>~/.pablo/logs/archive/</code> (one file per log and day, kept <code>prune.keep_days</code>, 10 by default)</td></tr>
     <tr><td>Headless agent runs</td><td colspan="2"><code>~/.pablo/agents/</code> (pid files and logs)</td></tr>
     <tr><td>OpenChamber launch failures</td><td colspan="2"><code>~/.pablo/agents/logs/openchamber-fallback.log</code></td></tr>
     <tr><td>Analytics write failures</td><td colspan="2"><code>~/.pablo/analytics/analytics-errors.log</code></td></tr>

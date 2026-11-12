@@ -1,0 +1,14 @@
+# Written by `pablo system:install` into ~/.config/systemd/user — do not edit
+# there, a re-install overwrites it.
+# marker: pablo-prune.service (system:uninstall removes only files carrying this line)
+[Unit]
+Description=PABLO housekeeping (prune agent logs, log archives and old caches older than prune.keep_days)
+
+[Service]
+Type=oneshot
+# Same PATH as pablo-dispatch.service (computed by `pablo system:install`):
+# kept for parity, so the pablo binary resolves the same way.
+Environment="PATH=@PATH@"
+ExecStart=%h/.local/bin/pablo system:prune
+# Backstop: a wedged run must never block the next day's.
+TimeoutStartSec=30min

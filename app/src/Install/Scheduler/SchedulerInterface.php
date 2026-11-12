@@ -6,7 +6,8 @@ namespace Pablo\Install\Scheduler;
 
 /**
  * The background services of a PABLO install: the dispatcher every five
- * minutes, and the dashboard unless --without-web. One implementation per
+ * minutes, the housekeeping (`system:prune`) daily at 03:00 — run late
+ * after a sleep — and the dashboard unless --without-web. One implementation per
  * platform (SchedulerFactory picks it); the unit/plist files are bundled,
  * written — never symlinked, they may come from inside the binary — and
  * point at ~/.local/bin/pablo.

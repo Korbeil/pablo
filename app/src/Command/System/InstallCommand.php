@@ -11,10 +11,10 @@ use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\App\ConsoleApplication;
-use Pablo\App\Kernel;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
+use Pablo\Housekeeping\Pruner;
 use Pablo\Install\ConfigSeeder;
 use Pablo\Install\InstallPaths;
 use Pablo\Install\Links;
@@ -23,7 +23,6 @@ use Pablo\Install\PathRc;
 use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Install\Scheduler\SchedulerPath;
 use Pablo\Store\Store;
-use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -61,6 +60,7 @@ final class InstallCommand extends Command
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
         AgentLauncherInterface $agents,
+        private readonly Pruner $pruner = new Pruner(),
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
@@ -200,14 +200,10 @@ final class InstallCommand extends Command
      */
     private function pruneContainers(\Closure $info): void
     {
-        if (!PabloPaths::isPhar()) {
-            return;
-        }
-        foreach (Files::list(Kernel::binaryCacheRoot(), '*', dirsOnly: true) as $dir) {
-            if (basename($dir) !== ConsoleApplication::version()) {
-                Files::remove($dir);
-                $info("removed the container cache of {$dir}");
-            }
+        $stale = $this->pruner->staleContainers();
+        $this->pruner->apply($stale);
+        foreach ($stale as $item) {
+            $info("removed the container cache of {$item->path}");
         }
     }
 
