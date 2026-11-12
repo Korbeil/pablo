@@ -28,7 +28,7 @@
 <table>
   <thead><tr><th>Files</th><th>When</th></tr></thead>
   <tbody>
-    <tr><td>Task records, stamps, logs, analytics under <code>~/.pablo/</code></td><td>as it runs (see <a href="page:storage">Storage</a>)</td></tr>
+    <tr><td>Task records, stamps, logs, analytics under <code>~/.pablo/</code></td><td>as it runs (see <a href="page:storage">Storage</a>); <code>pablo system:prune</code>, daily, removes only agent logs, archived service logs and other versions' caches older than <code>prune.keep_days</code> (10 days by default)</td></tr>
     <tr><td>The rendered agents and the extracted commands and skills, in <code>~/.pablo/runtime/</code></td><td><code>pablo system:generate-agents</code> and <code>pablo system:install</code>; the binary is read-only, so nothing is ever written next to the templates it carries</td></tr>
     <tr><td>The compiled application cache, in <code>~/.pablo/cache/container/&lt;version&gt;/</code></td><td>the first run of each binary version (from a checkout: <code>app/var/cache/</code>); <code>pablo system:install</code> removes the other versions'</td></tr>
     <tr><td>One <code>hasTrustDialogAccepted</code> entry per worktree in Claude Code's <code>~/.claude.json</code> (nothing else in the file)</td><td>just before a <a href="page:runtimes#claude-code-remote-control">Remote Control</a> run in that worktree, so Claude Code doesn't stop on "Do you trust this folder?"</td></tr>

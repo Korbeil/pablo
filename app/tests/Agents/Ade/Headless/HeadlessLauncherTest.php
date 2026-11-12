@@ -70,6 +70,10 @@ final class HeadlessLauncherTest extends TestCase
         $this->assertIsArray($record);
         $this->assertSame('startup-script', $record['agent']);
         $this->assertSame($this->tmp, $record['worktree']);
+        // Recorded so system:prune never removes a live run's log.
+        $this->assertIsString($record['log']);
+        $this->assertStringStartsWith($this->agentsDir.'/logs/', $record['log']);
+        $this->assertStringEndsWith('-startup-script.log', $record['log']);
         $this->assertSame([], $this->runner->calls);
     }
 

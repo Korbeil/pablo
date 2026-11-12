@@ -16,6 +16,7 @@ use Pablo\Support\ProcessRunnerInterface;
 final class LaunchdScheduler implements SchedulerInterface
 {
     public const DISPATCH = 'com.pablo.dispatch';
+    public const PRUNE = 'com.pablo.prune';
     public const WEB = 'com.pablo.web';
 
     public function __construct(
@@ -32,6 +33,8 @@ final class LaunchdScheduler implements SchedulerInterface
     {
         $this->load(self::DISPATCH, $pabloBin, $path);
         $info(self::DISPATCH." loaded (every 5 minutes; logs: {$this->logDir}/dispatch.log)");
+        $this->load(self::PRUNE, $pabloBin, $path);
+        $info(self::PRUNE." loaded (daily at 03:00; logs: {$this->logDir}/prune.log)");
 
         if ($withWeb) {
             $this->load(self::WEB, $pabloBin, $path);
@@ -45,7 +48,7 @@ final class LaunchdScheduler implements SchedulerInterface
 
     public function uninstall(\Closure $info): void
     {
-        foreach ([self::DISPATCH, self::WEB] as $label) {
+        foreach ([self::DISPATCH, self::PRUNE, self::WEB] as $label) {
             $this->runner->probe(['launchctl', 'bootout', $this->domain().'/'.$label]);
             if (ServiceFiles::removeIfOurs($this->plist($label), $label)) {
                 $info('removed '.$this->plist($label));

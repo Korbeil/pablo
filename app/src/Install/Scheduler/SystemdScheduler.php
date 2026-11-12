@@ -17,6 +17,7 @@ use Pablo\Support\ProcessRunnerInterface;
 final class SystemdScheduler implements SchedulerInterface
 {
     public const DISPATCH_UNITS = ['pablo-dispatch.service', 'pablo-dispatch.timer'];
+    public const PRUNE_UNITS = ['pablo-prune.service', 'pablo-prune.timer'];
     public const WEB_UNIT = 'pablo-web.service';
 
     public function __construct(
@@ -29,7 +30,7 @@ final class SystemdScheduler implements SchedulerInterface
 
     public function install(string $pabloBin, bool $withWeb, string $path, \Closure $info): void
     {
-        foreach (self::DISPATCH_UNITS as $unit) {
+        foreach ([...self::DISPATCH_UNITS, ...self::PRUNE_UNITS] as $unit) {
             $this->writeUnit($unit, $path);
             $info("wrote {$this->unitDir}/{$unit}");
         }
@@ -42,6 +43,8 @@ final class SystemdScheduler implements SchedulerInterface
         $this->systemctl(['daemon-reload']);
         $this->systemctl(['enable', '--now', 'pablo-dispatch.timer']);
         $info('pablo-dispatch.timer enabled (every 5 minutes; logs: journalctl --user -u pablo-dispatch.service)');
+        $this->systemctl(['enable', '--now', 'pablo-prune.timer']);
+        $info('pablo-prune.timer enabled (daily at 03:00; logs: journalctl --user -u pablo-prune.service)');
 
         $web = $this->unitDir.'/'.self::WEB_UNIT;
         if ($withWeb) {
@@ -63,8 +66,9 @@ final class SystemdScheduler implements SchedulerInterface
     public function uninstall(\Closure $info): void
     {
         $this->runner->probe(['systemctl', '--user', 'disable', '--now', 'pablo-dispatch.timer']);
+        $this->runner->probe(['systemctl', '--user', 'disable', '--now', 'pablo-prune.timer']);
         $this->runner->probe(['systemctl', '--user', 'disable', '--now', self::WEB_UNIT]);
-        foreach ([...self::DISPATCH_UNITS, self::WEB_UNIT] as $unit) {
+        foreach ([...self::DISPATCH_UNITS, ...self::PRUNE_UNITS, self::WEB_UNIT] as $unit) {
             if (ServiceFiles::removeIfOurs($this->unitDir.'/'.$unit, $unit)) {
                 $info("removed {$this->unitDir}/{$unit}");
             }

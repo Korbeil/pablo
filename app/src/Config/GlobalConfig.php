@@ -78,7 +78,35 @@ final class GlobalConfig
             'dashboard_trusted_hosts' => $data['dashboard_trusted_hosts'] ?? null,
             'scheduler' => \is_array($data['scheduler'] ?? null) ? $data['scheduler'] : [],
             'hooks' => \is_array($data['hooks'] ?? null) ? $data['hooks'] : [],
+            'prune' => $data['prune'] ?? null,
         ];
+    }
+
+    /**
+     * `prune.keep_days`: how many days of logs `system:prune` keeps (agent
+     * logs, service log archives, other versions' caches), else $default.
+     * Read per call, like every other key.
+     *
+     * @throws PabloError when it is not a whole number of days, at least $min
+     */
+    public function pruneKeepDays(int $default, int $min = 1): int
+    {
+        $prune = $this->defaults()['prune'] ?? null;
+        if (null === $prune) {
+            return $default;
+        }
+        if (!\is_array($prune)) {
+            throw new PabloError('config.yaml: prune must be a mapping (e.g. prune: {keep_days: 10})');
+        }
+        $days = $prune['keep_days'] ?? null;
+        if (null === $days) {
+            return $default;
+        }
+        if (!(\is_int($days) || (\is_string($days) && 1 === preg_match('/^\d+$/', $days))) || (int) $days < $min) {
+            throw new PabloError("config.yaml: prune.keep_days must be a whole number of days, at least {$min}, got ".var_export($days, true));
+        }
+
+        return (int) $days;
     }
 
     /**

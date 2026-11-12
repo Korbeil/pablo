@@ -1,0 +1,13 @@
+# Written by `pablo system:install` into ~/.config/systemd/user — do not edit
+# there, a re-install overwrites it.
+# marker: pablo-prune.timer (system:uninstall removes only files carrying this line)
+[Unit]
+Description=Run the PABLO housekeeping (system:prune) daily at 03:00
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+# A run missed while the machine was off or asleep happens right after.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

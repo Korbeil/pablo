@@ -198,12 +198,19 @@ final class InstallCommandTest extends TestCase
         $this->assertSame(0, $this->install(['--runtime' => 'opencode'])->getStatusCode());
 
         $units = $this->home.'/.config/systemd/user';
-        foreach (['pablo-dispatch.service', 'pablo-dispatch.timer', 'pablo-web.service'] as $unit) {
+        foreach (['pablo-dispatch.service', 'pablo-dispatch.timer', 'pablo-prune.service', 'pablo-prune.timer', 'pablo-web.service'] as $unit) {
             $this->assertFalse(is_link($units.'/'.$unit), "{$unit} is written, not linked");
             $this->assertStringContainsString('marker: '.$unit, (string) file_get_contents($units.'/'.$unit));
         }
         $this->assertStringContainsString('ExecStart=%h/.local/bin/pablo system:dispatch', (string) file_get_contents($units.'/pablo-dispatch.service'));
+        $prune = (string) file_get_contents($units.'/pablo-prune.service');
+        $this->assertStringContainsString('ExecStart=%h/.local/bin/pablo system:prune', $prune);
+        $this->assertStringNotContainsString('@PATH@', $prune);
+        $timer = (string) file_get_contents($units.'/pablo-prune.timer');
+        $this->assertStringContainsString('OnCalendar=*-*-* 03:00:00', $timer);
+        $this->assertStringContainsString('Persistent=true', $timer, 'a run missed while asleep happens after wake-up');
         $calls = $this->serviceCalls();
+        $this->assertContains('systemctl --user enable --now pablo-prune.timer', $calls);
         $this->assertContains('loginctl enable-linger '.(posix_getpwuid(posix_geteuid())['name'] ?? ''), $calls);
         $this->assertContains('systemctl --user enable --now pablo-dispatch.timer', $calls);
         $this->assertContains('systemctl --user enable --now pablo-web.service', $calls);
@@ -239,7 +246,13 @@ final class InstallCommandTest extends TestCase
         $this->assertStringContainsString($this->home.'/.pablo/logs/dispatch.log', $plist);
         $this->assertStringNotContainsString('@', str_replace(['@HOME', 'http'], '', $plist), 'every placeholder is replaced');
         $this->assertFileExists($this->home.'/Library/LaunchAgents/com.pablo.web.plist');
+        $prune = (string) file_get_contents($this->home.'/Library/LaunchAgents/com.pablo.prune.plist');
+        $this->assertStringContainsString('<string>system:prune</string>', $prune);
+        $this->assertMatchesRegularExpression('#<key>StartCalendarInterval</key>\s*<dict>\s*<key>Hour</key>\s*<integer>3</integer>\s*<key>Minute</key>\s*<integer>0</integer>#', $prune);
+        $this->assertStringContainsString($this->home.'/.pablo/logs/prune.log', $prune);
+        $this->assertStringNotContainsString('@', str_replace(['@HOME', 'http'], '', $prune), 'every placeholder is replaced');
         $uid = posix_getuid();
+        $this->assertContains("launchctl bootstrap gui/{$uid} {$this->home}/Library/LaunchAgents/com.pablo.prune.plist", $this->serviceCalls());
         $this->assertContains("launchctl bootstrap gui/{$uid} {$this->home}/Library/LaunchAgents/com.pablo.dispatch.plist", $this->serviceCalls());
     }
 

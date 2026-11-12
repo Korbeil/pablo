@@ -16,7 +16,7 @@
 ├── analytics/&lt;project&gt;/YYYY-MM.jsonl # analytics events
 ├── logs/                             # last sync (rebase-last-&lt;project&gt;.json), sync history
 │                                     # (sync-history-&lt;project&gt;.jsonl, last 200 runs), hooks.log,
-│                                     # macOS service logs
+│                                     # macOS service logs (+ archive/, their daily rotations)
 ├── cache/                            # small lookup caches (e.g. Jira site ids)
 │   └── container/&lt;version&gt;/          # the binary's compiled application cache, one per version
 ├── runtime/                          # generated: the agents, commands and skills linked into your runtime
@@ -31,6 +31,23 @@
 <p>Backups go to <code>~/.pablo-backups/</code> by default (see <a href="page:backups">Backups</a>). Each part can be moved with an <a href="page:configuration#environment-variables">environment variable</a>.</p>
 
 <p>All files are written atomically (to a temporary file, then renamed), with UTC timestamps in ISO-8601.</p>
+
+<h2 id="what-grows-and-how-its-pruned">What grows and how it's pruned</h2>
+
+<p>Most of <code>~/.pablo/</code> stays small, or is yours to keep. Three things only grow, and <code>pablo system:prune</code> cleans them. It only ever deletes whole files whose content is all older than <a href="page:configuration#global-only-keys"><code>prune.keep_days</code></a> days (10 by default), never part of a file, so that many days of logs are always kept:</p>
+
+<table>
+  <thead><tr><th>What</th><th>Where</th><th>Pruning</th></tr></thead>
+  <tbody>
+    <tr><td>Agent logs: one per headless run or startup script</td><td><code>agents/logs/&lt;time&gt;-&lt;agent&gt;.log</code></td><td>removed when not modified for <code>keep_days</code>, except the log of a run whose process is still alive</td></tr>
+    <tr><td>macOS service logs, which launchd never rotates</td><td><code>logs/{dispatch,prune,web}.log</code>, <code>logs/{dispatch,prune,web}.err.log</code></td><td>rotated daily at 03:00 and kept <code>keep_days</code>: each run copies the log to one file per day, <code>logs/archive/&lt;name&gt;.&lt;YYYY-MM-DD&gt;</code> (a second run the same day appends to it), then empties it in place, since launchd keeps writing to the same file. A dated file is deleted whole once its day is more than <code>keep_days</code> old (by the date in its name)</td></tr>
+    <tr><td>The binary's compiled application cache of other versions</td><td><code>cache/container/&lt;version&gt;/</code></td><td>every version but the running one, once its newest file is older than <code>keep_days</code> (<code>system:install</code> removes them all right away)</td></tr>
+  </tbody>
+</table>
+
+<p><code>pablo system:prune --dry-run</code> lists what would be rotated or removed, with sizes, without touching anything. <code>--older-than=&lt;days&gt;</code> overrides <code>prune.keep_days</code> for one run (at least 1). A scheduled job of its own runs <code>system:prune</code> every day at 03:00, local time: <code>pablo-prune.timer</code> on Linux, <code>com.pablo.prune</code> on macOS; a run missed while the machine was off or asleep happens as soon as it is back (see <a href="page:installation#platform-notes">Platform notes</a>).</p>
+
+<p>Nothing else is ever pruned: worktrees, task records, stamps, analytics, sync logs, caches other than the containers, and backups stay until you remove them (worktrees go with their task, see <a href="page:tasks#close-a-task">task:close</a>).</p>
 
 <h2 id="task-records">Task records</h2>
 

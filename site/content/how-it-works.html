@@ -8,7 +8,7 @@
   <dt>Interactive</dt>
   <dd>What you run: the <a href="page:cli"><code>pablo</code> commands</a>, the <code>/pablo-commit-and-pr</code> command (OpenCode, Claude Code or Copilot), and the agent sessions you open in Orca or OpenChamber.</dd>
   <dt>Background</dt>
-  <dd>A <a href="page:glossary#scheduler">scheduler</a> (systemd user timer on Linux, launchd agent on macOS) runs <code>pablo system:dispatch</code> every 5 minutes.</dd>
+  <dd>A <a href="page:glossary#scheduler">scheduler</a> (systemd user timer on Linux, launchd agent on macOS) runs <code>pablo system:dispatch</code> every 5 minutes, and <a href="page:storage#what-grows-and-how-its-pruned"><code>pablo system:prune</code></a> every day at 03:00.</dd>
 </dl>
 
 <h2>The background job</h2>
