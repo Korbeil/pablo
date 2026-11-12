@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Provider\Gh;
 
 use Pablo\Domain\Time;
+use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -100,8 +101,7 @@ GQL;
             '--state', 'all', '--json', 'number,title,state,isDraft,mergedAt,url,baseRefName',
             '--limit', '1',
         ], timeout: self::GH_CALL_TIMEOUT_S);
-        /** @var array<int, array<string, mixed>> $items */
-        $items = json_decode($out, true);
+        $items = Json::decodeList($out, 'gh pr list output');
         if ([] === $items) {
             return null;
         }
@@ -128,8 +128,7 @@ GQL;
         ], timeout: self::GH_CALL_TIMEOUT_S);
         $wanted = array_fill_keys($branches, true);
         $result = [];
-        /** @var array<int, array<string, mixed>> $items */
-        $items = json_decode($out, true);
+        $items = Json::decodeList($out, 'gh pr list output');
         foreach ($items as $item) {
             $head = $item['headRefName'] ?? null;
             if (null === $head || !isset($wanted[$head]) || isset($result[$head])) {
@@ -174,10 +173,8 @@ GQL;
             $branches = $branchesByIndex[$i];
             $wanted = array_fill_keys($branches, true);
             $all[$slug] = [];
-            try {
-                /** @var array<int, array<string, mixed>> $items */
-                $items = json_decode($out, true, 512, \JSON_THROW_ON_ERROR);
-            } catch (\Throwable) {
+            $items = Json::tryDecodeArray($out);
+            if (null === $items) {
                 continue;
             }
             foreach ($items as $item) {
@@ -261,8 +258,7 @@ GQL;
             'gh', 'pr', 'view', (string) $prNumber, '--repo', $repoSlug,
             '--json', 'statusCheckRollup',
         ], timeout: self::GH_CALL_TIMEOUT_S);
-        /** @var array<string, mixed> $data */
-        $data = json_decode($out, true);
+        $data = Json::decodeArray($out, 'gh pr view output');
         $rollup = array_values(array_map(CiCheck::fromRollup(...), $data['statusCheckRollup'] ?? []));
 
         return $this->evaluateCi($rollup, $ignoreChecks);
@@ -276,8 +272,7 @@ GQL;
             '-f', 'query='.self::TIMELINE_QUERY,
             '-F', 'owner='.$ownerRepo[0], '-F', 'repo='.$ownerRepo[1], '-F', 'pr='.$prNumber,
         ], timeout: self::GH_CALL_TIMEOUT_S);
-        /** @var array<string, mixed> $data */
-        $data = json_decode($out, true);
+        $data = Json::decodeArray($out, 'gh api graphql timeline output');
         $pr = $data['data']['repository']['pullRequest'];
         $nodes = array_values(array_filter($pr['timelineItems']['nodes'] ?? [], static fn ($n) => null !== $n));
         if ([] !== $nodes) {
@@ -318,8 +313,7 @@ GQL;
                 array_push($argv, '-F', 'withThreads=false');
             }
             $out = $this->runner->run($argv, timeout: self::GH_CALL_TIMEOUT_S);
-            /** @var array<string, mixed> $data */
-            $data = json_decode($out, true);
+            $data = Json::decodeArray($out, 'gh api graphql reviews output');
             $pr = $data['data']['repository']['pullRequest'];
             $author ??= (string) $pr['author']['login'];
 
@@ -437,8 +431,7 @@ GQL;
             'gh', 'pr', 'view', (string) $prNumber, '--repo', $repoSlug,
             '--json', 'state,mergedAt',
         ], timeout: self::GH_CALL_TIMEOUT_S);
-        /** @var array<string, mixed> $data */
-        $data = json_decode($out, true);
+        $data = Json::decodeArray($out, 'gh pr view output');
         $state = strtoupper((string) ($data['state'] ?? ''));
 
         return 'MERGED' === $state || !empty($data['mergedAt']) ? 'MERGED' : $state;
@@ -452,8 +445,7 @@ GQL;
             '--branch', $branch, '--status', 'completed',
             '--limit', '20', '--json', 'databaseId,workflowName',
         ], timeout: self::GH_CALL_TIMEOUT_S);
-        /** @var array<int, array<string, mixed>> $runs */
-        $runs = json_decode($out, true);
+        $runs = Json::decodeList($out, 'gh run list output');
         if ([] === $runs) {
             throw new PabloError("no completed workflow runs found on branch {$branch}");
         }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Analytics;
 
+use Pablo\Support\Json;
+
 /**
  * Reads the JSONL analytics event log back for aggregation (pablo stats and,
  * later, dashboard panels). Events are plain payload arrays in ts order
@@ -38,7 +40,7 @@ final class AnalyticsReader
                 continue;
             }
             foreach ($lines as $line) {
-                $decoded = json_decode($line, true);
+                $decoded = Json::tryDecodeArray($line);
                 if (\is_array($decoded)) {
                     $events[] = $decoded;
                 }

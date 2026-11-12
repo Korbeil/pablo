@@ -7,6 +7,7 @@ namespace Pablo\Provider\Tracker;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\Task;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -75,8 +76,7 @@ final class Jira implements Provider
             ['acli', 'jira', 'workitem', 'view', $ref, '--json', '--fields', self::FIELDS],
             timeout: self::JIRA_CALL_TIMEOUT_S,
         );
-        /** @var array<string, mixed> $data */
-        $data = json_decode($out, true);
+        $data = Json::decodeArray($out, "acli jira workitem view {$ref} output");
 
         return $this->issueFromFields($data, $cfg);
     }
@@ -89,8 +89,7 @@ final class Jira implements Provider
             '--fields', self::FIELDS, '--json', '--limit', '50',
         ], timeout: self::JIRA_CALL_TIMEOUT_S);
         $issues = [];
-        /** @var array<int, array<string, mixed>> $items */
-        $items = json_decode($out, true);
+        $items = Json::decodeList($out, 'acli jira workitem search output');
         foreach ($items as $item) {
             $issues[] = $this->issueFromFields($item, $cfg);
         }
@@ -100,7 +99,7 @@ final class Jira implements Provider
 
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
-        $data = json_decode($this->runner->run(self::statusCommand($key), timeout: self::JIRA_CALL_TIMEOUT_S), true);
+        $data = Json::tryDecodeArray($this->runner->run(self::statusCommand($key), timeout: self::JIRA_CALL_TIMEOUT_S));
 
         return \is_array($data) ? self::statusOf($data) : '?';
     }

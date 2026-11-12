@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Provider\Confluence;
 
 use Pablo\Config\ProjectConfig;
+use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -54,7 +55,7 @@ final class Confluence
             'acli', 'confluence', 'page', 'view', '--id', $pageId,
             '--json', '--body-format', 'storage',
         ], timeout: self::CONFLUENCE_CALL_TIMEOUT_S);
-        $data = json_decode($out, true);
+        $data = Json::tryDecodeArray($out);
         if (!\is_array($data) || !\array_key_exists('id', $data)) {
             throw new PabloError('confluence: unexpected acli response: '.substr($out, 0, 200));
         }

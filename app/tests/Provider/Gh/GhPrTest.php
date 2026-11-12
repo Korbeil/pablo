@@ -514,6 +514,35 @@ final class GhPrTest extends TestCase
         $this->svc()->rerunCi('acme/wallet-kit', 'wk-45');
     }
 
+    public function testPrForBranchHtmlReplyIsAClearPabloError(): void
+    {
+        $this->startRunner(static fn (): string => '<!DOCTYPE html><html>Unicorn!</html>');
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('cannot parse gh pr list output: Syntax error, got: ');
+        $this->svc()->prForBranch('acme/wallet-kit', 'wk-45');
+    }
+
+    public function testCiStatusEmptyReplyIsAClearPabloError(): void
+    {
+        $this->startRunner(static fn (): string => '');
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('cannot parse gh pr view output: Syntax error, got: (empty output)');
+        $this->svc()->ciStatus('acme/wallet-kit', 7);
+    }
+
+    public function testPrsForBranchesBulkSkipsAnUnreadableReply(): void
+    {
+        $this->runner = new FakeProcessRunner();
+        $this->runner->outputs = ['not json', '[{"number":7,"title":"t","state":"OPEN","isDraft":false,"mergedAt":null,"url":"u7","headRefName":"wk-45"}]'];
+
+        $result = $this->svc()->prsForBranchesBulk([['acme/a', ['wk-1']], ['acme/b', ['wk-45']]]);
+
+        $this->assertSame([], $result['acme/a']);
+        $this->assertSame(7, $result['acme/b']['wk-45']->number);
+    }
+
     private function svc(): GhPr
     {
         return new GhPr($this->runner ?? new FakeProcessRunner(), new \Pablo\Domain\Time());

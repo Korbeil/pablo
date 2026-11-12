@@ -10,6 +10,7 @@ use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -63,7 +64,7 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
     {
         try {
             $out = $this->runner->run(['openchamber', ...$argv, '--json'], check: false, timeout: self::SESSION_TIMEOUT_S);
-            $data = json_decode($out, true);
+            $data = Json::tryDecodeArray($out);
         } catch (\Throwable $e) {
             return ['payload' => null, 'reason' => $e::class.': '.$e->getMessage()];
         }
@@ -313,7 +314,7 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
         if (!is_file($path)) {
             return null;
         }
-        $record = json_decode((string) file_get_contents($path), true);
+        $record = Json::tryDecodeArray((string) file_get_contents($path));
 
         return \is_array($record) && isset($record['worktree']) ? (string) $record['worktree'] : null;
     }

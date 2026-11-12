@@ -6,6 +6,7 @@ namespace Pablo\Dispatch;
 
 use Pablo\Config\ProjectConfig;
 use Pablo\Support\Files;
+use Pablo\Support\Json;
 
 /**
  * Dispatcher health, persisted next to the run stamps (~/.pablo/stamps/):
@@ -226,7 +227,7 @@ final class DispatchHealth
         if (false === $raw) {
             return null;
         }
-        $data = json_decode($raw, true);
+        $data = Json::tryDecodeArray($raw);
         if (!\is_array($data)) {
             return null;
         }

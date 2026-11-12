@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime\OpenCode;
 
 use Pablo\Agents\Runtime\RuntimeOneShotInterface;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -69,7 +70,7 @@ final class OpenCodeOneShot implements RuntimeOneShotInterface
             if ('' === $line || '{' !== $line[0]) {
                 continue;
             }
-            $ev = json_decode($line, true);
+            $ev = Json::tryDecodeArray($line);
             if (!\is_array($ev)) {
                 continue;
             }

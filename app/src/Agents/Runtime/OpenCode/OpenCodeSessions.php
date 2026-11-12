@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime\OpenCode;
 
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -46,7 +47,7 @@ final class OpenCodeSessions implements RuntimeSessionsInterface
         if (0 !== $probe->exitCode) {
             return null;
         }
-        $rows = json_decode($probe->output, true);
+        $rows = Json::tryDecodeArray($probe->output);
         if (!\is_array($rows)) {
             return null;
         }

@@ -7,6 +7,7 @@ namespace Pablo\Analytics;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Support\Json;
 use Pablo\Support\PabloPaths;
 
 /**
@@ -148,7 +149,7 @@ final class JsonlAnalytics implements AnalyticsInterface
                 }
                 try {
                     while (false !== ($line = fgets($handle))) {
-                        $event = json_decode(trim($line), true);
+                        $event = Json::tryDecodeArray(trim($line));
                         if (!\is_array($event) || 'agent_run_finished' !== ($event['type'] ?? null)) {
                             continue;
                         }

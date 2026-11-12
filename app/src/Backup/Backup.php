@@ -11,6 +11,7 @@ use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Store\Store;
+use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
@@ -153,8 +154,7 @@ final class Backup
         if (!is_file($manifestPath)) {
             throw new PabloError("{$archive} is not a PABLO backup (missing manifest.json)");
         }
-        /** @var array<string, mixed>|null $data */
-        $data = json_decode((string) file_get_contents($manifestPath), true);
+        $data = Json::tryDecodeArray((string) file_get_contents($manifestPath));
         if (!\is_array($data)) {
             throw new PabloError("invalid manifest in {$archive}");
         }

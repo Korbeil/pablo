@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Provider\Tracker;
 
 use Pablo\Config\ProjectConfig;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -42,8 +43,7 @@ final class IssueStatuses
         $statuses = [];
         foreach ($runner->runParallel($commands, check: false, timeout: $timeout) as $i => $out) {
             try {
-                /** @var array<string, mixed> $data */
-                $data = json_decode($out, true, 512, \JSON_THROW_ON_ERROR);
+                $data = Json::decodeArray($out, 'issue status output');
                 $statuses[$keys[$i]] = $status($data);
             } catch (\Throwable) {
                 $statuses[$keys[$i]] = '?';

@@ -167,8 +167,11 @@ run detached after a saved transition or a finished agent through
 sends nothing, see `site/content/states.html#get-notified`) ·
 `src/Dispatch/` (cron entry point) ·
 `src/Support/` (`PabloError`, `PabloPaths` — every `~/.pablo` path and the
-phar/resources helpers —, `ProcessRunner`, `Files`, `Naming`, `Numbers`,
-`RepoSlug`, `TaskSummarizer`).
+phar/resources helpers —, `ProcessRunner`, `Files`, `Json` — decode
+JSON through it, never a bare `json_decode`: `decodeArray()`/`decodeList()`
+throw a `PabloError` naming what was read, `tryDecodeArray()` returns null
+for best-effort readers (only `Store`'s validation and `ClaudeCodeTrust`'s
+object round-trip call `json_decode` themselves) —, `Naming`, `Numbers`, `RepoSlug`, `TaskSummarizer`).
 
 **Dashboard** (`pablo web`, see `site/content/dashboard.html`): `src/Dashboard/`
 (`Dashboard` — the cache-only data service, `TaskView`, `PollSchedule`,

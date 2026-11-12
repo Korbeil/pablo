@@ -8,6 +8,7 @@ use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -55,10 +56,8 @@ final class Linear implements Provider
     private function view(string $key): array
     {
         $out = $this->runner->run(self::viewCommand($key), timeout: self::LINEAR_CALL_TIMEOUT_S);
-        /** @var array<string, mixed> $data */
-        $data = json_decode($out, true);
 
-        return $data;
+        return Json::decodeArray($out, "linear issue view {$key} output");
     }
 
     /**
@@ -85,8 +84,7 @@ final class Linear implements Provider
     {
         $out = $this->runner->run(['linear', 'issue', 'list', '--assignee', $cfg->identity, '--json'], timeout: self::LINEAR_CALL_TIMEOUT_S);
         $issues = [];
-        /** @var array<int, array<string, mixed>> $items */
-        $items = json_decode($out, true);
+        $items = Json::decodeList($out, 'linear issue list output');
         foreach ($items as $item) {
             $issues[] = $this->issueFromJson($item, $cfg);
         }

@@ -7,6 +7,7 @@ namespace Pablo\Housekeeping;
 use Pablo\App\ConsoleApplication;
 use Pablo\App\Kernel;
 use Pablo\Support\Files;
+use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 
@@ -235,7 +236,7 @@ final class Pruner
         $logs = [];
         $legacy = [];
         foreach (Files::list($agentsDir, '*.json') as $pidfile) {
-            $record = json_decode((string) @file_get_contents($pidfile), true);
+            $record = Json::tryDecodeArray((string) @file_get_contents($pidfile));
             if (!\is_array($record) || !isset($record['pid']) || !is_numeric($record['pid'])) {
                 continue;
             }

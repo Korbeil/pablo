@@ -7,6 +7,7 @@ namespace Pablo\Agents\Ade\OpenChamber;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
+use Pablo\Support\Json;
 use Pablo\Support\Numbers;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -40,7 +41,7 @@ final class OpenChamberUsage implements UsageHarvesterInterface
             if (0 !== $probe->exitCode) {
                 return null;
             }
-            $decoded = json_decode($probe->output, true);
+            $decoded = Json::tryDecodeArray($probe->output);
             $sessions = \is_array($decoded) ? ($decoded['sessions'] ?? null) : null;
             if (!\is_array($sessions)) {
                 return null;
