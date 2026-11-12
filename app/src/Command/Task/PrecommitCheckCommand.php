@@ -15,18 +15,20 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'task:precommit-check', description: 'check /pablo-commit-and-pr is allowed here')]
 final class PrecommitCheckCommand extends Command
 {
+    use TargetsTask;
+
     protected function configure(): void
     {
         $this
-            ->addOption('json', null, InputOption::VALUE_NONE, 'emit JSON (accepted for back-compat)')
-            ->addOption('worktree', null, InputOption::VALUE_REQUIRED, 'task worktree path to check instead of the cwd');
+            ->addTaskTarget()
+            ->addOption('json', null, InputOption::VALUE_NONE, 'emit JSON (accepted for back-compat)');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $store = $this->store();
         try {
-            $ctx = $this->resolveCtx((string) $input->getOption('worktree'));
+            $ctx = $this->resolveTargetCtx($input);
         } catch (PabloError $e) {
             $err = $output instanceof \Symfony\Component\Console\Output\ConsoleOutputInterface
                 ? $output->getErrorOutput()

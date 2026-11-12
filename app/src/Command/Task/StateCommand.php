@@ -18,9 +18,11 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'task:state', description: 'force the current task to a state')]
+#[AsCommand(name: 'task:state', description: 'force a task (by default the cwd\'s) to a state')]
 final class StateCommand extends Command
 {
+    use TargetsTask;
+
     public function __construct(
         private readonly TaskStateChanger $changer,
         Store $store,
@@ -35,8 +37,8 @@ final class StateCommand extends Command
     {
         $this
             ->addArgument('state', InputArgument::REQUIRED, 'target state')
-            ->addOption('no-trigger', null, InputOption::VALUE_NONE, 'skip the state\'s on-enter actions (ignored for waiting)')
-            ->addOption('worktree', null, InputOption::VALUE_REQUIRED, 'task worktree path to operate on instead of the cwd');
+            ->addTaskTarget()
+            ->addOption('no-trigger', null, InputOption::VALUE_NONE, 'skip the state\'s on-enter actions (ignored for waiting)');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
@@ -45,7 +47,7 @@ final class StateCommand extends Command
         if (null === $state) {
             throw new PabloError('unknown state '.var_export($input->getArgument('state'), true));
         }
-        $ctx = $this->resolveCtx((string) $input->getOption('worktree'));
+        $ctx = $this->resolveTargetCtx($input);
         $task = $this->changer->forceState($ctx->task->project, $ctx->task->branch, $state, trigger: !$input->getOption('no-trigger'));
         $output->writeln("{$task->branch}: state set to {$task->state->value}");
 

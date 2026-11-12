@@ -37,7 +37,13 @@ pablo task:start https://acme.atlassian.net/browse/PIM-123
 <pre><code class="language-bash">pablo task:list            # instant, from the poller's cache
 pablo task:list --live     # fetch fresh data from GitHub and your tracker
 pablo task:list --refresh  # run the poller first, then list
+
+pablo task:list --project wallet-kit                 # one project
+pablo task:list --type work                          # work, open-source or personal projects
+pablo task:list --state ci-red --state request-changes   # only these states
 </code></pre>
+
+<p>Filters combine, and an unknown project, type or state is an error rather than an empty list.</p>
 
 <p>The list is split in two tables:</p>
 
@@ -70,8 +76,11 @@ pablo task:list --refresh  # run the poller first, then list
 
 <h2 id="pause-a-task">Pause a task</h2>
 
-<pre><code class="language-bash">pablo task:waiting   # run inside the task's worktree; run it again to resume
+<pre><code class="language-bash">pablo task:waiting           # run inside the task's worktree; run it again to resume
+pablo task:waiting pim-123   # or name the task, from anywhere
 </code></pre>
+
+<p>Like every command acting on an existing task, it takes the task's branch as an optional last argument (plus <code>--project</code> when the branch exists in several projects, or <code>--worktree &lt;path&gt;</code>), and otherwise acts on the task of the current worktree. See <a href="page:cli#choosing-the-task">Choosing the task</a>.</p>
 
 <p>The first call saves the current state and switches to ⏸️ <code>waiting</code>; the second restores it. While paused, the poller only watches for a merge, and worktree sync keeps running. Events that happened during the pause (a QA label, for example) are handled after you resume, not lost.</p>
 
@@ -81,6 +90,7 @@ pablo task:list --refresh  # run the poller first, then list
 
 <pre><code class="language-bash">pablo task:state waiting-review               # runs the state's usual actions
 pablo task:state needs-testing --no-trigger   # only records the new state
+pablo task:state draft pim-123                # another task: its branch comes after the state
 </code></pre>
 
 <p>An escape hatch for when reality and PABLO disagree. Typical case: a reviewer's old “changes requested” blocks the task while they're on holiday; force it past. Forcing a state runs exactly what the automatic transition would (launching an agent, flipping the pull request…); <code>--no-trigger</code> skips that, except for <code>waiting</code>, which always saves the state to come back to.</p>
@@ -133,7 +143,8 @@ pablo task:close pim-123 --project acme-pim   # when several projects have that 
 
 <h2 id="inspect-a-task">Inspect a task</h2>
 
-<pre><code class="language-bash">pablo task:info current   # the current worktree's task record, as JSON
+<pre><code class="language-bash">pablo task:info           # the current worktree's task record, as JSON
+pablo task:info pim-123   # any task's, from anywhere
 </code></pre>
 
-<p>Useful for scripts and for checking exactly what PABLO knows: state, issue, pull request number, timestamps. The fields are described in <a href="page:storage#task-records">Storage</a>.</p>
+<p><code>pablo task:info current</code>, the older spelling, still means the current worktree's task. Useful for scripts and for checking exactly what PABLO knows: state, issue, pull request number, timestamps. The fields are described in <a href="page:storage#task-records">Storage</a>.</p>

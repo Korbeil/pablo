@@ -5,30 +5,33 @@ declare(strict_types=1);
 namespace Pablo\Command\Task;
 
 use Pablo\Command\Command;
-use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'task:info', description: 'task record utilities')]
+#[AsCommand(name: 'task:info', description: 'dump a task record (by default the cwd\'s) as JSON')]
 final class TaskCommand extends Command
 {
+    use TargetsTask;
+
+    public const CURRENT_ALIAS = 'current';
+
     protected function configure(): void
     {
         $this
-            ->addArgument('current', InputArgument::REQUIRED, 'task record verb (current)')
+            ->addTaskTarget()
             ->addOption('json', null, InputOption::VALUE_NONE, 'emit JSON (accepted for back-compat)');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        if ('current' !== (string) $input->getArgument('current')) {
-            throw new PabloError('usage: pablo task:info current');
+        // `task:info current` predates the [<branch>] argument: keep it as an
+        // alias of the cwd's task.
+        if (self::CURRENT_ALIAS === $input->getArgument('branch')) {
+            $input->setArgument('branch', null);
         }
-        $store = $this->store();
-        $ctx = $this->resolveCtx();
+        $ctx = $this->resolveTargetCtx($input);
         $payload = $ctx->task->toJson();
         $payload['repo_path'] = $ctx->cfg->repoPath;
         $payload['primary_branch'] = $ctx->cfg->primaryBranch;

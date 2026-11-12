@@ -216,7 +216,8 @@ final class TaskLifecycleTest extends CommandTestBed
 
     public function testTaskCurrentDumpsRecord(): void
     {
-        $tester = $this->runCommand(new TaskCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['current' => 'current']);
+        // `current` is the pre-[<branch>] verb, kept as an alias of the cwd's task.
+        $tester = $this->runCommand(new TaskCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'current']);
         $data = json_decode($tester->getDisplay(), true);
         $this->assertSame('wk-45', $data['branch']);
         $this->assertSame($this->tmp.'/repo', $data['repo_path']);

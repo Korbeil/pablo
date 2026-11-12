@@ -376,12 +376,19 @@ final class Listing
      * tasks") for everything else — including tasks with a running agent,
      * whose 🏃 activity cell keeps them visible.
      *
+     * Only tasks of $projects are listed; a non-empty $states keeps only the
+     * tasks in one of those states.
+     *
      * @param array<string, ProjectConfig> $projects
+     * @param list<State>                  $states
      */
-    public function tasksTable(array $projects, Store $store, AgentLauncherInterface $agents, bool $live = false, bool $refresh = false): string
+    public function tasksTable(array $projects, Store $store, AgentLauncherInterface $agents, bool $live = false, bool $refresh = false, array $states = []): string
     {
         $fetchLive = $live || $refresh;
-        $tasks = array_values(array_filter($store->allTasks(), static fn (Task $t) => isset($projects[$t->project])));
+        $tasks = array_values(array_filter(
+            $store->allTasks(),
+            static fn (Task $t) => isset($projects[$t->project]) && ([] === $states || \in_array($t->state, $states, true)),
+        ));
 
         $needsAgentCheck = array_values(array_filter(
             $tasks,

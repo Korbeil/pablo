@@ -15,9 +15,11 @@ use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'task:retrigger-ci', description: 're-run all GitHub Actions jobs for the current task')]
+#[AsCommand(name: 'task:retrigger-ci', description: 're-run all GitHub Actions jobs for a task (by default the cwd\'s)')]
 final class RetriggerCiCommand extends Command
 {
+    use TargetsTask;
+
     public function __construct(
         private readonly GhPrInterface $gh,
         private readonly RepoSlug $repoSlug,
@@ -29,10 +31,15 @@ final class RetriggerCiCommand extends Command
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
 
+    protected function configure(): void
+    {
+        $this->addTaskTarget();
+    }
+
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $store = $this->store();
-        $ctx = $this->resolveCtx();
+        $ctx = $this->resolveTargetCtx($input);
         $repo = $this->repoSlug->for($ctx->cfg);
         $lock = $store->taskLock($ctx->task->project, $ctx->task->branch);
         try {
