@@ -100,6 +100,90 @@ final class StoreTest extends TestCase
         $this->assertSame(['a'], array_map(static fn (Task $t) => $t->project, $this->store->allTasks('a')));
     }
 
+    public function testAllTasksSkipsAndReportsUnreadableRecords(): void
+    {
+        $this->store->save($this->makeTask('a', 'a-1'));
+        $this->store->save($this->makeTask('b', 'b-1'));
+        $corrupt = $this->root.'/state/a/broken.json';
+        file_put_contents($corrupt, '{"project": "a", "bra');
+        $notObject = $this->root.'/state/b/list.json';
+        file_put_contents($notObject, '[1, 2]');
+        $stderr = fopen('php://memory', 'w+');
+        $this->assertIsResource($stderr);
+        $this->store->stderr = $stderr;
+
+        $this->assertSame(['a-1', 'b-1'], array_map(static fn (Task $t) => $t->branch, $this->store->allTasks()));
+        // Warned once per file, not on every call.
+        $this->store->allTasks();
+
+        $unreadable = $this->store->unreadableRecords();
+        $this->assertSame([$corrupt, $notObject], array_keys($unreadable));
+        $this->assertStringStartsWith('invalid JSON', $unreadable[$corrupt]);
+        $this->assertSame('not a JSON object', $unreadable[$notObject]);
+        rewind($stderr);
+        $out = (string) stream_get_contents($stderr);
+        $this->assertSame(1, substr_count($out, $corrupt));
+        $this->assertSame(1, substr_count($out, $notObject));
+        $this->assertStringContainsString('skipping unreadable task record', $out);
+    }
+
+    public function testGetThrowsANamedErrorOnACorruptRecord(): void
+    {
+        $this->store->save($this->makeTask());
+        $path = $this->store->path('wallet-kit', 'wk-45');
+        file_put_contents($path, '');
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage("cannot read task record {$path}: invalid JSON");
+        $this->store->get('wallet-kit', 'wk-45');
+    }
+
+    public function testSaveLeavesNoTempFileBehind(): void
+    {
+        $this->store->save($this->makeTask());
+        $this->store->save($this->makeTask());
+        $this->assertSame(['wk-45.json'], array_values(array_diff(scandir($this->root.'/state/wallet-kit') ?: [], ['.', '..'])));
+    }
+
+    public function testSaveUsesAUniqueTempName(): void
+    {
+        // Another writer's in-flight temp file under the old fixed name
+        // (a directory here, so reusing that name would fail outright).
+        $fixed = $this->store->path('wallet-kit', 'wk-45').'.tmp';
+        mkdir($fixed, 0o777, true);
+
+        $this->store->save($this->makeTask());
+
+        $this->assertNotNull($this->store->get('wallet-kit', 'wk-45'));
+        $this->assertDirectoryExists($fixed);
+    }
+
+    public function testFailedSaveKeepsTheExistingRecord(): void
+    {
+        if (0 === posix_geteuid()) {
+            $this->markTestSkipped('root ignores directory permissions');
+        }
+        $task = $this->makeTask();
+        $task->summary = 'original';
+        $this->store->save($task);
+        $path = $this->store->path('wallet-kit', 'wk-45');
+        $before = (string) file_get_contents($path);
+
+        $dir = \dirname($path);
+        chmod($dir, 0o555);
+        try {
+            $task->summary = 'clobbered';
+            $this->store->save($task);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString("cannot write task record {$path}", $e->getMessage());
+        } finally {
+            chmod($dir, 0o755);
+        }
+        $this->assertSame($before, file_get_contents($path));
+        $this->assertSame(['wk-45.json'], array_values(array_diff(scandir($dir) ?: [], ['.', '..'])));
+    }
+
     public function testSlashBranchIsFlattenedToTheStateFilename(): void
     {
         $task = $this->makeTask('sezane-pim', 'release/pim-upgrade-php-version');
