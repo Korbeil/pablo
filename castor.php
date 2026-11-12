@@ -62,6 +62,12 @@ function qa_twig_cs_fixer(): void
     twig_cs_fixer(['lint', '--fix', __DIR__ . '/app/templates']);
 }
 
+#[AsTask(name: 'twig-cs:check', namespace: 'qa', description: 'Lint Twig templates in app/templates without modifying them (CI)')]
+function qa_twig_cs_check(): void
+{
+    twig_cs_fixer(['lint', __DIR__ . '/app/templates']);
+}
+
 #[AsTask(name: 'phpstan', namespace: 'qa', description: 'Run PHPStan static analysis on app/src and app/tests', aliases: ['phpstan'])]
 function qa_phpstan(bool $generateBaseline = false): void
 {

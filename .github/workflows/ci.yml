@@ -9,79 +9,79 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+# Every job sets PHP, Composer's cache and Castor up through the same local
+# composite action (.github/actions/setup), so they cannot drift apart.
 jobs:
   cs-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: checkout
         uses: actions/checkout@v7
-      # php-cs-fixer's parallel workers run on the PATH's php, not castor's:
-      # without this they get the runner's PHP, too old for the tool's deps.
+      - name: setup
+        uses: ./.github/actions/setup
+      - name: 'php-cs-fixer check'
+        run: 'castor qa:cs:check'
+      - name: 'twig-cs-fixer check'
+        run: 'castor qa:twig-cs:check'
+  composer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
       - name: setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: 8.5
           coverage: none
-      - name: setup
-        uses: castor-php/setup-castor@v1
-      - name: 'php-cs-fixer check'
-        run: 'castor qa:cs:check'
+          tools: composer
+      - name: 'composer validate (app)'
+        working-directory: app
+        run: composer validate --strict
+      - name: 'composer audit (app)'
+        working-directory: app
+        run: composer audit --locked
+      - name: 'composer validate (site/build)'
+        working-directory: site/build
+        run: composer validate --strict
+      - name: 'composer audit (site/build)'
+        working-directory: site/build
+        run: composer audit --locked
   phpstan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: checkout
         uses: actions/checkout@v7
-      - name: cache-composer
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/composer
-          key: composer-${{ github.sha }}
-          restore-keys: |
-            composer-${{ runner.os }}-
       - name: setup
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: 8.5
-          coverage: none
-          extensions: mbstring, dom, xml, simplexml
+        uses: ./.github/actions/setup
       - name: composer install
         working-directory: app
         run: composer install --no-interaction --prefer-dist
-      - name: setup
-        uses: castor-php/setup-castor@v1
-      - name: cache-castor
-        uses: actions/cache@v6
-        with:
-          path: .castor
-          key: castor-${{ hashFiles('castor.composer.json', 'castor.composer.lock', 'castor.php') }}
-          restore-keys: |
-            castor-${{ runner.os }}-
       - name: 'phpstan check'
         run: 'castor qa:phpstan'
   tests:
     runs-on: ubuntu-latest
-    name: tests
+    timeout-minutes: 15
+    name: tests (PHP ${{ matrix.php }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # app/composer.json allows ">=8.4.1": test the lowest and the latest.
+        php: [ "8.4", "8.5" ]
     steps:
       - name: checkout
         uses: actions/checkout@v7
-      - name: cache-composer
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/composer
-          key: composer-${{ runner.os }}-
-          restore-keys: |
-            composer-${{ runner.os }}-
-            composer-
       - name: setup
-        uses: shivammathur/setup-php@v2
+        uses: ./.github/actions/setup
         with:
-          php-version: 8.5
-          coverage: none
-          extensions: mbstring, dom, xml, simplexml
+          php-version: ${{ matrix.php }}
       - name: composer install
         working-directory: app
         run: composer install --no-interaction --prefer-dist
-      - name: setup
-        uses: castor-php/setup-castor@v1
       - name: tests
         run: castor qa:test

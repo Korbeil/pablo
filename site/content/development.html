@@ -74,13 +74,14 @@ castor qa:phpstan                       # static analysis, level 8
 castor qa:cs-fixer                      # fix coding style (@Symfony + @Symfony:risky)
 castor qa:cs:check                      # check only (what CI runs)
 castor qa:twig-cs-fixer                 # Twig templates
+castor qa:twig-cs:check                 # check only (what CI runs)
 (cd app &amp;&amp; composer exec phpunit tests/StateMachineTest.php)   # one test file
 php app/bin/console lint:twig app/templates
 </code></pre>
 
 <p>PHPStan runs at level 8 over <code>src</code>, <code>tests</code>, <code>config</code> and <code>public</code>. Raise the level by fixing what it reports, never by ignoring errors or adding them to the baseline. php-cs-fixer covers exactly the paths listed by the Finder in <code>app/.php-cs-fixer.php</code> (the castor tasks pass none): a new top-level folder is added there.</p>
 
-<p>CI (<code>.github/workflows/ci.yml</code>) runs the tests, PHPStan and the coding-style check on every push to <code>main</code> and every pull request, from a checkout. <code>.github/workflows/binary.yml</code> builds the binaries (see below).</p>
+<p>CI (<code>.github/workflows/ci.yml</code>) runs on every push to <code>main</code> and every pull request, from a checkout: the tests on PHP 8.4 and 8.5 (the lowest version <code>app/composer.json</code> allows and the latest), PHPStan, the php-cs-fixer and twig-cs-fixer checks, and <code>composer validate --strict</code> plus <code>composer audit</code> for <code>app/</code> and <code>site/build/</code>, so a dependency with a published security advisory fails the build. Every job sets up PHP and Castor through the same local action, <code>.github/actions/setup</code>. <code>.github/workflows/binary.yml</code> builds the binaries (see below).</p>
 
 <h2 id="the-standalone-binary">The standalone binary</h2>
 
