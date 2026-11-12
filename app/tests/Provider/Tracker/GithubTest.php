@@ -146,6 +146,15 @@ final class GithubTest extends TestCase
         $this->assertSame('WK', $issue->projectKey);
     }
 
+    public function testGetIssueHtmlReplyIsAClearPabloError(): void
+    {
+        $this->configure(['issue view 45' => '<html><body>Rate limited</body></html>']);
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('cannot parse gh issue view 45 output: Syntax error, got: ');
+        (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->getIssue('45', $this->cfg());
+    }
+
     public function testListAssignedParses(): void
     {
         $this->configure(['issue list' => json_encode([

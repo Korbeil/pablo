@@ -8,6 +8,7 @@ use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
 
@@ -65,8 +66,7 @@ final class Github implements Provider
             'gh', 'issue', 'view', $ref, '--repo', $this->repoSlug->for($cfg),
             '--json', 'number,title,state,url',
         ], timeout: self::GH_CALL_TIMEOUT_S);
-        /** @var array<string, mixed> $data */
-        $data = json_decode($out, true);
+        $data = Json::decodeArray($out, "gh issue view {$ref} output");
 
         return new Issue(
             provider: $this->name(),
@@ -86,8 +86,7 @@ final class Github implements Provider
             '--json', 'number,title,state,url', '--limit', '100',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         $issues = [];
-        /** @var array<int, array<string, mixed>> $items */
-        $items = json_decode($out, true);
+        $items = Json::decodeList($out, 'gh issue list output');
         foreach ($items as $item) {
             $issues[] = new Issue(
                 provider: $this->name(),
@@ -105,10 +104,8 @@ final class Github implements Provider
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
         $out = $this->runner->run($this->statusCommand($key, $cfg), timeout: self::GH_CALL_TIMEOUT_S);
-        /** @var array<string, mixed> $data */
-        $data = json_decode($out, true);
 
-        return self::statusOf($data);
+        return self::statusOf(Json::decodeArray($out, "gh issue view {$key} output"));
     }
 
     public function batchIssueStatus(array $issues): array
@@ -146,8 +143,7 @@ final class Github implements Provider
             '--paginate',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         $stamps = [];
-        /** @var array<int, array<string, mixed>> $events */
-        $events = json_decode($out, true);
+        $events = Json::decodeList($out, 'gh api issue events output');
         foreach ($events as $event) {
             if (($event['event'] ?? null) === 'labeled'
                 && ($event['label']['name'] ?? null) === $cfg->failureSignal) {

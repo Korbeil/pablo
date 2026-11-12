@@ -8,6 +8,7 @@ use Pablo\Analytics\PromptFingerprint;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
+use Pablo\Support\Json;
 use Pablo\Support\Numbers;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -81,7 +82,7 @@ final class OpenCodeUsage implements UsageHarvesterInterface
         if (0 !== $probe->exitCode) {
             return [];
         }
-        $decoded = json_decode($probe->output, true);
+        $decoded = Json::tryDecodeArray($probe->output);
         if (!\is_array($decoded)) {
             return [];
         }
@@ -122,7 +123,7 @@ final class OpenCodeUsage implements UsageHarvesterInterface
         if (0 !== $probe->exitCode) {
             return null;
         }
-        $decoded = json_decode($probe->output, true);
+        $decoded = Json::tryDecodeArray($probe->output);
 
         return \is_array($decoded) ? $decoded : null;
     }

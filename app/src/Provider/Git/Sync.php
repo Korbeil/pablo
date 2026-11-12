@@ -13,6 +13,7 @@ use Pablo\Domain\Time;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
+use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
@@ -283,8 +284,7 @@ final class Sync
             return null;
         }
 
-        /** @var array<string, mixed> $data */
-        $data = json_decode((string) file_get_contents($path), true);
+        $data = Json::decodeArray((string) file_get_contents($path), "rebase log {$path}");
 
         return RebaseLog::fromArray($data);
     }

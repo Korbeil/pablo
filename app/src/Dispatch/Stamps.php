@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Dispatch;
 
+use Pablo\Support\Json;
 use Pablo\Support\PabloPaths;
 
 /**
@@ -43,8 +44,7 @@ final class Stamps
             return null;
         }
         if (str_starts_with($raw, '{')) {
-            /** @var array<string, mixed>|null $data */
-            $data = json_decode($raw, true);
+            $data = Json::tryDecodeArray($raw);
             if (!\is_array($data) || !isset($data['ran_at']) || !is_numeric($data['ran_at'])) {
                 return null;
             }

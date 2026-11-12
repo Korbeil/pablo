@@ -12,6 +12,7 @@ use Pablo\Agents\Runtime\RuntimeSupport;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\CliProbe;
+use Pablo\Support\Json;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
 use Symfony\Component\Process\ExecutableFinder;
@@ -173,7 +174,7 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
     private function remoteControlCommand(string $agent, string $prompt, ?string $model, string $sessionId, string $worktree): ?string
     {
         $raw = @file_get_contents($this->agentsFile());
-        $agents = false !== $raw ? json_decode($raw, true) : null;
+        $agents = false !== $raw ? Json::tryDecodeArray($raw) : null;
         $definition = \is_array($agents) ? ($agents[$agent] ?? null) : null;
         if (!\is_array($definition) || null === (new ExecutableFinder())->find('script')) {
             return null;

@@ -9,6 +9,7 @@ use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -46,7 +47,7 @@ final class OrcaLauncher extends AbstractAgentLauncher
         $out = '';
         try {
             $out = $this->runner->run([OrcaCli::command(), ...$argv, '--json'], check: false, timeout: $perCallTimeout);
-            $data = json_decode($out, true);
+            $data = Json::tryDecodeArray($out);
         } catch (\Throwable $e) {
             return new OrcaCall(null, $e::class.': '.$e->getMessage().'; raw_stdout='.var_export($out, true));
         }

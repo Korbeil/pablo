@@ -8,6 +8,7 @@ use Pablo\Analytics\PromptFingerprint;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
+use Pablo\Support\Json;
 use Pablo\Support\Numbers;
 
 /**
@@ -106,7 +107,7 @@ final class ClaudeCodeUsage implements UsageHarvesterInterface
         $lastMs = 0;
         try {
             while (false !== ($line = fgets($handle))) {
-                $row = json_decode($line, true);
+                $row = Json::tryDecodeArray($line);
                 if (!\is_array($row) || ($row['isSidechain'] ?? false) === true) {
                     continue;
                 }

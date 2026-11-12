@@ -149,6 +149,30 @@ final class JiraTest extends TestCase
         $this->assertSame([], $this->svc()->failureSignalEvents($task, $this->cfg()));
     }
 
+    public function testGetIssueUnreadableReplyIsAClearPabloError(): void
+    {
+        $this->startRunner(static fn (): string => '');
+
+        $this->expectException(\Pablo\Support\PabloError::class);
+        $this->expectExceptionMessage('cannot parse acli jira workitem view XXX-123 output: Syntax error, got: (empty output)');
+        $this->svc()->getIssue('XXX-123', $this->cfg());
+    }
+
+    public function testListAssignedNonListReplyIsAClearPabloError(): void
+    {
+        $this->startRunner(static fn (): string => '{"errorMessages":["Unauthorized"]}');
+
+        $this->expectException(\Pablo\Support\PabloError::class);
+        $this->expectExceptionMessage('cannot parse acli jira workitem search output: expected a JSON array');
+        $this->svc()->listAssigned($this->cfg());
+    }
+
+    public function testIssueStatusUnreadableReplyIsQuestionMark(): void
+    {
+        $this->startRunner(static fn (): string => '<html>');
+        $this->assertSame('?', $this->svc()->issueStatus('XXX-123', $this->cfg()));
+    }
+
     public function testSignalViaStatusFlag(): void
     {
         $this->assertTrue($this->svc()->supportsSignalViaStatus());

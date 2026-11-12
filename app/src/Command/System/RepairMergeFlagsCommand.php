@@ -11,6 +11,7 @@ use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
+use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -79,7 +80,7 @@ final class RepairMergeFlagsCommand extends Command
             }
             $patched = [];
             foreach ($lines as $i => $line) {
-                $event = json_decode($line, true);
+                $event = Json::tryDecodeArray($line);
                 if (!\is_array($event)
                     || 'task_closed' !== ($event['type'] ?? null)
                     || !empty($event['merged'])

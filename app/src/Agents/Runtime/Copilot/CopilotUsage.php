@@ -8,6 +8,7 @@ use Pablo\Analytics\PromptFingerprint;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
 use Pablo\Domain\Time;
+use Pablo\Support\Json;
 use Pablo\Support\Numbers;
 
 /**
@@ -110,7 +111,7 @@ final class CopilotUsage implements UsageHarvesterInterface
         $lastMs = 0;
         try {
             while (false !== ($line = fgets($handle))) {
-                $event = json_decode($line, true);
+                $event = Json::tryDecodeArray($line);
                 if (!\is_array($event)) {
                     continue;
                 }

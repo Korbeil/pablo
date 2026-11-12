@@ -8,6 +8,7 @@ use Pablo\Agents\Ade\Detached;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
+use Pablo\Support\Json;
 use Pablo\Support\PabloPaths;
 
 /**
@@ -133,7 +134,7 @@ final class HeadlessRunner
             return $grouped;
         }
         foreach (glob($this->agentsDir.'/*.json') ?: [] as $pidfile) {
-            $record = json_decode((string) file_get_contents($pidfile), true);
+            $record = Json::tryDecodeArray((string) file_get_contents($pidfile));
             if (!\is_array($record) || !isset($record['pid'])) {
                 // Not a headless pidfile (e.g. another ADE's session record).
                 if (!\is_array($record)) {

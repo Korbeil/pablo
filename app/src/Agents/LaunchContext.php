@@ -7,6 +7,7 @@ namespace Pablo\Agents;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\Task;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
 
@@ -367,7 +368,7 @@ final class LaunchContext
      */
     private static function decode(string $out): array
     {
-        $data = json_decode($out, true);
+        $data = Json::tryDecodeArray($out);
 
         return \is_array($data) ? $data : [];
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\Runtime\RuntimeOneShotInterface;
+use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -48,7 +49,7 @@ final class ClaudeCodeOneShot implements RuntimeOneShotInterface
      */
     public static function parse(string $raw): ?string
     {
-        $data = json_decode(trim($raw), true);
+        $data = Json::tryDecodeArray(trim($raw));
         if (!\is_array($data) || true === ($data['is_error'] ?? false) || !\is_string($data['result'] ?? null)) {
             return null;
         }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Provider\Git;
 
 use Pablo\Support\Files;
+use Pablo\Support\Json;
 
 /**
  * Per-project sync history: ~/.pablo/logs/sync-history-<project>.jsonl, one
@@ -80,7 +81,7 @@ final class SyncHistory
         $lines = @file($path, \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES) ?: [];
         $runs = [];
         foreach (array_reverse($lines) as $line) {
-            $data = json_decode($line, true);
+            $data = Json::tryDecodeArray($line);
             if (!\is_array($data) || !\is_array($data['reports'] ?? null)
                 || [] !== array_filter($data['reports'], static fn (mixed $r): bool => !\is_array($r))) {
                 continue; // corrupt or truncated line
