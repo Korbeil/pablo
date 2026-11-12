@@ -41,7 +41,7 @@ ci:
     <tr><td><code>main_update.enabled</code></td><td><code>true</code></td><td>Keep the main checkout up to date</td></tr>
     <tr><td><code>main_update.interval_minutes</code></td><td><code>60</code></td><td>How often</td></tr>
     <tr><td><code>testing.enabled</code></td><td><code>true</code></td><td>Whether the project has a QA step</td></tr>
-    <tr><td><code>review.bot_whitelist</code></td><td><b>required</b> somewhere (installed config: <code>[]</code>)</td><td>Bot accounts whose reviews count</td></tr>
+    <tr><td><code>review.bot_whitelist</code></td><td><b>required</b> somewhere (installed config: <code>[]</code>)</td><td>Bot accounts whose reviews count (login with or without its <code>[bot]</code> suffix)</td></tr>
     <tr><td><code>ci.ignore_checks</code></td><td><b>required</b> somewhere (installed config: <code>["approval"]</code>)</td><td>Checks to leave out of CI</td></tr>
   </tbody>
 </table>
@@ -248,7 +248,7 @@ testing:
   failure_signal: qa-failed   # GitHub: a pull request label. Jira/Linear: an issue status.
                               # Without it, testing-failed never triggers by itself.
 review:
-  bot_whitelist: ["copilot-pull-request-reviewer[bot]"]
+  bot_whitelist: ["copilot-pull-request-reviewer"]   # GitHub Copilot's reviews
 ci:
   ignore_checks: ["approval"]
 

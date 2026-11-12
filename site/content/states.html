@@ -98,7 +98,7 @@
 
 <ul>
   <li><b>Your own reviews never count.</b> Replying to a comment on your own pull request creates a review in your name; it shouldn't send you back to draft.</li>
-  <li><b>Bots are ignored</b>, unless listed in <a href="page:configuration#project-files"><code>review.bot_whitelist</code></a>.</li>
+  <li><b>Bots are ignored</b>, unless listed in <a href="page:configuration#project-files"><code>review.bot_whitelist</code></a> (for GitHub Copilot: <code>copilot-pull-request-reviewer</code>). A listed bot's comment review counts only through its unresolved comment threads: its body is a summary (Copilot writes one on every review, “approval recommended” included), never feedback on its own.</li>
   <li><b>Only reviews after GitHub's last “ready for review” event count.</b> An approval from a previous round doesn't leak into this one. (GitHub's summary verdict is not used: it has no timestamp.)</li>
   <li><b>The latest review of each reviewer wins.</b> Every review and every comment thread is read, however long the pull request: each reply to a comment is a review of its own, so a busy pull request can hold hundreds.</li>
   <li><b>Resolved comments clear a comment review.</b> A review whose comment threads were all resolved, and that carries no top-level body text, no longer counts as a changes signal — resolving is the reviewer's way of saying "addressed". A non-empty review body without a thread to resolve keeps counting, and resolving threads never withdraws an explicit “changes requested” verdict.</li>
