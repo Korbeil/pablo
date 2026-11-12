@@ -15,6 +15,16 @@ use Symfony\Component\Process\Process;
 final class ProcessRunner implements ProcessRunnerInterface
 {
     /**
+     * Seconds a call gets when its caller passes no $timeout. null keeps a
+     * bounded default on purpose rather than meaning "no timeout": these CLIs
+     * (gh, acli, the trackers', the runtimes') can block forever on a prompt
+     * or a stalled connection, and the dispatcher holds a global lock while
+     * they run. It is Symfony Process's own default, made explicit so error
+     * messages report it. Callers expecting longer runs pass their own.
+     */
+    public const DEFAULT_TIMEOUT = 60.0;
+
+    /**
      * Environment to launch an external CLI with.
      *
      * acli (Atlassian CLI) reads a secret from the Secret Service keyring on
@@ -40,9 +50,8 @@ final class ProcessRunner implements ProcessRunnerInterface
     public function run(array $argv, bool $check = true, ?float $timeout = null, ?string $cwd = null): string
     {
         $process = new Process($argv, cwd: $cwd, env: self::envFor($argv));
-        if (null !== $timeout) {
-            $process->setTimeout($timeout);
-        }
+        $timeout ??= self::DEFAULT_TIMEOUT;
+        $process->setTimeout($timeout);
         try {
             $process->run();
         } catch (ProcessTimedOutException) {
@@ -67,12 +76,11 @@ final class ProcessRunner implements ProcessRunnerInterface
             return [];
         }
 
+        $timeout ??= self::DEFAULT_TIMEOUT;
         $processes = [];
         foreach ($commandGroups as $i => $argv) {
             $p = new Process($argv, env: self::envFor($argv));
-            if (null !== $timeout) {
-                $p->setTimeout($timeout);
-            }
+            $p->setTimeout($timeout);
             $p->start();
             $processes[$i] = $p;
         }
@@ -114,9 +122,8 @@ final class ProcessRunner implements ProcessRunnerInterface
     public function probe(array $argv, ?float $timeout = null, ?string $cwd = null): ProbeResult
     {
         $process = new Process($argv, cwd: $cwd, env: self::envFor($argv));
-        if (null !== $timeout) {
-            $process->setTimeout($timeout);
-        }
+        $timeout ??= self::DEFAULT_TIMEOUT;
+        $process->setTimeout($timeout);
         try {
             $process->run();
         } catch (ProcessTimedOutException) {

@@ -12,6 +12,8 @@
   <li>if the history changed and the branch exists on the remote, <b>push with <code>--force-with-lease</code></b>, never plain <code>--force</code>. If the lease fails (someone pushed in the meantime), the worktree is rolled back and sync tries again next time.</li>
 </ol>
 
+<p>Every git command runs with a time limit sized to what it does: 2 minutes for read-only commands, 15 for those that rewrite the working tree (worktree creation, checkout, rebase, merge, reset, hooks included), 20 for <code>fetch</code> and <code>push</code> (a <code>pre-push</code> hook may run your tests), an hour for a <code>clone</code>. A git command that runs past its limit is stopped and handled like any other failure: a push that times out is rolled back like a failed lease, and a rebase or merge that times out is aborted and the worktree reset to where it was, with the error reported for that project.</p>
+
 <h3>Report first, apply when you're ready</h3>
 
 <p>By default sync is a <b>dry run</b>: it reports what it would do. It applies changes only with <code>sync.auto_apply: true</code> in the project (or the global config), or when you run <code>pablo sync:run --apply</code>. Turn <code>auto_apply</code> on for the projects where you know the shape of the work.</p>
