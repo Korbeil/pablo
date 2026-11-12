@@ -258,6 +258,8 @@ pr_description_locale: en
 branch_prefix: pablo/
 </code></pre>
 
+<p>In <code>repo.path</code>, <code>worktrees_root</code> and <code>startup_script</code>, a leading <code>~/</code> (or a bare <code>~</code>) is your home directory, read from <code>HOME</code>; PABLO stops with an error if <code>HOME</code> isn't set. <code>~user/</code> is not expanded: write that path in full.</p>
+
 <h3 id="ci-ignore-checks"><code>ci.ignore_checks</code></h3>
 
 <p>A list of words. Any check whose name, workflow or context <em>contains</em> one of them is left out when PABLO decides whether CI is red or green. Use it for checks that never finish on their own, such as CircleCI manual approval gates, which stay pending (or “action required”) forever and would otherwise keep the task in <code>draft</code>. It's deliberately simple: a substring match.</p>

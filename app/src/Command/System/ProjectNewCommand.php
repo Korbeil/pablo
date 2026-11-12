@@ -10,6 +10,7 @@ use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
+use Pablo\Support\PabloPaths;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -179,11 +180,8 @@ final class ProjectNewCommand extends Command
             if (null === $v || '' === $v) {
                 return $v;
             }
-            if (str_starts_with($v, '~/') && false !== ($home = getenv('HOME'))) {
-                return $home.substr($v, 1);
-            }
 
-            return $v;
+            return PabloPaths::expandTilde($v);
         });
 
         $path = (string) $helper->ask($input, $output, $question);
@@ -346,12 +344,7 @@ final class ProjectNewCommand extends Command
 
     private function toHomeRelative(string $path): string
     {
-        $home = getenv('HOME');
-        if (false !== $home && '' !== $home && str_starts_with($path, $home)) {
-            return '~'.substr($path, \strlen($home));
-        }
-
-        return $path;
+        return PabloPaths::contractTilde($path);
     }
 
     private function detectedRepoRoot(string $cwd): ?string

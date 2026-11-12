@@ -137,15 +137,6 @@ final class Config
         throw new PabloError("no value for {$section}.{$key} — set it in the project config or ~/.pablo/config.yaml");
     }
 
-    private function expandHome(string $path): string
-    {
-        if (str_starts_with($path, '~/')) {
-            return getenv('HOME').substr($path, 1);
-        }
-
-        return $path;
-    }
-
     /**
      * @param array<string, mixed> $defaults
      */
@@ -161,7 +152,7 @@ final class Config
             throw new PabloError(\sprintf('%s: unknown type %s (expected one of %s)', $name, var_export($type, true), '["open-source", "personal", "work"]'));
         }
 
-        $repoPath = $this->expandHome((string) $this->require($data, 'repo.path', $base));
+        $repoPath = PabloPaths::expandTilde((string) $this->require($data, 'repo.path', $base));
         $primaryBranch = (string) $this->require($data, 'repo.primary_branch', $base);
         $primaryRemote = (string) ($this->optional($data, 'repo.primary_remote') ?? 'origin');
 
@@ -177,7 +168,7 @@ final class Config
 
         $rawRoot = $data['worktrees_root'] ?? null;
         if (null !== $rawRoot && '' !== $rawRoot) {
-            $worktreesRoot = $this->expandHome((string) $rawRoot);
+            $worktreesRoot = PabloPaths::expandTilde((string) $rawRoot);
         } else {
             $worktreesRoot = PabloPaths::pabloPath('worktrees').'/'.basename($repoPath);
         }
@@ -246,7 +237,7 @@ final class Config
             mainUpdateInterval: (int) ($data['main_update']['interval_minutes'] ?? $defaults['main_update']['interval_minutes'] ?? 60),
             botWhitelist: array_values((array) $this->merged($data, $defaults, 'review', 'bot_whitelist')),
             ciIgnoreChecks: array_values((array) $this->merged($data, $defaults, 'ci', 'ignore_checks')),
-            startupScript: $startup ? $this->expandHome((string) $startup) : null,
+            startupScript: $startup ? PabloPaths::expandTilde((string) $startup) : null,
             defaultModel: $defaultModel,
             prDescriptionLocale: $prDescriptionLocale,
             branchPrefix: $branchPrefix,
