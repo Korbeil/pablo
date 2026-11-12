@@ -187,10 +187,14 @@ final class Dispatch
     }
 
     /**
+     * $configErrors are the project files that failed to load
+     * (Config::projectErrors()): logged every run, the valid projects still run.
+     *
      * @param array<string, ProjectConfig>                             $projects
      * @param array<string, callable(ProjectConfig, Store): void>|null $runners
+     * @param array<string, string>                                    $configErrors
      */
-    public function run(array $projects, Store $store, ?array $runners = null, ?float $now = null): int
+    public function run(array $projects, Store $store, ?array $runners = null, ?float $now = null, array $configErrors = []): int
     {
         $runners ??= $this->defaultRunners();
         $now ??= microtime(true);
@@ -201,6 +205,12 @@ final class Dispatch
             return 0;
         }
         try {
+            // A broken project file only drops that project: say so loudly on
+            // every run (until fixed), then dispatch the others.
+            foreach ($configErrors as $file => $error) {
+                fwrite($this->stderr ?? \STDERR, "pablo dispatch: skipping invalid project config {$file}: {$error}\n");
+            }
+
             $errors = $this->preflightErrors($projects);
             if ([] !== $errors) {
                 fwrite($this->stderr ?? \STDERR, "pablo dispatch: CLI preflight failed, aborting:\n"
@@ -209,7 +219,7 @@ final class Dispatch
                 return 1;
             }
 
-            $failed = false;
+            $failed = [] !== $configErrors;
             foreach ($projects as $cfgValue) {
                 foreach ($runners as $job => $runner) {
                     if (!$this->isDue($cfgValue, $job, $now)) {

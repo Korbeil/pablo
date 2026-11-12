@@ -118,6 +118,82 @@ YAML;
         file_put_contents($this->projectsDir.'/'.$name, $content);
     }
 
+    /** The single project file is invalid: nothing loads, its error is kept. */
+    private function onlyProjectError(): string
+    {
+        $loader = new Config(new GlobalConfig());
+        $this->assertSame([], $loader->loadProjects($this->projectsDir));
+        $errors = $loader->projectErrors($this->projectsDir);
+        $this->assertCount(1, $errors);
+
+        return (string) reset($errors);
+    }
+
+    public function testBrokenFileDoesNotHideTheOthers(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->write('broken.yaml', "name: broken\ntype: work\n");
+        $this->write('garbage.yaml', "name: [unclosed\n");
+        $loader = $this->loader();
+
+        $this->assertSame(['mini'], array_keys($loader->loadProjects($this->projectsDir)));
+        $errors = $loader->projectErrors($this->projectsDir);
+        $this->assertSame([$this->projectsDir.'/broken.yaml', $this->projectsDir.'/garbage.yaml'], array_keys($errors));
+        $this->assertStringContainsString("broken.yaml: missing required key 'repo.path'", $errors[$this->projectsDir.'/broken.yaml']);
+        $this->assertStringContainsString('garbage.yaml: invalid YAML', $errors[$this->projectsDir.'/garbage.yaml']);
+    }
+
+    public function testDuplicateNameDropsBothFiles(): void
+    {
+        $this->write('a.yaml', self::MINIMAL_PROJECT);
+        $this->write('b.yaml', self::MINIMAL_PROJECT);
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT);
+        $loader = $this->loader();
+
+        $this->assertSame(['wallet-kit'], array_keys($loader->loadProjects($this->projectsDir)));
+        $errors = $loader->projectErrors($this->projectsDir);
+        $this->assertCount(2, $errors);
+        $this->assertStringContainsString("b.yaml: duplicate project name 'mini' (also in a.yaml)", $errors[$this->projectsDir.'/b.yaml']);
+        $this->assertStringContainsString("a.yaml: duplicate project name 'mini' (also in b.yaml)", $errors[$this->projectsDir.'/a.yaml']);
+    }
+
+    public function testTargetingABrokenProjectReportsItsError(): void
+    {
+        putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
+        try {
+            $this->write('mini.yaml', self::MINIMAL_PROJECT);
+            // Named after its "name" key, not its file name.
+            $this->write('other-file.yaml', "name: broken\ntype: work\n");
+            $this->write('garbage.yaml', "name: [unclosed\n");
+            $loader = $this->loader();
+
+            $this->assertStringContainsString("project 'broken' has an invalid config: other-file.yaml: missing required key 'repo.path'", $loader->unknownProject('broken')->getMessage());
+            $this->assertStringContainsString("project 'garbage' has an invalid config: garbage.yaml: invalid YAML", $loader->unknownProject('garbage')->getMessage());
+            $this->assertSame("unknown project 'nope'; configured projects: mini", $loader->unknownProject('nope')->getMessage());
+            $this->assertStringContainsString("task feat/x belongs to project 'broken', whose config is invalid: other-file.yaml", $loader->missingTaskProject('broken', 'feat/x')->getMessage());
+            $this->assertStringContainsString('no config under projects/ anymore', $loader->missingTaskProject('nope', 'feat/x')->getMessage());
+        } finally {
+            putenv('PABLO_PROJECTS_DIR');
+        }
+    }
+
+    public function testGlobalConfigErrorsStayFatal(): void
+    {
+        $this->writeGlobalConfig("sync: [unclosed\n");
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('invalid YAML');
+        $this->loader()->loadProjects($this->projectsDir);
+    }
+
+    public function testLoadProjectFileThrowsItsError(): void
+    {
+        $this->write('broken.yaml', "name: broken\ntype: work\n");
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage("broken.yaml: missing required key 'repo.path'");
+        $this->loader()->loadProjectFile($this->projectsDir.'/broken.yaml');
+    }
+
     public function testLoadsOnlyProjectYamls(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
@@ -281,46 +357,30 @@ YAML;
     public function testMissingRequiredKeyNamesFileAndKey(): void
     {
         $this->write('broken.yaml', "name: broken\ntype: work\n");
-        try {
-            $this->loader()->loadProjects($this->projectsDir);
-            $this->fail('expected PabloError');
-        } catch (PabloError $e) {
-            $this->assertStringContainsString('broken.yaml', $e->getMessage());
-            $this->assertStringContainsString('repo.path', $e->getMessage());
-        }
+        $message = $this->onlyProjectError();
+        $this->assertStringContainsString('broken.yaml', $message);
+        $this->assertStringContainsString('repo.path', $message);
     }
 
     public function testUnknownTypeRejected(): void
     {
         $this->write('bad.yaml', str_replace('type: personal', 'type: hobby', self::MINIMAL_PROJECT));
-        try {
-            $this->loader()->loadProjects($this->projectsDir);
-            $this->fail('expected PabloError');
-        } catch (PabloError $e) {
-            $this->assertStringContainsString('hobby', $e->getMessage());
-        }
+        $message = $this->onlyProjectError();
+        $this->assertStringContainsString('hobby', $message);
     }
 
     public function testUnknownProviderRejected(): void
     {
         $this->write('bad.yaml', str_replace('provider: github', 'provider: gitlab', self::MINIMAL_PROJECT));
-        try {
-            $this->loader()->loadProjects($this->projectsDir);
-            $this->fail('expected PabloError');
-        } catch (PabloError $e) {
-            $this->assertStringContainsString('gitlab', $e->getMessage());
-        }
+        $message = $this->onlyProjectError();
+        $this->assertStringContainsString('gitlab', $message);
     }
 
     public function testGithubRequiresProjectKey(): void
     {
         $this->write('bad.yaml', str_replace("  project_key: MI\n", '', self::MINIMAL_PROJECT));
-        try {
-            $this->loader()->loadProjects($this->projectsDir);
-            $this->fail('expected PabloError');
-        } catch (PabloError $e) {
-            $this->assertStringContainsString('project_key', $e->getMessage());
-        }
+        $message = $this->onlyProjectError();
+        $this->assertStringContainsString('project_key', $message);
     }
 
     public function testDefaultsComeFromGlobalConfig(): void
@@ -434,24 +494,16 @@ YAML);
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         $this->writeGlobalConfig("sync:\n  strategy: rebase\n  interval_minutes: 30\nstate_polling:\n  interval_minutes: 10\nreview:\n  bot_whitelist: []\nci:\n  ignore_checks: []\n");
-        try {
-            $this->loader()->loadProjects($this->projectsDir);
-            $this->fail('expected PabloError');
-        } catch (PabloError $e) {
-            $this->assertStringContainsString('default_model', $e->getMessage());
-        }
+        $message = $this->onlyProjectError();
+        $this->assertStringContainsString('default_model', $message);
     }
 
     public function testNoGlobalConfigMeansNoDefaults(): void
     {
         putenv('PABLO_CONFIG='.$this->projectsDir.'/missing.yaml');
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        try {
-            $this->loader()->loadProjects($this->projectsDir);
-            $this->fail('expected PabloError');
-        } catch (PabloError $e) {
-            $this->assertStringContainsString('sync.interval_minutes', $e->getMessage());
-        }
+        $message = $this->onlyProjectError();
+        $this->assertStringContainsString('sync.interval_minutes', $message);
     }
 
     public function testGlobalConfigPathHonorsOverride(): void
@@ -467,10 +519,8 @@ YAML);
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         putenv('PABLO_AGENT_RUNTIME=claude-code');
         try {
-            $this->loader()->loadProjects($this->projectsDir);
-            $this->fail('expected PabloError');
-        } catch (PabloError $e) {
-            $this->assertStringContainsString("default_model 'opencode-go/glm-5.3-flash' looks like an OpenCode provider/model id", $e->getMessage());
+            $message = $this->onlyProjectError();
+            $this->assertStringContainsString("default_model 'opencode-go/glm-5.3-flash' looks like an OpenCode provider/model id", $message);
         } finally {
             putenv('PABLO_AGENT_RUNTIME');
         }
@@ -491,12 +541,8 @@ YAML);
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         putenv('PABLO_AGENT_RUNTIME=copilot');
         try {
-            try {
-                $this->loader()->loadProjects($this->projectsDir);
-                $this->fail('expected PabloError');
-            } catch (PabloError $e) {
-                $this->assertStringContainsString("default_model 'opencode-go/glm-5.3-flash' looks like an OpenCode provider/model id; agent_runtime copilot", $e->getMessage());
-            }
+            $message = $this->onlyProjectError();
+            $this->assertStringContainsString("default_model 'opencode-go/glm-5.3-flash' looks like an OpenCode provider/model id; agent_runtime copilot", $message);
 
             $this->write('mini.yaml', self::MINIMAL_PROJECT."default_model: claude-sonnet-5.5\n");
             $this->assertSame('claude-sonnet-5.5', $this->loader()->loadProjects($this->projectsDir)['mini']->defaultModel);

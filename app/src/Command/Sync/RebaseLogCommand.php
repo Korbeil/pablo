@@ -11,7 +11,6 @@ use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Provider\Git\Sync;
 use Pablo\Store\Store;
-use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -41,7 +40,7 @@ final class RebaseLogCommand extends Command
         $projects = $this->projects();
         $project = $input->getArgument('project') ?: null;
         if (null !== $project && !isset($projects[$project])) {
-            throw new PabloError("unknown project '{$project}'; configured projects: ".implode(', ', array_keys($projects)));
+            throw $this->projectsLoader->unknownProject($project);
         }
         $names = null !== $project ? [$project] : array_keys($projects);
         sort($names);

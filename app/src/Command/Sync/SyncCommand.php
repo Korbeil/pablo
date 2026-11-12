@@ -47,9 +47,11 @@ final class SyncCommand extends Command
         $project = $input->getArgument('project') ?: null;
         if (null !== $project) {
             if (!isset($projects[$project])) {
-                throw new PabloError("unknown project '{$project}'; configured projects: ".implode(', ', array_keys($projects)));
+                throw $this->projectsLoader->unknownProject($project);
             }
             $projects = [$project => $projects[$project]];
+        } else {
+            $this->warnProjectErrors($output);
         }
         $store = $this->store();
         $agents = $this->agents();

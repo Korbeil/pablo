@@ -81,7 +81,7 @@ final class TaskStarter
         }
         $cfg = $projects[$project] ?? null;
         if (null === $cfg) {
-            throw new PabloError("unknown project '{$project}'; configured projects: ".implode(', ', array_keys($projects)));
+            throw $this->projectsLoader->unknownProject($project);
         }
 
         // The AI summary feeds the branch/worktree name (Naming::slugBranch

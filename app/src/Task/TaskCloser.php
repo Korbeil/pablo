@@ -43,7 +43,7 @@ final class TaskCloser
         $task = $this->store->get($project, $branch)
             ?? throw new PabloError("no task {$branch} in project '{$project}'");
         $cfg = $this->projectsLoader->loadProjects()[$project]
-            ?? throw new PabloError("task {$branch} belongs to project '{$project}', which has no config under projects/ anymore");
+            ?? throw $this->projectsLoader->missingTaskProject($project, $branch);
         if (null !== $onlyFrom && $onlyFrom !== $task->state) {
             throw new PabloError("task is {$task->state->value}, not {$onlyFrom->value} — nothing to close here");
         }

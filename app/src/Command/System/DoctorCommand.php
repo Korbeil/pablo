@@ -37,13 +37,19 @@ final class DoctorCommand extends Command
         if ([] !== $configErrors) {
             $output->writeln($this->doctor->renderConfigErrors($configErrors));
         }
+        // A project file that fails to load is left out of dispatch: a hard
+        // failure here, even though the other projects keep running.
+        $projectErrors = array_values($this->projectsLoader->projectErrors());
+        if ([] !== $projectErrors) {
+            $output->writeln($this->doctor->renderConfigErrors($projectErrors));
+        }
         $results = $this->doctor->checkAll($this->projects());
         $output->writeln($this->doctor->render($results));
         $detachWarning = $this->doctor->detachWarning();
         if (null !== $detachWarning) {
             $output->writeln($detachWarning);
         }
-        $failed = [] !== $configErrors;
+        $failed = [] !== $configErrors || [] !== $projectErrors;
         foreach ($results as $r) {
             if (!$r->ok()) {
                 $failed = true;

@@ -15,6 +15,7 @@ final class ProjectsCommand extends Command
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $projects = $this->projects();
+        $this->warnProjectErrors($output);
         ksort($projects);
         foreach ($projects as $name => $cfg) {
             $output->writeln("{$name}\t{$cfg->type}\t{$cfg->provider}\t{$cfg->repoPath}");

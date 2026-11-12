@@ -24,6 +24,17 @@
 
     <main class="pablo-container">
         <twig:TaskActionsModal />
+        {% if project_errors is not empty %}
+            <div class="notification is-danger is-light pablo-section" role="alert">
+                {{ ux_icon('lucide:triangle-alert', {class: 'pablo-icon'}) }}
+                <strong>Invalid project config — {{ project_errors|length > 1 ? 'these projects are' : 'this project is' }} skipped by dispatch and missing below:</strong>
+                <ul>
+                    {% for file, error in project_errors %}
+                        <li><code>{{ file }}</code>: {{ error }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
         <twig:TaskBoard />
 
         <section class="pablo-section">

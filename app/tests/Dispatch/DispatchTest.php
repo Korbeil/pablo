@@ -165,6 +165,52 @@ final class DispatchTest extends TestCase
         $this->assertContains('poll', $names);
     }
 
+    public function testBrokenProjectFileDoesNotBlockTheValidOne(): void
+    {
+        $dir = $this->tmp.'/projects';
+        mkdir($dir);
+        file_put_contents($dir.'/good.yaml', <<<YAML
+name: good
+type: work
+repo:
+  path: {$this->tmp}/good
+  primary_branch: main
+issue_tracker:
+  provider: github
+  identity: octocat
+  project_key: GO
+sync:
+  strategy: rebase
+  auto_apply: false
+  interval_minutes: 30
+state_polling:
+  interval_minutes: 10
+review:
+  bot_whitelist: []
+ci:
+  ignore_checks: []
+default_model: opencode-go/glm-5.3-flash
+pr_description_locale: en
+
+YAML);
+        file_put_contents($dir.'/bad.yaml', "name: bad\ntype: [unclosed\n");
+        $config = new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig());
+        $err = fopen('php://memory', 'w+');
+        \assert(false !== $err);
+        $this->dispatch->stderr = $err;
+
+        $env = $this->env();
+        $rc = $this->dispatch->run($config->loadProjects($dir), $env['store'], $env['runners'], null, $config->projectErrors($dir));
+
+        $this->assertSame(1, $rc, 'a broken project file fails the run (loud), after the valid ones ran');
+        $pairs = array_map(static fn ($p) => $p[1].':'.$p[0], $this->ran);
+        sort($pairs);
+        $this->assertSame(['good:poll', 'good:sync'], $pairs);
+        $this->assertFileExists($this->stamps.'/good.poll');
+        rewind($err);
+        $this->assertStringContainsString("pablo dispatch: skipping invalid project config {$dir}/bad.yaml: bad.yaml: invalid YAML", (string) stream_get_contents($err));
+    }
+
     public function testFailedJobDoesNotWriteStamp(): void
     {
         $env = $this->env();

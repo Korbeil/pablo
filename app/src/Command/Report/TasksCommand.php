@@ -57,6 +57,7 @@ final class TasksCommand extends Command
             $this->parseStates((array) $input->getOption('state')),
         );
         $output->writeln($render);
+        $this->warnProjectErrors($output);
 
         return self::SUCCESS;
     }

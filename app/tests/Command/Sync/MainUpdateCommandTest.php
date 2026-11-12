@@ -56,4 +56,27 @@ final class MainUpdateCommandTest extends CommandTestBed
         $this->assertSame(1, $tester->getStatusCode());
         $this->assertSame([], $this->git->primaryUpdates);
     }
+
+    public function testBrokenProjectFileIsSkippedWithAWarning(): void
+    {
+        file_put_contents($this->projectsDir.'/broken.yaml', "name: broken\ntype: work\n");
+        $this->git->mainUpdateReport = new MainUpdateReport($this->tmp.'/repo', 'main', 'updated', 'main', 'aaaaaaaaaa', 'bbbbbbbbbb');
+
+        $tester = $this->runCommand($this->command());
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertSame([[$this->tmp.'/repo', 'main', 'origin']], $this->git->primaryUpdates);
+        $this->assertStringContainsString("pablo: warning: skipping invalid project config {$this->projectsDir}/broken.yaml: broken.yaml: missing required key 'repo.path'", $tester->getDisplay());
+    }
+
+    public function testTargetingABrokenProjectFailsWithItsError(): void
+    {
+        file_put_contents($this->projectsDir.'/broken.yaml', "name: broken\ntype: work\n");
+
+        $tester = $this->runCommand($this->command(), ['project' => 'broken']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("pablo: project 'broken' has an invalid config: broken.yaml: missing required key 'repo.path'", $tester->getDisplay());
+        $this->assertSame([], $this->git->primaryUpdates);
+    }
 }
