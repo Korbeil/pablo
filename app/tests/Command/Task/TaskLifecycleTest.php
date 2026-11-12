@@ -360,6 +360,15 @@ final class TaskLifecycleTest extends CommandTestBed
         $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, '2026-08-11T00:00:00+00:00', 1);
         $this->store->save($task);
 
+        // Orca has adopted the worktree and opens the terminal: the launch
+        // never waits out the adoption timeout nor falls back to headless.
+        $this->runner->onRun = static function (array $argv): string {
+            if (\in_array('create', $argv, true)) {
+                return (string) json_encode(['ok' => true, 'result' => ['handle' => 'term_1']]);
+            }
+
+            return (string) json_encode(['ok' => true, 'result' => []]);
+        };
         $analytics = new FakeAnalytics();
         $tester = $this->runCommand(new \Pablo\Command\Internal\InternalLaunchAgentCommand($analytics, $this->time, new \Pablo\Agents\LaunchContext($this->runner, $this->repoSlug), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), [
             '--project' => 'wallet-kit',
@@ -370,6 +379,8 @@ final class TaskLifecycleTest extends CommandTestBed
             '--backend' => 'orca',
         ]);
         $this->assertSame(0, $tester->getStatusCode());
+        $this->assertContains(['orca', 'terminal', 'create'], array_map(static fn (array $call): array => \array_slice($call[0], 0, 3), $this->runner->calls));
+        $this->assertDirectoryDoesNotExist($this->tmp.'/agents/logs', 'no headless fallback run');
 
         // The generated run id is persisted onto the launch record so a
         // sweep-emitted finished event keeps the same id as its start event.

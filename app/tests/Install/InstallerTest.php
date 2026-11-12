@@ -357,7 +357,7 @@ final class InstallerTest extends TestCase
     public function testABusyPortGetsTheNextFreeOneWithoutInteraction(): void
     {
         $this->fakeTool('claude');
-        $this->occupy($this->defaultPort);
+        $this->serveAnotherProgram($this->defaultPort);
 
         $process = $this->install(['--no-interaction']);
 
@@ -372,7 +372,7 @@ final class InstallerTest extends TestCase
     public function testABusyPortAsksForAnotherWithTheNextFreeOneAsDefault(): void
     {
         $this->fakeTool('claude');
-        $this->occupy($this->defaultPort);
+        $this->serveAnotherProgram($this->defaultPort);
         $mine = self::freePort();
 
         // environment: default, dashboard: yes, port: abc (refused), then mine, go
@@ -387,12 +387,7 @@ final class InstallerTest extends TestCase
     public function testThePortOfARunningPabloDashboardIsKept(): void
     {
         $this->fakeTool('claude');
-        $root = $this->sandbox.'/dashboard';
-        mkdir($root);
-        file_put_contents($root.'/index.php', '<!DOCTYPE html><meta name="application-name" content="PABLO"><title>PABLO</title>');
-        $this->dashboard = new Process([\PHP_BINARY, '-S', '127.0.0.1:'.$this->defaultPort, '-t', $root]);
-        $this->dashboard->start();
-        $this->dashboard->waitUntil(static fn (string $type, string $output): bool => str_contains($output, 'started'));
+        $this->serve($this->defaultPort, '<!DOCTYPE html><meta name="application-name" content="PABLO"><title>PABLO</title>');
 
         $process = $this->install(['--no-interaction']);
 
@@ -405,12 +400,7 @@ final class InstallerTest extends TestCase
     public function testTheDashboardOfAnOlderPabloIsRecognisedToo(): void
     {
         $this->fakeTool('claude');
-        $root = $this->sandbox.'/old-dashboard';
-        mkdir($root);
-        file_put_contents($root.'/index.php', "<!DOCTYPE html>\n<html><head><title>PABLO dashboard</title></head></html>");
-        $this->dashboard = new Process([\PHP_BINARY, '-S', '127.0.0.1:'.$this->defaultPort, '-t', $root]);
-        $this->dashboard->start();
-        $this->dashboard->waitUntil(static fn (string $type, string $output): bool => str_contains($output, 'started'));
+        $this->serve($this->defaultPort, "<!DOCTYPE html>\n<html><head><title>PABLO dashboard</title></head></html>");
 
         $process = $this->install(['--no-interaction']);
 
@@ -643,6 +633,26 @@ final class InstallerTest extends TestCase
     }
 
     /** Something else listening on $port, for as long as the test runs. */
+    /**
+     * Another program's web page on $port. It answers at once, unlike a bare
+     * listener (occupy()) that keeps the installer's PABLO-dashboard probe
+     * waiting out its whole curl timeout.
+     */
+    private function serveAnotherProgram(int $port): void
+    {
+        $this->serve($port, '<!DOCTYPE html><title>Some other app</title>');
+    }
+
+    private function serve(int $port, string $html): void
+    {
+        $root = $this->sandbox.'/www-'.$port;
+        mkdir($root);
+        file_put_contents($root.'/index.php', $html);
+        $this->dashboard = new Process([\PHP_BINARY, '-S', '127.0.0.1:'.$port, '-t', $root]);
+        $this->dashboard->start();
+        $this->dashboard->waitUntil(static fn (string $type, string $output): bool => str_contains($output, 'started'));
+    }
+
     private function occupy(int $port): void
     {
         $listener = stream_socket_server('tcp://127.0.0.1:'.$port);

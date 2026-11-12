@@ -242,7 +242,7 @@ $store = new \Pablo\Store\Store(%s);
 $lock = $store->taskLock("p", "b");
 echo "held\n";
 flush();
-sleep(5);
+fgets(STDIN); // hold the lock until the test closes our stdin
 $lock->release();
 PHP,
             var_export($autoload, true),
@@ -254,14 +254,14 @@ PHP,
         $this->assertSame('held', trim((string) fgets($pipes[1])));
         $start = microtime(true);
         try {
-            $lock = $this->store->taskLock('p', 'b', 1.0);
+            $lock = $this->store->taskLock('p', 'b', 0.3);
             $lock->release();
             $this->fail('expected TaskLockedException');
         } catch (TaskLockedException $e) {
             $this->assertStringContainsString('locked', $e->getMessage());
         }
         $this->assertLessThan(4.0, microtime(true) - $start);
-        proc_terminate($proc);
+        fclose($pipes[0]);
         proc_close($proc);
     }
 
