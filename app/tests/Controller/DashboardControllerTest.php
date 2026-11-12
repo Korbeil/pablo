@@ -12,8 +12,10 @@ use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\RestoresErrorHandlers;
 use Pablo\Tests\UsesGlobalConfig;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 /**
  * End-to-end smoke test for the dashboard page.
@@ -134,6 +136,56 @@ final class DashboardControllerTest extends WebTestCase
 
         $this->assertSame(1, $crawler->filter('td:contains("wk-1-ci-red")')->count());
         $this->assertSame(1, $crawler->filter('td:contains("wk-2-draft")')->count());
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function loopbackHosts(): iterable
+    {
+        yield '127.0.0.1 with port' => ['127.0.0.1:8321'];
+        yield '127.0.0.1' => ['127.0.0.1'];
+        yield 'localhost with port' => ['localhost:8321'];
+        yield 'localhost' => ['localhost'];
+        yield 'localhost, any case' => ['LocalHost:9000'];
+    }
+
+    #[DataProvider('loopbackHosts')]
+    public function testServesTheLoopbackHosts(string $host): void
+    {
+        $this->browser()->request('GET', '/', server: ['HTTP_HOST' => $host]);
+
+        $this->assertResponseIsSuccessful();
+    }
+
+    /**
+     * @return iterable<string, array{string, string}>
+     */
+    public static function foreignHosts(): iterable
+    {
+        // DNS rebinding: a foreign name re-resolved to 127.0.0.1.
+        yield 'page' => ['evil.example', '/'];
+        yield 'page, with port' => ['evil.example:8321', '/'];
+        yield 'loopback as a prefix' => ['127.0.0.1.evil.example', '/'];
+        yield 'loopback as a suffix' => ['evil-localhost', '/'];
+        yield 'live component action' => ['evil.example', '/_components/NewTaskModal/start'];
+    }
+
+    #[DataProvider('foreignHosts')]
+    public function testRejectsForeignHosts(string $host, string $path): void
+    {
+        $client = $this->browser();
+        // Thrown rather than rendered, so the kernel does not log the
+        // expected error to stderr; the exception is what becomes the 400.
+        $client->catchExceptions(false);
+
+        try {
+            $client->request('/' === $path ? 'GET' : 'POST', $path, server: ['HTTP_HOST' => $host]);
+            $this->fail("a request for host {$host} was served");
+        } catch (BadRequestHttpException $e) {
+            $this->assertSame(400, $e->getStatusCode());
+            $this->assertStringContainsString('Untrusted Host', $e->getMessage());
+        }
     }
 
     public function testTablesAreOrderedAttentionRest(): void
