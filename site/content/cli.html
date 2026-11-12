@@ -23,7 +23,7 @@
 
 <h3 id="choosing-the-task">Choosing the task</h3>
 
-<p>Every command above that acts on an existing task (<code>task:waiting</code>, <code>task:state</code>, <code>task:relaunch</code>, <code>task:retrigger-ci</code>, <code>task:skip-ci</code>, <code>task:close</code>, <code>task:info</code>, <code>task:precommit-check</code>) picks it the same way:</p>
+<p>Every command above that acts on an existing task (<code>task:waiting</code>, <code>task:state</code>, <code>task:relaunch</code>, <code>task:retrigger-ci</code>, <code>task:skip-ci</code>, <code>task:close</code>, <code>task:info</code>, <code>task:precommit-check</code>), and <code>agent:stop</code>, picks it the same way:</p>
 
 <ul>
   <li><b>Nothing given</b>: the task of the worktree you're in (<code>task:close</code> asks for confirmation first).</li>
@@ -31,6 +31,16 @@
   <li><b><code>--project=&lt;name&gt;</code></b>: with a branch, when several projects have a task with that branch (the error lists them). It needs a branch.</li>
   <li><b><code>--worktree=&lt;path&gt;</code></b>: the task whose worktree is at that path. It can't be combined with a branch or <code>--project</code>.</li>
 </ul>
+
+<h2>Agents</h2>
+
+<table class="cmds">
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>agent:list [--project=&lt;name&gt;] [--format=table|json]</code></td><td>The agent runs PABLO launched that are still at work: task, agent, ADE, runtime, handle, start, elapsed time, resume command. <a href="page:agents#list-and-stop-agent-runs">Guide</a></td></tr>
+    <tr><td><code>agent:stop [&lt;branch&gt;] [--project=&lt;name&gt;] [--worktree=&lt;path&gt;] [--agent=&lt;name&gt;] [--yes]</code></td><td>Stop a task's PABLO-launched runs (all, or one agent's), and abort the rebase a stopped conflict resolver left in progress. <a href="page:agents#list-and-stop-agent-runs">Guide</a></td></tr>
+  </tbody>
+</table>
 
 <h2>Projects</h2>
 
@@ -87,7 +97,7 @@
 
 <h2>Machine-readable output</h2>
 
-<p>The read commands take <code>--format=table|json</code> (default <code>table</code>): <code>task:list</code>, <code>project:list</code>, <code>sync:run</code>, <code>sync:log</code>, <code>system:doctor</code>, <code>system:update --check</code> and <code>stats</code> (which also takes <code>csv</code> for a <code>--by</code> breakdown). With <code>--format=json</code>, standard output holds one pretty-printed JSON object and nothing else; warnings and errors go to standard error, and the exit code is the same as with the table (<code>system:doctor</code> still exits non-zero on a hard failure). An unknown format is refused. <code>task:info</code> and <code>task:precommit-check</code> always print JSON; <code>--json</code> is accepted there for compatibility.</p>
+<p>The read commands take <code>--format=table|json</code> (default <code>table</code>): <code>task:list</code>, <code>project:list</code>, <code>agent:list</code>, <code>sync:run</code>, <code>sync:log</code>, <code>system:doctor</code>, <code>system:update --check</code> and <code>stats</code> (which also takes <code>csv</code> for a <code>--by</code> breakdown). With <code>--format=json</code>, standard output holds one pretty-printed JSON object and nothing else; warnings and errors go to standard error, and the exit code is the same as with the table (<code>system:doctor</code> still exits non-zero on a hard failure). An unknown format is refused. <code>task:info</code> and <code>task:precommit-check</code> always print JSON; <code>--json</code> is accepted there for compatibility.</p>
 
 <table class="cmds">
   <thead><tr><th>Command</th><th>JSON shape</th></tr></thead>

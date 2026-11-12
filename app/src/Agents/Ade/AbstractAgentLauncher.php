@@ -6,6 +6,7 @@ namespace Pablo\Agents\Ade;
 
 use Pablo\Agents\Ade\Headless\HeadlessRunner;
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Agents\AgentStop;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Domain\DisplayCache;
@@ -199,6 +200,32 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         return $this->headless->launch($worktree, $agent, $prompt, $model, $sessionId);
     }
 
+    public function isRunning(string $handle, string $worktree): bool
+    {
+        if ($this->headless->owns($handle)) {
+            return $this->headless->isRunning($handle);
+        }
+
+        return $this->isAdeHandleRunning($handle, $worktree);
+    }
+
+    public function stop(string $handle, string $worktree): AgentStop
+    {
+        if ($this->headless->owns($handle)) {
+            return $this->headless->stop($handle);
+        }
+        try {
+            return $this->stopAdeHandle($handle, $worktree);
+        } catch (\Throwable $e) {
+            return new AgentStop(false, "could not stop {$handle}: ".$e->getMessage());
+        }
+    }
+
+    public function detachedRuns(): array
+    {
+        return $this->headless->runs();
+    }
+
     public function waitForHandle(string $handle, int $timeoutS = 0): void
     {
         if (0 === $timeoutS) {
@@ -217,4 +244,10 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
      * OpenChamber session id) to finish. Never called for headless handles.
      */
     abstract protected function waitForAdeHandle(string $handle, int $timeoutS): void;
+
+    /** Whether an ADE-specific handle's run is still at work. Never called for headless handles. */
+    abstract protected function isAdeHandleRunning(string $handle, string $worktree): bool;
+
+    /** Stop an ADE-specific handle's run, or say why the ADE cannot. Never called for headless handles. */
+    abstract protected function stopAdeHandle(string $handle, string $worktree): AgentStop;
 }

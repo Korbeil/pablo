@@ -129,7 +129,7 @@ container parameters.
 `src/App/ConsoleApplication.php` consumes the **`pablo.command`** tag (not
 `console.command`, which every bundle now contributes to) so `pablo --help`
 lists PABLO subcommands only · `src/Command/*.php` (one Symfony Console
-command per subcommand, grouped by topic under `Task/` `Sync/` `Report/`
+command per subcommand, grouped by topic under `Task/` `Agent/` `Sync/` `Report/`
 `System/` `Internal/`; every `task:*` command acting on an existing task
 picks it through the `Command/Task/TargetsTask` trait: optional last
 `[<branch>]` + `--project`, or `--worktree`, else the cwd's task) · `src/Task/` (task operations shared by the CLI

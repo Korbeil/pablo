@@ -44,4 +44,30 @@ final class AgentLaunchTest extends TestCase
         $this->assertNull($legacy->runId);
         $this->assertFalse($legacy->reported);
     }
+
+    public function testWhereTheRunLivesAndHowItEndedRoundTrip(): void
+    {
+        $launch = (new AgentLaunch(Agent::TaskAnalyst, '2026-08-01T00:00:00+00:00', 1))
+            ->withRunId('r1')
+            ->withHandle('term_9', 'orca', 'opencode')
+            ->stopped('2026-08-01T01:00:00+00:00', AgentLaunch::TIMED_OUT);
+        $data = $launch->toJson();
+        $this->assertSame(['term_9', 'orca', 'opencode', 'timed-out'], [$data['handle'] ?? null, $data['ade'] ?? null, $data['runtime'] ?? null, $data['stop_reason'] ?? null]);
+        $this->assertFalse($data['reported'], 'a stopped run is still to report');
+
+        $back = AgentLaunch::fromJson('task-analyst', $data)->reported('2026-08-01T01:00:00+00:00', 'r1');
+        $this->assertSame('term_9', $back->handle);
+        $this->assertSame('orca', $back->ade);
+        $this->assertSame('opencode', $back->runtime);
+        $this->assertSame(AgentLaunch::TIMED_OUT, $back->stopReason);
+        $this->assertSame('2026-08-01T01:00:00+00:00', $back->finishedAt);
+        $this->assertTrue($back->reported);
+    }
+
+    public function testUnknownHandleKeysStayOutOfTheJson(): void
+    {
+        $data = (new AgentLaunch(Agent::CiAnalyst, null, 1))->toJson();
+
+        $this->assertSame(['launched_at', 'attempts', 'finished_at', 'run_id', 'reported'], array_keys($data));
+    }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents\Ade\Orca;
 
 use Pablo\Agents\Ade\AbstractAgentLauncher;
+use Pablo\Agents\AgentStop;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
@@ -290,6 +291,56 @@ final class OrcaLauncher extends AbstractAgentLauncher
         }
 
         return false;
+    }
+
+    /**
+     * An Orca terminal is at work while it is live and, when Orca reports
+     * agents on the worktree, one of them is working: an interactive session
+     * done with its prompt (idle, waiting, done) keeps its terminal open for
+     * the user, and must never count as running (the watcher's timeout would
+     * close it).
+     */
+    protected function isAdeHandleRunning(string $handle, string $worktree): bool
+    {
+        $terminals = $this->orca(['terminal', 'list', '--limit', '500'])->payload;
+        if (null === $terminals) {
+            return false; // Orca gone: so is its terminal
+        }
+        $live = false;
+        foreach ($terminals['terminals'] ?? [] as $terminal) {
+            if (\is_array($terminal) && ($terminal['handle'] ?? null) === $handle) {
+                $live = true;
+                break;
+            }
+        }
+        if (!$live) {
+            return false;
+        }
+        $ps = $this->orca(['worktree', 'ps', '--limit', '200'])->payload;
+        foreach ($ps['worktrees'] ?? [] as $wt) {
+            if (!\is_array($wt) || ($wt['path'] ?? null) !== $worktree || [] === ($wt['agents'] ?? [])) {
+                continue;
+            }
+            foreach ($wt['agents'] as $agent) {
+                if (\in_array($agent['state'] ?? null, self::RUNNING_STATES, true)) {
+                    return true;
+                }
+            }
+
+            return false; // done, idle or waiting for the user: not at work
+        }
+
+        return true; // a live terminal with no agent state: the command itself
+    }
+
+    protected function stopAdeHandle(string $handle, string $worktree): AgentStop
+    {
+        $call = $this->orca(['terminal', 'close', '--terminal', $handle]);
+        if (null === $call->payload) {
+            return new AgentStop(false, "Orca could not close terminal {$handle}: ".($call->reason ?? 'unknown'));
+        }
+
+        return new AgentStop(true, "closed Orca terminal {$handle}");
     }
 
     protected function waitForAdeHandle(string $handle, int $timeoutS): void

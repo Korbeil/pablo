@@ -75,6 +75,8 @@ ci:
 #   work: anthropic/claude-opus-4
 # hooks:                            # your own command, see Get notified
 #   command: 'notify-send PABLO "$PABLO_TASK → $PABLO_TO"'
+# agents:                           # global only
+#   timeout_minutes: 60             # 0 = no timeout
 </code></pre>
 
 <h3>Keys a project inherits</h3>
@@ -113,6 +115,8 @@ ci:
   <dd>The agent environment (ADE): <code>orca</code> (default), <code>openchamber</code> or <code>headless</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command instead of <code>orca</code>; with <code>headless</code> (no agent environment: every agent runs in the background) it checks neither. A first install sets <code>openchamber</code> for you when it finds OpenChamber but no Orca; when it finds neither it keeps <code>orca</code>, whose runs fall back to headless until Orca is installed. OpenChamber only runs OpenCode: with <code>agent_runtime: claude-code</code> or <code>copilot</code> it is refused. See <a href="page:runtimes#choose-an-ade">Choose an agent environment</a>.</dd>
   <dt><code>default_model_by_type</code></dt>
   <dd>A model per project type; see below.</dd>
+  <dt><code>agents.timeout_minutes</code></dt>
+  <dd>How long an agent a state launched may work, in minutes (default <code>60</code>; <code>0</code> = no timeout). When it expires, PABLO stops the run if it is still at work, as <code>pablo agent:stop</code> would, and marks it timed out; a finished run left open for you is never closed. See <a href="page:agents#timeout">Timeout</a>. Read when each run starts being watched.</dd>
   <dt><code>dashboard_port</code></dt>
   <dd>The port of the <a href="page:dashboard">dashboard</a> (default <code>8321</code>): <code>pablo web</code> and its background service listen on <code>127.0.0.1:&lt;dashboard_port&gt;</code>. The installer sets it when 8321 is taken by another program; change it with <code>pablo system:install --port &lt;port&gt;</code> (or edit it here and restart the service).</dd>
   <dt><code>dashboard_trusted_hosts</code></dt>

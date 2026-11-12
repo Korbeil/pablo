@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Pablo\Tests;
 
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Agents\AgentStop;
+use Pablo\Agents\DetachedRun;
 use Pablo\Agents\SessionInfo;
 
 final class FakeAgents implements AgentLauncherInterface
@@ -103,8 +105,18 @@ final class FakeAgents implements AgentLauncherInterface
         return $this->bulkActiveSessions($worktrees);
     }
 
+    /** @var list<array{string, int}> every waitForHandle() call: handle, timeout */
+    public array $waits = [];
+
+    /** Whether a waited-for run is over once waitForHandle() returns. */
+    public bool $runsEndOnWait = false;
+
     public function waitForHandle(string $handle, int $timeoutS = 0): void
     {
+        $this->waits[] = [$handle, $timeoutS];
+        if ($this->runsEndOnWait) {
+            unset($this->running[$handle]);
+        }
     }
 
     public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null, ?string $runId = null, ?string $promptFingerprint = null): void
@@ -135,5 +147,39 @@ final class FakeAgents implements AgentLauncherInterface
     public function hasAnyAgent(string $worktree): bool
     {
         return $this->hasAnyAgent;
+    }
+
+    /** @var array<string, true> handles isRunning() reports as at work */
+    public array $running = [];
+
+    /** @var list<string> handles stop() was asked for */
+    public array $stops = [];
+
+    /** Whether stop() succeeds. */
+    public bool $canStop = true;
+
+    /** @var list<DetachedRun> what detachedRuns() returns */
+    public array $detached = [];
+
+    public function isRunning(string $handle, string $worktree): bool
+    {
+        return isset($this->running[$handle]);
+    }
+
+    public function stop(string $handle, string $worktree): AgentStop
+    {
+        $this->stops[] = $handle;
+        if (!$this->canStop) {
+            return new AgentStop(false, "cannot stop {$handle}");
+        }
+        unset($this->running[$handle]);
+        $this->detached = array_values(array_filter($this->detached, static fn (DetachedRun $r): bool => $r->handle !== $handle));
+
+        return new AgentStop(true, "stopped {$handle}");
+    }
+
+    public function detachedRuns(): array
+    {
+        return $this->detached;
     }
 }

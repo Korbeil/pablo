@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents\Ade\OpenChamber;
 
 use Pablo\Agents\Ade\AbstractAgentLauncher;
+use Pablo\Agents\AgentStop;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
@@ -305,6 +306,27 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
             // openchamber gone/hung: treat the run as finished rather than wedging
         }
         $this->cleanupSessionFile($handle);
+    }
+
+    /** A session is at work while OpenChamber reports it busy (or retrying). */
+    protected function isAdeHandleRunning(string $handle, string $worktree): bool
+    {
+        foreach ($this->activeSessions($worktree) as $session) {
+            if ($session->handle === $handle) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * OpenChamber's CLI has create/send/status/messages but no way to abort
+     * a session: say so rather than pretend.
+     */
+    protected function stopAdeHandle(string $handle, string $worktree): AgentStop
+    {
+        return new AgentStop(false, "OpenChamber's CLI cannot stop a session: stop session {$handle} from OpenChamber itself");
     }
 
     private function worktreeForSession(string $sessionId): ?string

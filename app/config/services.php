@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Agents\AgentRuns;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\LaunchContext;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
@@ -121,6 +122,7 @@ return static function (ContainerConfigurator $container): void {
     $services->set(AgentRuntimeRegistry::class);
     $services->set(AdeRegistry::class);
     $services->set(AgentLauncherFactory::class);
+    $services->set(AgentRuns::class);
     // Lazy: every command is constructed up front to build the CLI, and
     // create() refuses an incompatible backend/runtime pair (OpenChamber +
     // anything but OpenCode) — `pablo system:doctor` must still run to report it.

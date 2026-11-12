@@ -154,4 +154,29 @@ final class GlobalConfigTest extends TestCase
             $this->assertFalse(GlobalConfig::isPort($port), var_export($port, true));
         }
     }
+
+    public function testAgentTimeoutDefaultsToAnHour(): void
+    {
+        $this->writeGlobalConfig("default_model: x\n");
+
+        $this->assertSame(60, (new GlobalConfig())->agentTimeoutMinutes());
+    }
+
+    public function testAgentTimeoutFromTheConfigZeroMeaningNone(): void
+    {
+        $this->writeGlobalConfig("agents:\n  timeout_minutes: 0\n");
+        $this->assertSame(0, (new GlobalConfig())->agentTimeoutMinutes());
+
+        $this->writeGlobalConfig("agents:\n  timeout_minutes: 90\n");
+        $this->assertSame(90, (new GlobalConfig())->agentTimeoutMinutes());
+    }
+
+    public function testAnInvalidAgentTimeoutIsAClearError(): void
+    {
+        $this->writeGlobalConfig("agents:\n  timeout_minutes: -5\n");
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('agents.timeout_minutes must be a whole number of minutes');
+        (new GlobalConfig())->agentTimeoutMinutes();
+    }
 }

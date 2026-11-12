@@ -342,4 +342,25 @@ MD);
         $handle = $this->agents->doRunStartupScript($this->tmp, '/x/script.sh');
         $this->assertStringStartsWith('pid:', $handle);
     }
+
+    public function testIsRunningWhileTheSessionIsBusy(): void
+    {
+        $this->startRunner(fn (): string => $this->ocOk(['sessions' => [
+            ['id' => 'ses_busy', 'status' => ['type' => 'busy']],
+            ['id' => 'ses_idle', 'status' => ['type' => 'idle']],
+        ]]));
+
+        $this->assertTrue($this->agents->isRunning('ses_busy', '/wt'));
+        $this->assertFalse($this->agents->isRunning('ses_idle', '/wt'));
+        $this->assertFalse($this->agents->isRunning('ses_gone', '/wt'));
+    }
+
+    public function testStopIsRefusedClearlyAndCallsNothing(): void
+    {
+        $stop = $this->agents->stop('ses_busy', '/wt');
+
+        $this->assertFalse($stop->stopped);
+        $this->assertStringContainsString('cannot stop a session', $stop->detail);
+        $this->assertSame([], $this->runner->calls);
+    }
 }

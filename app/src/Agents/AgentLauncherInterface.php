@@ -75,4 +75,24 @@ interface AgentLauncherInterface
 
     /** Whether the ADE holds any agent for $worktree, finished ones included. */
     public function hasAnyAgent(string $worktree): bool;
+
+    /**
+     * Whether the run behind $handle (launched in $worktree) is still at
+     * work. A finished run the ADE keeps open for the user (an interactive
+     * session done with its prompt) is not.
+     */
+    public function isRunning(string $handle, string $worktree): bool;
+
+    /**
+     * Stop the run behind $handle: a headless one by its process group, an
+     * ADE one through the ADE's CLI when it has a way to. Never throws.
+     */
+    public function stop(string $handle, string $worktree): AgentStop;
+
+    /**
+     * Live background runs across every worktree, read from their pidfiles.
+     *
+     * @return list<DetachedRun>
+     */
+    public function detachedRuns(): array;
 }

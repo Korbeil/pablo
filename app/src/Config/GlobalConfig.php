@@ -24,6 +24,9 @@ use Symfony\Component\Yaml\Yaml;
  */
 final class GlobalConfig
 {
+    /** agents.timeout_minutes when unset. */
+    public const AGENT_TIMEOUT_MINUTES = 60;
+
     public function configPath(?string $override = null): string
     {
         if (null !== $override && '' !== $override) {
@@ -79,6 +82,7 @@ final class GlobalConfig
             'scheduler' => \is_array($data['scheduler'] ?? null) ? $data['scheduler'] : [],
             'hooks' => \is_array($data['hooks'] ?? null) ? $data['hooks'] : [],
             'prune' => $data['prune'] ?? null,
+            'agents' => \is_array($data['agents'] ?? null) ? $data['agents'] : [],
         ];
     }
 
@@ -181,6 +185,25 @@ final class GlobalConfig
         }
 
         return (int) $port;
+    }
+
+    /**
+     * How long an agent run may work before its watcher stops it:
+     * agents.timeout_minutes, default 60, 0 = never. Read per call.
+     *
+     * @throws PabloError when it is not a non-negative whole number
+     */
+    public function agentTimeoutMinutes(): int
+    {
+        $value = $this->defaults()['agents']['timeout_minutes'] ?? null;
+        if (null === $value) {
+            return self::AGENT_TIMEOUT_MINUTES;
+        }
+        if ((\is_int($value) && $value >= 0) || (\is_string($value) && 1 === preg_match('/^\d+$/', $value))) {
+            return (int) $value;
+        }
+
+        throw new PabloError('config.yaml: agents.timeout_minutes must be a whole number of minutes (0 = no timeout), got '.var_export($value, true));
     }
 
     /** A TCP port: an integer (or digits) between 1 and 65535. */

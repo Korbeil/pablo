@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Pablo\Agents\Ade\Headless;
 
 use Pablo\Agents\Ade\Detached;
+use Pablo\Agents\AgentStop;
+use Pablo\Agents\DetachedRun;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
@@ -19,6 +21,9 @@ use Pablo\Support\PabloPaths;
 final class HeadlessRunner
 {
     public const HANDLE_PREFIX = 'pid:';
+
+    /** Seconds between SIGTERM and SIGKILL when stopping a run. */
+    public const STOP_GRACE_S = 10;
 
     private readonly string $agentsDir;
 
@@ -104,8 +109,13 @@ final class HeadlessRunner
         file_put_contents($this->agentsDir.'/'.$pid.'.json', json_encode($record));
     }
 
+    /** @phpstan-impure the process may end between two calls */
     public function pidAlive(int $pid): bool
     {
+        // posix_kill(0, …) / kill -0 0 would probe PABLO's own process group.
+        if ($pid <= 0) {
+            return false;
+        }
         if (\function_exists('posix_kill')) {
             return @posix_kill($pid, 0);
         }
@@ -122,15 +132,16 @@ final class HeadlessRunner
     }
 
     /**
-     * Live headless runs by worktree; dead pidfiles are swept on the way.
+     * Live headless runs, from their pidfiles; dead pidfiles are swept on
+     * the way.
      *
-     * @return array<string, list<SessionInfo>>
+     * @return list<DetachedRun>
      */
-    public function sessionsByWorktree(): array
+    public function runs(): array
     {
-        $grouped = [];
+        $runs = [];
         if (!is_dir($this->agentsDir)) {
-            return $grouped;
+            return $runs;
         }
         foreach (glob($this->agentsDir.'/*.json') ?: [] as $pidfile) {
             $record = json_decode((string) file_get_contents($pidfile), true);
@@ -146,8 +157,32 @@ final class HeadlessRunner
                 @unlink($pidfile);
                 continue;
             }
+            $string = static fn (mixed $v): ?string => \is_string($v) && '' !== $v ? $v : null;
+            $runs[] = new DetachedRun(
+                handle: self::HANDLE_PREFIX.$pid,
+                worktree: (string) ($record['worktree'] ?? ''),
+                label: (string) ($record['agent'] ?? ''),
+                startedAt: $string($record['started_at'] ?? null),
+                ade: HeadlessAde::NAME,
+                runtime: $string($record['runtime'] ?? null),
+                session: $string($record['session'] ?? null),
+            );
+        }
+
+        return $runs;
+    }
+
+    /**
+     * Live headless runs by worktree.
+     *
+     * @return array<string, list<SessionInfo>>
+     */
+    public function sessionsByWorktree(): array
+    {
+        $grouped = [];
+        foreach ($this->runs() as $run) {
             // A headless run has no idle signal; it counts as running.
-            $grouped[(string) ($record['worktree'] ?? '')][] = new SessionInfo(self::HANDLE_PREFIX.$pid, 'running');
+            $grouped[$run->worktree][] = new SessionInfo($run->handle, 'running');
         }
 
         return $grouped;
@@ -161,10 +196,58 @@ final class HeadlessRunner
     /** How often wait() checks the pid: a run that exits is seen within this. */
     public const WAIT_POLL_US = 200_000;
 
+    public function isRunning(string $handle): bool
+    {
+        $pid = $this->pidOf($handle);
+
+        return $pid > 0 && $this->pidAlive($pid);
+    }
+
+    /**
+     * Stop a `pid:N` run: SIGTERM to its process group (the run is a session
+     * leader, see Detached::command(), so the runtime's children go too),
+     * then SIGKILL once $graceS seconds pass. Its pidfile goes with it.
+     */
+    public function stop(string $handle, int $graceS = self::STOP_GRACE_S): AgentStop
+    {
+        $pid = $this->pidOf($handle);
+        if ($pid <= 0) {
+            return new AgentStop(false, "not a background run handle: {$handle}");
+        }
+        if (!$this->pidAlive($pid)) {
+            @unlink($this->agentsDir.'/'.$pid.'.json');
+
+            return new AgentStop(true, "{$handle} had already exited");
+        }
+        // Only signal the group when the run leads it: a pid reused by an
+        // unrelated process never takes its whole group down.
+        $target = posix_getpgid($pid) === $pid ? -$pid : $pid;
+        posix_kill($target, \SIGTERM);
+        $deadline = microtime(true) + $graceS;
+        while ($this->pidAlive($pid) && microtime(true) < $deadline) {
+            usleep(100_000);
+        }
+        $killed = false;
+        if ($this->pidAlive($pid) || ($target < 0 && @posix_kill($target, 0))) {
+            posix_kill($target, \SIGKILL);
+            $killed = true;
+        }
+        @unlink($this->agentsDir.'/'.$pid.'.json');
+
+        return new AgentStop(true, $killed
+            ? "{$handle} killed (still running {$graceS}s after SIGTERM)"
+            : "{$handle} stopped (SIGTERM)");
+    }
+
+    private function pidOf(string $handle): int
+    {
+        return $this->owns($handle) ? (int) substr($handle, \strlen(self::HANDLE_PREFIX)) : 0;
+    }
+
     /** Wait for a `pid:N` handle to exit, at most $timeoutS seconds. */
     public function wait(string $handle, int $timeoutS): void
     {
-        $pid = (int) substr($handle, \strlen(self::HANDLE_PREFIX));
+        $pid = $this->pidOf($handle);
         $deadline = microtime(true) + $timeoutS;
         while ($this->pidAlive($pid) && microtime(true) < $deadline) {
             usleep(self::WAIT_POLL_US);

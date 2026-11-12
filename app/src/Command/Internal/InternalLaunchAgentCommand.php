@@ -80,6 +80,7 @@ final class InternalLaunchAgentCommand extends Command
         // agent file's frontmatter model.
         $agents = $this->agentLaunchers->create($backend);
         $handle = $agents->doLaunchAgent($worktree, $agent, $prompt, $this->modelFor($project));
+        $this->persistHandle($project, $branch, $agent, $handle, $backend);
         $agents->spawnWatcher($project, $branch, $handle, $agent, '', null, $runId, PromptFingerprint::of($prompt));
         $agents->refreshAgentDisplayCache($project, $branch, $worktree);
 
@@ -123,6 +124,23 @@ final class InternalLaunchAgentCommand extends Command
 
     private function persistRunId(string $project, string $branch, string $agent, string $runId): void
     {
+        $this->updateLaunch($project, $branch, $agent, static fn (AgentLaunch $l): AgentLaunch => $l->withRunId($runId));
+    }
+
+    /**
+     * Where the run lives, for agent:list / agent:stop. A launch whose record
+     * is not saved yet (the caller saves it after spawning this process)
+     * stays without one: its background runs are still found by pidfile.
+     */
+    private function persistHandle(string $project, string $branch, string $agent, string $handle, string $backend): void
+    {
+        $runtime = $this->agentLaunchers->runtime()->name();
+        $this->updateLaunch($project, $branch, $agent, static fn (AgentLaunch $l): AgentLaunch => $l->withHandle($handle, $backend, $runtime));
+    }
+
+    /** @param \Closure(AgentLaunch): AgentLaunch $update */
+    private function updateLaunch(string $project, string $branch, string $agent, \Closure $update): void
+    {
         try {
             $store = $this->store();
             $lock = $store->taskLock($project, $branch);
@@ -134,20 +152,13 @@ final class InternalLaunchAgentCommand extends Command
                 if (null === $task || null === $existing || $existing->reported) {
                     return;
                 }
-                $task->agentLaunches[$label] = new AgentLaunch(
-                    $existing->agent,
-                    $existing->launchedAt,
-                    $existing->attempts,
-                    $existing->finishedAt,
-                    runId: $runId,
-                    reported: false,
-                );
+                $task->agentLaunches[$label] = $update($existing);
                 $store->save($task);
             } finally {
                 $lock->release();
             }
         } catch (\Throwable) {
-            // best-effort: the watcher argv carries the same run id anyway
+            // best-effort: the watcher argv carries the same run id and handle anyway
         }
     }
 }

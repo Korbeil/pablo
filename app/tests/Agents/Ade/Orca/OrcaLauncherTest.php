@@ -318,4 +318,62 @@ final class OrcaLauncherTest extends TestCase
         $this->agents->setWorktreeDisplayName($this->tmp, 'OMS-6407'); // must not throw
         $this->addToAssertionCount(1);
     }
+
+    public function testIsRunningNeedsALiveTerminalWithAnAgentAtWork(): void
+    {
+        $ps = ['worktrees' => [['path' => '/wt', 'agents' => [['state' => 'working', 'paneKey' => 'p1']]]]];
+        $this->startRunner(function (array $argv) use (&$ps): string {
+            if (\in_array('list', $argv, true)) {
+                return $this->orcaOk(['terminals' => [['handle' => 'term_live', 'worktreePath' => '/wt']]]);
+            }
+
+            return $this->orcaOk($ps);
+        });
+
+        $this->assertTrue($this->agents->isRunning('term_live', '/wt'));
+        $this->assertFalse($this->agents->isRunning('term_gone', '/wt'), 'a closed terminal');
+
+        // An interactive session done with its prompt keeps its terminal open:
+        // it must not count as running (the timeout would close it).
+        foreach (['done', 'idle', 'waiting'] as $state) {
+            $ps = ['worktrees' => [['path' => '/wt', 'agents' => [['state' => $state, 'paneKey' => 'p1']]]]];
+            $this->assertFalse($this->agents->isRunning('term_live', '/wt'), $state);
+        }
+
+        // A live terminal Orca reports no agent for: the command itself runs.
+        $ps = ['worktrees' => [['path' => '/wt', 'agents' => []]]];
+        $this->assertTrue($this->agents->isRunning('term_live', '/wt'));
+    }
+
+    public function testIsRunningIsFalseWhenOrcaIsGone(): void
+    {
+        $this->startRunner(fn (): string => $this->orcaErr('unavailable'));
+
+        $this->assertFalse($this->agents->isRunning('term_live', '/wt'));
+    }
+
+    public function testStopClosesTheOrcaTerminal(): void
+    {
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+
+            return $this->orcaOk(['closed' => true]);
+        });
+
+        $stop = $this->agents->stop('term_1', '/wt');
+
+        $this->assertTrue($stop->stopped);
+        $this->assertSame(['terminal', 'close', '--terminal', 'term_1', '--json'], \array_slice($calls[0], 1));
+    }
+
+    public function testAFailedCloseSaysWhy(): void
+    {
+        $this->startRunner(fn (): string => $this->orcaErr('terminal_not_found'));
+
+        $stop = $this->agents->stop('term_1', '/wt');
+
+        $this->assertFalse($stop->stopped);
+        $this->assertStringContainsString('terminal_not_found', $stop->detail);
+    }
 }

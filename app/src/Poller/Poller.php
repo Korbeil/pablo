@@ -252,14 +252,7 @@ final class Poller
                 // analytics is best-effort by contract; still mark reported so
                 // a poison run cannot re-harvest every cycle.
             }
-            $task->agentLaunches[$label] = new AgentLaunch(
-                $record->agent,
-                $record->launchedAt,
-                $record->attempts,
-                $finishedAt,
-                runId: $runId,
-                reported: true,
-            );
+            $task->agentLaunches[$label] = $record->reported($finishedAt, $runId);
             $changed = true;
         }
         if ($changed) {

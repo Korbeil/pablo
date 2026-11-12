@@ -131,4 +131,59 @@ final class HeadlessLauncherTest extends TestCase
         $this->agents->waitForHandle('pid:999999', 1);
         $this->assertSame([], $this->runner->calls);
     }
+
+    public function testAnAdeHandleIsNeitherRunningNorStoppable(): void
+    {
+        $this->assertFalse($this->agents->isRunning('term_1', $this->tmp));
+        $this->assertFalse($this->agents->stop('term_1', $this->tmp)->stopped);
+    }
+
+    /**
+     * The one integration test spawning a real process: a `sleep` run
+     * through the headless runner (with a child of its own), listed from its
+     * pidfile, then stopped by process group.
+     */
+    public function testARealBackgroundRunIsListedThenStoppedWithItsChildren(): void
+    {
+        $childPidFile = $this->tmp.'/child.pid';
+        $handle = $this->agents->doRunStartupScript($this->tmp, $this->writeScript(
+            'sleep 300 & echo $! > '.escapeshellarg($childPidFile)."\nwait\n",
+        ));
+        $pid = (int) substr($handle, \strlen('pid:'));
+        $deadline = microtime(true) + 5;
+        while (!is_file($childPidFile) && microtime(true) < $deadline) {
+            usleep(50_000);
+        }
+        $child = (int) trim((string) @file_get_contents($childPidFile));
+        $this->assertGreaterThan(0, $child, 'the run started its child');
+
+        $runs = $this->agents->detachedRuns();
+        $this->assertCount(1, $runs);
+        $this->assertSame($handle, $runs[0]->handle);
+        $this->assertSame($this->tmp, $runs[0]->worktree);
+        $this->assertSame('startup-script', $runs[0]->label);
+        $this->assertNotNull($runs[0]->startedAt);
+        $this->assertTrue($this->agents->isRunning($handle, $this->tmp));
+
+        $stop = $this->agents->stop($handle, $this->tmp);
+
+        $this->assertTrue($stop->stopped, $stop->detail);
+        $this->assertFalse(@posix_kill($pid, 0), 'the run is gone');
+        $deadline = microtime(true) + 5;
+        while (@posix_kill($child, 0) && microtime(true) < $deadline) {
+            usleep(50_000);
+        }
+        $this->assertFalse(@posix_kill($child, 0), 'its child went with its process group');
+        $this->assertFileDoesNotExist($this->agentsDir.'/'.$pid.'.json');
+        $this->assertSame([], $this->agents->detachedRuns());
+        $this->assertTrue($this->agents->stop($handle, $this->tmp)->stopped, 'stopping a gone run is a no-op');
+    }
+
+    private function writeScript(string $body): string
+    {
+        $path = $this->tmp.'/run.sh';
+        file_put_contents($path, $body);
+
+        return $path;
+    }
 }

@@ -62,7 +62,7 @@
     <tr><td><code>summary</code>, <code>prompt</code></td><td>for prompt tasks</td></tr>
     <tr><td><code>state_before_waiting</code></td><td>the state to restore after a pause</td></tr>
     <tr><td><code>task_analyst_ran</code>, <code>startup_script_ran</code></td><td>so they only run once per task</td></tr>
-    <tr><td><code>agent_launches</code></td><td>per agent: when it was launched and how many attempts, used to relaunch launches that never started</td></tr>
+    <tr><td><code>agent_launches</code></td><td>per agent: when it was launched and how many attempts, used to relaunch launches that never started; once launched, where it runs (<code>handle</code>, <code>ade</code>, <code>runtime</code>, for <code>agent:list</code> and <code>agent:stop</code>), and <code>stop_reason</code> (<code>stopped</code> or <code>timed-out</code>) when PABLO ended it</td></tr>
     <tr><td><code>needs_testing_entered_at</code>, <code>last_handled_signal_at</code>, <code>last_seen_issue_status</code></td><td>baselines for the QA failure signal</td></tr>
     <tr><td><code>pr_number</code>, <code>merged</code></td><td>the pull request</td></tr>
     <tr><td><code>created_at</code>, <code>updated_at</code></td><td>timestamps</td></tr>

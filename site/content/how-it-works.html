@@ -61,11 +61,16 @@ orca terminal create --worktree path:&lt;worktree&gt; --title "pablo:&lt;agent&g
      --command "cd &lt;worktree&gt;; sh -c '…'" --json
 #   the terminal starts, in the background:  opencode run -s ses_pablo&lt;id&gt; --agent &lt;agent&gt; '&lt;prompt&gt;'
 #   then, once that session exists:          opencode -s ses_pablo&lt;id&gt;   (the TUI)
-# wait for the end of a run (you quitting the TUI)
+# wait for the end of a run (you quitting the TUI), at most agents.timeout_minutes
 orca terminal wait --terminal &lt;handle&gt; --for exit --timeout-ms 3600000 --json
 # who is working
 orca worktree ps --limit 200 --json
+# is the run's terminal still there; stop it (agent:stop, the timeout)
+orca terminal list --limit 500 --json
+orca terminal close --terminal &lt;handle&gt; --json
 </code></pre>
+
+<p>When the timeout expires, the terminal is closed only if it is still open and Orca reports an agent of the worktree as <code>working</code> or <code>running</code>: a TUI done with its prompt, waiting for you, stays.</p>
 
 <p>On Linux the Orca CLI is <code>orca-ide</code>, the name Orca gives it there because <code>orca</code> is GNOME's screen reader; PABLO runs <code>orca-ide</code> on Linux and <code>orca</code> elsewhere (or Orca's <code>ORCA_CLI_COMMAND</code> when set). The launch runs in the background, so <code>pablo task:relaunch</code> cannot tell whether Orca took it: when Orca refuses or doesn't know the worktree within 15 seconds, the agent runs headless and the reason goes to <code>~/.pablo/agents/logs/orca-fallback.log</code>.</p>
 
@@ -83,7 +88,7 @@ openchamber session messages --session &lt;id&gt; --dir &lt;worktree&gt; --wait
 openchamber session list --dir &lt;worktree&gt; --with-status
 </code></pre>
 
-<p>OpenChamber works from directories: no repository to register, no waiting for a workspace to appear. <code>busy</code> and <code>retry</code> count as 🏃, <code>idle</code> as 💭. If sending the prompt fails, PABLO logs the reason to <code>~/.pablo/agents/logs/openchamber-fallback.log</code> and falls back to a headless run with the same model.</p>
+<p>OpenChamber works from directories: no repository to register, no waiting for a workspace to appear. <code>busy</code> and <code>retry</code> count as 🏃, <code>idle</code> as 💭. If sending the prompt fails, PABLO logs the reason to <code>~/.pablo/agents/logs/openchamber-fallback.log</code> and falls back to a headless run with the same model. OpenChamber's CLI has no command to stop a session, so <code>agent:stop</code> and the <a href="page:agents#timeout">timeout</a> can't end one: stop it from OpenChamber.</p>
 
 <h3>Headless</h3>
 

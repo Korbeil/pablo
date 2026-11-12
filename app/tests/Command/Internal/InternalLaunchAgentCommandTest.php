@@ -139,4 +139,33 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
             $this->assertNotSame('openrouter/test/model', $create[$modelKey + 1]);
         }
     }
+
+    public function testRecordsWhereTheRunLivesOnItsLaunchRecord(): void
+    {
+        $task = $this->getTask();
+        $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(\Pablo\Domain\Agent::TaskAnalyst, $this->time->utcnow(), 1);
+        $this->store->save($task);
+        $this->runner->onRun = static function (array $argv): string {
+            if (\in_array('create', $argv, true)) {
+                return (string) json_encode(['status' => 'ok', 'sessionId' => 'ses_x']);
+            }
+
+            return (string) json_encode(['status' => 'ok']);
+        };
+        $factory = new AgentLauncherFactory($this->globalConfig, $this->runner);
+
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->store, $this->projectsLoader, $factory, $this->agents);
+        (new CommandTester($command))->execute([
+            '--backend' => 'openchamber',
+            '--worktree' => $this->wt,
+            '--agent' => 'task-analyst',
+            '--prompt' => 'Analyze issue #45',
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+        ]);
+
+        $launch = $this->getTask()->agentLaunches['task-analyst'];
+        $this->assertSame(['ses_x', 'openchamber', 'opencode'], [$launch->handle, $launch->ade, $launch->runtime]);
+        $this->assertNotNull($launch->runId);
+    }
 }

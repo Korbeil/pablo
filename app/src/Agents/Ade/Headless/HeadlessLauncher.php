@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents\Ade\Headless;
 
 use Pablo\Agents\Ade\AbstractAgentLauncher;
+use Pablo\Agents\AgentStop;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
@@ -77,5 +78,15 @@ final class HeadlessLauncher extends AbstractAgentLauncher
     protected function waitForAdeHandle(string $handle, int $timeoutS): void
     {
         // Every handle here is a headless one.
+    }
+
+    protected function isAdeHandleRunning(string $handle, string $worktree): bool
+    {
+        return false; // every handle here is a headless one
+    }
+
+    protected function stopAdeHandle(string $handle, string $worktree): AgentStop
+    {
+        return new AgentStop(false, "{$handle} is not a headless run handle (was it launched with another agent_backend?)");
     }
 }

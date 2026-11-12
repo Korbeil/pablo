@@ -52,7 +52,25 @@
 
 <p>Analysts have a step budget (30 for task-analyst and ci-analyst, 25 for pr-feedback and task-feedback). On the last step OpenCode removes their tools and forces a written answer. Sending them a new message resets the budget.</p>
 
-<p>Claude Code and Copilot CLI have no per-agent step limit, so there the budget becomes an instruction at the end of the agent's prompt: write the deliverable at the latest on the last step. It is followed, not enforced; the watcher's one-hour timeout stays the hard backstop.</p>
+<p>Claude Code and Copilot CLI have no per-agent step limit, so there the budget becomes an instruction at the end of the agent's prompt: write the deliverable at the latest on the last step. It is followed, not enforced; the <a href="#timeout">timeout</a> stays the hard backstop.</p>
+
+<h2 id="list-and-stop-agent-runs">List and stop agent runs</h2>
+
+<p><code>pablo agent:list</code> shows the agent runs PABLO launched that are still at work, across your tasks: task, agent, ADE, runtime, handle (an Orca terminal, an OpenChamber session, or <code>pid:N</code> for a background run), when it started, how long it has run, and the command resuming its session when PABLO knows it. <code>--project</code> narrows it to one project, <code>--format=json</code> prints it for scripts, as <code>{"runs": [...]}</code>. It reads the task records and the background runs' pidfiles, and asks the ADE whether each run is still at work; it never calls GitHub.</p>
+
+<p><code>pablo agent:stop [&lt;branch&gt;]</code> stops a task's runs (the current worktree's task without a branch; <code>--project</code> and <code>--worktree</code> as for <a href="page:cli#choosing-the-task">task commands</a>), after asking (<code>--yes</code> doesn't ask; without a terminal it is required); <code>--agent=&lt;name&gt;</code> stops only that agent. It only ever stops runs PABLO launched:</p>
+
+<ul>
+  <li>a background run: its whole process group gets <code>SIGTERM</code>, then <code>SIGKILL</code> if it is still there 10 seconds later;</li>
+  <li>an Orca run: its terminal is closed (<code>orca terminal close</code>);</li>
+  <li>an OpenChamber run: OpenChamber's CLI has no way to stop a session, so PABLO says so and you stop it from OpenChamber. The command then exits non-zero.</li>
+</ul>
+
+<p>A stopped run's launch record is marked finished (stopped), so the poller doesn't launch it again; <code>task:relaunch</code> does. Stopping the <a href="#the-rebase-conflict-resolver">rebase-conflict resolver</a> while it is mid-rebase (or mid-merge) also runs <code>git rebase --abort</code> (<code>git merge --abort</code>) in the worktree, so it is left as it was before the sync, and says so.</p>
+
+<h2 id="timeout">Timeout</h2>
+
+<p>PABLO watches every agent a state launches until its run ends. A run still at work after <code>agents.timeout_minutes</code> (default 60, see <a href="page:configuration#global-only-keys">Global-only keys</a>) is stopped the same way as with <code>agent:stop</code>, and its launch record marked timed out. A finished run that Orca keeps open for you (an OpenCode session done with its prompt) isn't at work, so it is never closed. <code>0</code> means no timeout. An OpenChamber run can't be stopped (see above): when its time is up, PABLO stops waiting for it and counts it as finished. The rebase-conflict resolver isn't watched: it has no timeout, so it never stops halfway through a rebase; stop it with <code>agent:stop</code> if needed. Neither is the project's <a href="page:configuration">startup script</a>: it is your own command, waited for as long as it runs.</p>
 
 <h2 id="which-model">Which model</h2>
 

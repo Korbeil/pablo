@@ -7,12 +7,14 @@ namespace Pablo\Command\Internal;
 use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
+use Pablo\Agents\AgentRuns;
 use Pablo\Analytics\AgentRunRecord;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\NullAnalytics;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\State;
@@ -20,6 +22,7 @@ use Pablo\Domain\Time;
 use Pablo\Hooks\Hooks;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
+use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -29,6 +32,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'internal:watch-agent', hidden: true)]
 final class WatchAgentCommand extends Command
 {
+    /** One wait slice when agents.timeout_minutes is 0 (no timeout). */
+    public const UNBOUNDED_WAIT_S = 3600;
+
     public function __construct(
         private readonly GhPrInterface $gh,
         private readonly RepoSlug $repoSlug,
@@ -40,6 +46,8 @@ final class WatchAgentCommand extends Command
         private readonly UsageHarvesterInterface $usage,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
         private readonly Hooks $hooks = new Hooks(),
+        private readonly ?AgentRuns $runs = null,
+        private readonly GlobalConfig $globalConfig = new GlobalConfig(),
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }
@@ -61,12 +69,13 @@ final class WatchAgentCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $agents = $this->agentLaunchers->create((string) $input->getOption('backend'));
-        $agents->waitForHandle((string) $input->getOption('handle'));
+        $backend = (string) $input->getOption('backend');
+        $handle = (string) $input->getOption('handle');
         $store = $this->store();
         $project = (string) $input->getOption('project');
         $branch = (string) $input->getOption('branch');
         $agentName = $input->getOption('agent');
+        $this->awaitRun(null !== $this->runs ? $this->runs->launcher($backend) : $this->agentLaunchers->create($backend), $backend, $project, $branch, $handle, null !== $agentName ? (string) $agentName : null);
         $lock = $store->taskLock($project, $branch);
         $finished = null;
         try {
@@ -82,22 +91,16 @@ final class WatchAgentCommand extends Command
                 // double-count it in analytics.
                 if (null !== $launch && !$launch->reported) {
                     // The agent's run has concluded; the ball is with the user
-                    // (review the plan and commit-and-PR) until they act.
-                    $finishedAt = $this->time->utcnow();
+                    // (review the plan and commit-and-PR) until they act. A run
+                    // PABLO stopped keeps the time it was stopped at.
+                    $finishedAt = $launch->finishedAt ?? $this->time->utcnow();
                     $runId = (string) ($input->getOption('run-id') ?? '');
                     if ('' === $runId) {
                         $runId = $launch->runId ?? bin2hex(random_bytes(8));
                     }
                     // reported=true in the same save as the stamp: whichever
                     // component reports a run, it must be reported once.
-                    $task->agentLaunches[$agent->value] = new AgentLaunch(
-                        $launch->agent,
-                        $launch->launchedAt,
-                        $launch->attempts,
-                        $finishedAt,
-                        runId: $runId,
-                        reported: true,
-                    );
+                    $task->agentLaunches[$agent->value] = $launch->reported($finishedAt, $runId);
                     $finished = $launch->agent;
                     $this->recordAgentRunFinished($task, $launch->launchedAt, $finishedAt, $runId, $launch->agent->value, (string) ($input->getOption('backend') ?: AdeRegistry::DEFAULT), (string) ($input->getOption('prompt-fingerprint') ?? ''));
                 }
@@ -132,6 +135,39 @@ final class WatchAgentCommand extends Command
         }
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Wait for the run to end. With agents.timeout_minutes set (default 60),
+     * a run still at work when it expires is stopped — the same path as
+     * agent:stop — and its record marked timed-out. With 0, wait as long as
+     * it works. The startup script is never timed out.
+     */
+    private function awaitRun(AgentLauncherInterface $agents, string $backend, string $project, string $branch, string $handle, ?string $agentName): void
+    {
+        $worktree = $this->store()->get($project, $branch)->worktreePath ?? '';
+        try {
+            $timeoutM = $this->globalConfig->agentTimeoutMinutes();
+        } catch (PabloError) {
+            $timeoutM = GlobalConfig::AGENT_TIMEOUT_MINUTES; // a typo must not wedge or kill runs early
+        }
+        // The project's startup script is the user's own command, not an
+        // agent's analysis: it is waited for as long as it runs, never timed out.
+        if (Agent::StartupScript->value === $agentName) {
+            $timeoutM = 0;
+        }
+        if (0 === $timeoutM) {
+            do {
+                $agents->waitForHandle($handle, self::UNBOUNDED_WAIT_S);
+            } while ($agents->isRunning($handle, $worktree));
+
+            return;
+        }
+        $agents->waitForHandle($handle, $timeoutM * 60);
+        if ('' === $worktree || null === $agentName || null === $this->runs || !$agents->isRunning($handle, $worktree)) {
+            return;
+        }
+        $this->runs->stopRun($project, $branch, $worktree, $agentName, $handle, $backend, AgentLaunch::TIMED_OUT);
     }
 
     /**
