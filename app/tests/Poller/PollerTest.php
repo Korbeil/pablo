@@ -1039,4 +1039,26 @@ final class PollerTest extends TestCase
         $sm->enterState($ctx, State::Draft);
         $this->assertFalse($task->ciIgnored);
     }
+
+    public function testCountsFailedTaskChecks(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $task = $this->task($e['tmp']);
+        $task->prNumber = null;
+        $store->save($task);
+        $this->gh->onPrForBranch = static function (): never {
+            throw new \RuntimeException('gh exploded');
+        };
+
+        $events = $this->poll($cfg, $store);
+
+        $this->assertStringContainsString('pr-1: poll check failed: gh exploded', implode("\n", $events));
+        $this->assertSame(1, $this->poller->lastCheckFailures());
+
+        $this->gh->onPrForBranch = null;
+        $this->poll($cfg, $store);
+        $this->assertSame(0, $this->poller->lastCheckFailures());
+    }
 }

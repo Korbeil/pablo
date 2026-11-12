@@ -20,6 +20,10 @@ use Pablo\Store\Store;
  * runs; a hard preflight failure (gh, the agent runtime's CLI, an impossible
  * backend/runtime pair) aborts the whole run fast and
  * loud, while a soft one (provider CLIs) only warns.
+ *
+ * Every run and every job's outcome is recorded in DispatchHealth (read by
+ * system:doctor and the dashboard); a job failing BACKOFF_AFTER times in a
+ * row backs off exponentially instead of being retried on every tick.
  */
 final class Dispatch
 {
@@ -53,6 +57,7 @@ final class Dispatch
         private readonly AgentLauncherFactory $agentLaunchers,
         private readonly Stamps $stamps,
         private readonly GitRepoInterface $git,
+        private readonly DispatchHealth $health = new DispatchHealth(),
     ) {
     }
 
@@ -139,12 +144,15 @@ final class Dispatch
         echo "[{$cfg->name}] sync:\n".Sync::renderReports($reports)."\n";
     }
 
-    public function runPoll(ProjectConfig $cfg, Store $store): void
+    /** @return int the per-task checks that failed (recorded in the poll job's health, not a job failure) */
+    public function runPoll(ProjectConfig $cfg, Store $store): int
     {
         $agents = $this->agentLaunchers->create();
         foreach ($this->poller->pollProject($cfg, $store, $agents) as $event) {
             echo "[{$cfg->name}] {$event}\n";
         }
+
+        return $this->poller->lastCheckFailures();
     }
 
     public function runMainUpdate(ProjectConfig $cfg, Store $store): void
@@ -153,7 +161,7 @@ final class Dispatch
         echo "[{$cfg->name}] main: {$report->render()}\n";
     }
 
-    /** @return array<string, callable(ProjectConfig, Store): void> */
+    /** @return array<string, callable(ProjectConfig, Store): mixed> */
     public function defaultRunners(): array
     {
         return [
@@ -190,9 +198,12 @@ final class Dispatch
      * $configErrors are the project files that failed to load
      * (Config::projectErrors()): logged every run, the valid projects still run.
      *
-     * @param array<string, ProjectConfig>                             $projects
-     * @param array<string, callable(ProjectConfig, Store): void>|null $runners
-     * @param array<string, string>                                    $configErrors
+     * A runner may return an int: the per-task checks that failed during an
+     * otherwise successful run (recorded, never a job failure).
+     *
+     * @param array<string, ProjectConfig>                              $projects
+     * @param array<string, callable(ProjectConfig, Store): mixed>|null $runners
+     * @param array<string, string>                                     $configErrors
      */
     public function run(array $projects, Store $store, ?array $runners = null, ?float $now = null, array $configErrors = []): int
     {
@@ -204,6 +215,7 @@ final class Dispatch
 
             return 0;
         }
+        $this->health->startDispatch($now);
         try {
             // A broken project file only drops that project: say so loudly on
             // every run (until fixed), then dispatch the others.
@@ -215,6 +227,7 @@ final class Dispatch
             if ([] !== $errors) {
                 fwrite($this->stderr ?? \STDERR, "pablo dispatch: CLI preflight failed, aborting:\n"
                     .implode("\n", array_map(static fn ($e) => "  ❌ {$e}", $errors))."\n");
+                $this->health->finishDispatch($now, microtime(true), DispatchHealth::OUTCOME_PREFLIGHT_FAILED, implode('; ', $errors));
 
                 return 1;
             }
@@ -225,14 +238,24 @@ final class Dispatch
                     if (!$this->isDue($cfgValue, $job, $now)) {
                         continue;
                     }
+                    $retryAt = $this->health->retryAt(
+                        $this->health->read($cfgValue->name, $job),
+                        self::jobIntervals()[$job]($cfgValue),
+                    );
+                    if (null !== $retryAt && $now < $retryAt) {
+                        echo "[{$cfgValue->name}] {$job}: backing off after repeated failures, next try after ".DispatchHealth::iso($retryAt)."\n";
+                        continue;
+                    }
                     $jobStartedAt = microtime(true);
                     try {
-                        $runner($cfgValue, $store);
+                        $result = $runner($cfgValue, $store);
                     } catch (\Throwable $e) {
                         $failed = true;
                         fwrite($this->stderr ?? \STDERR, "pablo dispatch: {$job} failed for project {$cfgValue->name}:\n{$e}\n");
-                        continue; // stamp not written: retried next tick
+                        $this->health->recordFailure($cfgValue->name, $job, $now, $e->getMessage());
+                        continue; // stamp not written: retried next tick (or after the back-off)
                     }
+                    $this->health->recordSuccess($cfgValue->name, $job, $now, \is_int($result) ? $result : 0);
                     $durationS = microtime(true) - $jobStartedAt;
                     $stamp = Stamps::stampsDir()."/{$cfgValue->name}.{$job}";
                     $dir = \dirname($stamp);
@@ -242,6 +265,10 @@ final class Dispatch
                     file_put_contents($stamp, $this->stamps->encodeStamp($now, $durationS));
                 }
             }
+
+            // A run whose only failure is a broken project file still names it.
+            $detail = [] !== $configErrors ? 'invalid project config: '.implode(', ', array_map(static fn ($f): string => basename((string) $f), array_keys($configErrors))) : null;
+            $this->health->finishDispatch($now, microtime(true), $failed ? DispatchHealth::OUTCOME_FAILED : DispatchHealth::OUTCOME_OK, $detail);
 
             return $failed ? 1 : 0;
         } finally {

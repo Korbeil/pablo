@@ -1,0 +1,29 @@
+{# @var this \Pablo\Twig\Components\DispatchHealthBanner #}
+<div {{ attributes.defaults({'data-poll': 'delay(' ~ constant('Pablo\\Twig\\Components\\DispatchHealthBanner::POLL_MS') ~ ')|$render'}) }}>
+    {% set failing = this.failing %}
+    {% set preflight = this.preflightFailure %}
+    {% if failing is not empty or preflight %}
+        <div class="notification is-danger is-light pablo-health-banner" role="alert">
+            <p class="pablo-health-title">
+                {{ ux_icon('lucide:triangle-alert', {class: 'pablo-icon'}) }}
+                The background dispatcher is failing — run <code>pablo system:doctor</code> for details.
+            </p>
+            <ul class="pablo-health-list">
+                {% if preflight %}
+                    <li>
+                        <strong>preflight</strong> aborted the run of
+                        <span title="{{ preflight.startedAt }}">{{ preflight.startedAt|date('d M H:i') }}</span>{% if preflight.detail %}: {{ preflight.detail }}{% endif %}
+                    </li>
+                {% endif %}
+                {% for job in failing %}
+                    <li>
+                        <strong>{{ job.project }} {{ job.job }}</strong>
+                        failing since
+                        <span title="{{ job.failingSince }}">{{ job.failingSince ? job.failingSince|date('d M H:i') : '?' }}</span>
+                        ({{ job.consecutiveFailures }}×){% if job.lastError %}: {{ job.lastError }}{% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endif %}
+</div>

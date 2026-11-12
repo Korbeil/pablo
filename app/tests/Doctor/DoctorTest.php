@@ -80,11 +80,13 @@ YAML;
         $this->writeGlobalConfig(self::DEFAULTS);
         file_put_contents($this->projectsDir.'/wallet-kit.yaml', self::PROJECT);
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
+        putenv('PABLO_STAMPS_DIR='.$this->projectsDir.'/stamps');
     }
 
     protected function tearDown(): void
     {
         putenv('PABLO_PROJECTS_DIR');
+        putenv('PABLO_STAMPS_DIR');
         $this->unsetGlobalConfig();
     }
 
@@ -355,12 +357,12 @@ YAML;
         $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
         $staleness = $this->staleness();
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents()));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents()));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::SUCCESS, $tester->getStatusCode());
 
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(1, 'login please');
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents()));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents()));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
     }

@@ -8,6 +8,7 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Dispatch\DispatchHealth;
 use Pablo\Provider\Git\Sync;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
@@ -22,6 +23,7 @@ final class SyncCommand extends Command
 {
     public function __construct(
         private readonly Sync $sync,
+        private readonly DispatchHealth $health,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -65,6 +67,11 @@ final class SyncCommand extends Command
             $reports = $this->sync->syncProject($cfg, $store, $apply, $agents);
             $output->writeln("# {$name}");
             $output->writeln(Sync::renderReports($reports));
+            // A manual run that works clears the dispatcher's failure streak and
+            // back-off; an explicit --dry-run proves too little to do so.
+            if (false !== $apply) {
+                $this->health->recordSuccess($name, 'sync', microtime(true));
+            }
         }
 
         return self::SUCCESS;

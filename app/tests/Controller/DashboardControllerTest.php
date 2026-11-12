@@ -246,6 +246,35 @@ final class DashboardControllerTest extends WebTestCase
         $this->assertSelectorNotExists('[role="alert"]');
     }
 
+    public function testNoHealthBannerWhenTheDispatcherIsHealthy(): void
+    {
+        (new \Pablo\Dispatch\DispatchHealth())->recordSuccess('wallet-kit', 'poll', microtime(true));
+
+        $this->browser()->request('GET', '/');
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSelectorNotExists('.pablo-health-banner');
+    }
+
+    public function testHealthBannerListsFailingJobs(): void
+    {
+        $health = new \Pablo\Dispatch\DispatchHealth();
+        $health->recordFailure('wallet-kit', 'sync', microtime(true) - 600, 'first');
+        $health->recordFailure('wallet-kit', 'sync', microtime(true), 'git fetch: could not resolve host');
+        $health->finishDispatch(microtime(true), microtime(true), \Pablo\Dispatch\DispatchHealth::OUTCOME_PREFLIGHT_FAILED, 'gh: not logged in');
+
+        $crawler = $this->browser()->request('GET', '/');
+
+        $this->assertResponseIsSuccessful();
+        $banner = $crawler->filter('.pablo-health-banner');
+        $this->assertSame(1, $banner->count());
+        $text = (string) preg_replace('/\s+/', ' ', $banner->text());
+        $this->assertStringContainsString('wallet-kit sync failing since', $text);
+        $this->assertStringContainsString('(2×): git fetch: could not resolve host', $text);
+        $this->assertStringContainsString('preflight aborted the run', $text);
+        $this->assertStringContainsString('gh: not logged in', $text);
+    }
+
     public function testTablesAreOrderedAttentionRest(): void
     {
         // ci-red alone is not enough — an agent must actually be blocked on us.
@@ -280,7 +309,7 @@ final class DashboardControllerTest extends WebTestCase
             ->each(static fn ($n) => $n->attr('data-live-name-value'));
 
         sort($names);
-        $this->assertSame(['NewTaskModal', 'PollProgress', 'RebaseLog', 'SlackModal', 'TaskActionsModal', 'TaskBoard'], $names);
+        $this->assertSame(['DispatchHealthBanner', 'NewTaskModal', 'PollProgress', 'RebaseLog', 'SlackModal', 'TaskActionsModal', 'TaskBoard'], $names);
     }
 
     /** The theme switcher must be mounted with its three state glyphs. */

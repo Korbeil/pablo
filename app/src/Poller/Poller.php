@@ -501,10 +501,19 @@ final class Poller
         }
     }
 
+    /** Per-task checks that failed during the last pollProject() call. */
+    private int $lastCheckFailures = 0;
+
+    public function lastCheckFailures(): int
+    {
+        return $this->lastCheckFailures;
+    }
+
     /** @return array<int, string> */
     public function pollProject(ProjectConfig $cfg, Store $store, AgentLauncherInterface $agents): array
     {
         $events = [];
+        $this->lastCheckFailures = 0;
         $trackerStatuses = $this->fetchTrackerStatuses($cfg, $store);
         foreach ($store->allTasks($cfg->name) as $task) {
             try {
@@ -518,6 +527,7 @@ final class Poller
                     try {
                         $this->pollTask($ctx, $events, $trackerStatuses);
                     } catch (\Throwable $e) {
+                        ++$this->lastCheckFailures;
                         $events[] = "{$task->branch}: poll check failed: {$e->getMessage()}";
                     }
                     try {

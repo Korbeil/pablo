@@ -17,6 +17,8 @@ pablo web --port 9000 --open   # another port, and open the browser
 <h2>What you see</h2>
 
 <dl>
+  <dt>Dispatcher banner</dt>
+  <dd>Only while something is wrong: the background jobs that keep failing (project, job, since when, how many times in a row, last error), and a last run that stopped on its tool check. Read from the <a href="page:how-it-works#dispatcher-health">dispatcher's health files</a>, checked every minute; <code>pablo system:doctor</code> has the details.</dd>
   <dt>Project filters</dt>
   <dd>All, Work, Open-source, Personal: the project types from your configuration.</dd>
   <dt>Waiting for feedback</dt>

@@ -15,12 +15,14 @@ final class SyncCommandTest extends CommandTestBed
     {
         parent::setUp();
         putenv('PABLO_LOGS_DIR='.$this->tmp.'/logs');
+        putenv('PABLO_STAMPS_DIR='.$this->tmp.'/stamps');
         $this->git->worktrees = [new WorktreeRef($this->wt, 'wk-45')];
     }
 
     protected function tearDown(): void
     {
         putenv('PABLO_LOGS_DIR');
+        putenv('PABLO_STAMPS_DIR');
         parent::tearDown();
     }
 
@@ -28,7 +30,7 @@ final class SyncCommandTest extends CommandTestBed
     {
         $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->runner, $this->time);
 
-        return new SyncCommand($sync, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        return new SyncCommand($sync, new \Pablo\Dispatch\DispatchHealth(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
     }
 
     private function enableAutoApply(): void
@@ -84,5 +86,17 @@ final class SyncCommandTest extends CommandTestBed
         $this->assertSame(1, $tester->getStatusCode());
         $this->assertStringContainsString('mutually exclusive', $tester->getDisplay());
         $this->assertSame([], $this->git->syncCalls);
+    }
+
+    public function testARunClearsTheDispatcherFailureStreakUnlessDryRun(): void
+    {
+        $health = new \Pablo\Dispatch\DispatchHealth();
+        $health->recordFailure('wallet-kit', 'sync', microtime(true), 'boom');
+
+        $this->runCommand($this->command(), ['--dry-run' => true]);
+        $this->assertTrue($health->read('wallet-kit', 'sync')?->failing());
+
+        $this->runCommand($this->command());
+        $this->assertFalse($health->read('wallet-kit', 'sync')->failing());
     }
 }
