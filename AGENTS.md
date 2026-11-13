@@ -221,7 +221,11 @@ directly — commands wrap `pablo` CLI calls; agents are read-only,
 auto-launched on certain state transitions) and background
 (`pablo system:dispatch`, run every 5 min by systemd/launchd; global flock, per
 project × {sync, poll, main} checks a stamp in `~/.pablo/stamps/` against that
-project's own interval; one project's failure never blocks others). Due syncs
+project's own interval; one project's failure never blocks others; the
+due jobs are worked out first and the CLI preflight — `Doctor::checkAll()`,
+one subprocess per CLI — only runs when one is due, for the due jobs'
+projects: an idle tick spawns nothing, only `Doctor::configErrors()` (a config
+read) and the health record). Due syncs
 run first, one at a time, then the due polls — up to `dispatch.poll_concurrency`
 projects at once (default 2, 1 = in-process and sequential), each in a child
 `pablo internal:dispatch-job` started by `Dispatch/WorkerPool` through

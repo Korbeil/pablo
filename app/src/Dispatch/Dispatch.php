@@ -22,7 +22,10 @@ use Pablo\Support\PabloError;
  * enforced here via last-run stamps. A global flock prevents overlapping
  * runs; a hard preflight failure (gh, the agent runtime's CLI, an impossible
  * backend/runtime pair) aborts the whole run fast and
- * loud, while a soft one (provider CLIs) only warns.
+ * loud, while a soft one (provider CLIs) only warns. The CLI probes (one
+ * subprocess each) only run when a job is due, for the projects with a job
+ * due: a tick with nothing to do checks the agent settings (a config read)
+ * and records a healthy run, nothing more.
  *
  * Every run and every job's outcome is recorded in DispatchHealth (read by
  * system:doctor and the dashboard); a job failing BACKOFF_AFTER times in a
@@ -87,7 +90,20 @@ final class Dispatch
     {
         // An impossible agent setup (an ADE that cannot run the runtime) would only
         // fail every launch: stop here, loud, before touching any project.
-        $errors = $this->doctor->configErrors();
+        return [...$this->doctor->configErrors(), ...$this->cliErrors($projects)];
+    }
+
+    /**
+     * Probes the CLIs these projects need (gh, the ADE, the runtime, their
+     * trackers): one subprocess each.
+     *
+     * @param array<string, ProjectConfig> $projects
+     *
+     * @return list<string>
+     */
+    private function cliErrors(array $projects): array
+    {
+        $errors = [];
         foreach ($this->doctor->checkAll($projects) as $result) {
             if ($result->ok()) {
                 continue;
@@ -273,10 +289,11 @@ final class Dispatch
      *
      * @param array<string, ProjectConfig>                         $projects
      * @param array<string, callable(ProjectConfig, Store): mixed> $runners
+     * @param array<string, array<string, true>>                   $due      what dueJobs() returned
      *
      * @return bool whether a job failed
      */
-    private function runConcurrently(array $projects, Store $store, array $runners, float $now, int $concurrency): bool
+    private function runConcurrently(array $projects, Store $store, array $runners, array $due, float $now, int $concurrency): bool
     {
         $failed = false;
         $jobs = array_keys($runners);
@@ -286,7 +303,7 @@ final class Dispatch
 
         foreach ($projects as $cfg) {
             foreach ($before as $job => $runner) {
-                if ($this->shouldRun($cfg, $job, $now)) {
+                if (isset($due[$cfg->name][$job])) {
                     $failed = $this->runInProcess($cfg, $job, $runner, $store, $now) || $failed;
                 }
             }
@@ -294,7 +311,7 @@ final class Dispatch
 
         $queue = [];
         foreach ($projects as $cfg) {
-            if ($this->shouldRun($cfg, self::CONCURRENT_JOB, $now)) {
+            if (isset($due[$cfg->name][self::CONCURRENT_JOB])) {
                 $queue[$cfg->name] = $cfg;
             }
         }
@@ -307,7 +324,7 @@ final class Dispatch
 
         foreach ($projects as $cfg) {
             foreach ($after as $job => $runner) {
-                if ($this->shouldRun($cfg, $job, $now)) {
+                if (isset($due[$cfg->name][$job])) {
                     $failed = $this->runInProcess($cfg, $job, $runner, $store, $now) || $failed;
                 }
             }
@@ -386,6 +403,30 @@ final class Dispatch
     }
 
     /**
+     * The jobs this tick will run, by project name then job: due by their
+     * stamp and not backing off (shouldRun() announces a backed-off job, once,
+     * here).
+     *
+     * @param array<string, ProjectConfig> $projects
+     * @param array<string, mixed>         $runners
+     *
+     * @return array<string, array<string, true>>
+     */
+    private function dueJobs(array $projects, array $runners, float $now): array
+    {
+        $due = [];
+        foreach ($projects as $cfg) {
+            foreach (array_keys($runners) as $job) {
+                if ($this->shouldRun($cfg, $job, $now)) {
+                    $due[$cfg->name][$job] = true;
+                }
+            }
+        }
+
+        return $due;
+    }
+
+    /**
      * $configErrors are the project files that failed to load
      * (Config::projectErrors()): logged every run, the valid projects still run.
      *
@@ -418,7 +459,14 @@ final class Dispatch
                 fwrite($this->stderr ?? \STDERR, "pablo dispatch: skipping invalid project config {$file}: {$error}\n");
             }
 
-            $errors = $this->preflightErrors($projects);
+            // The CLI probes cost a subprocess each: only pay for them when a
+            // job will run, and only for the projects with one due. The agent
+            // settings check is a config read, so every tick still makes it.
+            $due = $this->dueJobs($projects, $runners, $now);
+            $errors = $this->doctor->configErrors();
+            if ([] === $errors && [] !== $due) {
+                $errors = $this->cliErrors(array_intersect_key($projects, $due));
+            }
             if ([] !== $errors) {
                 fwrite($this->stderr ?? \STDERR, "pablo dispatch: CLI preflight failed, aborting:\n"
                     .implode("\n", array_map(static fn ($e) => "  ❌ {$e}", $errors))."\n");
@@ -430,11 +478,11 @@ final class Dispatch
             $failed = [] !== $configErrors;
             $concurrency = isset($runners[self::CONCURRENT_JOB]) && \count($projects) > 1 ? $this->pollConcurrency() : 1;
             if ($concurrency > 1) {
-                $failed = $this->runConcurrently($projects, $store, $runners, $now, $concurrency) || $failed;
+                $failed = $this->runConcurrently($projects, $store, $runners, $due, $now, $concurrency) || $failed;
             } else {
                 foreach ($projects as $cfgValue) {
                     foreach ($runners as $job => $runner) {
-                        if ($this->shouldRun($cfgValue, $job, $now)) {
+                        if (isset($due[$cfgValue->name][$job])) {
                             $failed = $this->runInProcess($cfgValue, $job, $runner, $store, $now) || $failed;
                         }
                     }
