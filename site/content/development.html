@@ -69,15 +69,18 @@
 
 <p>Run from the repository root, with the global <a href="https://castor.jolicode.com/">Castor</a> binary. The PHP tools are downloaded on first use.</p>
 
-<pre><code class="language-bash">castor qa:test                          # PHPUnit
+<pre><code class="language-bash">castor qa:test                          # PHPUnit, in parallel (paratest, one worker per core)
+castor qa:test --serial                 # PHPUnit in one process
 castor qa:phpstan                       # static analysis, level 8
 castor qa:cs-fixer                      # fix coding style (@Symfony + @Symfony:risky)
 castor qa:cs:check                      # check only (what CI runs)
 castor qa:twig-cs-fixer                 # Twig templates
 castor qa:twig-cs:check                 # check only (what CI runs)
-(cd app &amp;&amp; composer exec phpunit tests/StateMachineTest.php)   # one test file
+(cd app &amp;&amp; vendor/bin/phpunit tests/StateMachine/StateMachineTest.php)   # one test file
 php app/bin/console lint:twig app/templates
 </code></pre>
+
+<p>The suite runs in parallel with <a href="https://github.com/paratestphp/paratest">ParaTest</a>, one worker per CPU core, each worker taking whole test classes: most tests wait on <code>git</code> or <code>php</code> subprocesses, so a single process leaves the machine idle. A test must not depend on another class having run, take a fixed port or a fixed temp path, or write into the checkout. Each worker compiles its own test container, in <code>app/var/cache/test-&lt;n&gt;</code>.</p>
 
 <p>PHPStan runs at level 8 over <code>src</code>, <code>tests</code>, <code>config</code> and <code>public</code>. Raise the level by fixing what it reports, never by ignoring errors or adding them to the baseline. php-cs-fixer covers exactly the paths listed by the Finder in <code>app/.php-cs-fixer.php</code> (the castor tasks pass none): a new top-level folder is added there.</p>
 

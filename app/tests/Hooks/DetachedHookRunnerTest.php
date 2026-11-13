@@ -24,7 +24,7 @@ final class DetachedHookRunnerTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (['out', 'log'] as $f) {
+        foreach (['out', 'log', 'go'] as $f) {
             @unlink($this->tmp.'/'.$f);
         }
         @rmdir($this->tmp.'/wt');
@@ -36,14 +36,18 @@ final class DetachedHookRunnerTest extends TestCase
         $out = $this->tmp.'/out';
         $runner = new DetachedHookRunner($this->tmp.'/log');
 
-        $start = microtime(true);
+        $go = $this->tmp.'/go';
+        // The hook holds until the test creates $go (60s at most, so a
+        // non-detached run() cannot hang the suite): no wall-clock threshold,
+        // which a loaded machine or a parallel run would break.
         $runner->run(
-            'sleep 0.2; printf "%s|%s|%s\n" "$PABLO_EVENT" "$PABLO_TO" "$PWD" > '.escapeshellarg($out.'.tmp').' && mv '.escapeshellarg($out.'.tmp').' '.escapeshellarg($out).'; echo logged',
+            'for i in $(seq 600); do [ -e '.escapeshellarg($go).' ] && break; sleep 0.1; done; printf "%s|%s|%s\n" "$PABLO_EVENT" "$PABLO_TO" "$PWD" > '.escapeshellarg($out.'.tmp').' && mv '.escapeshellarg($out.'.tmp').' '.escapeshellarg($out).'; echo logged',
             ['PABLO_EVENT' => 'transition', 'PABLO_TO' => "it's ci-red"],
             $this->tmp.'/wt',
         );
-        // Detached: run() returned before the command's sleep ended.
-        $this->assertLessThan(0.2, microtime(true) - $start);
+        // Detached: run() returned while the command still waits for $go.
+        $this->assertFileDoesNotExist($out);
+        touch($go);
 
         $deadline = microtime(true) + 10;
         while (!is_file($out) && microtime(true) < $deadline) {

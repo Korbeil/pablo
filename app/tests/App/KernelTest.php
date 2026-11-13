@@ -33,6 +33,19 @@ final class KernelTest extends TestCase
         $this->assertSame(\dirname(__DIR__, 2).'/var/log', $kernel->getLogDir());
     }
 
+    public function testEachParallelTestWorkerHasItsOwnTestCache(): void
+    {
+        $this->setEnv('TEST_TOKEN', '3');
+        $this->assertSame(\dirname(__DIR__, 2).'/var/cache/test-3', (new Kernel('test', true))->getCacheDir());
+        $this->assertSame(\dirname(__DIR__, 2).'/var/cache/dev', (new Kernel('dev', true))->getCacheDir(), 'only the test env is split');
+
+        $this->setEnv('TEST_TOKEN', '../x');
+        $this->assertSame(\dirname(__DIR__, 2).'/var/cache/test', (new Kernel('test', true))->getCacheDir());
+
+        $this->setEnv('TEST_TOKEN', null);
+        $this->assertSame(\dirname(__DIR__, 2).'/var/cache/test', (new Kernel('test', true))->getCacheDir());
+    }
+
     public function testDefaultEnvironment(): void
     {
         $this->setEnv('PABLO_ENV', null);

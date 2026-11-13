@@ -37,6 +37,7 @@
         "symfony/yaml": "^8.1"
     },
     "require-dev": {
+        "brianium/paratest": "^7.28",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan": "^2.3",
         "phpstan/phpstan-symfony": "^2.1",
@@ -49,7 +50,18 @@
         "ext-posix": "Native pid and user lookups (headless agent liveness, scheduler uid/user name); without it PABLO falls back to kill -0 and id"
     },
     "scripts": {
-        "test": "phpunit"
+        "test": [
+            "Composer\\Config::disableProcessTimeout",
+            "paratest"
+        ],
+        "test:serial": [
+            "Composer\\Config::disableProcessTimeout",
+            "phpunit"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Run the PHPUnit suite in parallel (paratest, one worker per CPU core); extra arguments go to paratest",
+        "test:serial": "Run the PHPUnit suite in a single process (plain phpunit); extra arguments go to phpunit"
     },
     "config": {
         "sort-packages": true,
