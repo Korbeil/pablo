@@ -13,7 +13,6 @@ use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\AgentFileState;
 use Pablo\Install\Links;
 use Pablo\Support\Files;
-use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\SandboxedEnv;
 use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
@@ -80,7 +79,10 @@ final class RuntimeContractTest extends TestCase
         $this->assertArrayHasKey('Linux', $probe->installCommands);
         $this->assertArrayHasKey('Darwin', $probe->installCommands);
 
-        $this->assertStringStartsWith($runtime->binary().' ', $runtime->launchCommand('task-analyst', 'go', null, $runtime->newSessionId()));
+        $sid = $runtime->newSessionId();
+        $command = $runtime->launchCommand('task-analyst', 'go', null, $sid);
+        $this->assertStringStartsWith($runtime->binary().' ', $command);
+        $this->assertStringContainsString($sid, $command, 'the run goes under the PABLO-assigned session');
     }
 
     #[DataProvider('runtimes')]
@@ -88,7 +90,8 @@ final class RuntimeContractTest extends TestCase
     {
         $runtime = $this->runtime($name);
         $sessions = $runtime->sessions();
-        $id = $runtime->newSessionId() ?? 'ses_contract';
+        $id = $runtime->newSessionId();
+        $this->assertNotSame($id, $runtime->newSessionId(), 'every launch gets its own session');
         $handle = $sessions->handle($id);
 
         $this->assertTrue($sessions->owns($handle));
@@ -97,9 +100,6 @@ final class RuntimeContractTest extends TestCase
             if ($other !== $name) {
                 $this->assertFalse($this->runtime($other)->sessions()->owns($handle), "{$other} must not claim a {$name} handle");
             }
-        }
-        if (null !== $runtime->newSessionId()) {
-            $this->assertNull($sessions->findSession(new FakeProcessRunner(), $this->tmp), 'a PABLO-assigned id needs no lookup');
         }
     }
 

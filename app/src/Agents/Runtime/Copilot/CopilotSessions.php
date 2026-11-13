@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime\Copilot;
 
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
-use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Copilot takes a PABLO-assigned session id (--session-id), a UUID like
@@ -30,10 +29,5 @@ final class CopilotSessions implements RuntimeSessionsInterface
     public function resumeCommand(string $handle): string
     {
         return 'copilot --resume='.($this->owns($handle) ? substr($handle, \strlen(self::PREFIX)) : $handle);
-    }
-
-    public function findSession(ProcessRunnerInterface $runner, string $worktree): ?string
-    {
-        return null;
     }
 }

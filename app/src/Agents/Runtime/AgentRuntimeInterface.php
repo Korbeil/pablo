@@ -34,10 +34,10 @@ interface AgentRuntimeInterface
     public function defaultModel(): string;
 
     /**
-     * A session id PABLO assigns up front, or null when the runtime picks its
-     * own (see RuntimeSessionsInterface::findSession()).
+     * A fresh session id PABLO assigns up front: launchCommand() runs the
+     * agent under it, so its handle is known before the run starts.
      */
-    public function newSessionId(): ?string;
+    public function newSessionId(): string;
 
     /**
      * Shell command (no `cd`, no redirection) running $agent once on $prompt,

@@ -325,8 +325,8 @@ recorded as `copilot:<uuid>`).
 ⚠️ **Runtime-specific code is confined to `src/Agents/Runtime/<Runtime>/`**
 (`OpenCode/`, `ClaudeCode/`, `Copilot/`). Shared code only goes through
 `AgentRuntimeInterface` and the role interfaces it hands out:
-`sessions()` (`RuntimeSessionsInterface`: handle, resume command, session
-lookup — `SessionRef` dispatches a recorded handle across all runtimes),
+`sessions()` (`RuntimeSessionsInterface`: handle, resume command
+— every runtime's id is chosen up front by `newSessionId()`; `SessionRef` dispatches a recorded handle across all runtimes),
 `agentFiles()` (`RuntimeAgentFilesInterface`: generate, install links,
 uninstall paths, doctor staleness, legacy cleanup), `usage()` (the
 `UsageHarvesterInterface` reading token/cost back), `oneShot()`
