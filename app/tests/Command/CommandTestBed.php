@@ -67,8 +67,10 @@ abstract class CommandTestBed extends TestCase
         $this->tmp = TempDir::create('cmd');
         mkdir($this->tmp.'/repo', 0o777, true);
         mkdir($this->tmp.'/wt', 0o777, true);
+        // A plain directory: only the tests resolving the task from the cwd
+        // need a git repository there (initGitWorktree()).
         $this->wt = $this->tmp.'/wt/wk-45';
-        (new \Symfony\Component\Process\Process(['git', 'init', '-q', $this->wt]))->run();
+        mkdir($this->wt, 0o777, true);
 
         $this->projectsDir = $this->tmp.'/projects';
         mkdir($this->projectsDir, 0o777, true);
@@ -160,6 +162,15 @@ YAML,
             $this->tmp,
             $script,
         ));
+    }
+
+    /**
+     * Makes the task's worktree ($this->wt) a git repository, for a command
+     * that resolves its task from the cwd (Store::taskForCwd() asks git).
+     */
+    protected function initGitWorktree(): void
+    {
+        (new \Symfony\Component\Process\Process(['git', 'init', '-q', $this->wt]))->mustRun();
     }
 
     protected function stateChanger(): TaskStateChanger

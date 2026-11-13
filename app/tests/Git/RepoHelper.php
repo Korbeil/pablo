@@ -29,15 +29,49 @@ final class RepoHelper
         return self::git($repo, ['rev-parse', 'HEAD']);
     }
 
-    /** @return array{origin: string, clone: string, other: string} */
+    /**
+     * A bare `origin.git` with one commit on main, and two clones of it
+     * (`clone`, `other`, with a test identity), under `$tmp`: a copy of a
+     * template built once per process (see GitFixtures).
+     *
+     * @return array{origin: string, clone: string, other: string}
+     */
     public static function makeRepos(string $tmp): array
+    {
+        GitFixtures::get('repos', $tmp, static function (string $dir): void {
+            self::buildRepos($dir);
+        });
+
+        return ['origin' => $tmp.'/origin.git', 'clone' => $tmp.'/clone', 'other' => $tmp.'/other'];
+    }
+
+    /**
+     * makeRepos(), then `$then($tmp, $repos)` for the rest of a test class's
+     * setup, both built once per process under `$key` and copied into `$tmp`.
+     * `$then` must only create things under `$tmp`.
+     *
+     * @param callable(string, array{origin: string, clone: string, other: string}): void $then
+     *
+     * @return array{origin: string, clone: string, other: string}
+     */
+    public static function makeReposThen(string $key, string $tmp, callable $then): array
+    {
+        GitFixtures::get($key, $tmp, static function (string $dir) use ($then): void {
+            $then($dir, self::buildRepos($dir));
+        });
+
+        return ['origin' => $tmp.'/origin.git', 'clone' => $tmp.'/clone', 'other' => $tmp.'/other'];
+    }
+
+    /** @return array{origin: string, clone: string, other: string} */
+    private static function buildRepos(string $tmp): array
     {
         $origin = $tmp.'/origin.git';
         $clone = $tmp.'/clone';
         $other = $tmp.'/other';
-        (new Process(['git', 'init', '-q', '--bare', '-b', 'main', $origin]))->run();
+        (new Process(['git', 'init', '-q', '--bare', '-b', 'main', $origin]))->mustRun();
         foreach ([$clone, $other] as $dest) {
-            (new Process(['git', 'clone', '-q', $origin, $dest]))->run();
+            (new Process(['git', 'clone', '-q', $origin, $dest]))->mustRun();
             self::git($dest, ['config', 'user.email', 'test@example.com']);
             self::git($dest, ['config', 'user.name', 'Test']);
         }

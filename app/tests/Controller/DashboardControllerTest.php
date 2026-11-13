@@ -10,6 +10,7 @@ use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
+use Pablo\Tests\Git\GitFixtures;
 use Pablo\Tests\RestoresErrorHandlers;
 use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
@@ -61,11 +62,12 @@ final class DashboardControllerTest extends WebTestCase
 
         // Real git repos with a GitHub origin, so RepoSlug resolves the
         // PR links without the old static seam.
-        foreach (['repo' => 'wallet-kit', 'bookkeeper' => 'bookkeeper'] as $dir => $slug) {
-            mkdir($this->tmp.'/'.$dir, 0o777, true);
-            (new \Symfony\Component\Process\Process(['git', 'init', '-q', $this->tmp.'/'.$dir]))->run();
-            (new \Symfony\Component\Process\Process(['git', '-C', $this->tmp.'/'.$dir, 'remote', 'add', 'origin', "git@github.com:acme/{$slug}.git"]))->run();
-        }
+        GitFixtures::get('dashboard', $this->tmp, static function (string $dir): void {
+            foreach (['repo' => 'wallet-kit', 'bookkeeper' => 'bookkeeper'] as $repo => $slug) {
+                (new \Symfony\Component\Process\Process(['git', 'init', '-q', $dir.'/'.$repo]))->mustRun();
+                (new \Symfony\Component\Process\Process(['git', '-C', $dir.'/'.$repo, 'remote', 'add', 'origin', "git@github.com:acme/{$slug}.git"]))->mustRun();
+            }
+        });
 
         file_put_contents($this->tmp.'/projects/wallet-kit.yaml', <<<YAML
             name: wallet-kit

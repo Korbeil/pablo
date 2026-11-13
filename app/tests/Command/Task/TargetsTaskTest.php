@@ -46,6 +46,7 @@ final class TargetsTaskTest extends CommandTestBed
 
     public function testInfoWithoutBranchUsesCwd(): void
     {
+        $this->initGitWorktree();
         chdir($this->wt);
         $tester = $this->runCommand($this->info());
         $this->assertSame(0, $tester->getStatusCode());
