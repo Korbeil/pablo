@@ -194,7 +194,7 @@ jobs:
           if [ "$failed" = 1 ]; then cat "$RUNNER_TEMP/web.log"; exit 1; fi
 
       - name: upload
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: pablo-${{ matrix.target }}
           path: dist/pablo-${{ matrix.target }}
@@ -214,7 +214,7 @@ jobs:
         run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: download the binaries
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           pattern: pablo-*
           path: release
