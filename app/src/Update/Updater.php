@@ -6,6 +6,7 @@ namespace Pablo\Update;
 
 use Pablo\App\ConsoleApplication;
 use Pablo\Dispatch\Dispatch;
+use Pablo\Support\FileLock;
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
@@ -312,25 +313,14 @@ final class Updater
      */
     public function lockDispatch(\Closure $info, float $timeoutS = self::DISPATCH_WAIT_S, float $pollS = 2.0)
     {
-        $path = Dispatch::lockPath();
-        $dir = \dirname($path);
-        Files::ensureDir($dir);
-        $fd = @fopen($path, 'c+');
-        if (false === $fd) {
-            throw new PabloError("cannot open {$path}");
-        }
-        $deadline = microtime(true) + $timeoutS;
-        $waiting = false;
-        while (!flock($fd, \LOCK_EX | \LOCK_NB)) {
-            if (microtime(true) >= $deadline) {
-                fclose($fd);
-                throw new PabloError('a PABLO dispatch run is still in progress: try pablo update again in a few minutes');
-            }
-            if (!$waiting) {
-                $info('waiting for the running dispatch (sync/poll) to finish…');
-                $waiting = true;
-            }
-            usleep((int) ($pollS * 1_000_000));
+        $fd = FileLock::acquire(
+            Dispatch::lockPath(),
+            $timeoutS,
+            (int) ($pollS * 1_000_000),
+            static fn () => $info('waiting for the running dispatch (sync/poll) to finish…'),
+        );
+        if (null === $fd) {
+            throw new PabloError('a PABLO dispatch run is still in progress: try pablo update again in a few minutes');
         }
 
         return $fd;

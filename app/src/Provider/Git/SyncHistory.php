@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Provider\Git;
 
+use Pablo\Support\FileLock;
 use Pablo\Support\Files;
 use Pablo\Support\Json;
+use Pablo\Support\PabloPaths;
 
 /**
  * Per-project sync history: ~/.pablo/logs/sync-history-<project>.jsonl, one
@@ -13,8 +15,8 @@ use Pablo\Support\Json;
  *
  * rebase-last-<project>.json only keeps what the latest sync did, so a
  * conflict or a lease failure followed by a clean sync would otherwise be
- * lost. The log directory is resolved per call (Sync::logsDir(), never at
- * container compile time).
+ * lost. The log directory is resolved per call (PabloPaths::logsDir(), never
+ * at container compile time).
  *
  * Writing is best-effort: append() never throws, so a history failure can
  * never fail a sync. Reading skips unreadable lines.
@@ -32,7 +34,7 @@ final class SyncHistory
 
     public static function path(string $project): string
     {
-        return Sync::logsDir()."/sync-history-{$project}.jsonl";
+        return PabloPaths::logsDir()."/sync-history-{$project}.jsonl";
     }
 
     public function append(SyncRun $run): void
@@ -40,15 +42,11 @@ final class SyncHistory
         try {
             $line = json_encode($run->toArray(), \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR);
             $path = self::path($run->log->project);
-            Files::ensureDir(\dirname($path));
-            $lock = @fopen($path.'.lock', 'c');
-            if (false === $lock) {
+            $lock = FileLock::acquire($path.'.lock', self::LOCK_TIMEOUT_S);
+            if (null === $lock) {
                 return;
             }
             try {
-                if (!$this->lock($lock)) {
-                    return;
-                }
                 $lines = is_file($path) ? (@file($path, \FILE_IGNORE_NEW_LINES | \FILE_SKIP_EMPTY_LINES) ?: []) : [];
                 $lines[] = $line;
                 $lines = \array_slice($lines, -max(1, $this->cap));
@@ -56,8 +54,7 @@ final class SyncHistory
                 // place, so a reader never sees a half-written file.
                 Files::write($path, implode("\n", $lines)."\n");
             } finally {
-                @flock($lock, \LOCK_UN);
-                fclose($lock);
+                FileLock::release($lock);
             }
         } catch (\Throwable) {
             // best-effort: the history must never fail a sync
@@ -98,19 +95,5 @@ final class SyncHistory
         }
 
         return $runs;
-    }
-
-    /** @param resource $handle */
-    private function lock($handle): bool
-    {
-        $deadline = microtime(true) + self::LOCK_TIMEOUT_S;
-        do {
-            if (flock($handle, \LOCK_EX | \LOCK_NB)) {
-                return true;
-            }
-            usleep(50_000);
-        } while (microtime(true) < $deadline);
-
-        return false;
     }
 }

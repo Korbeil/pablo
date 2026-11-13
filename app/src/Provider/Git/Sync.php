@@ -206,15 +206,10 @@ final class Sync
         return $reports;
     }
 
-    public static function logsDir(): string
-    {
-        return PabloPaths::pabloPath('logs', 'PABLO_LOGS_DIR');
-    }
-
     /** @param list<SyncReport> $reports */
     public function saveLastLog(string $projectName, string $strategy, array $reports): RebaseLog
     {
-        $path = self::logsDir()."/rebase-last-{$projectName}.json";
+        $path = PabloPaths::logsDir()."/rebase-last-{$projectName}.json";
         $dir = \dirname($path);
         // best-effort: the last rebase log is informational.
         Files::tryEnsureDir($dir);
@@ -279,7 +274,7 @@ final class Sync
 
     public function loadLastLog(string $projectName): ?RebaseLog
     {
-        $path = self::logsDir()."/rebase-last-{$projectName}.json";
+        $path = PabloPaths::logsDir()."/rebase-last-{$projectName}.json";
         if (!is_file($path)) {
             return null;
         }

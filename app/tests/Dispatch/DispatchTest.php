@@ -116,9 +116,7 @@ final class DispatchTest extends TestCase
 
     private function stampAge(string $name, string $job, int $secondsAge): void
     {
-        $path = $this->stamps.'/'.$name.'.'.$job;
-        @mkdir(\dirname($path), 0o777, true);
-        file_put_contents($path, (new \Pablo\Dispatch\Stamps())->encodeStamp(microtime(true) - $secondsAge, 0.0));
+        (new \Pablo\Dispatch\Stamps())->write($name, $job, microtime(true) - $secondsAge, 0.0);
     }
 
     public function testFirstRunRunsEverything(): void

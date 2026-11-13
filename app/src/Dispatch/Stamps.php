@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Dispatch;
 
+use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\PabloPaths;
 
@@ -19,47 +20,40 @@ final class Stamps
         return PabloPaths::pabloPath('stamps', 'PABLO_STAMPS_DIR');
     }
 
-    /** Encode a per-job run stamp: when it ran and how long the run took. */
-    public function encodeStamp(float $ranAt, float $durationS): string
+    public static function path(string $project, string $job): string
     {
-        return json_encode([
-            'ran_at' => $ranAt,
-            'duration_s' => $durationS,
-        ], \JSON_THROW_ON_ERROR);
+        return self::stampsDir()."/{$project}.{$job}";
     }
 
     /**
-     * Read a per-job run stamp. Accepts the current JSON format as well as the
-     * legacy bare-float format (duration unknown). Null when missing or
-     * unparseable.
+     * Record a per-job run: when it ran and how long it took. Best-effort
+     * (never throws): a missing stamp only re-runs the job on the next tick.
      */
+    public function write(string $project, string $job, float $ranAt, float $durationS): void
+    {
+        try {
+            Files::write(self::path($project, $job), json_encode([
+                'ran_at' => $ranAt,
+                'duration_s' => $durationS,
+            ], \JSON_THROW_ON_ERROR));
+        } catch (\Throwable) {
+            // best-effort, see above
+        }
+    }
+
+    /** Null when missing or unparseable: its job then runs on the next tick, which rewrites it. */
     public function readStamp(string $project, string $job): ?RunStamp
     {
-        $path = self::stampsDir()."/{$project}.{$job}";
-        if (!is_file($path)) {
-            return null;
-        }
-        $raw = trim((string) file_get_contents($path));
-        if ('' === $raw) {
-            return null;
-        }
-        if (str_starts_with($raw, '{')) {
-            $data = Json::tryDecodeArray($raw);
-            if (!\is_array($data) || !isset($data['ran_at']) || !is_numeric($data['ran_at'])) {
-                return null;
-            }
-
-            return new RunStamp(
-                (float) $data['ran_at'],
-                isset($data['duration_s']) && is_numeric($data['duration_s'])
-                    ? (float) $data['duration_s']
-                    : null,
-            );
-        }
-        if (!is_numeric($raw)) {
+        $data = Json::tryDecodeArray(Files::tryRead(self::path($project, $job)) ?? '');
+        if (null === $data || !isset($data['ran_at']) || !is_numeric($data['ran_at'])) {
             return null;
         }
 
-        return new RunStamp((float) $raw, null);
+        return new RunStamp(
+            (float) $data['ran_at'],
+            isset($data['duration_s']) && is_numeric($data['duration_s'])
+                ? (float) $data['duration_s']
+                : null,
+        );
     }
 }

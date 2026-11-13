@@ -60,7 +60,7 @@ final class PollScheduleTest extends TestCase
 
     private function stamp(string $project, int $unixTime): void
     {
-        file_put_contents($this->stamps."/{$project}.poll", (string) $unixTime);
+        (new \Pablo\Dispatch\Stamps())->write($project, 'poll', (float) $unixTime, 0.0);
     }
 
     private function at(string $iso): \DateTimeImmutable
@@ -190,20 +190,11 @@ final class PollScheduleTest extends TestCase
     public function testLastPollDurationSFromJsonStamp(): void
     {
         $ranAt = $this->at('2026-08-06T10:01:00+00:00')->getTimestamp();
-        file_put_contents($this->stamps.'/a.poll', (new \Pablo\Dispatch\Stamps())->encodeStamp((float) $ranAt, 37.4));
+        (new \Pablo\Dispatch\Stamps())->write('a', 'poll', (float) $ranAt, 37.4);
 
         $this->assertSame(37.4, $this->schedule->lastPollDurationS('a'));
         $this->assertSame(37.4, $this->schedule->windowFor($this->cfg('a'))->lastRunDurationS);
         $this->assertSame('37s', $this->schedule->windowFor($this->cfg('a'))->lastRunDurationLabel());
-    }
-
-    public function testLastPollDurationUnknownForLegacyStamp(): void
-    {
-        // Legacy bare-float stamp predates duration tracking.
-        $this->stamp('a', $this->at('2026-08-06T10:01:00+00:00')->getTimestamp());
-
-        $this->assertNull($this->schedule->lastPollDurationS('a'));
-        $this->assertNull($this->schedule->windowFor($this->cfg('a'))->lastRunDurationS);
     }
 
     public function testLastPollAcrossProjectsTakesTheMostRecent(): void

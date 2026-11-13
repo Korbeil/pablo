@@ -6,6 +6,7 @@ namespace Pablo\Store;
 
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Support\FileLock;
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
@@ -100,20 +101,12 @@ final class Store
     {
         $task->updatedAt = $this->time->utcnow();
         $path = $this->path($task->project, $task->branch);
-        $dir = \dirname($path);
-        Files::ensureDir($dir);
-        // A unique temp name in the same directory (so rename() stays an
-        // atomic same-filesystem replace) and a checked write: a short write
-        // (full disk) or a failed rename must leave the previous record intact.
-        $tmp = $path.'.'.bin2hex(random_bytes(4)).'.tmp';
-        $content = $this->encode($task->toJson());
-        if (@file_put_contents($tmp, $content) !== \strlen($content)) {
-            Files::tryRemove($tmp);
-            throw new PabloError("cannot write task record {$path} (temp file {$tmp}): disk full or not writable?");
-        }
-        if (!@rename($tmp, $path)) {
-            Files::tryRemove($tmp);
-            throw new PabloError("cannot write task record {$path}: rename from {$tmp} failed");
+        // Atomic and checked (see Files::write()): a short write (full disk)
+        // or a failed rename leaves the previous record intact.
+        try {
+            Files::write($path, $this->encode($task->toJson()));
+        } catch (PabloError $e) {
+            throw new PabloError("cannot write task record {$path}: {$e->getMessage()}", previous: $e);
         }
     }
 
@@ -212,27 +205,12 @@ final class Store
     public function taskLock(string $project, string $branch, float $timeoutS = self::LOCK_TIMEOUT_S): TaskLock
     {
         $path = $this->lockPath($project, $branch);
-        $dir = \dirname($path);
-        Files::ensureDir($dir);
-        $fd = fopen($path, 'c+');
-        if (false === $fd) {
-            throw new PabloError("cannot open lock file: {$path}");
+        $fd = FileLock::acquire($path, $timeoutS, 200_000);
+        if (null === $fd) {
+            $holder = trim(Files::tryRead($path) ?? '');
+            throw new TaskLockedException("task {$project}/{$branch} is locked".('' !== $holder ? " by {$holder}" : ''));
         }
-        $deadline = microtime(true) + $timeoutS;
         try {
-            while (true) {
-                if (flock($fd, \LOCK_EX | \LOCK_NB)) {
-                    break;
-                }
-                if (microtime(true) >= $deadline) {
-                    $holder = '';
-                    if (is_file($path)) {
-                        $holder = trim((string) file_get_contents($path));
-                    }
-                    throw new TaskLockedException("task {$project}/{$branch} is locked".('' !== $holder ? " by {$holder}" : ''));
-                }
-                usleep(200_000);
-            }
             ftruncate($fd, 0);
             rewind($fd);
             fwrite($fd, json_encode([

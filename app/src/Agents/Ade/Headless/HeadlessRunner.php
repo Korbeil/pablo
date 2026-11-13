@@ -30,7 +30,7 @@ final class HeadlessRunner
         private readonly AgentRuntimeInterface $runtime,
     ) {
         // Resolved per process, never at container compile time.
-        $this->agentsDir = PabloPaths::pabloPath('agents', 'PABLO_AGENTS_DIR');
+        $this->agentsDir = PabloPaths::agentsDir();
     }
 
     public function agentsDir(): string

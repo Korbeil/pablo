@@ -11,7 +11,8 @@ use Pablo\Poller\Poller;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Git\Sync;
 use Pablo\Store\Store;
-use Pablo\Support\Files;
+use Pablo\Support\FileLock;
+use Pablo\Support\PabloError;
 
 /**
  * The cron dispatcher, fired by the pablo-dispatch systemd user timer.
@@ -106,17 +107,12 @@ final class Dispatch
 
     private function tryDispatchLock(): bool
     {
-        $path = self::lockPath();
-        $dir = \dirname($path);
-        // best-effort: an unopenable lock is reported as "not acquired" below.
-        Files::tryEnsureDir($dir);
-        $fd = fopen($path, 'c+');
-        if (false === $fd) {
-            return false;
+        try {
+            $fd = FileLock::acquire(self::lockPath(), 0.0);
+        } catch (PabloError) {
+            return false; // an unopenable lock is reported as "not acquired"
         }
-        if (!flock($fd, \LOCK_EX | \LOCK_NB)) {
-            fclose($fd);
-
+        if (null === $fd) {
             return false;
         }
 
@@ -131,9 +127,7 @@ final class Dispatch
 
     public function releaseDispatchLock(): void
     {
-        if (\is_resource($this->lockFd)) {
-            fclose($this->lockFd);
-        }
+        FileLock::release($this->lockFd);
         $this->lockFd = null;
     }
 
@@ -256,12 +250,7 @@ final class Dispatch
                         continue; // stamp not written: retried next tick (or after the back-off)
                     }
                     $this->health->recordSuccess($cfgValue->name, $job, $now, \is_int($result) ? $result : 0);
-                    $durationS = microtime(true) - $jobStartedAt;
-                    $stamp = Stamps::stampsDir()."/{$cfgValue->name}.{$job}";
-                    $dir = \dirname($stamp);
-                    // best-effort: a missing stamp only re-runs the job next time.
-                    Files::tryEnsureDir($dir);
-                    file_put_contents($stamp, $this->stamps->encodeStamp($now, $durationS));
+                    $this->stamps->write($cfgValue->name, $job, $now, microtime(true) - $jobStartedAt);
                 }
             }
 

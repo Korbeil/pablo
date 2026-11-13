@@ -52,8 +52,8 @@ final class PollProgressTest extends WebTestCase
         $this->writeProject('wallet-kit', 'work');
         $this->writeProject('bookkeeper', 'open-source');
 
-        file_put_contents($this->tmp.'/stamps/wallet-kit.poll', (string) time());
-        file_put_contents($this->tmp.'/stamps/bookkeeper.poll', (string) time());
+        (new \Pablo\Dispatch\Stamps())->write('wallet-kit', 'poll', (float) time(), 0.0);
+        (new \Pablo\Dispatch\Stamps())->write('bookkeeper', 'poll', (float) time(), 0.0);
     }
 
     protected function tearDown(): void

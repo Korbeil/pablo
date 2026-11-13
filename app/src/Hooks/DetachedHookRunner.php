@@ -23,7 +23,7 @@ final class DetachedHookRunner implements HookRunnerInterface
     public function run(string $command, array $env, ?string $cwd): void
     {
         // Resolved per call, never at container compile time (HOME may differ).
-        $log = $this->logFile ?? PabloPaths::pabloPath('logs', 'PABLO_LOGS_DIR').'/hooks.log';
+        $log = $this->logFile ?? PabloPaths::logsDir().'/hooks.log';
         // best-effort: a missing hooks log must never stop the hook.
         Files::tryEnsureDir(\dirname($log));
         $assignments = [];

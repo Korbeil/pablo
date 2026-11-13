@@ -70,6 +70,34 @@ final class FilesTest extends TestCase
         $this->assertTrue(is_executable($this->tmp.'/link'));
     }
 
+    public function testAShortWriteThrowsKeepsThePreviousFileAndRemovesTheTempFile(): void
+    {
+        mkdir($this->tmp.'/d');
+        file_put_contents($this->tmp.'/d/record.json', 'previous');
+        ShortWriteStream::$root = $this->tmp;
+        stream_wrapper_register('shortwrite', ShortWriteStream::class);
+        try {
+            Files::write('shortwrite://d/record.json', 'a longer replacement that does not fit');
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString('cannot write shortwrite://d/record.json', $e->getMessage());
+        } finally {
+            stream_wrapper_unregister('shortwrite');
+        }
+
+        $this->assertSame('previous', file_get_contents($this->tmp.'/d/record.json'));
+        $this->assertSame([$this->tmp.'/d/record.json'], Files::list($this->tmp.'/d'), 'temp file removed');
+    }
+
+    public function testWriteIsAtomicAndLeavesNoTempFile(): void
+    {
+        Files::write($this->tmp.'/out.txt', 'one');
+        Files::write($this->tmp.'/out.txt', 'two');
+
+        $this->assertSame('two', file_get_contents($this->tmp.'/out.txt'));
+        $this->assertSame([$this->tmp.'/out.txt'], Files::list($this->tmp, 'out.txt*'));
+    }
+
     public function testRemoveDeletesATreeWithDotfiles(): void
     {
         file_put_contents($this->tmp.'/src/skills/.hidden', 'h');
