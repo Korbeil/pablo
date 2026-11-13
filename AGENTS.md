@@ -129,7 +129,14 @@ container parameters.
 
 `src/App/ConsoleApplication.php` consumes the **`pablo.command`** tag (not
 `console.command`, which every bundle now contributes to) so `pablo --help`
-lists PABLO subcommands only · `src/Command/*.php` (one Symfony Console
+lists PABLO subcommands only, and loads them **lazily**:
+`src/App/PabloCommandLoaderPass.php` (registered in `Kernel::build()`) turns
+the tag into a `ContainerCommandLoader` of `LazyCommand`s whose name,
+aliases, hidden flag and description come from each command's
+`#[AsCommand]` (required, the pass refuses a command without one), so a run
+builds only the command it executes — `list`, `--help` and completion of
+command names build none (`ConsoleTest::testRunningOneCommandInstantiatesNoOther`)
+· `src/Command/*.php` (one Symfony Console
 command per subcommand, grouped by topic under `Task/` `Sync/` `Report/`
 `System/` `Internal/`; the base `Command` takes no service — each command
 injects exactly what it uses, and the project helpers `projects()`/
