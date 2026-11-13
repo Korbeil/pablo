@@ -30,15 +30,6 @@ use Pablo\Support\PabloError;
 final class Dispatch
 {
     /**
-     * Provider CLIs that are soft requirements: a failure here warns but does
-     * not abort the run — only the affected project's sync/poll degrades (the
-     * per-project failure path already handles that). So are the ADEs' CLIs
-     * (agents fall back to a headless run, see Doctor::isSoft()); gh and the
-     * selected runtime's CLI stay hard.
-     */
-    private const SOFT_CLIS = ['acli', 'acli-confluence', 'linear'];
-
-    /**
      * How often the scheduler fires this dispatcher. Per-project cadence is
      * enforced by the stamps below, so a project can never be polled more often
      * than this — which is why the dashboard rounds its "next poll" estimate up
@@ -81,7 +72,7 @@ final class Dispatch
             // back to a headless run; a dead acli/linear only degrades the
             // projects that use that provider (they fail per-project at
             // runtime), it never blocks the whole run.
-            if (\in_array($result->cli, self::SOFT_CLIS, true) || $this->doctor->isSoft($result->cli)) {
+            if ($this->doctor->isSoft($result->cli)) {
                 echo "pablo dispatch: warning: {$result->cli} not usable ({$result->detail}); affected projects only\n";
                 continue;
             }

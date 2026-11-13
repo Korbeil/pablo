@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Agents\Ade\OpenChamber;
 
-use Pablo\Agents\Ade\AdeInterface;
+use Pablo\Agents\Ade\AbstractAde;
 use Pablo\Agents\Ade\Headless\HeadlessAde;
 use Pablo\Agents\Ade\Orca\OrcaAde;
 use Pablo\Agents\AgentLauncherInterface;
@@ -18,9 +18,10 @@ use Pablo\Support\ProcessRunnerInterface;
 /**
  * OpenChamber: directory-based sessions driven by OpenChamber's own OpenCode
  * server — so it only ever runs the OpenCode runtime (the one ADE allowed to
- * name a concrete runtime, see RuntimeConfinementTest).
+ * name a concrete runtime, see RuntimeConfinementTest). Directory-based:
+ * nothing to back up or register on restore.
  */
-final class OpenChamberAde implements AdeInterface
+final class OpenChamberAde extends AbstractAde
 {
     public const NAME = 'openchamber';
 
@@ -66,25 +67,9 @@ final class OpenChamberAde implements AdeInterface
         );
     }
 
-    public function takesLaunchContext(): bool
-    {
-        return true;
-    }
-
     public function usage(ProcessRunnerInterface $runner): UsageHarvesterInterface
     {
         return new OpenChamberUsage($runner);
-    }
-
-    public function backup(ProcessRunnerInterface $runner): array
-    {
-        return [];
-    }
-
-    /** Directory-based: nothing to register. */
-    public function restore(ProcessRunnerInterface $runner, array $repoPaths): array
-    {
-        return [];
     }
 
     public function followHint(): string

@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Pablo\Agents\Ade\Orca;
 
-use Pablo\Agents\Ade\AdeInterface;
+use Pablo\Agents\Ade\AbstractAde;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Doctor\CliProbe;
 use Pablo\Domain\Time;
 use Pablo\Support\ProcessRunnerInterface;
@@ -17,7 +16,7 @@ use Pablo\Support\ProcessRunnerInterface;
  * repository must be registered with Orca), headless when Orca refuses. The
  * default ADE; it runs every runtime.
  */
-final class OrcaAde implements AdeInterface
+final class OrcaAde extends AbstractAde
 {
     public const NAME = 'orca';
 
@@ -39,11 +38,6 @@ final class OrcaAde implements AdeInterface
         return new OrcaLauncher($runner, $time, runtime: $runtime);
     }
 
-    public function runtimeError(AgentRuntimeInterface $runtime): ?string
-    {
-        return null;
-    }
-
     public function probe(): CliProbe
     {
         return new CliProbe(
@@ -60,11 +54,6 @@ final class OrcaAde implements AdeInterface
     public function takesLaunchContext(): bool
     {
         return false;
-    }
-
-    public function usage(ProcessRunnerInterface $runner): ?UsageHarvesterInterface
-    {
-        return null;
     }
 
     public function backup(ProcessRunnerInterface $runner): array
