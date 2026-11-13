@@ -11,6 +11,7 @@ use Pablo\Domain\Time;
 use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\PabloPaths;
+use Pablo\Support\Pid;
 
 /**
  * Headless runs: the runtime's command detached in the background, tracked
@@ -106,19 +107,7 @@ final class HeadlessRunner
 
     public function pidAlive(int $pid): bool
     {
-        if (\function_exists('posix_kill')) {
-            return @posix_kill($pid, 0);
-        }
-
-        return self::killZero($pid);
-    }
-
-    /** `kill -0 <pid>`: pidAlive() without ext-posix. */
-    private static function killZero(int $pid): bool
-    {
-        exec('kill -0 '.$pid.' 2>/dev/null', $output, $code);
-
-        return 0 === $code;
+        return Pid::isAlive($pid);
     }
 
     /**

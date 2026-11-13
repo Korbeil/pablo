@@ -10,6 +10,7 @@ use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
+use Pablo\Support\Pid;
 
 /**
  * Housekeeping of ~/.pablo (`pablo system:prune`, run daily at 03:00 by the
@@ -240,7 +241,7 @@ final class Pruner
             if (!\is_array($record) || !isset($record['pid']) || !is_numeric($record['pid'])) {
                 continue;
             }
-            if (!@posix_kill((int) $record['pid'], 0)) {
+            if (!Pid::isAlive((int) $record['pid'])) {
                 continue;
             }
             if (\is_string($record['log'] ?? null)) {
