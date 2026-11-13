@@ -6,6 +6,7 @@ namespace Pablo\Agents\Runtime\Copilot;
 
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentTranslation;
 use Pablo\Agents\Runtime\PermissionRules;
 use Pablo\Agents\Runtime\RuntimeSupport;
 
@@ -25,8 +26,6 @@ use Pablo\Agents\Runtime\RuntimeSupport;
  */
 final class CopilotAgents
 {
-    public const ID_PREFIX = 'pablo-';
-
     /**
      * OpenCode permission action => [agent file alias, built-in tools,
      * approval kind or null when the tool needs no approval].
@@ -47,11 +46,6 @@ final class CopilotAgents
     {
     }
 
-    public static function agentId(string $agent): string
-    {
-        return self::ID_PREFIX.$agent;
-    }
-
     /**
      * @param list<string> $providers
      *
@@ -59,9 +53,7 @@ final class CopilotAgents
      */
     public function profile(string $agent, ?string $agentsDir = null, array $providers = []): CopilotAgentProfile
     {
-        $agentsDir ??= $this->templates->templatesDir();
-
-        return self::profileFromMarkdown($this->templates->render($agentsDir, $agent, $providers), $agent);
+        return self::profileFromMarkdown(AgentTranslation::renderAgent($this->templates, $agent, $agentsDir, $providers), $agent);
     }
 
     /**
@@ -75,12 +67,7 @@ final class CopilotAgents
      */
     public function renderAgentFiles(string $agentsDir, array $providers): array
     {
-        $files = [];
-        foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $files[self::agentId($name).'.agent.md'] = $this->profile($name, $agentsDir, $providers)->definition();
-        }
-
-        return $files;
+        return AgentTranslation::agentFiles('.agent.md', fn (string $name): string => $this->profile($name, $agentsDir, $providers)->definition());
     }
 
     /**
@@ -128,7 +115,7 @@ final class CopilotAgents
         $steps = RuntimeSupport::steps($front);
 
         return new CopilotAgentProfile(
-            id: self::agentId($agent),
+            id: AgentTranslation::agentId($agent),
             description: trim((string) ($front['description'] ?? '')),
             prompt: RuntimeSupport::withStepBudget(trim($body), $steps),
             toolAliases: array_keys($aliases),
@@ -178,12 +165,7 @@ final class CopilotAgents
      */
     public function renderSkill(string $commandPath): string
     {
-        $markdown = @file_get_contents($commandPath);
-        if (false === $markdown) {
-            throw new AgentTemplateError("Cannot read command: {$commandPath}");
-        }
-        $name = basename($commandPath, '.md');
-        [$front, $body] = RuntimeSupport::splitFrontmatter($markdown, $name);
+        [$name, $front, $body] = AgentTranslation::readCommand($commandPath);
 
         $flags = \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE;
         $frontmatter = "---\n"
@@ -200,11 +182,7 @@ final class CopilotAgents
             1,
         ) ?? $body;
         $body = preg_replace('/^!`(.+)`$/m', '`$1`', $body) ?? $body;
-
-        $noEdits = "- **No code edits.** This skill only commits what is already in\n"
-            ."  the worktree: never edit or create files, except writing\n"
-            ."  `.pablo-pr-body.md` for the PR body.\n";
-        $body = preg_replace('/^## Hard rules\R\R/m', "## Hard rules\n\n".$noEdits, $body, 1) ?? $body;
+        $body = AgentTranslation::withNoEditsRule($body, 'skill');
 
         $body = str_replace(
             ['User request: $ARGUMENTS', '`$ARGUMENTS`'],

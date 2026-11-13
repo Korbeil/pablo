@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Pablo\Agents\Runtime\OpenCode;
 
-use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\RenderedFileCheck;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
-use Pablo\Doctor\AgentFileState;
-use Pablo\Doctor\AgentFileStatus;
-use Pablo\Doctor\LinkedFileCheck;
 use Pablo\Support\Files;
 use Pablo\Support\PabloPaths;
 
@@ -80,13 +77,7 @@ final class OpenCodeAgentFiles implements RuntimeAgentFilesInterface
     {
         $results = [];
         foreach (AgentTemplates::AGENT_NAMES as $name) {
-            try {
-                $fresh = $this->templates->render($agentsDir, $name, $providers);
-            } catch (AgentTemplateError $e) {
-                $results[] = new AgentFileStatus($name, AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
-                continue;
-            }
-            $results[] = LinkedFileCheck::check($name, $this->userConfigDir().'/agents/'.$name.'.md', $fresh);
+            $results[] = RenderedFileCheck::linked($name, $this->userConfigDir().'/agents/'.$name.'.md', fn (): string => $this->templates->render($agentsDir, $name, $providers));
         }
 
         return $results;

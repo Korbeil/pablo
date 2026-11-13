@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Agents\Runtime\Copilot;
 
-use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentTranslation;
+use Pablo\Agents\Runtime\RenderedFileCheck;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
-use Pablo\Doctor\AgentFileState;
-use Pablo\Doctor\AgentFileStatus;
 use Pablo\Doctor\LinkedFileCheck;
 use Pablo\Support\Files;
 
@@ -62,7 +61,7 @@ final class CopilotAgentFiles implements RuntimeAgentFilesInterface
         $user = $this->userConfigDir();
         $links = [];
         foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $file = CopilotAgents::agentId($name).'.agent.md';
+            $file = AgentTranslation::agentId($name).'.agent.md';
             $links[$user.'/agents/'.$file] = $dir.'/agents/'.$file;
         }
         foreach ([...Files::list($dir.'/skills', '*', dirsOnly: true), ...Files::list($renderedDir.'/skills', '*', dirsOnly: true)] as $skill) {
@@ -77,7 +76,7 @@ final class CopilotAgentFiles implements RuntimeAgentFilesInterface
         $user = $this->userConfigDir();
         $paths = [];
         foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $paths[] = $user.'/agents/'.CopilotAgents::agentId($name).'.agent.md';
+            $paths[] = $user.'/agents/'.AgentTranslation::agentId($name).'.agent.md';
         }
         foreach ([...AgentTemplates::commandNames($agentsDir), ...AgentTemplates::skillNames($agentsDir)] as $skill) {
             $paths[] = $user.'/skills/'.$skill;
@@ -95,23 +94,13 @@ final class CopilotAgentFiles implements RuntimeAgentFilesInterface
         $user = $this->userConfigDir();
         $results = [];
         foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $id = CopilotAgents::agentId($name);
-            try {
-                $fresh = $this->agents->profile($name, $agentsDir, $providers)->definition();
-            } catch (AgentTemplateError $e) {
-                $results[] = new AgentFileStatus($id, AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
-                continue;
-            }
-            $results[] = LinkedFileCheck::check($id, $user.'/agents/'.$id.'.agent.md', $fresh);
+            $id = AgentTranslation::agentId($name);
+            $results[] = RenderedFileCheck::linked($id, $user.'/agents/'.$id.'.agent.md', fn (): string => $this->agents->profile($name, $agentsDir, $providers)->definition());
         }
 
         foreach (Files::list(AgentTemplates::commandsDirFor($agentsDir), '*.md') as $source) {
             $name = basename($source, '.md');
-            try {
-                $results[] = LinkedFileCheck::check('skill '.$name, $user.'/skills/'.$name, $this->agents->renderSkill($source), 'SKILL.md');
-            } catch (AgentTemplateError $e) {
-                $results[] = new AgentFileStatus('skill '.$name, AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
-            }
+            $results[] = RenderedFileCheck::linked('skill '.$name, $user.'/skills/'.$name, fn (): string => $this->agents->renderSkill($source), 'SKILL.md');
         }
 
         foreach (AgentTemplates::skillNames($agentsDir) as $name) {

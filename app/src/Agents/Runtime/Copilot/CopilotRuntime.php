@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime\Copilot;
 
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\Runtime\AgentTranslation;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
 use Pablo\Agents\Runtime\RuntimeOneShotInterface;
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
@@ -85,7 +86,7 @@ final class CopilotRuntime implements AgentRuntimeInterface
 
     public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string
     {
-        $argv = ['copilot', '--agent', CopilotAgents::agentId($agent)];
+        $argv = ['copilot', '--agent', AgentTranslation::agentId($agent)];
         if (null !== $model) {
             $argv[] = '--model';
             $argv[] = $model;

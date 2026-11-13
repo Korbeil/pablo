@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Agents\Runtime\ClaudeCode;
 
-use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentTranslation;
+use Pablo\Agents\Runtime\RenderedFileCheck;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
-use Pablo\Doctor\AgentFileState;
-use Pablo\Doctor\AgentFileStatus;
 use Pablo\Doctor\LinkedFileCheck;
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
@@ -68,7 +67,7 @@ final class ClaudeCodeAgentFiles implements RuntimeAgentFilesInterface
         $user = $this->userConfigDir();
         $links = [];
         foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $file = ClaudeCodeAgents::agentId($name).'.md';
+            $file = AgentTranslation::agentId($name).'.md';
             $links[$user.'/agents/'.$file] = $dir.'/agents/'.$file;
         }
         foreach (Files::list($dir.'/commands', '*.md') as $command) {
@@ -86,7 +85,7 @@ final class ClaudeCodeAgentFiles implements RuntimeAgentFilesInterface
         $user = $this->userConfigDir();
         $paths = [];
         foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $paths[] = $user.'/agents/'.ClaudeCodeAgents::agentId($name).'.md';
+            $paths[] = $user.'/agents/'.AgentTranslation::agentId($name).'.md';
         }
         foreach (AgentTemplates::commandNames($agentsDir) as $command) {
             $paths[] = $user.'/commands/'.$command.'.md';
@@ -106,31 +105,16 @@ final class ClaudeCodeAgentFiles implements RuntimeAgentFilesInterface
     public function staleness(string $agentsDir, array $providers): array
     {
         $user = $this->userConfigDir();
-        $results = [];
-        try {
-            $results[] = LinkedFileCheck::generated('agents.json', $this->generatedDir().'/agents.json', $this->agents->renderAgentsJson($agentsDir, $providers));
-        } catch (AgentTemplateError $e) {
-            $results[] = new AgentFileStatus('agents.json', AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
-        }
+        $results = [RenderedFileCheck::generated('agents.json', $this->generatedDir().'/agents.json', fn (): string => $this->agents->renderAgentsJson($agentsDir, $providers))];
 
         foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $id = ClaudeCodeAgents::agentId($name);
-            try {
-                $fresh = $this->agents->profile($name, $agentsDir, $providers)->agentFile($id);
-            } catch (AgentTemplateError $e) {
-                $results[] = new AgentFileStatus($id, AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
-                continue;
-            }
-            $results[] = LinkedFileCheck::check($id, $user.'/agents/'.$id.'.md', $fresh);
+            $id = AgentTranslation::agentId($name);
+            $results[] = RenderedFileCheck::linked($id, $user.'/agents/'.$id.'.md', fn (): string => $this->agents->profile($name, $agentsDir, $providers)->agentFile($id));
         }
 
         foreach (Files::list(AgentTemplates::commandsDirFor($agentsDir), '*.md') as $source) {
             $name = basename($source, '.md');
-            try {
-                $results[] = LinkedFileCheck::check('/'.$name, $user.'/commands/'.$name.'.md', $this->agents->renderCommand($source));
-            } catch (AgentTemplateError $e) {
-                $results[] = new AgentFileStatus('/'.$name, AgentFileState::Unverifiable, 'cannot verify freshness: '.$e->getMessage());
-            }
+            $results[] = RenderedFileCheck::linked('/'.$name, $user.'/commands/'.$name.'.md', fn (): string => $this->agents->renderCommand($source));
         }
 
         foreach (AgentTemplates::skillNames($agentsDir) as $name) {

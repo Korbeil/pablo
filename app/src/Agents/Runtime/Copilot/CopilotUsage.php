@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Agents\Runtime\Copilot;
 
+use Pablo\Agents\Runtime\UsageWindow;
 use Pablo\Analytics\PromptFingerprint;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
@@ -32,7 +33,6 @@ use Pablo\Support\Numbers;
  */
 final class CopilotUsage implements UsageHarvesterInterface
 {
-    private const SESSION_GRACE_S = 5;
     private const MAX_SESSIONS = 8;
 
     /** Event types carrying cumulative usage totals. */
@@ -53,33 +53,20 @@ final class CopilotUsage implements UsageHarvesterInterface
     public function harvest(string $worktree, string $launchedAt, ?string $fingerprint): ?UsageSnapshot
     {
         try {
-            $windowStartS = $this->time->parseTs($launchedAt)->getTimestamp() - self::SESSION_GRACE_S;
             $worktree = rtrim($worktree, '/');
-            $candidates = [];
-            foreach (glob($this->configDir().'/session-state/*/events.jsonl') ?: [] as $path) {
-                if ((int) @filemtime($path) < $windowStartS) {
-                    continue;
-                }
-                $session = $this->read($path);
-                if (null === $session || $session['startedS'] < $windowStartS) {
-                    continue;
-                }
-                if (null !== $session['cwd'] && rtrim($session['cwd'], '/') !== $worktree) {
-                    continue;
-                }
-                $candidates[] = $session;
-            }
+            $candidates = UsageWindow::candidates(
+                glob($this->configDir().'/session-state/*/events.jsonl') ?: [],
+                UsageWindow::startS($this->time, $launchedAt),
+                // A session recorded in another directory is not this run.
+                fn (string $path): ?array => null !== ($session = $this->read($path))
+                    && (null === $session['cwd'] || rtrim($session['cwd'], '/') === $worktree) ? $session : null,
+            );
             if ([] === $candidates) {
                 return null;
             }
-            usort($candidates, static fn (array $a, array $b): int => $a['startedS'] <=> $b['startedS']);
-
-            if (null !== $fingerprint && '' !== $fingerprint) {
-                foreach ($candidates as $session) {
-                    if ($session['fingerprint'] === $fingerprint) {
-                        return self::snapshot([$session], 'exact');
-                    }
-                }
+            $exact = UsageWindow::exact($candidates, $fingerprint);
+            if (null !== $exact) {
+                return self::snapshot([$exact], 'exact');
             }
 
             // Without an exact match, only sessions known to run in the worktree.
@@ -117,7 +104,7 @@ final class CopilotUsage implements UsageHarvesterInterface
                 }
                 $type = (string) ($event['type'] ?? '');
                 $data = \is_array($event['data'] ?? null) ? $event['data'] : [];
-                $tsMs = $this->timestampMs($event['timestamp'] ?? null);
+                $tsMs = UsageWindow::timestampMs($this->time, $event['timestamp'] ?? null);
                 if ($tsMs > 0) {
                     $firstMs = 0 === $firstMs ? $tsMs : min($firstMs, $tsMs);
                     $lastMs = max($lastMs, $tsMs);
@@ -209,17 +196,5 @@ final class CopilotUsage implements UsageHarvesterInterface
             spanMs: $firstMs > 0 && $lastMs > $firstMs ? $lastMs - $firstMs : null,
             quality: $quality,
         );
-    }
-
-    private function timestampMs(mixed $ts): int
-    {
-        if (!\is_string($ts) || '' === $ts) {
-            return 0;
-        }
-        try {
-            return (int) round((float) $this->time->parseTs($ts)->format('U.u') * 1000);
-        } catch (\Exception) { // a malformed timestamp
-            return 0;
-        }
     }
 }
