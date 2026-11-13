@@ -366,9 +366,19 @@ GQL;
             '--json', 'state,mergedAt',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         $data = Json::decodeArray($out, 'gh pr view output');
-        $state = strtoupper((string) ($data['state'] ?? ''));
 
-        return 'MERGED' === $state || !empty($data['mergedAt']) ? 'MERGED' : $state;
+        return self::normalizeState((string) ($data['state'] ?? ''), $data['mergedAt'] ?? null);
+    }
+
+    /**
+     * The prState() answer from a PR's raw state and mergedAt: a PR with a
+     * mergedAt is MERGED whatever its state says.
+     */
+    public static function normalizeState(string $state, mixed $mergedAt): string
+    {
+        $state = strtoupper($state);
+
+        return 'MERGED' === $state || !empty($mergedAt) ? 'MERGED' : $state;
     }
 
     /** @return array<int, string> */

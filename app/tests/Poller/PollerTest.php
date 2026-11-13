@@ -1105,6 +1105,150 @@ final class PollerTest extends TestCase
         $this->assertFalse($task->ciIgnored);
     }
 
+    /** @return list<list<string>> the git() argument lists of every rev-parse */
+    private function revParses(): array
+    {
+        return array_values(array_filter(
+            array_column($this->git->gitCalls, 1),
+            static fn (array $args): bool => 'rev-parse' === ($args[0] ?? null),
+        ));
+    }
+
+    public function testATaskResolvesItsBranchOnceAndReadsItsPrOnce(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp']));
+        $this->git->gitOutput = 'pr-1';
+        $this->gh->prByBranch['pr-1'] = new PrInfo(7, 't', 'OPEN', true, 'u', null);
+
+        $this->poll($cfg, $store);
+
+        // Before: rev-parse twice, prState + prForBranch for the same PR.
+        $this->assertCount(1, $this->revParses());
+        $this->assertSame(['prForBranch:pr-1', 'ciStatus:7'], $this->gh->calls);
+        $this->assertSame('📝 draft #7', $this->taskOrFail($store)->displayCache->prState);
+    }
+
+    public function testTheBranchPrAnswersTheMergeCheck(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp']));
+        $this->git->gitOutput = 'pr-1';
+        $this->gh->prByBranch['pr-1'] = new PrInfo(7, 't', 'OPEN', false, 'u', '2026-07-22T00:00:00Z');
+
+        $this->poll($cfg, $store);
+
+        // A mergedAt makes it MERGED whatever its state says, as prState() does.
+        $this->assertNull($this->getTask($store));
+        $this->assertSame(['prForBranch:pr-1'], $this->gh->calls);
+    }
+
+    public function testAnotherPrOnTheBranchStillAsksForTheTasksPrState(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp']));
+        $this->git->gitOutput = 'pr-1';
+        // The branch's newest PR is not the task's: its state says nothing of #7.
+        $this->gh->prByBranch['pr-1'] = new PrInfo(9, 't', 'MERGED', false, 'u', '2026-07-22T00:00:00Z');
+
+        $this->poll($cfg, $store);
+
+        $this->assertSame(['prForBranch:pr-1', 'prState:7', 'ciStatus:7'], $this->gh->calls);
+        $this->assertSame(State::Draft, $this->taskOrFail($store)->state);
+        $this->assertSame('✅ merged #9', $this->taskOrFail($store)->displayCache->prState);
+    }
+
+    public function testAnUndiscoveredPrIsLookedUpOnce(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $task = $this->task($e['tmp']);
+        $task->prNumber = null;
+        $store->save($task);
+        $this->git->gitOutput = 'pr-1';
+        $this->gh->prByBranch['pr-1'] = new PrInfo(9, 't', 'OPEN', true, 'u', null);
+
+        $this->poll($cfg, $store);
+
+        $this->assertSame(9, $this->taskOrFail($store)->prNumber);
+        $this->assertSame(['prForBranch:pr-1', 'ciStatus:9'], $this->gh->calls);
+        $this->assertSame('📝 draft #9', $this->taskOrFail($store)->displayCache->prState);
+    }
+
+    public function testTheDisplayCacheReadsThePrAgainAfterATransition(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::CiRed));
+        $this->git->gitOutput = 'pr-1';
+        $this->stubs['ci'] = 'green';
+        // Draft on GitHub until ready-to-review marks it ready.
+        $this->gh->onPrForBranch = fn (): PrInfo => new PrInfo(7, 't', 'OPEN', [] === $this->gh->readies, 'u', null);
+
+        $this->poll($cfg, $store);
+
+        $task = $this->taskOrFail($store);
+        $this->assertSame(State::WaitingReview, $task->state);
+        $this->assertSame(['prForBranch:pr-1', 'ciStatus:7', 'prForBranch:pr-1'], $this->gh->calls);
+        $this->assertSame('📖 open #7', $task->displayCache->prState);
+    }
+
+    public function testAFailedBranchLookupFallsBackToPrStateAndIsRetriedForTheDisplay(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $task = $this->task($e['tmp']);
+        $task->displayCache = new DisplayCache(prState: '📝 draft #7');
+        $store->save($task);
+        $this->git->gitOutput = 'pr-1';
+        $this->gh->onPrForBranch = static function (): never {
+            throw new \Pablo\Support\PabloError('gh timed out');
+        };
+        $this->stubs['ci'] = 'red';
+
+        $events = $this->poll($cfg, $store);
+
+        $this->assertSame(State::CiRed, $this->taskOrFail($store)->state);
+        $this->assertSame(['prForBranch:pr-1', 'prState:7', 'ciStatus:7', 'prForBranch:pr-1'], $this->gh->calls);
+        $this->assertSame(0, $this->poller->lastCheckFailures());
+        $this->assertSame('📝 draft #7', $this->taskOrFail($store)->displayCache->prState);
+        $this->assertStringNotContainsString('failed', implode("\n", $events));
+    }
+
+    public function testAnUnresolvableRepositoryFailsEachTaskAsBefore(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp']));
+        $second = new Task('proj', 'pr-2', $e['tmp'].'/wt/pr-2', State::WaitingReview);
+        $second->prNumber = 8;
+        $store->save($second);
+        $noOrigin = new \Pablo\Tests\FakeGit(); // no origin remote: no slug
+        $repoSlug = new RepoSlug($noOrigin);
+        $time = new \Pablo\Domain\Time();
+        $poller = new Poller($this->gh, $this->git, $this->providers, $repoSlug, new StateMachine($this->gh, $this->providers, $repoSlug, $time, \Pablo\Tests\Registries::hooks()), $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), \Pablo\Tests\Registries::hooks());
+
+        $events = $poller->pollProject($cfg, $store, $this->agents);
+
+        // Each task fails on its own, both its checks and its display cache.
+        $this->assertSame(2, $poller->lastCheckFailures());
+        foreach (['pr-1', 'pr-2'] as $branch) {
+            $this->assertContains("{$branch}: poll check failed: proj: repo at {$e['tmp']}/repo has no origin remote", $events);
+            $this->assertContains("{$branch}: display cache refresh failed: proj: repo at {$e['tmp']}/repo has no origin remote", $events);
+        }
+        $this->assertSame([], $this->gh->calls);
+    }
+
     public function testCountsFailedTaskChecks(): void
     {
         $e = $this->newEnv();
