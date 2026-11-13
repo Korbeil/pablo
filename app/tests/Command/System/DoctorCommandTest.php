@@ -18,6 +18,8 @@ use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Store\Store;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\SandboxedEnv;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -29,6 +31,7 @@ use Symfony\Component\Console\Tester\CommandTester;
  */
 final class DoctorCommandTest extends TestCase
 {
+    use SandboxedEnv;
     use UsesGlobalConfig;
 
     private const DEFAULTS = <<<'YAML'
@@ -48,7 +51,6 @@ YAML;
 
     private string $tmp;
     private string $agentsDir;
-    private string $oldHome = '';
     private FakeProcessRunner $runner;
 
     /** @var callable|null */
@@ -72,17 +74,15 @@ YAML;
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-doctor-agents-'.uniqid();
+        $this->tmp = TempDir::create('doctor-agents');
         $this->agentsDir = $this->tmp.'/home/.config/opencode/agents';
         mkdir($this->agentsDir, 0o777, true);
         mkdir($this->tmp.'/projects', 0o777, true);
         // The checkout the test projects point at (the config section checks repo.path).
         mkdir($this->tmp.'/wallet-kit/.git', 0o777, true);
 
-        $oldHome = getenv('HOME');
-        $this->oldHome = false !== $oldHome ? $oldHome : '';
-        putenv('HOME='.$this->tmp.'/home');
-        putenv('PABLO_PROJECTS_DIR='.$this->tmp.'/projects');
+        $this->setEnv('HOME', $this->tmp.'/home');
+        $this->setEnv('PABLO_PROJECTS_DIR', $this->tmp.'/projects');
 
         $this->writeGlobalConfig(self::DEFAULTS);
         $this->runner = new FakeProcessRunner();
@@ -91,12 +91,7 @@ YAML;
 
     protected function tearDown(): void
     {
-        if ('' !== $this->oldHome) {
-            putenv('HOME='.$this->oldHome);
-        } else {
-            putenv('HOME');
-        }
-        putenv('PABLO_PROJECTS_DIR');
+        $this->restoreEnv();
         $this->unsetGlobalConfig();
         $this->removeDir($this->tmp);
     }

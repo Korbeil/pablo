@@ -12,6 +12,7 @@ use Pablo\Doctor\Doctor;
 use Pablo\Store\Store;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
@@ -57,7 +58,7 @@ YAML;
     protected function setUp(): void
     {
         $this->runner = new FakeProcessRunner();
-        $this->tmp = sys_get_temp_dir().'/pablo-setup-'.uniqid();
+        $this->tmp = TempDir::create('setup');
         $this->projectsDir = $this->tmp.'/projects';
         mkdir($this->projectsDir, 0o777, true);
 

@@ -14,6 +14,7 @@ use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Provider\Tracker\Jira;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class JiraTest extends TestCase
@@ -43,8 +44,7 @@ final class JiraTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-jira-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('jira');
     }
 
     /** @var array<string, mixed> view payload */

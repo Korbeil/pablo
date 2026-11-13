@@ -19,8 +19,7 @@ final class StoreTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->root = sys_get_temp_dir().'/pablo-store-'.uniqid();
-        mkdir($this->root, 0o777, true);
+        $this->root = TempDir::create('store');
         $this->store = new Store($this->root.'/state');
     }
 

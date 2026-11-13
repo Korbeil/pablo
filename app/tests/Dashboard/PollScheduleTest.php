@@ -10,6 +10,7 @@ use Pablo\Config\StatePollingConfig;
 use Pablo\Config\SyncConfig;
 use Pablo\Config\TrackerConfig;
 use Pablo\Dashboard\PollSchedule;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class PollScheduleTest extends TestCase
@@ -19,8 +20,7 @@ final class PollScheduleTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->stamps = sys_get_temp_dir().'/pablo-poll-'.uniqid();
-        mkdir($this->stamps, 0o777, true);
+        $this->stamps = TempDir::create('poll');
         putenv('PABLO_STAMPS_DIR='.$this->stamps);
         $this->schedule = new PollSchedule(new \Pablo\Dispatch\Stamps());
     }

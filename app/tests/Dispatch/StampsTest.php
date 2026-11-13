@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Dispatch;
 
 use Pablo\Dispatch\Stamps;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class StampsTest extends TestCase
@@ -13,7 +14,7 @@ final class StampsTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-stamps-'.bin2hex(random_bytes(4));
+        $this->tmp = TempDir::create('stamps');
         putenv('PABLO_STAMPS_DIR='.$this->tmp.'/stamps');
     }
 
@@ -38,7 +39,7 @@ final class StampsTest extends TestCase
 
     public function testWriteIsBestEffort(): void
     {
-        file_put_contents($this->tmp, 'a file where the stamps directory should be');
+        file_put_contents($this->tmp.'/stamps', 'a file where the stamps directory should be');
 
         (new Stamps())->write('acme', 'poll', 1.0, 2.0);
 

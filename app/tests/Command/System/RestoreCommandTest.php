@@ -15,6 +15,7 @@ use Pablo\Store\Store;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\Git\RepoHelper;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -42,7 +43,7 @@ final class RestoreCommandTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-restore-'.uniqid();
+        $this->tmp = TempDir::create('restore');
         $repos = RepoHelper::makeRepos($this->tmp);
         $this->clone = $repos['clone'];
 

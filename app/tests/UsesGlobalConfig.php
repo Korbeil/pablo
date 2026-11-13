@@ -15,7 +15,7 @@ trait UsesGlobalConfig
 
     protected function writeGlobalConfig(string $yaml): void
     {
-        $this->configPath = sys_get_temp_dir().'/pablo-config-'.uniqid().'.yaml';
+        $this->configPath = TempDir::file('config', '.yaml');
         file_put_contents($this->configPath, $yaml);
         putenv('PABLO_CONFIG='.$this->configPath);
     }

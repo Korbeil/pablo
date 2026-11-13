@@ -6,6 +6,7 @@ namespace Pablo\Tests\Dispatch;
 
 use Pablo\Dispatch\DispatchHealth;
 use Pablo\Dispatch\JobHealth;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class DispatchHealthTest extends TestCase
@@ -14,7 +15,7 @@ final class DispatchHealthTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-health-'.uniqid();
+        $this->tmp = TempDir::create('health');
         putenv('PABLO_STAMPS_DIR='.$this->tmp.'/stamps');
     }
 
@@ -86,7 +87,6 @@ final class DispatchHealthTest extends TestCase
     public function testRecordingNeverThrows(): void
     {
         // The stamps "directory" is a file: every write fails, silently.
-        mkdir($this->tmp, 0o777, true);
         file_put_contents($this->tmp.'/stamps', '');
 
         $health = new DispatchHealth();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Install;
 
+use Pablo\Tests\TempDir;
 use Symfony\Component\Process\Process;
 
 /**
@@ -26,7 +27,7 @@ trait ShellSandbox
 
     protected function createSandbox(): void
     {
-        $this->sandbox = sys_get_temp_dir().'/pablo-sandbox-'.bin2hex(random_bytes(4));
+        $this->sandbox = TempDir::create('sandbox');
         mkdir($this->sandbox.'/home', 0o777, true);
         mkdir($this->sandbox.'/path', 0o777, true);
 

@@ -17,6 +17,7 @@ use Pablo\Provider\Tracker\ProviderRegistry;
 use Pablo\Support\PabloError;
 use Pablo\Tests\FakeGit;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class GithubTest extends TestCase
@@ -37,8 +38,7 @@ final class GithubTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-gh-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('gh');
         $this->fakeGit = new FakeGit();
         $this->fakeGit->originUrl = 'git@github.com:acme/wallet-kit.git';
         $this->startRunner(function (array $argv, bool $check = true, ?float $timeout = null): string {

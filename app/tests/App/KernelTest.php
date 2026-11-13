@@ -7,6 +7,7 @@ namespace Pablo\Tests\App;
 use Pablo\App\ConsoleApplication;
 use Pablo\App\Kernel;
 use Pablo\Support\PabloPaths;
+use Pablo\Tests\SandboxedEnv;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -16,19 +17,11 @@ use PHPUnit\Framework\TestCase;
  */
 final class KernelTest extends TestCase
 {
-    private string|false $env;
-    private string|false $home;
-
-    protected function setUp(): void
-    {
-        $this->env = getenv('PABLO_ENV');
-        $this->home = getenv('HOME');
-    }
+    use SandboxedEnv;
 
     protected function tearDown(): void
     {
-        putenv(false === $this->env ? 'PABLO_ENV' : 'PABLO_ENV='.$this->env);
-        putenv(false === $this->home ? 'HOME' : 'HOME='.$this->home);
+        $this->restoreEnv();
     }
 
     public function testACheckoutKeepsItsCacheUnderAppVar(): void
@@ -42,16 +35,16 @@ final class KernelTest extends TestCase
 
     public function testDefaultEnvironment(): void
     {
-        putenv('PABLO_ENV');
+        $this->setEnv('PABLO_ENV', null);
         $this->assertSame('dev', Kernel::defaultEnvironment());
 
-        putenv('PABLO_ENV=prod');
+        $this->setEnv('PABLO_ENV', 'prod');
         $this->assertSame('prod', Kernel::defaultEnvironment());
     }
 
     public function testBinaryCacheRootIsResolvedFromHomeAtRuntime(): void
     {
-        putenv('HOME=/somewhere/else');
+        $this->setEnv('HOME', '/somewhere/else');
 
         $this->assertSame('/somewhere/else/.pablo/cache/container', Kernel::binaryCacheRoot());
     }

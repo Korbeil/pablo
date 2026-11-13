@@ -6,6 +6,7 @@ namespace Pablo\Tests\Install\Scheduler;
 
 use Pablo\Agents\Ade\Detached;
 use Pablo\Install\Scheduler\SchedulerPath;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class SchedulerPathTest extends TestCase
@@ -14,8 +15,7 @@ final class SchedulerPathTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-schedpath-'.bin2hex(random_bytes(4));
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('schedpath');
     }
 
     protected function tearDown(): void

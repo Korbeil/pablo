@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents\Runtime\OpenCode;
 
 use Pablo\Agents\Runtime\OpenCode\OpenCodeRuntime;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
@@ -18,7 +19,7 @@ final class OpenCodeInteractiveTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-oc-tui-'.uniqid();
+        $this->tmp = TempDir::create('oc-tui');
         mkdir($this->tmp.'/bin', 0o777, true);
     }
 

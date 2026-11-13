@@ -14,6 +14,7 @@ use Pablo\Dispatch\Dispatch;
 use Pablo\Dispatch\DispatchHealth;
 use Pablo\Doctor\Doctor;
 use Pablo\Store\Store;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class DispatchTest extends TestCase
@@ -31,8 +32,7 @@ final class DispatchTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-dispatch-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('dispatch');
         $this->stamps = $this->tmp.'/stamps';
         putenv('PABLO_STAMPS_DIR='.$this->stamps);
         // An empty global config: the developer's real ~/.pablo/config.yaml

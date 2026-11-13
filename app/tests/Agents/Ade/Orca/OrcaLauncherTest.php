@@ -6,6 +6,7 @@ namespace Pablo\Tests\Agents\Ade\Orca;
 
 use Pablo\Agents\Ade\Orca\OrcaLauncher;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -30,8 +31,7 @@ final class OrcaLauncherTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-agents-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('agents');
         $this->agentsDir = $this->tmp.'/agents';
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
         $this->runner = new FakeProcessRunner();

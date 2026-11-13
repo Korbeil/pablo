@@ -14,6 +14,8 @@ use Pablo\Store\Store;
 use Pablo\Support\ProbeResult;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\SandboxedEnv;
+use Pablo\Tests\TempDir;
 use Pablo\Update\Updater;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
@@ -21,6 +23,8 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 final class UpdateCommandTest extends TestCase
 {
+    use SandboxedEnv;
+
     private const OLD = "#!/bin/sh\necho 'pablo v1.0.0'\n";
 
     private string $tmp;
@@ -38,21 +42,14 @@ final class UpdateCommandTest extends TestCase
     /** The release the fake curl last downloaded: what the fake new binary reports. */
     private string $downloaded = '';
 
-    /** @var array<string, string|false> */
-    private array $savedEnv = [];
-
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-update-cmd-'.bin2hex(random_bytes(4));
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('update-cmd');
         $this->binary = $this->tmp.'/pablo';
         file_put_contents($this->binary, self::OLD);
         chmod($this->binary, 0o755);
-        foreach (['HOME', 'PABLO_STAMPS_DIR'] as $name) {
-            $this->savedEnv[$name] = getenv($name);
-        }
-        putenv('HOME='.$this->tmp.'/home');
-        putenv('PABLO_STAMPS_DIR='.$this->tmp.'/stamps');
+        $this->setEnv('HOME', $this->tmp.'/home');
+        $this->setEnv('PABLO_STAMPS_DIR', $this->tmp.'/stamps');
         $this->withWebService(true);
 
         $new = "#!/bin/sh\necho 'pablo v2.0.0'\n";
@@ -88,9 +85,7 @@ final class UpdateCommandTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach ($this->savedEnv as $name => $value) {
-            putenv(false === $value ? $name : $name.'='.$value);
-        }
+        $this->restoreEnv();
         exec('rm -rf '.escapeshellarg($this->tmp));
     }
 

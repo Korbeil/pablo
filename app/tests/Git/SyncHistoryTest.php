@@ -8,6 +8,7 @@ use Pablo\Provider\Git\RebaseLog;
 use Pablo\Provider\Git\SyncHistory;
 use Pablo\Provider\Git\SyncReport;
 use Pablo\Provider\Git\SyncRun;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class SyncHistoryTest extends TestCase
@@ -16,7 +17,7 @@ final class SyncHistoryTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->logs = sys_get_temp_dir().'/pablo-history-'.uniqid();
+        $this->logs = TempDir::create('history');
         putenv('PABLO_LOGS_DIR='.$this->logs);
     }
 
@@ -108,11 +109,12 @@ final class SyncHistoryTest extends TestCase
     public function testAWriteFailureNeverThrows(): void
     {
         // the logs "directory" is a file: nothing can be written under it
-        file_put_contents($this->logs, 'x');
+        $blocker = $this->logs.'/blocker';
+        file_put_contents($blocker, 'x');
+        putenv('PABLO_LOGS_DIR='.$blocker);
 
         (new SyncHistory())->append($this->syncRun('2026-01-01T00:00:00+00:00', ['synced']));
 
         $this->assertSame([], (new SyncHistory())->read('web'));
-        unlink($this->logs);
     }
 }

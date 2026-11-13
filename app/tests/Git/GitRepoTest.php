@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Git;
 
 use Pablo\Provider\Git\GitRepo;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class GitRepoTest extends TestCase
@@ -22,8 +23,7 @@ final class GitRepoTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-git-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('git');
         $repos = RepoHelper::makeRepos($this->tmp);
         $this->clone = $repos['clone'];
         $this->other = $repos['other'];

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Command\System;
 
 use Pablo\Command\System\GenerateAgentsCommand;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -28,7 +29,7 @@ final class GenerateAgentsCommandTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-gen-agents-'.uniqid();
+        $this->tmp = TempDir::create('gen-agents');
         $this->agentsDir = $this->tmp.'/agents';
         $this->projectsDir = $this->tmp.'/projects';
         mkdir($this->agentsDir, 0o777, true);

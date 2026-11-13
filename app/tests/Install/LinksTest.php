@@ -6,6 +6,7 @@ namespace Pablo\Tests\Install;
 
 use Pablo\Install\Links;
 use Pablo\Support\PabloError;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class LinksTest extends TestCase
@@ -15,7 +16,7 @@ final class LinksTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-links-'.bin2hex(random_bytes(4));
+        $this->tmp = TempDir::create('links');
         mkdir($this->tmp.'/runtime/opencode/agents', 0o777, true);
         mkdir($this->tmp.'/dest', 0o777, true);
         file_put_contents($this->tmp.'/runtime/opencode/agents/a.md', "a\n");

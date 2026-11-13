@@ -16,6 +16,8 @@ use Pablo\Store\Store;
 use Pablo\Support\ProbeResult;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\SandboxedEnv;
+use Pablo\Tests\TempDir;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -30,6 +32,8 @@ use Symfony\Component\Console\Tester\CommandTester;
  */
 trait InstallSandbox
 {
+    use SandboxedEnv;
+
     private const ISOLATED_ENV = [
         'HOME', 'PATH', 'SHELL', 'ZDOTDIR', 'PABLO_CONFIG', 'PABLO_PROJECTS_DIR', 'PABLO_RUNTIME_DIR',
         'PABLO_CLAUDE_DIR', 'PABLO_AGENT_RUNTIME', 'PABLO_AGENT_BACKEND', 'CLAUDE_CONFIG_DIR', 'COPILOT_HOME',
@@ -40,23 +44,19 @@ trait InstallSandbox
     private string $home;
     private FakeProcessRunner $runner;
 
-    /** @var array<string, string|false> */
-    private array $savedEnv = [];
-
     protected function createInstallSandbox(): void
     {
-        $this->sandbox = sys_get_temp_dir().'/pablo-install-'.bin2hex(random_bytes(4));
+        $this->sandbox = TempDir::create('install');
         $this->home = $this->sandbox.'/home';
         mkdir($this->home, 0o777, true);
         mkdir($this->sandbox.'/bin', 0o777, true);
 
         foreach (self::ISOLATED_ENV as $name) {
-            $this->savedEnv[$name] = getenv($name);
-            putenv($name);
+            $this->setEnv($name, null);
         }
-        putenv('HOME='.$this->home);
-        putenv('PATH='.$this->sandbox.'/bin');
-        putenv('SHELL=/bin/bash');
+        $this->setEnv('HOME', $this->home);
+        $this->setEnv('PATH', $this->sandbox.'/bin');
+        $this->setEnv('SHELL', '/bin/bash');
 
         $this->runner = new FakeProcessRunner();
         $this->runner->onProbe = static fn (array $argv): ProbeResult => new ProbeResult(0, '');
@@ -64,9 +64,7 @@ trait InstallSandbox
 
     protected function removeInstallSandbox(): void
     {
-        foreach ($this->savedEnv as $name => $value) {
-            putenv(false === $value ? $name : $name.'='.$value);
-        }
+        $this->restoreEnv();
         if (str_contains($this->sandbox, 'pablo-install-')) {
             exec('rm -rf '.escapeshellarg($this->sandbox));
         }

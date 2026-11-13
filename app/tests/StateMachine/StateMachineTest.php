@@ -36,7 +36,7 @@ final class StateMachineTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->root = sys_get_temp_dir().'/pablo-state-'.uniqid();
+        $this->root = TempDir::create('state');
         $this->cfg = new ProjectConfig(
             name: 'wallet-kit',
             type: 'open-source',

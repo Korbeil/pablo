@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents\Ade;
 
 use Pablo\Agents\Ade\Detached;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -21,8 +22,7 @@ final class DetachedTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->bin = sys_get_temp_dir().'/pablo-detached-'.uniqid();
-        mkdir($this->bin, 0o777, true);
+        $this->bin = TempDir::create('detached');
     }
 
     protected function tearDown(): void

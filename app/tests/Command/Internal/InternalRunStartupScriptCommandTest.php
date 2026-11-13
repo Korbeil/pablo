@@ -27,14 +27,12 @@ final class InternalRunStartupScriptCommandTest extends CommandTestBed
         $shim = $this->tmp.'/shim';
         file_put_contents($shim, "#!/bin/sh\nprintf '%s\\n' \"\$@\" > ".escapeshellarg($this->shimArgs)."\n");
         chmod($shim, 0o755);
-        putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
-        putenv('PABLO_SHIM='.$shim);
+        $this->setEnv('PABLO_AGENTS_DIR', $this->agentsDir);
+        $this->setEnv('PABLO_SHIM', $shim);
     }
 
     protected function tearDown(): void
     {
-        putenv('PABLO_AGENTS_DIR');
-        putenv('PABLO_SHIM');
         parent::tearDown();
         \Pablo\Support\Files::remove($this->tmp);
     }

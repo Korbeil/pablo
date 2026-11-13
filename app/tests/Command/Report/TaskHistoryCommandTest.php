@@ -8,6 +8,7 @@ use Pablo\Analytics\AnalyticsAggregator;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Command\Report\TaskHistoryCommand;
 use Pablo\Tests\EngineGraph;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -21,7 +22,7 @@ final class TaskHistoryCommandTest extends TestCase
     protected function setUp(): void
     {
         $this->writeGlobalConfig("default_model: openrouter/test/model\n");
-        $this->root = sys_get_temp_dir().'/pablo-history-'.uniqid();
+        $this->root = TempDir::create('history');
         putenv('PABLO_ANALYTICS_DIR='.$this->root);
         $this->seed('proj', 'wk-1', '2026-03');
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Install;
 
 use Pablo\Install\PabloCommand;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class PabloCommandTest extends TestCase
@@ -13,7 +14,7 @@ final class PabloCommandTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-cmd-'.bin2hex(random_bytes(4));
+        $this->tmp = TempDir::create('cmd');
         mkdir($this->tmp.'/bin', 0o777, true);
     }
 

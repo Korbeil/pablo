@@ -24,6 +24,7 @@ use Pablo\Tests\FakeAnalytics;
 use Pablo\Tests\FakeGhPr;
 use Pablo\Tests\FakeGit;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 
@@ -85,7 +86,7 @@ final class TaskStarterTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-starter-'.uniqid();
+        $this->tmp = TempDir::create('starter');
         $this->projectsDir = $this->tmp.'/projects';
         @mkdir($this->projectsDir, 0o777, true);
         $this->store = new Store($this->tmp.'/state');

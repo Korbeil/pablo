@@ -9,6 +9,7 @@ use Pablo\Config\Config;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Store\Store;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
@@ -25,7 +26,7 @@ final class ProjectRemoveCommandTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-project-remove-'.uniqid();
+        $this->tmp = TempDir::create('project-remove');
         $this->projectsDir = $this->tmp.'/projects';
         mkdir($this->projectsDir, 0o777, true);
         $this->store = new Store($this->tmp.'/state');

@@ -6,6 +6,7 @@ namespace Pablo\Tests\Agents\Runtime;
 
 use Pablo\Agents\Runtime\UsageWindow;
 use Pablo\Domain\Time;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class UsageWindowTest extends TestCase
@@ -14,8 +15,7 @@ final class UsageWindowTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->dir = sys_get_temp_dir().'/pablo-usage-window-'.uniqid();
-        mkdir($this->dir);
+        $this->dir = TempDir::create('usage-window');
     }
 
     protected function tearDown(): void

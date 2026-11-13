@@ -7,6 +7,7 @@ namespace Pablo\Tests\Controller;
 use Pablo\Support\ProcessRunner;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\RestoresErrorHandlers;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -29,7 +30,7 @@ final class AnalyticsControllerTest extends WebTestCase
     protected function setUp(): void
     {
         $this->snapshotErrorHandlers();
-        $this->tmp = sys_get_temp_dir().'/pablo-web-analytics-'.uniqid();
+        $this->tmp = TempDir::create('web-analytics');
         mkdir($this->tmp.'/projects', 0o777, true);
         mkdir($this->tmp.'/stamps', 0o777, true);
         mkdir($this->tmp.'/logs', 0o777, true);

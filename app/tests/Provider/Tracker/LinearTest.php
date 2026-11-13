@@ -14,6 +14,7 @@ use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Provider\Tracker\Linear;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class LinearTest extends TestCase
@@ -45,8 +46,7 @@ final class LinearTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-lin-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('lin');
     }
 
     /** @var array<string, string> */

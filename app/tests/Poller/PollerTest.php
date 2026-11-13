@@ -27,6 +27,7 @@ use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeAnalytics;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class FakePollProvider implements Provider
@@ -168,8 +169,7 @@ final class PollerTest extends TestCase
     /** @return array{tmp: string} */
     private function newEnv(): array
     {
-        $tmp = sys_get_temp_dir().'/pablo-poll-'.uniqid();
-        mkdir($tmp, 0o777, true);
+        $tmp = TempDir::create('poll');
 
         return ['tmp' => $tmp];
     }

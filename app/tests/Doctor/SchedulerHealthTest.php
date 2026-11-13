@@ -15,6 +15,8 @@ use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Install\Scheduler\ServiceFiles;
 use Pablo\Support\ProbeResult;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\SandboxedEnv;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -23,28 +25,27 @@ use PHPUnit\Framework\TestCase;
  */
 final class SchedulerHealthTest extends TestCase
 {
+    use SandboxedEnv;
+
     private const NOW = 1_800_000_000.0;
 
     private string $tmp;
-    private string $oldHome = '';
     private FakeProcessRunner $runner;
     private DispatchHealth $health;
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-scheduler-health-'.uniqid();
+        $this->tmp = TempDir::create('scheduler-health');
         mkdir($this->tmp.'/home', 0o777, true);
-        $this->oldHome = (string) getenv('HOME');
-        putenv('HOME='.$this->tmp.'/home');
-        putenv('PABLO_STAMPS_DIR='.$this->tmp.'/stamps');
+        $this->setEnv('HOME', $this->tmp.'/home');
+        $this->setEnv('PABLO_STAMPS_DIR', $this->tmp.'/stamps');
         $this->runner = new FakeProcessRunner();
         $this->health = new DispatchHealth();
     }
 
     protected function tearDown(): void
     {
-        putenv('' !== $this->oldHome ? 'HOME='.$this->oldHome : 'HOME');
-        putenv('PABLO_STAMPS_DIR');
+        $this->restoreEnv();
         exec('rm -rf '.escapeshellarg($this->tmp));
     }
 
