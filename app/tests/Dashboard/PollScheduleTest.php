@@ -73,7 +73,6 @@ final class PollScheduleTest extends TestCase
         $now = $this->at('2026-08-06T10:02:30+00:00');
         $w = $this->schedule->windowFor($this->cfg('a'), $now);
 
-        $this->assertTrue($w->isFresh());
         $this->assertNull($w->lastRunAt);
         $this->assertSame('2026-08-06T10:05:00+00:00', $w->nextRunAt->format('c'));
     }
@@ -144,7 +143,7 @@ final class PollScheduleTest extends TestCase
     public function testGarbageStampIsTreatedAsNeverPolled(): void
     {
         file_put_contents($this->stamps.'/a.poll', "not-a-number\n");
-        $this->assertTrue($this->schedule->windowFor($this->cfg('a'), $this->at('2026-08-06T10:00:00+00:00'))->isFresh());
+        $this->assertNull($this->schedule->windowFor($this->cfg('a'), $this->at('2026-08-06T10:00:00+00:00'))->lastRunAt);
     }
 
     public function testWindowsAreSortedBySoonestNextRun(): void
@@ -195,21 +194,6 @@ final class PollScheduleTest extends TestCase
         $this->assertSame(37.4, $this->schedule->lastPollDurationS('a'));
         $this->assertSame(37.4, $this->schedule->windowFor($this->cfg('a'))->lastRunDurationS);
         $this->assertSame('37s', $this->schedule->windowFor($this->cfg('a'))->lastRunDurationLabel());
-    }
-
-    public function testLastPollAcrossProjectsTakesTheMostRecent(): void
-    {
-        $this->stamp('a', $this->at('2026-08-06T10:00:00+00:00')->getTimestamp());
-        $this->stamp('b', $this->at('2026-08-06T11:00:00+00:00')->getTimestamp());
-
-        $latest = $this->schedule->lastPollAcrossProjects(['a' => $this->cfg('a'), 'b' => $this->cfg('b')]);
-
-        $this->assertSame('2026-08-06T11:00:00+00:00', $latest?->setTimezone(new \DateTimeZone('UTC'))->format('c'));
-    }
-
-    public function testLastPollAcrossProjectsIsNullWhenNoneRan(): void
-    {
-        $this->assertNull($this->schedule->lastPollAcrossProjects(['a' => $this->cfg('a')]));
     }
 
     public function testRemainingLabel(): void

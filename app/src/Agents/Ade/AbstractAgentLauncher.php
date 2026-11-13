@@ -33,7 +33,7 @@ use Pablo\Support\ProcessRunnerInterface;
  */
 abstract class AbstractAgentLauncher implements AgentLauncherInterface
 {
-    public const WAIT_TIMEOUT_MS = 3_600_000;
+    public const WAIT_TIMEOUT_S = 3_600;
 
     private readonly Store $store;
 
@@ -203,7 +203,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     public function waitForHandle(string $handle, int $timeoutS = 0): void
     {
         if (0 === $timeoutS) {
-            $timeoutS = self::WAIT_TIMEOUT_MS / 1000;
+            $timeoutS = self::WAIT_TIMEOUT_S;
         }
         if ($this->headless->owns($handle)) {
             $this->headless->wait($handle, $timeoutS);

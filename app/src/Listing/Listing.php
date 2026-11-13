@@ -16,7 +16,6 @@ use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Provider\Gh\PrInfo;
-use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
@@ -26,7 +25,7 @@ use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Output\BufferedOutput;
 
 /**
- * Terminal tables: the issue-tracking view and the active-task listing.
+ * Terminal tables: the active-task listing.
  *
  * Both are strictly read-only.
  */
@@ -51,7 +50,6 @@ final class Listing
     public function __construct(
         private readonly Stamps $stamps,
         private readonly GhPrInterface $gh,
-        private readonly GitRepoInterface $git,
         private readonly ProviderRegistryInterface $providers,
         private readonly RepoSlug $repoSlug,
         private readonly StateMachine $stateMachine,
@@ -87,13 +85,6 @@ final class Listing
         }
 
         return $task->hasFinishedAgent() || (null !== $agents && $agents->isWaiting());
-    }
-
-    // ------------------------------------------------------- ordering ----
-
-    public function stateRank(State $state): int
-    {
-        return $state->displayRank();
     }
 
     public function timeSince(string $isoTimestamp): string
@@ -208,66 +199,6 @@ final class Listing
         return implode("\n", $lines);
     }
 
-    // --------------------------------------------------- issues table ----
-
-    /**
-     * @param array<int, string> $names
-     *
-     * @return list<string>
-     */
-    private function branchCandidates(string $base, array $names): array
-    {
-        $found = [];
-        foreach ($names as $name) {
-            if ($name === $base) {
-                $found[] = $name;
-            }
-        }
-        $n = 2;
-        while (\in_array("{$base}-{$n}", $names, true)) {
-            $found[] = "{$base}-{$n}";
-            ++$n;
-        }
-
-        return $found;
-    }
-
-    public function issuesTable(ProjectConfig $cfg, Store $store): string
-    {
-        $provider = $this->providers->get($cfg->tracker->provider);
-        $issues = $provider->listAssigned($cfg);
-        $names = $this->git->allBranchNames($cfg->repo->path);
-        $slug = $this->repoSlug->for($cfg);
-
-        $rows = [];
-        foreach ($issues as $issue) {
-            $base = 'github' === $cfg->tracker->provider
-                ? strtolower($cfg->tracker->projectKey).'-'.strtolower($issue->key)
-                : strtolower($issue->key);
-            $branches = $this->branchCandidates($base, $names);
-
-            $prCell = '-';
-            foreach ($branches as $branch) {
-                $pr = $this->gh->prForBranch($slug, $branch);
-                if (null !== $pr) {
-                    $state = 'MERGED' === $pr->state ? 'merged' : ($pr->isDraft ? 'draft' : strtolower($pr->state));
-                    $prCell = "#{$pr->number} {$pr->title} ({$state})";
-                    break;
-                }
-            }
-
-            $rows[] = [
-                $issue->key,
-                $issue->title,
-                $issue->status ?? '-',
-                $prCell,
-                [] !== $branches ? implode(', ', $branches) : '-',
-            ];
-        }
-
-        return $this->table(['Issue', 'Title', 'Status', 'PR', 'Branch'], $rows);
-    }
-
     // ---------------------------------------------------- tasks table ----
 
     private function issueCell(Task $task): string
@@ -277,19 +208,6 @@ final class Listing
         }
 
         return $task->summary ?? '-';
-    }
-
-    public function prStateCell(Task $task, ?PrInfo $pr): string
-    {
-        return PrBadge::fromTask($task, $pr)->render();
-    }
-
-    /**
-     * @param array<int, SessionInfo> $sessions
-     */
-    public function agentActivitySummary(array $sessions): AgentActivity
-    {
-        return AgentActivity::fromSessions($sessions);
     }
 
     /**
@@ -326,7 +244,7 @@ final class Listing
             return '-';
         }
         if (null !== $prefetched) {
-            return $this->prStateCell($task, $prefetched[$task->branch] ?? null);
+            return PrBadge::fromTask($task, $prefetched[$task->branch] ?? null)->render();
         }
         try {
             $pr = $this->gh->prForBranch($this->repoSlug->for($cfg), $task->branch);
@@ -334,7 +252,7 @@ final class Listing
             return "#{$task->prNumber}";
         }
 
-        return $this->prStateCell($task, $pr);
+        return PrBadge::fromTask($task, $pr)->render();
     }
 
     /**
@@ -348,7 +266,7 @@ final class Listing
         if (null === $sessions) {
             $sessions = $agents->activeSessions($task->worktreePath);
         }
-        $activity = $this->agentActivitySummary($sessions);
+        $activity = AgentActivity::fromSessions($sessions);
 
         return new AgentCell((string) $activity->total, $activity->render());
     }
@@ -603,7 +521,7 @@ final class Listing
      */
     private function rankEntries(Task $a, Task $b): int
     {
-        $cmp = $this->stateRank($a->state) <=> $this->stateRank($b->state);
+        $cmp = $a->state->displayRank() <=> $b->state->displayRank();
         if (0 !== $cmp) {
             return $cmp;
         }
@@ -625,7 +543,7 @@ final class Listing
     {
         $stateEnum = State::tryFrom($state);
         if (null === $stateEnum) {
-            throw new PabloError('unknown state '.var_export($state, true).' (expected one of '.json_encode(State::all()).')');
+            throw new PabloError('unknown state '.var_export($state, true).' (expected one of '.json_encode(State::cases()).')');
         }
         $rows = [];
         foreach ($store->allTasks() as $task) {

@@ -22,12 +22,6 @@ final readonly class PollWindow
     ) {
     }
 
-    /** Never polled: there is no stamp for this project yet. */
-    public function isFresh(): bool
-    {
-        return null === $this->lastRunAt;
-    }
-
     /** Seconds until the next poll; 0 once it is due (the tick may still be pending). */
     public function secondsRemaining(): int
     {

@@ -81,22 +81,6 @@ final class FakePollProvider implements Provider
     {
         throw new \LogicException();
     }
-
-    /** @return list<Issue> */
-    public function listAssigned(ProjectConfig $cfg): array
-    {
-        return [];
-    }
-
-    public function cliName(): string
-    {
-        return 'gh';
-    }
-
-    public function authCheckCmd(): array
-    {
-        return [];
-    }
 }
 
 final class PollerTest extends TestCase
@@ -273,7 +257,7 @@ final class PollerTest extends TestCase
     private function setLaunch(Store $store, string $label, int $attempts = 1, int $ago = 0, ?string $finishedAt = null, bool $reported = false): void
     {
         $task = $this->taskOrFail($store);
-        $agent = Agent::tryByName($label) ?? Agent::TaskAnalyst;
+        $agent = Agent::tryFrom($label) ?? Agent::TaskAnalyst;
         $task->agentLaunches[$agent->value] = new AgentLaunch($agent, $this->freshTs($ago), $attempts, $finishedAt, reported: $reported);
         $store->save($task);
     }
@@ -914,7 +898,7 @@ final class PollerTest extends TestCase
             $this->poll($cfg, $store);
             $this->assertSame([$label], $this->agents->launch);
             $task = $this->taskOrFail($store);
-            $agent = Agent::tryByName($label) ?? Agent::TaskAnalyst;
+            $agent = Agent::from($label);
             $this->assertSame(2, $task->agentLaunches[$agent->value]->attempts);
         }
     }

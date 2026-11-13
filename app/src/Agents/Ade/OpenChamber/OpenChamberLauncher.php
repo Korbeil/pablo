@@ -86,15 +86,6 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
         return ['payload' => $data, 'reason' => null];
     }
 
-    /** @param list<string> $argv
-     *
-     * @return array<string, mixed>|null decoded JSON result, or null on CLI error
-     */
-    private function openchamber(array $argv): ?array
-    {
-        return $this->call($argv)['payload'];
-    }
-
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
         // The resolved config model (project default_model / type map) wins;
@@ -207,7 +198,7 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
     {
         $out = [];
         foreach ($worktrees as $wt) {
-            $list = $this->openchamber(['session', 'list', '--dir', $wt, '--with-status', '--limit', '200']);
+            $list = $this->call(['session', 'list', '--dir', $wt, '--with-status', '--limit', '200'])['payload'];
             foreach ($list['sessions'] ?? [] as $s) {
                 $out[$wt][] = $s;
             }
@@ -243,20 +234,6 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
     public function activeSessions(string $worktree): array
     {
         return $this->mapSessions($this->sessionsByWorktree([$worktree])[$worktree] ?? [], false);
-    }
-
-    /** @param list<string> $worktrees
-     * @return array<string, list<SessionInfo>>
-     */
-    public function bulkActiveSessions(array $worktrees): array
-    {
-        $byWt = $this->sessionsByWorktree($worktrees);
-        $out = [];
-        foreach ($worktrees as $wt) {
-            $out[$wt] = $this->mapSessions($byWt[$wt] ?? [], false);
-        }
-
-        return $out;
     }
 
     /** @return array<int, SessionInfo> */

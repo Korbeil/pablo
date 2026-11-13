@@ -30,9 +30,6 @@ interface Provider
 
     public function getIssue(string $ref, ProjectConfig $cfg): Issue;
 
-    /** @return array<int, Issue> */
-    public function listAssigned(ProjectConfig $cfg): array;
-
     public function issueStatus(string $key, ProjectConfig $cfg): string;
 
     /**
@@ -46,9 +43,4 @@ interface Provider
 
     /** @return array<int, \DateTimeImmutable> */
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array;
-
-    public function cliName(): string;
-
-    /** @return array<int, string> */
-    public function authCheckCmd(): array;
 }

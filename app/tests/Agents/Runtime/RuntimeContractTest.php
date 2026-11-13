@@ -84,7 +84,6 @@ final class RuntimeContractTest extends TestCase
         $this->assertArrayHasKey('Darwin', $probe->installCommands);
 
         $this->assertStringStartsWith($runtime->binary().' ', $runtime->launchCommand('task-analyst', 'go', null, $runtime->newSessionId()));
-        $this->assertNotSame('', $runtime->oneShot()->model());
     }
 
     #[DataProvider('runtimes')]

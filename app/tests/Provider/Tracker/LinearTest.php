@@ -120,16 +120,6 @@ final class LinearTest extends TestCase
         $this->assertSame('In Progress', $this->svc()->issueStatus('STA-335', $this->cfg()));
     }
 
-    public function testListAssignedParses(): void
-    {
-        $this->configure(['issue list' => json_encode([
-            ['identifier' => 'STA-1', 'title' => 'A', 'url' => 'u1', 'state' => ['name' => 'Todo']],
-            ['identifier' => 'STA-2', 'title' => 'B', 'url' => 'u2', 'state' => ['name' => 'Done']],
-        ], \JSON_THROW_ON_ERROR)]);
-        $issues = $this->svc()->listAssigned($this->cfg());
-        $this->assertSame(['STA-1', 'STA-2'], array_map(static fn ($i) => $i->key, $issues));
-    }
-
     public function testFailureSignalEvents(): void
     {
         $this->configure(['issue view STA-335' => json_encode(self::ISSUE_JSON, \JSON_THROW_ON_ERROR)]);
@@ -144,12 +134,10 @@ final class LinearTest extends TestCase
     {
         $this->configure([
             'issue view' => json_encode(self::ISSUE_JSON, \JSON_THROW_ON_ERROR),
-            'issue list' => json_encode([], \JSON_THROW_ON_ERROR),
         ]);
         $svc = $this->svc();
         $cfg = $this->cfg();
         $svc->issueStatus('STA-335', $cfg);
-        $svc->listAssigned($cfg);
         $task = new Task('stably', 'sta-335', $this->tmp, State::NeedsTesting);
         $task->issue = $svc->getIssue('STA-335', $cfg);
         $svc->failureSignalEvents($task, $cfg);
@@ -158,7 +146,7 @@ final class LinearTest extends TestCase
             $svc->batchIssueStatus(['STA-335' => $cfg, 'STA-336' => $cfg]),
         );
 
-        $this->assertCount(6, $this->runner->calls);
+        $this->assertCount(5, $this->runner->calls);
         foreach ($this->runner->calls as [$argv, , $timeout]) {
             $this->assertSame('linear', $argv[0]);
             $this->assertSame(30.0, $timeout, implode(' ', $argv));

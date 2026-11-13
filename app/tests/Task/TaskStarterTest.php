@@ -53,11 +53,6 @@ final class StartIssueProvider implements Provider
         return $this->issue ?? throw new \LogicException('no issue');
     }
 
-    public function listAssigned(ProjectConfig $cfg): array
-    {
-        return [];
-    }
-
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
         return 'todo';
@@ -69,16 +64,6 @@ final class StartIssueProvider implements Provider
     }
 
     public function failureSignalEvents(\Pablo\Domain\Task $task, ProjectConfig $cfg): array
-    {
-        return [];
-    }
-
-    public function cliName(): string
-    {
-        return 'gh';
-    }
-
-    public function authCheckCmd(): array
     {
         return [];
     }

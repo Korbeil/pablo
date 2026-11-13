@@ -48,11 +48,6 @@ final class ClaudeCodeAgents
     {
     }
 
-    public function templates(): AgentTemplates
-    {
-        return $this->templates;
-    }
-
     /**
      * The agent rendered for OpenCode, translated. Providers only change the
      * prompt body, never the permissions.

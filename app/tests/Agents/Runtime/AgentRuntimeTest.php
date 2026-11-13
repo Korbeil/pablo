@@ -105,8 +105,9 @@ final class AgentRuntimeTest extends TestCase
         $this->writeGlobalConfig("{}\n");
         $dir = $this->tmp.'/claude';
         mkdir($dir, 0o777, true);
-        $agents = new ClaudeCodeAgents(new AgentTemplates(new Config(new GlobalConfig())));
-        file_put_contents($dir.'/agents.json', $agents->renderAgentsJson($agents->templates()->templatesDir(), []));
+        $templates = new AgentTemplates(new Config(new GlobalConfig()));
+        $agents = new ClaudeCodeAgents($templates);
+        file_put_contents($dir.'/agents.json', $agents->renderAgentsJson($templates->templatesDir(), []));
         file_put_contents($this->tmp.'/claude.json', '{"numStartups": 3}');
         putenv('PABLO_CLAUDE_JSON='.$this->tmp.'/claude.json');
 

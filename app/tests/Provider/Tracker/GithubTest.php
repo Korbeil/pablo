@@ -129,12 +129,12 @@ final class GithubTest extends TestCase
 
     public function testTrackerSlugFallbackToOrigin(): void
     {
-        $this->assertSame('acme/wallet-kit', (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->repoSlug($this->cfg()));
+        $this->assertSame('acme/wallet-kit', (new \Pablo\Support\RepoSlug($this->fakeGit))->for($this->cfg()));
     }
 
     public function testTrackerSlugUsesConfiguredRepo(): void
     {
-        $this->assertSame('acme/upstream', (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->repoSlug($this->cfg('acme/upstream')));
+        $this->assertSame('acme/upstream', (new \Pablo\Support\RepoSlug($this->fakeGit))->for($this->cfg('acme/upstream')));
     }
 
     public function testMatchUrlUsesConfiguredTrackerRepo(): void
@@ -164,16 +164,6 @@ final class GithubTest extends TestCase
         $this->expectException(PabloError::class);
         $this->expectExceptionMessage('cannot parse gh issue view 45 output: Syntax error, got: ');
         (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->getIssue('45', $this->cfg());
-    }
-
-    public function testListAssignedParses(): void
-    {
-        $this->configure(['issue list' => json_encode([
-            ['number' => 1, 'title' => 'A', 'state' => 'OPEN', 'url' => 'u1'],
-            ['number' => 2, 'title' => 'B', 'state' => 'CLOSED', 'url' => 'u2'],
-        ], \JSON_THROW_ON_ERROR)]);
-        $issues = (new Github($this->runner ?? new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()))->listAssigned($this->cfg());
-        $this->assertSame(['1', '2'], array_map(static fn ($i) => $i->key, $issues));
     }
 
     public function testFailureSignalFiltersLabelAndOrders(): void

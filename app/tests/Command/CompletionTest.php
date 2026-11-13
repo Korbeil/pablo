@@ -136,7 +136,7 @@ final class CompletionTest extends CommandTestBed
 
     public function testTaskListSuggestsProjectsStatesAndTypes(): void
     {
-        $listing = new \Pablo\Listing\Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $this->git, $this->providers, $this->repoSlug, $this->stateMachine, $this->time);
+        $listing = new \Pablo\Listing\Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $this->providers, $this->repoSlug, $this->stateMachine, $this->time);
         $tester = new CommandCompletionTester(new TasksCommand($listing, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
 
         $this->assertSame(['api', 'wallet-kit'], $tester->complete(['--project', '']));
@@ -183,7 +183,7 @@ final class CompletionTest extends CommandTestBed
         $stats = new StatsCommand(
             new \Pablo\Analytics\AnalyticsReader(),
             new \Pablo\Analytics\AnalyticsAggregator(),
-            new \Pablo\Listing\Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $this->git, $this->providers, $this->repoSlug, $this->stateMachine, $this->time),
+            new \Pablo\Listing\Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $this->providers, $this->repoSlug, $this->stateMachine, $this->time),
             $this->time,
             $this->store,
             $this->projectsLoader,

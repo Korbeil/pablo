@@ -12,7 +12,7 @@ final class StateTest extends TestCase
 {
     public function testAllStatesMatchStateMachineTable(): void
     {
-        $states = array_map(static fn (State $s) => $s->value, State::all());
+        $states = array_map(static fn (State $s) => $s->value, State::cases());
         $sm = new StateMachine(
             new \Pablo\Tests\FakeGhPr(),
             new class implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
@@ -32,7 +32,7 @@ final class StateTest extends TestCase
         $this->assertSame(
             $states,
             $table,
-            'State::all() and the StateMachine states() table must stay in sync',
+            'State::cases() and the StateMachine states() table must stay in sync',
         );
     }
 }

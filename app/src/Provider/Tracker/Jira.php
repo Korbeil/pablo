@@ -81,22 +81,6 @@ final class Jira implements Provider
         return $this->issueFromFields($data, $cfg);
     }
 
-    public function listAssigned(ProjectConfig $cfg): array
-    {
-        $jql = "project = {$cfg->tracker->projectKey} AND assignee = currentUser() ORDER BY updated DESC";
-        $out = $this->runner->run([
-            'acli', 'jira', 'workitem', 'search', '--jql', $jql,
-            '--fields', self::FIELDS, '--json', '--limit', '50',
-        ], timeout: self::JIRA_CALL_TIMEOUT_S);
-        $issues = [];
-        $items = Json::decodeList($out, 'acli jira workitem search output');
-        foreach ($items as $item) {
-            $issues[] = $this->issueFromFields($item, $cfg);
-        }
-
-        return $issues;
-    }
-
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
         $data = Json::tryDecodeArray($this->runner->run(self::statusCommand($key), timeout: self::JIRA_CALL_TIMEOUT_S));
@@ -132,15 +116,5 @@ final class Jira implements Provider
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
     {
         return [];
-    }
-
-    public function cliName(): string
-    {
-        return 'acli';
-    }
-
-    public function authCheckCmd(): array
-    {
-        return ['acli', 'jira', 'auth', 'status'];
     }
 }

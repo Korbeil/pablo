@@ -43,11 +43,6 @@ final class DevNullProvider implements Provider
         throw new \LogicException();
     }
 
-    public function listAssigned(ProjectConfig $cfg): array
-    {
-        return [];
-    }
-
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
         return 'todo';
@@ -64,16 +59,6 @@ final class DevNullProvider implements Provider
     }
 
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
-    {
-        return [];
-    }
-
-    public function cliName(): string
-    {
-        return 'gh';
-    }
-
-    public function authCheckCmd(): array
     {
         return [];
     }

@@ -428,14 +428,12 @@ final class LaunchContext
         return $text;
     }
 
-    private static function clip(string $text, int $max, bool $keepTail = false): string
+    private static function clip(string $text, int $max): string
     {
         if (mb_strlen($text) <= $max) {
             return $text;
         }
 
-        return $keepTail
-            ? "[truncated]\n".mb_substr($text, -$max)
-            : mb_substr($text, 0, $max)."\n[truncated]";
+        return mb_substr($text, 0, $max)."\n[truncated]";
     }
 }

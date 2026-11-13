@@ -76,7 +76,7 @@ final class WatchAgentCommand extends Command
                 return self::SUCCESS; // task closed while the agent ran
             }
             if (null !== $agentName) {
-                $agent = Agent::tryByName((string) $agentName);
+                $agent = Agent::tryFrom((string) $agentName);
                 $launch = null !== $agent ? ($task->agentLaunches[$agent->value] ?? null) : null;
                 // The poller's sweep may already have reported this run (slow
                 // watcher past its healing window); emitting again would

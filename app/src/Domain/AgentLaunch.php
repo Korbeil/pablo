@@ -32,7 +32,7 @@ final class AgentLaunch
         $runId = \is_string($rawRunId) && '' !== $rawRunId ? $rawRunId : null;
 
         return new self(
-            agent: Agent::tryByName($label) ?? Agent::TaskAnalyst,
+            agent: Agent::tryFrom($label) ?? Agent::TaskAnalyst,
             launchedAt: $data['launched_at'] ?? null,
             attempts: (int) ($data['attempts'] ?? 1),
             finishedAt: $data['finished_at'] ?? null,

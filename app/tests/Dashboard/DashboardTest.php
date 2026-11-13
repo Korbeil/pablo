@@ -44,7 +44,7 @@ final class DashboardTest extends TestCase
             $this->store,
             new PollSchedule($stamps),
             new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()),
-            new \Pablo\Listing\Listing($stamps, $gh, $git, $providers, $repoSlug, $stateMachine, $time),
+            new \Pablo\Listing\Listing($stamps, $gh, $providers, $repoSlug, $stateMachine, $time),
             $repoSlug,
             $stateMachine,
         );

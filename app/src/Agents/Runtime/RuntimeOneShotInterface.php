@@ -13,9 +13,6 @@ use Pablo\Support\ProcessRunnerInterface;
  */
 interface RuntimeOneShotInterface
 {
-    /** The model the one-shot call uses. */
-    public function model(): string;
-
     /** The raw answer text to $instruction, asked from $cwd, or null. */
     public function ask(ProcessRunnerInterface $runner, string $cwd, string $instruction, float $timeout): ?string;
 }

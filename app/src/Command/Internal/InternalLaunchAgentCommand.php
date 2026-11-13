@@ -97,7 +97,7 @@ final class InternalLaunchAgentCommand extends Command
             if (!$this->agentLaunchers->ades()->resolve($backend)->takesLaunchContext()) {
                 return $prompt;
             }
-            $agentEnum = Agent::tryByName($agent);
+            $agentEnum = Agent::tryFrom($agent);
             $cfg = $this->projectsLoader->loadProjects()[$project] ?? null;
             $task = $this->store()->get($project, $branch);
             if (null === $agentEnum || null === $cfg || null === $task) {
@@ -128,7 +128,7 @@ final class InternalLaunchAgentCommand extends Command
             $lock = $store->taskLock($project, $branch);
             try {
                 $task = $store->get($project, $branch);
-                $agentEnum = Agent::tryByName($agent);
+                $agentEnum = Agent::tryFrom($agent);
                 $label = null !== $agentEnum ? $agentEnum->value : $agent;
                 $existing = null !== $task ? ($task->agentLaunches[$label] ?? null) : null;
                 if (null === $task || null === $existing || $existing->reported) {

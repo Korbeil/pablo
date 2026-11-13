@@ -62,24 +62,6 @@ final class PollSchedule
     }
 
     /**
-     * The most recent poll across all projects, or null if none ever ran.
-     *
-     * @param array<string, ProjectConfig> $projects
-     */
-    public function lastPollAcrossProjects(array $projects): ?\DateTimeImmutable
-    {
-        $latest = null;
-        foreach ($projects as $cfg) {
-            $at = $this->lastPollAt($cfg->name);
-            if (null !== $at && (null === $latest || $at > $latest)) {
-                $latest = $at;
-            }
-        }
-
-        return $latest;
-    }
-
-    /**
      * The window driving the shared dashboard countdown bar.
      *
      * One scheduler tick polls every due project at once, so the bar is

@@ -16,11 +16,6 @@ final class CopilotOneShot implements RuntimeOneShotInterface
 {
     public const MODEL = 'claude-haiku-5.5';
 
-    public function model(): string
-    {
-        return self::MODEL;
-    }
-
     /** @return list<string> */
     public static function argv(string $instruction): array
     {

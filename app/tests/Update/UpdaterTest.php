@@ -84,14 +84,6 @@ final class UpdaterTest extends TestCase
         $this->updater()->latestVersion();
     }
 
-    public function testIsNewer(): void
-    {
-        $this->assertTrue(Updater::isNewer('v1.10.0', 'v1.9.3'));
-        $this->assertFalse(Updater::isNewer('v1.2.0', 'v1.2.0'));
-        $this->assertFalse(Updater::isNewer('v1.2.0', 'v1.3.0'), 'never downgrade a newer release');
-        $this->assertTrue(Updater::isNewer('v1.2.0', 'b99bd12'), 'a local build moves to the latest release');
-    }
-
     public function testReplacesTheBinaryWithTheVerifiedRelease(): void
     {
         $lines = [];
