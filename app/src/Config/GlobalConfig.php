@@ -175,6 +175,28 @@ final class GlobalConfig
         return (int) $port;
     }
 
+    /** The most projects `dispatch.poll_concurrency` may poll at once. */
+    public const MAX_POLL_CONCURRENCY = 8;
+
+    /**
+     * `dispatch.poll_concurrency`: how many projects the background dispatcher
+     * polls at once (1 = one after the other), else $default. Read per call.
+     *
+     * @throws PabloError when it is not a whole number from 1 to MAX_POLL_CONCURRENCY
+     */
+    public function dispatchPollConcurrency(int $default): int
+    {
+        $dispatch = $this->defaults()['dispatch'] ?? null;
+        $this->check('dispatch', $dispatch);
+        $value = \is_array($dispatch) ? ($dispatch['poll_concurrency'] ?? null) : null;
+        if (null === $value) {
+            return $default;
+        }
+        $this->check('dispatch.poll_concurrency', $value);
+
+        return (int) $value;
+    }
+
     /**
      * Whether `pablo system:install` installs the shell completion: on unless
      * shell_completion is false (what --without-completion records, so a

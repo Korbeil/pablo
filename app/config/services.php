@@ -22,7 +22,10 @@ use Pablo\Config\ConfigValidator;
 use Pablo\Config\GlobalConfig;
 use Pablo\Dispatch\Dispatch;
 use Pablo\Dispatch\DispatchHealth;
+use Pablo\Dispatch\JobWorkerSpawnerInterface;
+use Pablo\Dispatch\ProcessJobWorkerSpawner;
 use Pablo\Dispatch\Stamps;
+use Pablo\Dispatch\WorkerPool;
 use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
 use Pablo\Doctor\SchedulerHealth;
@@ -146,6 +149,10 @@ return static function (ContainerConfigurator $container): void {
     $services->set(Backup::class);
     $services->set(Stamps::class);
     $services->set(DispatchHealth::class);
+    // Polls of several projects at once, each in a child process of this PABLO.
+    $services->set(ProcessJobWorkerSpawner::class);
+    $services->alias(JobWorkerSpawnerInterface::class, ProcessJobWorkerSpawner::class);
+    $services->set(WorkerPool::class);
     $services->set(Dispatch::class);
     $services->set(Pruner::class);
     $services->set(Listing::class);
