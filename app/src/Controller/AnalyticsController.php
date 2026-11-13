@@ -63,36 +63,16 @@ final class AnalyticsController extends AbstractController
         // (Dashboard::projectsOfType), so the two filters can never disagree.
         // Events whose project has no config anymore cannot be attributed to
         // a type: they stay visible under All, never under a specific tab.
-        $allowed = null;
-        if ('' !== $type) {
-            $allowed = array_fill_keys(array_keys($this->dashboard->projectsOfType($type)), true);
-        }
+        $allowed = '' !== $type ? array_keys($this->dashboard->projectsOfType($type)) : null;
 
         $since = null;
         if ('all' !== $days) {
             $since = new \DateTimeImmutable('@'.(time() - (int) $days * 86_400));
         }
-        $cutoffTs = null === $since ? 0 : $since->getTimestamp();
-
-        /** @var list<AnalyticsEvent> $events */
-        $events = [];
-        $anyEvents = false;
-        // Only months overlapping the window are read; when that yields
-        // nothing, has_any_events is settled by a full read below.
-        foreach ($this->reader->read(null, $since) as $payload) {
-            $event = AnalyticsEvent::fromEvent($payload);
-            $anyEvents = true;
-            if ('' !== $event->ts() && $this->tsOf($event) < $cutoffTs) {
-                continue;
-            }
-            if (null !== $allowed && !isset($allowed[$event->project()])) {
-                continue;
-            }
-            $events[] = $event;
-        }
-        if (!$anyEvents && null !== $since) {
-            $anyEvents = [] !== $this->reader->read(null);
-        }
+        $events = $this->reader->events(null, $since, $allowed);
+        // Only months overlapping the window were read; when that yields
+        // nothing, has_any_events is settled by a full read.
+        $anyEvents = [] !== $events || [] !== $this->reader->read(null);
 
         $tasks = $this->aggregator->taskStats($events);
         $agents = $this->aggregator->agentStats($events);
@@ -165,13 +145,10 @@ final class AnalyticsController extends AbstractController
             throw $this->createNotFoundException("unknown project '{$project}'");
         }
 
-        $events = [];
-        foreach ($this->reader->read($project) as $payload) {
-            $event = AnalyticsEvent::fromEvent($payload);
-            if ($event->branch() === $branch) {
-                $events[] = $event;
-            }
-        }
+        $events = array_values(array_filter(
+            $this->reader->events($project),
+            static fn (AnalyticsEvent $event): bool => $event->branch() === $branch,
+        ));
         $timeline = $this->aggregator->taskTimeline($events, $project, $branch);
         if ([] === $timeline && !$this->isStoredTask($project, $branch)) {
             throw $this->createNotFoundException("no task '{$branch}' in project '{$project}'");
@@ -207,15 +184,6 @@ final class AnalyticsController extends AbstractController
             return null !== $this->store->get($project, $branch);
         } catch (PabloError) {
             return true; // a record exists, it is just unreadable
-        }
-    }
-
-    private function tsOf(AnalyticsEvent $event): int
-    {
-        try {
-            return (new \DateTimeImmutable($event->ts()))->getTimestamp();
-        } catch (\Exception) { // a malformed timestamp
-            return 0;
         }
     }
 }

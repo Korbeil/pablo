@@ -12,7 +12,6 @@ use Pablo\Dispatch\DispatchHealth;
 use Pablo\Poller\Poller;
 use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -33,21 +32,12 @@ final class PollCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project', null, $this->suggestions()->projectCompleter());
+            ->addProjectArgument();
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $projects = $this->projects();
-        $project = $input->getArgument('project') ?: null;
-        if (null !== $project) {
-            if (!isset($projects[$project])) {
-                throw $this->projectsLoader->unknownProject($project);
-            }
-            $projects = [$project => $projects[$project]];
-        } else {
-            $this->warnProjectErrors($output);
-        }
+        $projects = $this->selectedProjects($input, $output);
         $store = $this->store();
         $agents = $this->agents();
         foreach ($projects as $name => $cfg) {

@@ -30,10 +30,7 @@ final class PrecommitCheckCommand extends Command
         try {
             $ctx = $this->resolveTargetCtx($input);
         } catch (PabloError $e) {
-            $err = $output instanceof \Symfony\Component\Console\Output\ConsoleOutputInterface
-                ? $output->getErrorOutput()
-                : $output;
-            $err->writeln('pablo: '.$e->getMessage());
+            $this->errorOutput($output)->writeln('pablo: '.$e->getMessage());
 
             return self::INVALID;
         }

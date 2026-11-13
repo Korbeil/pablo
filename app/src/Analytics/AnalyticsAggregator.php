@@ -231,7 +231,7 @@ final class AnalyticsAggregator
             $events,
             static fn (AnalyticsEvent $e) => $e->project() === $project && $e->branch() === $branch,
         ));
-        usort($own, fn (AnalyticsEvent $a, AnalyticsEvent $b) => $this->tsOf($a) <=> $this->tsOf($b));
+        usort($own, static fn (AnalyticsEvent $a, AnalyticsEvent $b) => $a->timestamp() <=> $b->timestamp());
         $superseded = self::supersededFinishedEvents($own);
 
         $timeline = [];
@@ -245,7 +245,7 @@ final class AnalyticsAggregator
                     $dwell = -1;
                     foreach (\array_slice($own, $i + 1) as $next) {
                         if (\in_array($next->type(), ['state_entered', 'task_closed'], true)) {
-                            $dwell = max(0, $this->tsOf($next) - $this->tsOf($event));
+                            $dwell = max(0, $next->timestamp() - $event->timestamp());
                             break;
                         }
                     }
@@ -410,7 +410,7 @@ final class AnalyticsAggregator
                 continue;
             }
             $entriesByKey[$event->project().'/'.$event->branch()][] = [
-                'ts' => $this->tsOf($event),
+                'ts' => $event->timestamp(),
                 'to' => (string) $event->get('to'),
             ];
         }
@@ -459,7 +459,7 @@ final class AnalyticsAggregator
         /** @var array<string, int> $closedByDay */
         $closedByDay = [];
         foreach ($events as $event) {
-            $day = gmdate('Y-m-d', $this->tsOf($event));
+            $day = gmdate('Y-m-d', $event->timestamp());
             if ('task_opened' === $event->type()) {
                 $openedByDay[$day] = ($openedByDay[$day] ?? 0) + 1;
             } elseif ('task_closed' === $event->type()) {
@@ -500,7 +500,7 @@ final class AnalyticsAggregator
      */
     private function humanWaitS(AnalyticsEvent $finished, array $stateTimestamps): ?int
     {
-        $at = $this->tsOf($finished);
+        $at = $finished->timestamp();
         foreach ($stateTimestamps as $ts) {
             $candidate = $this->time->parseTs($ts)->getTimestamp();
             if ($candidate > $at) {
@@ -509,15 +509,6 @@ final class AnalyticsAggregator
         }
 
         return null;
-    }
-
-    private function tsOf(AnalyticsEvent $event): int
-    {
-        try {
-            return $this->time->parseTs($event->ts())->getTimestamp();
-        } catch (\Exception) { // a malformed timestamp
-            return 0;
-        }
     }
 
     /** @return array<string, float|int> */

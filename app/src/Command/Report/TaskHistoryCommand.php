@@ -7,13 +7,14 @@ namespace Pablo\Command\Report;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AnalyticsAggregator;
-use Pablo\Analytics\AnalyticsEvent;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Command\Command;
+use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
 use Pablo\Listing\Listing;
 use Pablo\Store\Store;
+use Pablo\Support\Format;
 use Pablo\Support\Numbers;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -30,6 +31,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'task:history', description: 'one task\'s timeline from analytics: state transitions and agent runs')]
 final class TaskHistoryCommand extends Command
 {
+    use FormatsOutput;
+
     public function __construct(
         private readonly AnalyticsReader $reader,
         private readonly AnalyticsAggregator $aggregator,
@@ -47,22 +50,18 @@ final class TaskHistoryCommand extends Command
         $this
             ->addArgument('branch', InputArgument::REQUIRED, 'the task\'s branch')
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'the task\'s project (needed when several projects have that branch)')
-            ->addOption('format', null, InputOption::VALUE_REQUIRED, 'output format', 'table', ['table', 'json']);
+            ->addFormatOption(description: 'output format');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $format = (string) $input->getOption('format');
-        if (!\in_array($format, ['table', 'json'], true)) {
-            throw new PabloError(\sprintf("invalid --format '%s'; expected one of: table, json", $format));
-        }
+        $json = $this->wantsJson($input);
         $branch = (string) $input->getArgument('branch');
         $projectFilter = (string) ($input->getOption('project') ?: '') ?: null;
 
         $events = [];
         $projects = [];
-        foreach ($this->reader->read($projectFilter) as $payload) {
-            $event = AnalyticsEvent::fromEvent($payload);
+        foreach ($this->reader->events($projectFilter) as $event) {
             if ($event->branch() !== $branch) {
                 continue;
             }
@@ -81,12 +80,8 @@ final class TaskHistoryCommand extends Command
         $timeline = $this->aggregator->taskTimeline($events, $project, $branch);
         $totals = AnalyticsAggregator::timelineTotals($timeline);
 
-        if ('json' === $format) {
-            $json = json_encode(
-                ['project' => $project, 'branch' => $branch, 'totals' => $totals, 'timeline' => $timeline],
-                \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE,
-            );
-            $output->writeln(false !== $json ? $json : '{}', OutputInterface::OUTPUT_RAW);
+        if ($json) {
+            $this->writeJson($output, ['project' => $project, 'branch' => $branch, 'totals' => $totals, 'timeline' => $timeline]);
 
             return self::SUCCESS;
         }
@@ -102,11 +97,11 @@ final class TaskHistoryCommand extends Command
         $output->writeln(\sprintf(
             'Agent runs: %d · time %s · tokens in %s, out %s, cache %s/%s · cost %s',
             $totals['runs'],
-            StatsCommand::humanDuration($totals['duration_s'], true),
-            StatsCommand::humanTokens($totals['tokens_in']),
-            StatsCommand::humanTokens($totals['tokens_out']),
-            StatsCommand::humanTokens($totals['cache_read']),
-            StatsCommand::humanTokens($totals['cache_write']),
+            Format::duration($totals['duration_s'], true),
+            Format::tokens($totals['tokens_in']),
+            Format::tokens($totals['tokens_out']),
+            Format::tokens($totals['cache_read']),
+            Format::tokens($totals['cache_write']),
             null !== $totals['cost'] && $totals['cost'] > 0.0 ? \sprintf('%.2f', $totals['cost']) : '-',
         ));
 
@@ -126,18 +121,18 @@ final class TaskHistoryCommand extends Command
 
         return match ($event) {
             'task_opened' => [$when, 'opened', 'in '.$str('initial_state'), '', '', '', '', ''],
-            'state_entered' => [$when, 'state', $str('from').' → '.$str('to'), StatsCommand::humanDuration(Numbers::int($entry['dwell_s'] ?? -1), true), '', '', '', ''],
+            'state_entered' => [$when, 'state', $str('from').' → '.$str('to'), Format::duration(Numbers::int($entry['dwell_s'] ?? -1), true), '', '', '', ''],
             'agent_run_finished' => [
                 $when,
                 'agent run',
                 $str('agent').' ('.$str('models').')',
-                StatsCommand::humanDuration(Numbers::int($entry['duration_s'] ?? 0)),
-                StatsCommand::humanTokens(Numbers::int($entry['tokens_in'] ?? 0)),
-                StatsCommand::humanTokens(Numbers::int($entry['tokens_out'] ?? 0)),
-                StatsCommand::humanTokens(Numbers::int($entry['cache_read'] ?? 0)).'/'.StatsCommand::humanTokens(Numbers::int($entry['cache_write'] ?? 0)),
+                Format::duration(Numbers::int($entry['duration_s'] ?? 0)),
+                Format::tokens(Numbers::int($entry['tokens_in'] ?? 0)),
+                Format::tokens(Numbers::int($entry['tokens_out'] ?? 0)),
+                Format::tokens(Numbers::int($entry['cache_read'] ?? 0)).'/'.Format::tokens(Numbers::int($entry['cache_write'] ?? 0)),
                 null !== ($entry['cost'] ?? null) && Numbers::float($entry['cost']) > 0.0 ? \sprintf('%.2f', Numbers::float($entry['cost'])) : '-',
             ],
-            'task_closed' => [$when, 'closed', $str('final_state').(true === ($entry['merged'] ?? false) ? ', merged' : ', not merged'), StatsCommand::humanDuration(Numbers::int($entry['duration_s'] ?? -1), true), '', '', '', ''],
+            'task_closed' => [$when, 'closed', $str('final_state').(true === ($entry['merged'] ?? false) ? ', merged' : ', not merged'), Format::duration(Numbers::int($entry['duration_s'] ?? -1), true), '', '', '', ''],
             default => [$when, $event, '', '', '', '', '', ''],
         };
     }

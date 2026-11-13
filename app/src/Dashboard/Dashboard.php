@@ -75,14 +75,24 @@ final class Dashboard
      */
     public function projectsOfType(string $type): array
     {
+        return self::filterByType($this->projects(), $type);
+    }
+
+    /**
+     * The type-tab predicate itself, for callers holding the projects
+     * already (`pablo stats --type`): '' keeps them all.
+     *
+     * @param array<string, ProjectConfig> $projects
+     *
+     * @return array<string, ProjectConfig>
+     */
+    public static function filterByType(array $projects, string $type): array
+    {
         if ('' === $type) {
-            return $this->projects();
+            return $projects;
         }
 
-        return array_filter(
-            $this->projects(),
-            static fn (ProjectConfig $cfg): bool => $cfg->type === $type,
-        );
+        return array_filter($projects, static fn (ProjectConfig $cfg): bool => $cfg->type === $type);
     }
 
     /**

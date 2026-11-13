@@ -15,7 +15,6 @@ use Pablo\Provider\Git\SyncReport;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -38,7 +37,7 @@ final class RebaseLogCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project', null, $this->suggestions()->projectCompleter())
+            ->addProjectArgument()
             ->addOption('history', null, InputOption::VALUE_NONE, 'show past sync runs (newest first) instead of the last one')
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'with --history: runs shown per project', (string) self::HISTORY_LIMIT)
             ->addOption('only', null, InputOption::VALUE_REQUIRED, 'with --history: only these actions, comma-separated (e.g. conflict,lease-failed)')
@@ -92,12 +91,7 @@ final class RebaseLogCommand extends Command
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $json = $this->wantsJson($input);
-        $projects = $this->projects();
-        $project = $input->getArgument('project') ?: null;
-        if (null !== $project && !isset($projects[$project])) {
-            throw $this->projectsLoader->unknownProject($project);
-        }
-        $names = null !== $project ? [$project] : array_keys($projects);
+        $names = array_keys($this->selectedProjects($input, $output));
         sort($names);
         if ($input->getOption('history')) {
             return $this->writeHistory($input, $output, $names, $json);
