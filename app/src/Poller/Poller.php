@@ -19,6 +19,7 @@ use Pablo\Domain\State;
 use Pablo\Domain\Time;
 use Pablo\Hooks\Hooks;
 use Pablo\Provider\Gh\GhPrInterface;
+use Pablo\Provider\Gh\ReviewVerdict;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
 use Pablo\StateMachine\StateMachine;
@@ -105,13 +106,11 @@ final class Poller
         if (null === $prNumber) {
             return null;
         }
-        $anchor = $this->gh->readyAnchor($slug, $prNumber);
-        $prReviews = $this->gh->fetchReviews($slug, $prNumber);
-        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $ctx->cfg->review->botWhitelist);
-        if ('approved' === $verdict) {
+        $verdict = $this->gh->reviewVerdict($slug, $prNumber, $ctx->cfg->review->botWhitelist);
+        if (ReviewVerdict::APPROVED === $verdict) {
             return State::Approved;
         }
-        if ('changes' === $verdict) {
+        if (ReviewVerdict::CHANGES === $verdict) {
             return State::RequestChanges;
         }
 
@@ -136,10 +135,8 @@ final class Poller
         if (null === $record || null === $record->finishedAt) {
             return null; // pr-feedback still running or never launched
         }
-        $anchor = $this->gh->readyAnchor($slug, $prNumber);
-        $prReviews = $this->gh->fetchReviews($slug, $prNumber);
-        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $ctx->cfg->review->botWhitelist);
-        if ('changes' === $verdict) {
+        $verdict = $this->gh->reviewVerdict($slug, $prNumber, $ctx->cfg->review->botWhitelist);
+        if (ReviewVerdict::CHANGES === $verdict) {
             return null; // an unresolved signal still stands
         }
 

@@ -6,6 +6,7 @@ namespace Pablo\Tests;
 
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Gh\ReviewVerdict;
 
 /**
  * Test double for GhPrInterface. Mirrors the old GhPr::set* seams as
@@ -58,17 +59,6 @@ final class FakeGhPr implements GhPrInterface
         return $all;
     }
 
-    public function evaluateCi(array $rollup, array $ignoreChecks = []): string
-    {
-        foreach ($rollup as $check) {
-            if ($check->failed) {
-                return 'red';
-            }
-        }
-
-        return 'green';
-    }
-
     public function ciStatus(string $repoSlug, int $prNumber, array $ignoreChecks = []): string
     {
         if (null !== $this->onCiStatus) {
@@ -78,30 +68,12 @@ final class FakeGhPr implements GhPrInterface
         return $this->ci;
     }
 
-    public function readyAnchor(string $repoSlug, int $prNumber): \DateTimeImmutable
+    /** @var ReviewVerdict::APPROVED|ReviewVerdict::CHANGES|null canned reviewVerdict() */
+    public ?string $verdict = null;
+
+    public function reviewVerdict(string $repoSlug, int $prNumber, array $botWhitelist): ?string
     {
-        return new \DateTimeImmutable('2000-01-01T00:00:00Z');
-    }
-
-    /** @var callable|null fn(slug, pr): \Pablo\Provider\Gh\PrReviews */
-    public $onFetchReviews;
-
-    public function fetchReviews(string $repoSlug, int $prNumber): \Pablo\Provider\Gh\PrReviews
-    {
-        if (null !== $this->onFetchReviews) {
-            return ($this->onFetchReviews)($repoSlug, $prNumber);
-        }
-
-        return new \Pablo\Provider\Gh\PrReviews('', []);
-    }
-
-    public function evaluateReviews(array $reviews, array $threads, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
-    {
-        if (null !== $this->evaluateReviewsOverride) {
-            return ($this->evaluateReviewsOverride)($reviews, $threads, $anchor, $author, $botWhitelist);
-        }
-
-        return null;
+        return $this->verdict;
     }
 
     public function markReady(string $repoSlug, int $prNumber): void
@@ -114,22 +86,10 @@ final class FakeGhPr implements GhPrInterface
         $this->drafts[] = $prNumber;
     }
 
-    /** @var callable|null fn(slug, pr): bool */
-    public $isMergedOverride;
+    /** canned prState() answer when no override: MERGED when true, else OPEN */
+    public bool $merged = false;
 
-    /** @var callable|null fn(reviews, anchor, author, whitelist): ?string */
-    public $evaluateReviewsOverride;
-
-    public function isMerged(string $repoSlug, int $prNumber): bool
-    {
-        if (null !== $this->isMergedOverride) {
-            return ($this->isMergedOverride)($repoSlug, $prNumber);
-        }
-
-        return false;
-    }
-
-    /** @var callable|null fn(slug, pr): string — defaults to MERGED/OPEN from isMerged() */
+    /** @var callable|null fn(slug, pr): string — defaults to MERGED/OPEN from */
     public $prStateOverride;
 
     public function prState(string $repoSlug, int $prNumber): string
@@ -138,7 +98,7 @@ final class FakeGhPr implements GhPrInterface
             return ($this->prStateOverride)($repoSlug, $prNumber);
         }
 
-        return $this->isMerged($repoSlug, $prNumber) ? 'MERGED' : 'OPEN';
+        return $this->merged ? 'MERGED' : 'OPEN';
     }
 
     public function rerunCi(string $repoSlug, string $branch): array

@@ -119,25 +119,9 @@ GQL;
         if ([] === $branches) {
             return [];
         }
-        $limit = min(max(\count($branches) * 5, 50), 500);
-        $out = $this->runner->run([
-            'gh', 'pr', 'list', '--repo', $repoSlug,
-            '--state', 'all', '--json',
-            'number,title,state,isDraft,mergedAt,url,headRefName,baseRefName',
-            '--limit', (string) $limit,
-        ], timeout: self::GH_CALL_TIMEOUT_S);
-        $wanted = array_fill_keys($branches, true);
-        $result = [];
-        $items = Json::decodeList($out, 'gh pr list output');
-        foreach ($items as $item) {
-            $head = $item['headRefName'] ?? null;
-            if (null === $head || !isset($wanted[$head]) || isset($result[$head])) {
-                continue;
-            }
-            $result[$head] = $this->prFromItem($item);
-        }
+        $out = $this->runner->run($this->prListArgv($repoSlug, \count($branches)), timeout: self::GH_CALL_TIMEOUT_S);
 
-        return $result;
+        return $this->matchHeads(Json::decodeList($out, 'gh pr list output'), $branches);
     }
 
     /**
@@ -151,48 +135,62 @@ GQL;
             return [];
         }
 
-        $commands = [];
-        $slugIndex = [];
-        $branchesByIndex = [];
-        foreach ($repoBranches as $i => [$slug, $branches]) {
-            $slugIndex[$i] = $slug;
-            $branchesByIndex[$i] = $branches;
-            $limit = min(max(\count($branches) * 5, 50), 500);
-            $commands[] = [
-                'gh', 'pr', 'list', '--repo', $slug,
-                '--state', 'all', '--json',
-                'number,title,state,isDraft,mergedAt,url,headRefName,baseRefName',
-                '--limit', (string) $limit,
-            ];
-        }
-
+        $commands = array_map(fn (array $pair): array => $this->prListArgv($pair[0], \count($pair[1])), $repoBranches);
+        // check: false: one repository's gh failure must not hide the others' PRs.
         $results = $this->runner->runParallel($commands, check: false, timeout: self::GH_CALL_TIMEOUT_S);
         $all = [];
         foreach ($results as $i => $out) {
-            $slug = $slugIndex[$i];
-            $branches = $branchesByIndex[$i];
-            $wanted = array_fill_keys($branches, true);
-            $all[$slug] = [];
+            [$slug, $branches] = $repoBranches[$i];
             $items = Json::tryDecodeArray($out);
-            if (null === $items) {
-                continue;
-            }
-            foreach ($items as $item) {
-                $head = $item['headRefName'] ?? null;
-                if (null === $head || !isset($wanted[$head]) || isset($all[$slug][$head])) {
-                    continue;
-                }
-                $all[$slug][$head] = $this->prFromItem($item);
-            }
+            $all[$slug] = null === $items ? [] : $this->matchHeads($items, $branches);
         }
 
         return $all;
     }
 
     /**
+     * One `gh pr list` over every PR of the repository, sized for $branchCount
+     * branches (five PRs per branch, between 50 and 500).
+     *
+     * @return list<string>
+     */
+    private function prListArgv(string $repoSlug, int $branchCount): array
+    {
+        return [
+            'gh', 'pr', 'list', '--repo', $repoSlug,
+            '--state', 'all', '--json',
+            'number,title,state,isDraft,mergedAt,url,headRefName,baseRefName',
+            '--limit', (string) min(max($branchCount * 5, 50), 500),
+        ];
+    }
+
+    /**
+     * The first (newest) PR of each wanted head branch.
+     *
+     * @param array<mixed> $items    `gh pr list` items
+     * @param list<string> $branches
+     *
+     * @return array<string, PrInfo>
+     */
+    private function matchHeads(array $items, array $branches): array
+    {
+        $wanted = array_fill_keys($branches, true);
+        $result = [];
+        foreach ($items as $item) {
+            $head = $item['headRefName'] ?? null;
+            if (null === $head || !isset($wanted[$head]) || isset($result[$head])) {
+                continue;
+            }
+            $result[$head] = $this->prFromItem($item);
+        }
+
+        return $result;
+    }
+
+    /**
      * @param list<string> $ignoreChecks
      */
-    private function isIgnored(CiCheck $check, array $ignoreChecks): bool
+    private static function isIgnored(CiCheck $check, array $ignoreChecks): bool
     {
         foreach ($ignoreChecks as $marker) {
             if (str_contains($check->name, strtolower((string) $marker))) {
@@ -204,14 +202,16 @@ GQL;
     }
 
     /**
+     * The pure CI evaluation behind ciStatus(): red | pending | green.
+     *
      * @param list<CiCheck> $rollup
      * @param list<string>  $ignoreChecks
      */
-    public function evaluateCi(array $rollup, array $ignoreChecks = []): string
+    public static function evaluateCi(array $rollup, array $ignoreChecks = []): string
     {
         $pending = false;
-        foreach ($this->latestRuns($rollup) as $check) {
-            if ($this->isIgnored($check, $ignoreChecks)) {
+        foreach (self::latestRuns($rollup) as $check) {
+            if (self::isIgnored($check, $ignoreChecks)) {
                 continue;
             }
             if ($check->failed) {
@@ -235,7 +235,7 @@ GQL;
      *
      * @return list<CiCheck>
      */
-    private function latestRuns(array $rollup): array
+    private static function latestRuns(array $rollup): array
     {
         $kept = [];
         foreach ($rollup as $i => $check) {
@@ -261,10 +261,19 @@ GQL;
         $data = Json::decodeArray($out, 'gh pr view output');
         $rollup = array_values(array_map(CiCheck::fromRollup(...), $data['statusCheckRollup'] ?? []));
 
-        return $this->evaluateCi($rollup, $ignoreChecks);
+        return self::evaluateCi($rollup, $ignoreChecks);
     }
 
-    public function readyAnchor(string $repoSlug, int $prNumber): \DateTimeImmutable
+    public function reviewVerdict(string $repoSlug, int $prNumber, array $botWhitelist): ?string
+    {
+        $anchor = $this->readyAnchor($repoSlug, $prNumber);
+        $prReviews = $this->fetchReviews($repoSlug, $prNumber);
+
+        return ReviewVerdict::evaluate($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $botWhitelist);
+    }
+
+    /** GitHub's last "ready for review" event, else the PR's creation. */
+    private function readyAnchor(string $repoSlug, int $prNumber): \DateTimeImmutable
     {
         $ownerRepo = explode('/', $repoSlug, 2);
         $out = $this->runner->run([
@@ -340,76 +349,6 @@ GQL;
         );
     }
 
-    /**
-     * @param list<ReviewNode>   $reviews
-     * @param list<ReviewThread> $threads
-     * @param list<string>       $botWhitelist
-     */
-    public function evaluateReviews(array $reviews, array $threads, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
-    {
-        // GraphQL spells a bot's login without the "[bot]" suffix the REST
-        // API and the GitHub UI show: accept both spellings in the whitelist.
-        $botLogin = static fn (string $login): string => str_ends_with($login, '[bot]') ? substr($login, 0, -5) : $login;
-        $allowedBots = array_map($botLogin, $botWhitelist);
-        $latest = [];
-        foreach ($reviews as $node) {
-            $reviewAuthor = $node->login;
-            if ('' === $reviewAuthor || $reviewAuthor === $author) {
-                continue;
-            }
-            if ($node->isBot() && !\in_array($botLogin($reviewAuthor), $allowedBots, true)) {
-                continue;
-            }
-            if (!\in_array($node->state, ['APPROVED', 'CHANGES_REQUESTED', 'COMMENTED'], true)) {
-                continue;
-            }
-            $submitted = $node->submittedAt;
-            if (null === $submitted || $this->time->parseTs($submitted) <= $anchor) {
-                continue;
-            }
-            $current = $latest[$reviewAuthor] ?? null;
-            if (null === $current || $this->time->parseTs($submitted) > $this->time->parseTs((string) $current->submittedAt)) {
-                $latest[$reviewAuthor] = $node;
-            }
-        }
-        // A comment review only counts while it still carries feedback: a
-        // non-empty review body (no thread to resolve) or at least one comment
-        // in an unresolved thread. When every thread is resolved, the review
-        // counts as addressed. CHANGES_REQUESTED is an explicit verdict on its
-        // own and ignores thread state. An unknown review id (never in
-        // production) keeps counting rather than silently dropping the signal.
-        // A bot's review body is its summary (Copilot writes one on every
-        // review, "approval recommended" included), not feedback to address:
-        // a whitelisted bot's comment review counts only through its
-        // unresolved threads.
-        $unresolved = [];
-        foreach ($threads as $thread) {
-            if ($thread->resolved) {
-                continue;
-            }
-            foreach ($thread->reviewIds as $reviewId) {
-                $unresolved[$reviewId] = true;
-            }
-        }
-        $verdicts = [];
-        foreach ($latest as $node) {
-            $body = $node->isBot() ? '' : $node->body;
-            if ('COMMENTED' === $node->state && '' === $body && '' !== $node->id
-                && !isset($unresolved[$node->id])) {
-                continue;
-            }
-            $verdicts[$node->state] = true;
-        }
-        if (isset($verdicts['CHANGES_REQUESTED']) || isset($verdicts['COMMENTED'])) {
-            return 'changes';
-        }
-        if (isset($verdicts['APPROVED'])) {
-            return 'approved';
-        }
-
-        return null;
-    }
-
     public function markReady(string $repoSlug, int $prNumber): void
     {
         $this->runner->run(['gh', 'pr', 'ready', (string) $prNumber, '--repo', $repoSlug], timeout: self::GH_CALL_TIMEOUT_S);
@@ -418,11 +357,6 @@ GQL;
     public function markDraft(string $repoSlug, int $prNumber): void
     {
         $this->runner->run(['gh', 'pr', 'ready', (string) $prNumber, '--repo', $repoSlug, '--undo'], timeout: self::GH_CALL_TIMEOUT_S);
-    }
-
-    public function isMerged(string $repoSlug, int $prNumber): bool
-    {
-        return 'MERGED' === $this->prState($repoSlug, $prNumber);
     }
 
     public function prState(string $repoSlug, int $prNumber): string
