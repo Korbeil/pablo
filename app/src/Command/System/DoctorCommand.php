@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
@@ -14,7 +12,6 @@ use Pablo\Config\ConfigValidator;
 use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
 use Pablo\Doctor\SchedulerHealth;
-use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -28,13 +25,10 @@ final class DoctorCommand extends Command
         private readonly Doctor $doctor,
         private readonly AgentStaleness $agentStaleness,
         private readonly SchedulerHealth $schedulerHealth,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        private readonly Config $projectsLoader,
         private readonly ConfigValidator $configValidator,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -68,7 +62,7 @@ final class DoctorCommand extends Command
 
             return self::FAILURE;
         }
-        $projects = $this->projects();
+        $projects = $this->projectsLoader->loadProjects();
         $results = $this->doctor->checkAll($projects);
         $output->writeln($this->doctor->render($results));
         $detachWarning = $this->doctor->detachWarning();
@@ -128,7 +122,7 @@ final class DoctorCommand extends Command
 
             return self::FAILURE;
         }
-        $projects = $this->projects();
+        $projects = $this->projectsLoader->loadProjects();
         foreach ($this->doctor->checkAll($projects) as $r) {
             $checks[] = ['group' => 'cli', 'name' => $r->cli, 'status' => $r->ok() ? 'ok' : 'fail', 'message' => $r->detail, 'hint' => $r->hint, 'installed' => $r->installed, 'authenticated' => $r->authenticated];
         }

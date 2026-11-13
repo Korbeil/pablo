@@ -4,13 +4,9 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
-use Pablo\Config\Config;
 use Pablo\Install\Scheduler\SchedulerFactory;
-use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Update\Updater;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -36,12 +32,8 @@ final class UpdateCommand extends Command
     public function __construct(
         private readonly Updater $updater,
         private readonly SchedulerFactory $schedulers,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

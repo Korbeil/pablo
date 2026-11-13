@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Sync;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
+use Pablo\Command\UsesProjects;
 use Pablo\Config\Config;
 use Pablo\Provider\Git\Sync;
 use Pablo\Provider\Git\SyncReport;
@@ -23,15 +22,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class RebaseLogCommand extends Command
 {
     use FormatsOutput;
+    use UsesProjects;
 
     public function __construct(
         private readonly Sync $sync,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

@@ -4,12 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
-use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
-use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Web\PhpServer;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -33,15 +29,11 @@ final class WebCommand extends Command
     public const HOST = PhpServer::HOST;
 
     public function __construct(
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
         #[Autowire('%kernel.environment%')]
         private readonly string $environment = 'dev',
         private readonly GlobalConfig $globalConfig = new GlobalConfig(),
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

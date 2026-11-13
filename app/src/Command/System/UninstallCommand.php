@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\App\Kernel;
@@ -17,7 +15,6 @@ use Pablo\Install\PabloCommand;
 use Pablo\Install\PathRc;
 use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Install\ShellCompletion;
-use Pablo\Store\Store;
 use Pablo\Support\Files;
 use Pablo\Support\PabloPaths;
 use Pablo\Update\Updater;
@@ -40,12 +37,8 @@ final class UninstallCommand extends Command
         private readonly SchedulerFactory $schedulers,
         private readonly AgentTemplates $agentTemplates,
         private readonly AgentRuntimeRegistry $runtimes,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

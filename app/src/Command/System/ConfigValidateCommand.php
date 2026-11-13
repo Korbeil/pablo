@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
 use Pablo\Config\Config;
@@ -13,7 +11,6 @@ use Pablo\Config\ConfigIssue;
 use Pablo\Config\ConfigReport;
 use Pablo\Config\ConfigValidator;
 use Pablo\Doctor\Doctor;
-use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -31,12 +28,8 @@ final class ConfigValidateCommand extends Command
     public function __construct(
         private readonly ConfigValidator $validator,
         private readonly Doctor $doctor,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

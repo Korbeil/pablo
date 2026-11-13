@@ -14,8 +14,6 @@ use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\Doctor;
 use Pablo\Doctor\SchedulerHealth;
 use Pablo\Install\Scheduler\SchedulerFactory;
-use Pablo\Store\Store;
-use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\SandboxedEnv;
 use Pablo\Tests\TempDir;
@@ -68,7 +66,7 @@ YAML;
         $global = new GlobalConfig();
         $staleness = new AgentStaleness(new AgentTemplates(new Config($global)), \Pablo\Tests\Registries::runtimes());
 
-        return new DoctorCommand($this->doctor(), $staleness, new SchedulerHealth(new SchedulerFactory($this->runner, 'Linux'), new DispatchHealth()), new Store(), new Config($global), \Pablo\Tests\Registries::launchers($this->runner, $global), new FakeAgents(), new ConfigValidator($global, new Config($global)));
+        return new DoctorCommand($this->doctor(), $staleness, new SchedulerHealth(new SchedulerFactory($this->runner, 'Linux'), new DispatchHealth()), new Config($global), new ConfigValidator($global, new Config($global)));
     }
 
     protected function setUp(): void

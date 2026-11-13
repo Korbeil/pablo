@@ -125,8 +125,6 @@ YAML;
             $graph->time,
             $graph->store,
             $graph->config,
-            $graph->agentLaunchers,
-            $graph->agents,
         );
     }
 

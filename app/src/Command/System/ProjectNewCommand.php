@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Provider\Git\GitRepoInterface;
-use Pablo\Store\Store;
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
@@ -33,12 +30,9 @@ final class ProjectNewCommand extends Command
 
     public function __construct(
         private readonly GitRepoInterface $git,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        private readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int

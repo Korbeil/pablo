@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Report;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AnalyticsAggregator;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
+use Pablo\Command\UsesProjects;
 use Pablo\Config\Config;
 use Pablo\Dashboard\Dashboard;
 use Pablo\Domain\Time;
@@ -33,6 +32,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class StatsCommand extends Command
 {
     use FormatsOutput;
+    use UsesProjects;
 
     /** On top of FormatsOutput's table|json: a --by breakdown as CSV. */
     private const EXTRA_FORMATS = ['csv'];
@@ -42,12 +42,10 @@ final class StatsCommand extends Command
         private readonly AnalyticsAggregator $aggregator,
         private readonly Listing $listing,
         private readonly Time $time,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

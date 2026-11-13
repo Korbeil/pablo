@@ -6,6 +6,9 @@ namespace Pablo\Command\Report;
 
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
+use Pablo\Command\UsesProjects;
+use Pablo\Config\Config;
+use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -14,6 +17,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class ProjectsCommand extends Command
 {
     use FormatsOutput;
+    use UsesProjects;
+
+    public function __construct(
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+    ) {
+        parent::__construct();
+    }
 
     protected function configure(): void
     {

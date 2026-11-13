@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Tests\Install;
 
 use Pablo\Agents\Ade\AdeRegistry;
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Command\System\GenerateAgentsCommand;
@@ -14,9 +13,7 @@ use Pablo\Command\System\UninstallCommand;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Install\Scheduler\SchedulerFactory;
-use Pablo\Store\Store;
 use Pablo\Support\ProbeResult;
-use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\SandboxedEnv;
 use Pablo\Tests\TempDir;
@@ -112,16 +109,14 @@ trait InstallSandbox
     {
         $global = new GlobalConfig();
         $config = new Config($global);
-        $store = new Store();
         $templates = new AgentTemplates($config);
         $runtimes = new AgentRuntimeRegistry($global, $templates);
         $ades = new AdeRegistry($global);
-        $launchers = new AgentLauncherFactory($this->runner, $runtimes, $ades);
         $schedulers = new SchedulerFactory($this->runner, $os);
 
         $application = new Application();
         $application->setAutoExit(false);
-        $application->addCommand(new GenerateAgentsCommand($templates, $runtimes, $store, $config, $launchers, new FakeAgents()));
+        $application->addCommand(new GenerateAgentsCommand($templates, $runtimes, $config));
         $application->addCommand(new class extends Command {
             public function __construct()
             {
@@ -135,8 +130,8 @@ trait InstallSandbox
                 return self::SUCCESS;
             }
         });
-        $application->addCommand(new InstallCommand($global, $schedulers, $runtimes, $ades, $store, $config, $launchers, new FakeAgents()));
-        $application->addCommand(new UninstallCommand($schedulers, $templates, $runtimes, $store, $config, $launchers, new FakeAgents()));
+        $application->addCommand(new InstallCommand($global, $schedulers, $runtimes, $ades, $config));
+        $application->addCommand(new UninstallCommand($schedulers, $templates, $runtimes));
 
         $tester = new CommandTester($application->find($name));
         $tester->execute($input, ['interactive' => false]);

@@ -43,7 +43,7 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
         // runner — the bed's default factory carries a real ProcessRunner.
         $factory = \Pablo\Tests\Registries::launchers($this->runner, $this->globalConfig);
 
-        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory, $this->agents);
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory);
         $tester = new CommandTester($command);
         $tester->execute([
             '--backend' => 'openchamber',
@@ -79,7 +79,7 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
         };
         $factory = \Pablo\Tests\Registries::launchers($this->runner, $this->globalConfig);
 
-        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory, $this->agents);
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory);
         (new CommandTester($command))->execute([
             '--backend' => 'openchamber',
             '--worktree' => $this->wt,
@@ -107,7 +107,7 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
         };
         $factory = \Pablo\Tests\Registries::launchers($this->runner, $this->globalConfig);
 
-        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory, $this->agents);
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory);
         $tester = new CommandTester($command);
         $tester->execute([
             '--backend' => 'openchamber',

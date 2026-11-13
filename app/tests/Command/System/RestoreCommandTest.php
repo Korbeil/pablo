@@ -12,7 +12,6 @@ use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
-use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\Git\RepoHelper;
 use Pablo\Tests\TempDir;
@@ -138,7 +137,7 @@ YAML,
         $projects = $loader->loadProjects($this->projectsDir);
         $archive = $this->makeBackup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
 
-        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, \Pablo\Tests\Registries::ades(), $this->store, $loader, \Pablo\Tests\Registries::launchers($this->runner, new GlobalConfig()), new FakeAgents());
+        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, \Pablo\Tests\Registries::ades(), $this->store, $loader);
         $tester = new CommandTester($command);
         $tester->setInputs([$this->clone]);
         $tester->execute(['archive' => $archive, '--yes' => true]);
@@ -170,7 +169,7 @@ YAML,
         $projects = $loader->loadProjects($this->projectsDir);
         $archive = $this->makeBackup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
 
-        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, \Pablo\Tests\Registries::ades(), $this->store, $loader, \Pablo\Tests\Registries::launchers($this->runner, new GlobalConfig()), new FakeAgents());
+        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, \Pablo\Tests\Registries::ades(), $this->store, $loader);
         $tester = new CommandTester($command);
         $tester->setInputs([$this->clone]);
         $tester->execute(['archive' => $archive, '--yes' => true]);
@@ -186,7 +185,7 @@ YAML,
         $projects = $loader->loadProjects($this->projectsDir);
         $archive = $this->makeBackup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
 
-        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, \Pablo\Tests\Registries::ades(), $this->store, $loader, \Pablo\Tests\Registries::launchers($this->runner, new GlobalConfig()), new FakeAgents());
+        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, \Pablo\Tests\Registries::ades(), $this->store, $loader);
         $tester = new CommandTester($command);
         $tester->execute(['archive' => $archive, '--yes' => true, '--skip-worktrees' => true]);
 
@@ -201,7 +200,7 @@ YAML,
         $projects = $loader->loadProjects($this->projectsDir);
         $archive = $this->makeBackup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->tmp.'/backup');
 
-        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, \Pablo\Tests\Registries::ades(), $this->store, $loader, \Pablo\Tests\Registries::launchers($this->runner, new GlobalConfig()), new FakeAgents());
+        $command = new RestoreCommand($this->makeBackup(), new \Pablo\Provider\Git\GitRepo(), $this->runner, \Pablo\Tests\Registries::ades(), $this->store, $loader);
         $tester = new CommandTester($command);
         $tester->setInputs([$this->clone]);
         $tester->execute(['archive' => $archive, '--yes' => true, '--skip-orca' => true]);

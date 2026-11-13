@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Completion\Suggestions;
@@ -26,12 +25,11 @@ final class StateCommand extends Command
 
     public function __construct(
         private readonly TaskStateChanger $changer,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+        protected readonly AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

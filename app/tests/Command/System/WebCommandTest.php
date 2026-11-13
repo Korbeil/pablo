@@ -5,10 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Tests\Command\System;
 
 use Pablo\Command\System\WebCommand;
-use Pablo\Config\Config;
-use Pablo\Config\GlobalConfig;
-use Pablo\Store\Store;
-use Pablo\Tests\FakeAgents;
 use Pablo\Tests\TempDir;
 use Pablo\Web\PhpServer;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -197,7 +193,7 @@ final class WebCommandTest extends TestCase
 
     private function command(): WebCommand
     {
-        $command = new WebCommand(new Store(), new Config(new GlobalConfig()), \Pablo\Tests\Registries::launchers(new \Pablo\Tests\FakeProcessRunner(), new GlobalConfig()), new FakeAgents());
+        $command = new WebCommand();
         (new Application())->addCommand($command);
 
         return $command;

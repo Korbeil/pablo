@@ -44,7 +44,7 @@ final class InternalRunStartupScriptCommandTest extends CommandTestBed
         file_put_contents($script, 'echo "$PWD" >> '.escapeshellarg($ranIn)."\n");
         chdir($this->tmp); // the caller's cwd is never the worktree's
 
-        $tester = new CommandTester(new InternalRunStartupScriptCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
+        $tester = new CommandTester(new InternalRunStartupScriptCommand($this->agentLaunchers));
         $tester->execute([
             '--backend' => 'headless',
             '--worktree' => $this->wt,

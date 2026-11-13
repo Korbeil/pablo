@@ -203,7 +203,7 @@ final class TasksCommandTest extends CommandTestBed
         $listing = new Listing(new Stamps(), $this->gh, $this->providers, $this->repoSlug, $this->time);
 
         return $this->runCommand(
-            new TasksCommand($listing, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents),
+            new TasksCommand($listing, $this->store, $this->projectsLoader, $this->agents),
             $input,
             ['capture_stderr_separately' => true],
         );

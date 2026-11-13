@@ -19,7 +19,6 @@ use Pablo\Doctor\AgentFileStatus;
 use Pablo\Doctor\AgentStaleness;
 use Pablo\Doctor\CheckResult;
 use Pablo\Doctor\Doctor;
-use Pablo\Store\Store;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -395,12 +394,12 @@ YAML;
         $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
         $staleness = $this->staleness();
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), Registries::launchers(new FakeProcessRunner(), new GlobalConfig()), new FakeAgents(), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Config(new GlobalConfig()), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::SUCCESS, $tester->getStatusCode());
 
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(1, 'login please');
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), Registries::launchers(new FakeProcessRunner(), new GlobalConfig()), new FakeAgents(), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Config(new GlobalConfig()), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
     }

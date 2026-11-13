@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Backup\Backup;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
@@ -23,12 +21,10 @@ final class BackupCommand extends Command
     public function __construct(
         private readonly Backup $backup,
         private readonly GitRepoInterface $git,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        private readonly Store $store,
+        private readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -40,8 +36,8 @@ final class BackupCommand extends Command
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $pabloRoot = $this->backup->pabloRoot();
-        $projects = $this->projects();
-        $store = $this->store();
+        $projects = $this->projectsLoader->loadProjects();
+        $store = $this->store;
         $projectsDir = $this->projectsLoader->projectsDir();
 
         $dest = (string) ($input->getArgument('destination') ?? $this->backup->defaultBackupDir().'/'.$this->backup->defaultArchiveName());

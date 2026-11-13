@@ -6,7 +6,6 @@ namespace Pablo\Command\Internal;
 
 use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AgentRunRecord;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\NullAnalytics;
@@ -29,15 +28,14 @@ final class WatchAgentCommand extends Command
 {
     public function __construct(
         private readonly Time $time,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        private readonly Store $store,
+        private readonly Config $projectsLoader,
+        private readonly AgentLauncherFactory $agentLaunchers,
         private readonly UsageHarvesterInterface $usage,
         private readonly Hooks $hooks,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -57,7 +55,7 @@ final class WatchAgentCommand extends Command
     {
         $agents = $this->agentLaunchers->create((string) $input->getOption('backend'));
         $agents->waitForHandle((string) $input->getOption('handle'));
-        $store = $this->store();
+        $store = $this->store;
         $project = (string) $input->getOption('project');
         $branch = (string) $input->getOption('branch');
         $agentName = $input->getOption('agent');
@@ -103,7 +101,7 @@ final class WatchAgentCommand extends Command
         // Only once the stamp is saved: the analysis is ready, the user's move.
         if (null !== $finished) {
             try {
-                $cfg = $this->projects()[$project] ?? null;
+                $cfg = $this->projectsLoader->loadProjects()[$project] ?? null;
             } catch (\Throwable) {
                 $cfg = null; // a hook is best-effort: never fail the watcher
             }

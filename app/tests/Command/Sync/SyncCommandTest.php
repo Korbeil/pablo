@@ -32,7 +32,7 @@ final class SyncCommandTest extends CommandTestBed
     {
         $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time, $this->runtimes);
 
-        return new SyncCommand($sync, new \Pablo\Dispatch\DispatchHealth(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        return new SyncCommand($sync, new \Pablo\Dispatch\DispatchHealth(), $this->store, $this->projectsLoader, $this->agents);
     }
 
     private function enableAutoApply(): void
