@@ -50,7 +50,8 @@ The application lives in `app/` (Composer package `pablo`). Tooling runs from
 the repo root via the global **Castor** binary + remote `castor-php/php-qa`.
 
 ```bash
-castor qa:test                              # PHPUnit suite (app/)
+castor qa:test                              # PHPUnit suite (app/), in parallel (paratest)
+castor qa:test --serial                     # same, in one process (plain phpunit)
 castor qa:phpstan                           # static analysis, level 8 (app/src)
 castor qa:phpstan --generate-baseline       # writes app/phpstan-baseline.neon: never commit one (see below)
 castor qa:cs-fixer                          # php-cs-fixer (@Symfony + @Symfony:risky)
@@ -58,8 +59,8 @@ castor qa:cs:check                          # same as cs-fixer but --dry-run (CI
 castor qa:twig-cs-fixer                     # twig-cs-fixer (app/templates)
 castor site:build                           # build the website into _site/ (fails on a broken page: link)
 castor site:serve                           # build + preview it on http://127.0.0.1:8000
-(cd app && composer test)                   # same as castor qa:test
-(cd app && composer exec phpunit tests/StateMachine/StateMachineTest.php)  # one file
+(cd app && composer test)                   # same as castor qa:test (composer test:serial = --serial)
+(cd app && vendor/bin/phpunit tests/StateMachine/StateMachineTest.php)  # one file, plain phpunit
 castor build:binary [--micro=<micro.sfx> --spc=<spc>]  # dist/pablo.phar (+ dist/pablo, the static binary)
 castor release:create [--no-latest]         # release main's last commit (named after its SHA's first 7 chars)
                                             # via binary.yml (workflow_dispatch release=true)
@@ -426,10 +427,24 @@ nothing removes it, which PHPUnit reports as a risky test. It registers with
 `$replace=false`, so an unconditional `restore_error_handler()` would pop
 PHPUnit's own handlers on the second boot — hence snapshot-then-compare.
 
+The suite runs **in parallel** by default (`brianium/paratest`, one worker
+per CPU core, split by test class; `composer test` / `castor qa:test`),
+`composer test:serial` / plain `vendor/bin/phpunit` stay for one process or
+one file. Every test must therefore be parallel-safe: no fixed path under
+`sys_get_temp_dir()` (use `TempDir`), no fixed port (bind
+`tcp://127.0.0.1:0` and read the one the OS gave), nothing written into the
+checkout, no dependency on another test class having run first, and no
+tight wall-clock threshold (a parallel run loads the machine: wait on a
+file or a signal, or keep a wide margin). The test
+kernel's container is the one shared file: under paratest each worker (and
+every `bin/pablo` it spawns with `PABLO_ENV=test`, which inherits the
+variable) uses `app/var/cache/test-<TEST_TOKEN>`
+(`Kernel::testWorkerSuffix()`), so workers never race over one cache.
+
 Every test kernel boots with **debug on** (`new Kernel('test', true)`;
 `KernelTestCase`/`WebTestCase` get it from the forced `APP_DEBUG=1` env in
 `app/phpunit.xml`): only a debug kernel checks its cached container in
-`app/var/cache/test` for freshness. A non-debug one keeps a stale container
+`app/var/cache/test` (`test-<n>` under paratest) for freshness. A non-debug one keeps a stale container
 after a rebase/checkout that changes a service's constructor and fails with
 TypeErrors from `var/cache/test` until the cache is deleted — CI, starting
 from an empty cache, never sees it. `tests/App/TestKernelDebugTripwireTest.php`

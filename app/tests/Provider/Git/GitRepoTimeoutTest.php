@@ -15,10 +15,17 @@ use Symfony\Component\Filesystem\Filesystem;
  * A git call that runs past its timeout must surface as a PabloError so the
  * sync's lease rollback and rebase abort still run (a raw
  * ProcessTimedOutException skipped both). Slowness comes from real git hooks
- * that sleep, against a GitRepo whose timeouts are shrunk to one second.
+ * that sleep, against a GitRepo whose timeouts are shrunk to TIMEOUT seconds.
+ * The shrunk timeout covers every git call of its kind, not only the one that
+ * hangs, so it keeps a margin for the others on a loaded machine (a parallel
+ * run): one second was not always enough for a `git reset --hard`.
  */
 final class GitRepoTimeoutTest extends TestCase
 {
+    /** The shrunk timeout, in seconds; the hooks sleep far longer. */
+    private const int TIMEOUT = 5;
+    private const int HOOK_SLEEP = 30;
+
     private string $tmp;
     private string $clone;
     private string $other;
@@ -55,16 +62,16 @@ final class GitRepoTimeoutTest extends TestCase
 
     public function testPushTimeoutRollsBackAsLeaseFailure(): void
     {
-        $this->hook('pre-push', 'sleep 3');
+        $this->hook('pre-push', 'sleep '.self::HOOK_SLEEP);
         $origHead = RepoHelper::git($this->wt, ['rev-parse', 'HEAD']);
-        $git = new GitRepo([GitRepo::TIMEOUT_NETWORK => 1.0]);
+        $git = new GitRepo([GitRepo::TIMEOUT_NETWORK => (float) self::TIMEOUT]);
 
         // The fetch runs under the same shrunk network timeout; a local bare
         // remote answers well within it.
         $report = $git->syncWorktree($this->wt, 'pr-1', 'main', 'rebase', true);
 
         $this->assertSame('lease-failed', $report->action);
-        $this->assertStringContainsString('timed out after 1s', $report->detail);
+        $this->assertStringContainsString('timed out after '.self::TIMEOUT.'s', $report->detail);
         $this->assertSame($origHead, RepoHelper::git($this->wt, ['rev-parse', 'HEAD']));
         $this->assertFileDoesNotExist($this->wt.'/new.txt');
     }
@@ -82,15 +89,15 @@ final class GitRepoTimeoutTest extends TestCase
         RepoHelper::git($this->wt, ['reset', '-q', '--hard', 'HEAD~1']);
         RepoHelper::commitFile($this->wt, 'mine.txt', "m\n", 'mine');
 
-        $this->hook('pre-rebase', '[ "$1" = "origin/main" ] && sleep 3; exit 0');
+        $this->hook('pre-rebase', '[ "$1" = "origin/main" ] && sleep '.self::HOOK_SLEEP.'; exit 0');
         $origHead = RepoHelper::git($this->wt, ['rev-parse', 'HEAD']);
-        $git = new GitRepo([GitRepo::TIMEOUT_WORKTREE => 1.0]);
+        $git = new GitRepo([GitRepo::TIMEOUT_WORKTREE => (float) self::TIMEOUT]);
 
         try {
             $git->syncWorktree($this->wt, 'pr-1', 'main', 'rebase', true, static fn () => null);
             $this->fail('a timed-out rebase must throw a PabloError');
         } catch (PabloError $e) {
-            $this->assertStringContainsString('git rebase origin/main timed out after 1s', $e->getMessage());
+            $this->assertStringContainsString('git rebase origin/main timed out after '.self::TIMEOUT.'s', $e->getMessage());
         }
 
         $gitDir = RepoHelper::git($this->wt, ['rev-parse', '--absolute-git-dir']);

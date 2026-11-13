@@ -83,5 +83,6 @@ jobs:
       - name: composer install
         working-directory: app
         run: composer install --no-interaction --prefer-dist
+      # In parallel (paratest: one worker per runner core), like locally.
       - name: tests
         run: castor qa:test

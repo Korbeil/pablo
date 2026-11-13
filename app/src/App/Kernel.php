@@ -19,7 +19,8 @@ use Symfony\Component\HttpKernel\Kernel as BaseKernel;
  *
  * Cache and logs depend on how PABLO runs:
  *  - from a repository checkout, app/var/cache/<env> and app/var/log, as
- *    before;
+ *    before (app/var/cache/test-<n> for paratest's worker n, see
+ *    testWorkerSuffix());
  *  - from the standalone binary (a phar), the phar is read-only, so the
  *    compiled container goes to ~/.pablo/cache/container/<version>/<env>-<hash>
  *    and logs to ~/.pablo/logs. The version segment means a new binary never
@@ -45,7 +46,24 @@ final class Kernel extends BaseKernel
             return self::binaryVersionDir().'/'.$this->environment.'-'.self::binaryHash(PabloPaths::pharPath());
         }
 
-        return $this->getProjectDir().'/var/cache/'.$this->environment;
+        return $this->getProjectDir().'/var/cache/'.$this->environment.self::testWorkerSuffix($this->environment);
+    }
+
+    /**
+     * `-<n>` for the test env under a parallel test runner (paratest sets
+     * TEST_TOKEN to the worker's number), else nothing: each worker — and every
+     * `bin/pablo` it spawns with PABLO_ENV=test, which inherits the variable —
+     * then compiles and checks its own container instead of racing the others
+     * over a shared var/cache/test. Read at runtime, like everything else here.
+     */
+    public static function testWorkerSuffix(string $environment): string
+    {
+        $token = getenv('TEST_TOKEN');
+        if ('test' !== $environment || false === $token || 1 !== preg_match('/^\d+$/', $token)) {
+            return '';
+        }
+
+        return '-'.$token;
     }
 
     public function getLogDir(): string

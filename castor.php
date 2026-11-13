@@ -103,11 +103,18 @@ function qa_phpstan(bool $generateBaseline = false): void
     ]);
 }
 
-#[AsTask(name: 'test', namespace: 'qa', description: 'Run the PHPUnit suite', aliases: ['test'])]
-function qa_test(): void
-{
+/**
+ * In parallel by default (paratest: one worker per CPU core, each with its own
+ * test container cache, see Pablo\App\Kernel::testWorkerSuffix()); --serial
+ * runs plain phpunit in one process.
+ */
+#[AsTask(name: 'test', namespace: 'qa', description: 'Run the PHPUnit suite (in parallel; --serial for one process)', aliases: ['test'])]
+function qa_test(
+    #[AsOption(description: 'Run plain phpunit in a single process')]
+    bool $serial = false,
+): void {
     run(
-        ['composer', 'test'],
+        ['composer', $serial ? 'test:serial' : 'test'],
         context()->withWorkingDirectory(__DIR__ . '/app'),
     );
 }

@@ -50,7 +50,9 @@ final class OpenCodeInteractiveTest extends TestCase
 
     private function runScript(string $command): Process
     {
-        $process = Process::fromShellCommandline($command, $this->tmp, ['PATH' => $this->tmp.'/bin:'.getenv('PATH')], null, 30);
+        // Longer than the script's own 60s wait for the session, so a slow
+        // (loaded, parallel) run fails on the script's terms, never on ours.
+        $process = Process::fromShellCommandline($command, $this->tmp, ['PATH' => $this->tmp.'/bin:'.getenv('PATH')], null, 120);
         $process->run();
 
         return $process;
