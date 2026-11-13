@@ -20,6 +20,9 @@ final class FakeGhPr implements GhPrInterface
     /** @var list<int> recorded pr numbers sent to markReady() */
     public array $readies = [];
 
+    /** @var list<string> every read call, as "method:argument" (e.g. "prState:7", "prForBranch:wk-45") */
+    public array $calls = [];
+
     /** @var list<string> recorded rerunCi() branches */
     public array $rerunBranches = [];
 
@@ -37,6 +40,7 @@ final class FakeGhPr implements GhPrInterface
 
     public function prForBranch(string $repoSlug, string $branch): ?PrInfo
     {
+        $this->calls[] = "prForBranch:{$branch}";
         if (null !== $this->onPrForBranch) {
             return ($this->onPrForBranch)($repoSlug, $branch);
         }
@@ -61,6 +65,7 @@ final class FakeGhPr implements GhPrInterface
 
     public function ciStatus(string $repoSlug, int $prNumber, array $ignoreChecks = []): string
     {
+        $this->calls[] = "ciStatus:{$prNumber}";
         if (null !== $this->onCiStatus) {
             return ($this->onCiStatus)($repoSlug, $prNumber, $ignoreChecks);
         }
@@ -73,6 +78,8 @@ final class FakeGhPr implements GhPrInterface
 
     public function reviewVerdict(string $repoSlug, int $prNumber, array $botWhitelist): ?string
     {
+        $this->calls[] = "reviewVerdict:{$prNumber}";
+
         return $this->verdict;
     }
 
@@ -94,6 +101,7 @@ final class FakeGhPr implements GhPrInterface
 
     public function prState(string $repoSlug, int $prNumber): string
     {
+        $this->calls[] = "prState:{$prNumber}";
         if (null !== $this->prStateOverride) {
             return ($this->prStateOverride)($repoSlug, $prNumber);
         }
