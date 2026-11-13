@@ -7,45 +7,27 @@ namespace Pablo\Config;
 use Pablo\Domain\State;
 
 /**
- * A parsed project configuration (frozen: all properties are readonly).
+ * A parsed project configuration (frozen: all properties are readonly),
+ * grouped by YAML section; each group parses its own section (fromYaml()).
  */
 final class ProjectConfig
 {
-    /**
-     * @param list<string>     $botWhitelist
-     * @param list<string>     $ciIgnoreChecks
-     * @param list<State>|null $hookStates     null: every transition fires the hook
-     */
     public function __construct(
         public readonly string $name,
         public readonly string $type,
-        public readonly string $repoPath,
-        public readonly string $primaryBranch,
-        public readonly string $worktreesRoot,
-        public readonly string $provider,
-        public readonly string $identity,
-        public readonly string $projectKey,
-        public readonly string $syncStrategy,
-        public readonly bool $syncAutoApply,
-        public readonly int $syncInterval,
-        public readonly int $pollInterval,
-        public readonly ?string $failureSignal,
-        public readonly array $botWhitelist,
-        public readonly array $ciIgnoreChecks,
+        public readonly RepoConfig $repo,
+        public readonly TrackerConfig $tracker,
+        public readonly SyncConfig $sync,
+        public readonly StatePollingConfig $statePolling,
         public readonly string $defaultModel,
         public readonly string $prDescriptionLocale,
+        public readonly ReviewConfig $review = new ReviewConfig(),
+        public readonly CiConfig $ci = new CiConfig(),
+        public readonly TestingConfig $testing = new TestingConfig(),
+        public readonly MainUpdateConfig $mainUpdate = new MainUpdateConfig(),
+        public readonly HooksConfig $hooks = new HooksConfig(),
         public readonly ?string $branchPrefix = null,
-        public readonly ?string $site = null,
         public readonly ?string $confluenceSpace = null,
-        public readonly ?string $startupScript = null,
-        public readonly ?string $issueRepo = null,
-        public readonly string $primaryRemote = 'origin',
-        public readonly bool $testingEnabled = true,
-        public readonly bool $mainUpdateEnabled = true,
-        public readonly int $mainUpdateInterval = 60,
-        public readonly ?string $hookCommand = null,
-        public readonly ?array $hookStates = null,
-        public readonly bool $hookAgentFinished = true,
     ) {
     }
 
@@ -55,34 +37,34 @@ final class ProjectConfig
         return [
             'name' => $this->name,
             'type' => $this->type,
-            'repo_path' => $this->repoPath,
-            'primary_branch' => $this->primaryBranch,
-            'primary_remote' => $this->primaryRemote,
-            'worktrees_root' => $this->worktreesRoot,
-            'provider' => $this->provider,
-            'identity' => $this->identity,
-            'project_key' => $this->projectKey,
-            'issue_repo' => $this->issueRepo,
-            'sync_strategy' => $this->syncStrategy,
-            'sync_auto_apply' => $this->syncAutoApply,
-            'sync_interval' => $this->syncInterval,
-            'poll_interval' => $this->pollInterval,
-            'main_update_enabled' => $this->mainUpdateEnabled,
-            'main_update_interval' => $this->mainUpdateInterval,
-            'failure_signal' => $this->failureSignal,
-            'testing_enabled' => $this->testingEnabled,
-            'bot_whitelist' => $this->botWhitelist,
-            'ci_ignore_checks' => $this->ciIgnoreChecks,
-            'site' => $this->site,
+            'repo_path' => $this->repo->path,
+            'primary_branch' => $this->repo->primaryBranch,
+            'primary_remote' => $this->repo->primaryRemote,
+            'worktrees_root' => $this->repo->worktreesRoot,
+            'provider' => $this->tracker->provider,
+            'identity' => $this->tracker->identity,
+            'project_key' => $this->tracker->projectKey,
+            'issue_repo' => $this->tracker->repo,
+            'sync_strategy' => $this->sync->strategy,
+            'sync_auto_apply' => $this->sync->autoApply,
+            'sync_interval' => $this->sync->intervalMinutes,
+            'poll_interval' => $this->statePolling->intervalMinutes,
+            'main_update_enabled' => $this->mainUpdate->enabled,
+            'main_update_interval' => $this->mainUpdate->intervalMinutes,
+            'failure_signal' => $this->testing->failureSignal,
+            'testing_enabled' => $this->testing->enabled,
+            'bot_whitelist' => $this->review->botWhitelist,
+            'ci_ignore_checks' => $this->ci->ignoreChecks,
+            'site' => $this->tracker->site,
             'confluence_space' => $this->confluenceSpace,
-            'startup_script' => $this->startupScript,
+            'startup_script' => $this->repo->startupScript,
             'default_model' => $this->defaultModel,
             'pr_description_locale' => $this->prDescriptionLocale,
             'branch_prefix' => $this->branchPrefix,
             'hooks' => [
-                'command' => $this->hookCommand,
-                'states' => null !== $this->hookStates ? array_map(static fn (State $s): string => $s->value, $this->hookStates) : null,
-                'agent_finished' => $this->hookAgentFinished,
+                'command' => $this->hooks->command,
+                'states' => null !== $this->hooks->states ? array_map(static fn (State $s): string => $s->value, $this->hooks->states) : null,
+                'agent_finished' => $this->hooks->agentFinished,
             ],
         ];
     }

@@ -20,12 +20,12 @@ final class RepoSlug
 
     public function for(ProjectConfig $cfg): string
     {
-        if (null !== $cfg->issueRepo) {
-            return $cfg->issueRepo;
+        if (null !== $cfg->tracker->repo) {
+            return $cfg->tracker->repo;
         }
-        $url = $this->git->originUrl($cfg->repoPath);
+        $url = $this->git->originUrl($cfg->repo->path);
         if (null === $url) {
-            throw new PabloError("{$cfg->name}: repo at {$cfg->repoPath} has no origin remote");
+            throw new PabloError("{$cfg->name}: repo at {$cfg->repo->path} has no origin remote");
         }
         if (1 !== preg_match('#github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?(?:/|$)#', $url, $m)) {
             throw new PabloError("{$cfg->name}: origin remote is not a GitHub URL: {$url}");

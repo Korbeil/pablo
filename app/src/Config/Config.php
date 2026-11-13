@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Config;
 
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
-use Pablo\Domain\State;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Symfony\Component\Yaml\Exception\ParseException;
@@ -211,7 +210,7 @@ final class Config
             }
         }
         // The global hooks block on its own: an error there is every project's.
-        $this->parseHooks([], $defaults, 'config.yaml');
+        HooksConfig::fromYaml([], $defaults, 'config.yaml');
     }
 
     /** @return array<string, mixed> */
@@ -230,106 +229,54 @@ final class Config
     }
 
     /**
-     * @param array<string, mixed> $data
-     */
-    private function require(array $data, string $dotted, string $path): mixed
-    {
-        $node = $data;
-        foreach (explode('.', $dotted) as $part) {
-            if (!\is_array($node) || !\array_key_exists($part, $node)) {
-                throw new PabloError(basename($path).": missing required key '{$dotted}'");
-            }
-            $node = $node[$part];
-        }
-
-        return $node;
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function optional(array $data, string $dotted): mixed
-    {
-        $node = $data;
-        foreach (explode('.', $dotted) as $part) {
-            if (!\is_array($node) || !\array_key_exists($part, $node)) {
-                return null;
-            }
-            $node = $node[$part];
-        }
-
-        return $node;
-    }
-
-    /**
-     * @param array<string, mixed> $data
-     * @param array<string, mixed> $defaults
-     */
-    private function merged(array $data, array $defaults, string $section, string $key): mixed
-    {
-        foreach ([$data, $defaults] as $source) {
-            $value = $source[$section] ?? null;
-            if (\is_array($value) && \array_key_exists($key, $value)) {
-                return $value[$key];
-            }
-        }
-        throw new PabloError("no value for {$section}.{$key} — set it in the project config or ~/.pablo/config.yaml");
-    }
-
-    /**
      * @param array<string, mixed> $defaults
      */
     private function parseProject(string $path, array $defaults): ProjectConfig
     {
         $data = $this->loadYaml($path);
-        $name = basename($path);
-        $base = $path;
+        $file = basename($path);
         // Types and ranges of every key it sets (see ConfigSchema); unknown
         // keys are ignored here, reported by validate and the doctor.
-        $error = ConfigSchema::loadError($data, ConfigSchema::PROJECT, $path, $name);
+        $error = ConfigSchema::loadError($data, ConfigSchema::PROJECT, $path, $file);
         if (null !== $error) {
             throw new PabloError($error->text());
         }
 
-        $projectName = (string) $this->require($data, 'name', $base);
-        $type = (string) $this->require($data, 'type', $base);
+        $projectName = (string) ConfigValues::required($data, 'name', $file);
+        $type = (string) ConfigValues::required($data, 'type', $file);
         if (!\in_array($type, self::PROJECT_TYPES, true)) {
-            throw new PabloError(\sprintf('%s: unknown type %s (expected one of %s)', $name, var_export($type, true), '["open-source", "personal", "work"]'));
+            throw new PabloError(\sprintf('%s: unknown type %s (expected one of %s)', $file, var_export($type, true), '["open-source", "personal", "work"]'));
         }
 
-        $repoPath = PabloPaths::expandTilde((string) $this->require($data, 'repo.path', $base));
-        $primaryBranch = (string) $this->require($data, 'repo.primary_branch', $base);
-        $primaryRemote = (string) ($this->optional($data, 'repo.primary_remote') ?? 'origin');
+        return new ProjectConfig(
+            name: $projectName,
+            type: $type,
+            repo: RepoConfig::fromYaml($data, $file),
+            tracker: TrackerConfig::fromYaml($data, $file),
+            sync: SyncConfig::fromYaml($data, $defaults, $file),
+            statePolling: StatePollingConfig::fromYaml($data, $defaults),
+            defaultModel: $this->defaultModel($data, $defaults, $type, $file),
+            prDescriptionLocale: $this->prDescriptionLocale($data, $defaults),
+            review: ReviewConfig::fromYaml($data, $defaults),
+            ci: CiConfig::fromYaml($data, $defaults),
+            testing: TestingConfig::fromYaml($data, $defaults),
+            mainUpdate: MainUpdateConfig::fromYaml($data, $defaults),
+            hooks: HooksConfig::fromYaml($data, $defaults, $file),
+            branchPrefix: $this->branchPrefix($data, $defaults),
+            confluenceSpace: $data['confluence']['space'] ?? null,
+        );
+    }
 
-        $provider = (string) $this->require($data, 'issue_tracker.provider', $base);
-        if (!\in_array($provider, self::PROVIDERS, true)) {
-            throw new PabloError(\sprintf('%s: unknown provider %s (expected one of %s)', $name, var_export($provider, true), '["github", "jira", "linear"]'));
-        }
-        $identity = (string) $this->require($data, 'issue_tracker.identity', $base);
-        $projectKey = $data['issue_tracker']['project_key'] ?? null;
-        if (null === $projectKey) {
-            throw new PabloError(\sprintf("%s: missing required key 'issue_tracker.project_key'", $name));
-        }
-
-        $rawRoot = $data['worktrees_root'] ?? null;
-        if (null !== $rawRoot && '' !== $rawRoot) {
-            $worktreesRoot = PabloPaths::expandTilde((string) $rawRoot);
-        } else {
-            $worktreesRoot = PabloPaths::pabloPath('worktrees').'/'.basename($repoPath);
-        }
-
-        $syncInterval = $this->merged($data, $defaults, 'sync', 'interval_minutes');
-        $pollInterval = $this->merged($data, $defaults, 'state_polling', 'interval_minutes');
-        $strategy = $this->merged($data, $defaults, 'sync', 'strategy');
-        if (!\in_array($strategy, ['rebase', 'merge'], true)) {
-            throw new PabloError(\sprintf('%s: sync.strategy must be \'rebase\' or \'merge\', got %s', $name, var_export($strategy, true)));
-        }
-
-        $startup = $data['startup_script'] ?? null;
-
-        // Resolution: project default_model > default_model_by_type[<project
-        // type>] (global only) > global default_model. The resolved value is
-        // what internal:launch-agent passes to the agent backends as --model.
+    /**
+     * Resolution: project default_model > default_model_by_type[<project
+     * type>] (global only) > global default_model. The resolved value is
+     * what internal:launch-agent passes to the agent backends as --model.
+     *
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $defaults
+     */
+    private function defaultModel(array $data, array $defaults, string $type, string $file): string
+    {
         $byType = \is_array($defaults['default_model_by_type'] ?? null) ? $defaults['default_model_by_type'] : [];
         $typeModel = isset($byType[$type]) && '' !== (string) $byType[$type] ? (string) $byType[$type] : null;
         $defaultModel = $data['default_model'] ?? $typeModel ?? ($defaults['default_model'] ?? null);
@@ -341,110 +288,34 @@ final class Config
         // each runtime says what it accepts.
         $modelError = (new AgentRuntimeRegistry($this->global))->resolve(AgentRuntimeRegistry::nameFrom($defaults))->modelError($defaultModel);
         if (null !== $modelError) {
-            throw new PabloError("{$name}: default_model {$modelError}");
+            throw new PabloError("{$file}: default_model {$modelError}");
         }
-        $prDescriptionLocale = $data['pr_description_locale'] ?? $defaults['pr_description_locale'] ?? null;
-        if (null === $prDescriptionLocale) {
+
+        return $defaultModel;
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @param array<string, mixed> $defaults
+     */
+    private function prDescriptionLocale(array $data, array $defaults): string
+    {
+        $locale = $data['pr_description_locale'] ?? $defaults['pr_description_locale'] ?? null;
+        if (null === $locale) {
             throw new PabloError('no value for pr_description_locale — set it in the project config or ~/.pablo/config.yaml');
         }
-        $branchPrefix = $data['branch_prefix'] ?? $defaults['branch_prefix'] ?? null;
-        if (null !== $branchPrefix && '' === (string) $branchPrefix) {
-            $branchPrefix = null;
-        } elseif (null !== $branchPrefix) {
-            $branchPrefix = (string) $branchPrefix;
-        }
-        [$hookCommand, $hookStates, $hookAgentFinished] = $this->parseHooks($data, $defaults, $name);
 
-        return new ProjectConfig(
-            name: $projectName,
-            type: $type,
-            repoPath: $repoPath,
-            primaryBranch: $primaryBranch,
-            primaryRemote: $primaryRemote,
-            worktreesRoot: $worktreesRoot,
-            provider: $provider,
-            identity: $identity,
-            projectKey: (string) $projectKey,
-            issueRepo: isset($data['issue_tracker']['repo']) && '' !== $data['issue_tracker']['repo'] ? (string) $data['issue_tracker']['repo'] : null,
-            site: $data['issue_tracker']['site'] ?? null,
-            confluenceSpace: $data['confluence']['space'] ?? null,
-            syncStrategy: (string) $strategy,
-            syncAutoApply: (bool) $this->merged($data, $defaults, 'sync', 'auto_apply'),
-            syncInterval: (int) $syncInterval,
-            pollInterval: (int) $pollInterval,
-            failureSignal: $data['testing']['failure_signal'] ?? null,
-            testingEnabled: (bool) ($data['testing']['enabled'] ?? $defaults['testing']['enabled'] ?? true),
-            mainUpdateEnabled: (bool) ($data['main_update']['enabled'] ?? $defaults['main_update']['enabled'] ?? true),
-            mainUpdateInterval: (int) ($data['main_update']['interval_minutes'] ?? $defaults['main_update']['interval_minutes'] ?? 60),
-            botWhitelist: array_values((array) $this->merged($data, $defaults, 'review', 'bot_whitelist')),
-            ciIgnoreChecks: array_values((array) $this->merged($data, $defaults, 'ci', 'ignore_checks')),
-            startupScript: $startup ? PabloPaths::expandTilde((string) $startup) : null,
-            defaultModel: $defaultModel,
-            prDescriptionLocale: $prDescriptionLocale,
-            branchPrefix: $branchPrefix,
-            hookCommand: $hookCommand,
-            hookStates: $hookStates,
-            hookAgentFinished: $hookAgentFinished,
-        );
-    }
-
-    /**
-     * hooks.<key>: the project's value when it sets the key (even to null,
-     * which turns the hook off for that project), else the global one.
-     *
-     * @param array<string, mixed> $data
-     * @param array<string, mixed> $defaults
-     */
-    private function hookValue(array $data, array $defaults, string $key): mixed
-    {
-        foreach ([$data, $defaults] as $source) {
-            $hooks = $source['hooks'] ?? null;
-            if (\is_array($hooks) && \array_key_exists($key, $hooks)) {
-                return $hooks[$key];
-            }
-        }
-
-        return null;
+        return $locale;
     }
 
     /**
      * @param array<string, mixed> $data
      * @param array<string, mixed> $defaults
-     *
-     * @return array{0: ?string, 1: list<State>|null, 2: bool}
      */
-    private function parseHooks(array $data, array $defaults, string $name): array
+    private function branchPrefix(array $data, array $defaults): ?string
     {
-        if (\array_key_exists('hooks', $data) && null !== $data['hooks'] && !\is_array($data['hooks'])) {
-            throw new PabloError("{$name}: hooks must be a mapping (command, states, agent_finished)");
-        }
-        $command = $this->hookValue($data, $defaults, 'command');
-        if (null !== $command && !\is_string($command)) {
-            throw new PabloError("{$name}: hooks.command must be a shell command string");
-        }
-        $command = null !== $command && '' !== trim($command) ? $command : null;
+        $prefix = $data['branch_prefix'] ?? $defaults['branch_prefix'] ?? null;
 
-        $rawStates = $this->hookValue($data, $defaults, 'states');
-        $states = null;
-        if (null !== $rawStates) {
-            if (!\is_array($rawStates)) {
-                throw new PabloError("{$name}: hooks.states must be a list of states");
-            }
-            $states = [];
-            foreach ($rawStates as $raw) {
-                $state = \is_string($raw) ? State::tryFrom($raw) : null;
-                if (null === $state) {
-                    throw new PabloError(\sprintf('%s: hooks.states has unknown state %s (expected one of %s)', $name, var_export($raw, true), implode(', ', array_map(static fn (State $s): string => $s->value, State::cases()))));
-                }
-                $states[] = $state;
-            }
-        }
-
-        $agentFinished = $this->hookValue($data, $defaults, 'agent_finished') ?? true;
-        if (!\is_bool($agentFinished)) {
-            throw new PabloError("{$name}: hooks.agent_finished must be true or false");
-        }
-
-        return [$command, $states, $agentFinished];
+        return null === $prefix || '' === (string) $prefix ? null : (string) $prefix;
     }
 }

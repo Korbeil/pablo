@@ -57,7 +57,7 @@ final class BackupCommand extends Command
                 static fn (Task $t) => $t->branch,
                 $store->allTasks($cfg->name),
             );
-            $origin = (string) $this->git->originUrl($cfg->repoPath);
+            $origin = (string) $this->git->originUrl($cfg->repo->path);
             $output->writeln("  - {$cfg->name} (origin {$origin}): ".(\count($branches) > 0 ? implode(', ', $branches) : 'no tasks'));
         }
 

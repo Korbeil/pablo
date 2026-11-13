@@ -5,7 +5,12 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents;
 
 use Pablo\Agents\LaunchContext;
+use Pablo\Config\CiConfig;
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
@@ -33,22 +38,28 @@ final class LaunchContextTest extends TestCase
         return new ProjectConfig(
             name: 'wallet-kit',
             type: 'work',
-            repoPath: '/nonexistent',
-            primaryBranch: 'main',
-            worktreesRoot: '/nonexistent/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'WK',
-            issueRepo: 'acme/wallet-kit',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: $ciIgnoreChecks,
+            repo: new RepoConfig(
+                path: '/nonexistent',
+                primaryBranch: 'main',
+                worktreesRoot: '/nonexistent/wt',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'WK',
+                repo: 'acme/wallet-kit',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
+            ci: new CiConfig(
+                ignoreChecks: $ciIgnoreChecks,
+            ),
         );
     }
 

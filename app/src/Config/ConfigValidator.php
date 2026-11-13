@@ -135,14 +135,14 @@ final class ConfigValidator
     private function pathIssues(ProjectConfig $project, array $data, string $path, string $label): array
     {
         $issues = [];
-        if (!is_dir($project->repoPath)) {
-            $issues[] = ConfigIssue::error($path, $label, 'repo.path', "is not a directory: {$project->repoPath}");
-        } elseif (!file_exists($project->repoPath.'/.git')) {
-            $issues[] = ConfigIssue::error($path, $label, 'repo.path', "is not a git repository (no .git): {$project->repoPath}");
+        if (!is_dir($project->repo->path)) {
+            $issues[] = ConfigIssue::error($path, $label, 'repo.path', "is not a directory: {$project->repo->path}");
+        } elseif (!file_exists($project->repo->path.'/.git')) {
+            $issues[] = ConfigIssue::error($path, $label, 'repo.path', "is not a git repository (no .git): {$project->repo->path}");
         }
         // A relative script runs from the task's worktree: nothing to check
         // before a task exists.
-        $script = $project->startupScript;
+        $script = $project->repo->startupScript;
         if (null !== $script && str_starts_with($script, '/') && !is_file($script)) {
             $issues[] = ConfigIssue::error($path, $label, 'startup_script', "file not found: {$script}");
         }

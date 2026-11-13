@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace Pablo\Tests;
 
+use Pablo\Config\HooksConfig;
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TestingConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
@@ -34,21 +40,27 @@ final class StateMachineTest extends TestCase
         $this->cfg = new ProjectConfig(
             name: 'wallet-kit',
             type: 'open-source',
-            repoPath: '/dev/null/repo',
-            primaryBranch: 'main',
-            worktreesRoot: '/dev/null/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'WK',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: 'qa-failed',
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: '/dev/null/repo',
+                primaryBranch: 'main',
+                worktreesRoot: '/dev/null/wt',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'WK',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
+            testing: new TestingConfig(
+                failureSignal: 'qa-failed',
+            ),
         );
         $this->task = new Task(
             project: 'wallet-kit',
@@ -130,22 +142,20 @@ final class StateMachineTest extends TestCase
         $this->cfg = new ProjectConfig(
             name: $this->cfg->name,
             type: $this->cfg->type,
-            repoPath: $this->cfg->repoPath,
-            primaryBranch: $this->cfg->primaryBranch,
-            worktreesRoot: $this->cfg->worktreesRoot,
-            provider: $this->cfg->provider,
-            identity: $this->cfg->identity,
-            projectKey: $this->cfg->projectKey,
-            syncStrategy: $this->cfg->syncStrategy,
-            syncAutoApply: $this->cfg->syncAutoApply,
-            syncInterval: $this->cfg->syncInterval,
-            pollInterval: $this->cfg->pollInterval,
-            failureSignal: $this->cfg->failureSignal,
-            botWhitelist: $this->cfg->botWhitelist,
-            ciIgnoreChecks: $this->cfg->ciIgnoreChecks,
+            repo: new RepoConfig(
+                path: $this->cfg->repo->path,
+                primaryBranch: $this->cfg->repo->primaryBranch,
+                worktreesRoot: $this->cfg->repo->worktreesRoot,
+                startupScript: '/dev/null/setup.sh',
+            ),
+            tracker: $this->cfg->tracker,
+            sync: $this->cfg->sync,
+            statePolling: new StatePollingConfig($this->cfg->statePolling->intervalMinutes),
             defaultModel: $this->cfg->defaultModel,
             prDescriptionLocale: $this->cfg->prDescriptionLocale,
-            startupScript: '/dev/null/setup.sh',
+            review: $this->cfg->review,
+            ci: $this->cfg->ci,
+            testing: $this->cfg->testing,
         );
         $this->ctx->cfg = $this->cfg;
         $this->sm->enterState($this->ctx, State::InProgress);
@@ -272,22 +282,18 @@ final class StateMachineTest extends TestCase
         $cfg = new ProjectConfig(
             name: $this->cfg->name,
             type: $this->cfg->type,
-            repoPath: $this->cfg->repoPath,
-            primaryBranch: $this->cfg->primaryBranch,
-            worktreesRoot: $this->cfg->worktreesRoot,
-            provider: $this->cfg->provider,
-            identity: $this->cfg->identity,
-            projectKey: $this->cfg->projectKey,
-            syncStrategy: $this->cfg->syncStrategy,
-            syncAutoApply: $this->cfg->syncAutoApply,
-            syncInterval: $this->cfg->syncInterval,
-            pollInterval: $this->cfg->pollInterval,
-            failureSignal: $this->cfg->failureSignal,
-            testingEnabled: false,
-            botWhitelist: $this->cfg->botWhitelist,
-            ciIgnoreChecks: $this->cfg->ciIgnoreChecks,
+            repo: $this->cfg->repo,
+            tracker: $this->cfg->tracker,
+            sync: $this->cfg->sync,
+            statePolling: new StatePollingConfig($this->cfg->statePolling->intervalMinutes),
             defaultModel: $this->cfg->defaultModel,
             prDescriptionLocale: $this->cfg->prDescriptionLocale,
+            review: $this->cfg->review,
+            ci: $this->cfg->ci,
+            testing: new TestingConfig(
+                enabled: false,
+                failureSignal: $this->cfg->testing->failureSignal,
+            ),
         );
 
         return new TaskCtx(task: $this->task, cfg: $cfg, store: $this->store, agents: $this->agents);
@@ -409,23 +415,16 @@ final class StateMachineTest extends TestCase
         $this->ctx = new TaskCtx(task: $this->task, cfg: new ProjectConfig(
             name: $this->cfg->name,
             type: $this->cfg->type,
-            repoPath: $this->cfg->repoPath,
-            primaryBranch: $this->cfg->primaryBranch,
-            worktreesRoot: $this->cfg->worktreesRoot,
-            provider: $this->cfg->provider,
-            identity: $this->cfg->identity,
-            projectKey: $this->cfg->projectKey,
-            syncStrategy: $this->cfg->syncStrategy,
-            syncAutoApply: $this->cfg->syncAutoApply,
-            syncInterval: $this->cfg->syncInterval,
-            pollInterval: $this->cfg->pollInterval,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: $this->cfg->repo,
+            tracker: $this->cfg->tracker,
+            sync: $this->cfg->sync,
+            statePolling: new StatePollingConfig($this->cfg->statePolling->intervalMinutes),
             defaultModel: (string) $args['default_model'],
             prDescriptionLocale: 'en',
-            hookCommand: 'notify',
-            hookStates: $states,
+            hooks: new HooksConfig(
+                command: 'notify',
+                states: $states,
+            ),
         ), store: $this->store, agents: $this->agents);
 
         return $runner;

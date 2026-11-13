@@ -114,15 +114,15 @@ YAML;
         $cfg = $projects['my-project'];
         $this->assertSame('my-project', $cfg->name);
         $this->assertSame('work', $cfg->type);
-        $this->assertSame('/home/me/dev/my-project', $cfg->repoPath);
-        $this->assertSame('main', $cfg->primaryBranch);
-        $this->assertSame('jira', $cfg->provider);
-        $this->assertSame('acme.atlassian.net', $cfg->site);
+        $this->assertSame('/home/me/dev/my-project', $cfg->repo->path);
+        $this->assertSame('main', $cfg->repo->primaryBranch);
+        $this->assertSame('jira', $cfg->tracker->provider);
+        $this->assertSame('acme.atlassian.net', $cfg->tracker->site);
         $this->assertNull($cfg->confluenceSpace);
-        $this->assertSame('MY-PROJECT', $cfg->projectKey);
-        $this->assertSame('git@example.com', $cfg->identity);
-        $this->assertNull($cfg->issueRepo);
-        $this->assertNull($cfg->failureSignal);
+        $this->assertSame('MY-PROJECT', $cfg->tracker->projectKey);
+        $this->assertSame('git@example.com', $cfg->tracker->identity);
+        $this->assertNull($cfg->tracker->repo);
+        $this->assertNull($cfg->testing->failureSignal);
     }
 
     public function testHappyPathGithub(): void
@@ -152,10 +152,10 @@ YAML;
         $cfg = $this->loader()->loadProjects($this->projectsDir)['payment-kit'];
         $this->assertSame('payment-kit', $cfg->name);
         $this->assertSame('open-source', $cfg->type);
-        $this->assertSame('github', $cfg->provider);
-        $this->assertSame('PAYMENT-KIT', $cfg->projectKey);
-        $this->assertSame('stripe/payment-kit', $cfg->issueRepo);
-        $this->assertSame('git@example.com', $cfg->identity);
+        $this->assertSame('github', $cfg->tracker->provider);
+        $this->assertSame('PAYMENT-KIT', $cfg->tracker->projectKey);
+        $this->assertSame('stripe/payment-kit', $cfg->tracker->repo);
+        $this->assertSame('git@example.com', $cfg->tracker->identity);
     }
 
     public function testHappyPathLinear(): void
@@ -183,10 +183,10 @@ YAML;
         $cfg = $this->loader()->loadProjects($this->projectsDir)['my-app'];
         $this->assertSame('my-app', $cfg->name);
         $this->assertSame('personal', $cfg->type);
-        $this->assertSame('linear', $cfg->provider);
-        $this->assertSame('PROJ', $cfg->projectKey);
-        $this->assertSame('user@linear.app', $cfg->identity);
-        $this->assertNull($cfg->site);
+        $this->assertSame('linear', $cfg->tracker->provider);
+        $this->assertSame('PROJ', $cfg->tracker->projectKey);
+        $this->assertSame('user@linear.app', $cfg->tracker->identity);
+        $this->assertNull($cfg->tracker->site);
     }
 
     public function testWithFailureSignal(): void
@@ -213,8 +213,8 @@ YAML;
         $this->assertSame(0, $tester->getStatusCode());
 
         $cfg = $this->loader()->loadProjects($this->projectsDir)['qa-test'];
-        $this->assertSame('qa-failed', $cfg->failureSignal);
-        $this->assertTrue($cfg->testingEnabled);
+        $this->assertSame('qa-failed', $cfg->testing->failureSignal);
+        $this->assertTrue($cfg->testing->enabled);
         $this->assertSame('p/', $cfg->branchPrefix);
     }
 
@@ -240,8 +240,8 @@ YAML;
         $this->assertSame(0, $tester->getStatusCode());
 
         $cfg = $this->loader()->loadProjects($this->projectsDir)['no-qa'];
-        $this->assertFalse($cfg->testingEnabled);
-        $this->assertNull($cfg->failureSignal);
+        $this->assertFalse($cfg->testing->enabled);
+        $this->assertNull($cfg->testing->failureSignal);
 
         $yaml = file_get_contents($this->projectsDir.'/no-qa.yaml');
         $this->assertIsString($yaml);

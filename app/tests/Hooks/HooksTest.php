@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Hooks;
 
+use Pablo\Config\HooksConfig;
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
@@ -38,24 +43,29 @@ final class HooksTest extends TestCase
         return new ProjectConfig(
             name: 'wallet-kit',
             type: 'open-source',
-            repoPath: '/dev/null/repo',
-            primaryBranch: 'main',
-            worktreesRoot: '/dev/null/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'WK',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: '/dev/null/repo',
+                primaryBranch: 'main',
+                worktreesRoot: '/dev/null/wt',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'WK',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
-            hookCommand: $command,
-            hookStates: $states,
-            hookAgentFinished: $agentFinished,
+            hooks: new HooksConfig(
+                command: $command,
+                states: $states,
+                agentFinished: $agentFinished,
+            ),
         );
     }
 

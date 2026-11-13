@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace Pablo\Tests\Provider\Tracker;
 
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TestingConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Provider\Tracker\Jira;
@@ -75,22 +80,28 @@ final class JiraTest extends TestCase
         return new ProjectConfig(
             name: 'acme-pim',
             type: 'work',
-            repoPath: $this->tmp,
-            primaryBranch: 'main',
-            worktreesRoot: $this->tmp.'/wt',
-            provider: 'jira',
-            identity: 'acme@example.com',
-            projectKey: 'XXX',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: 'A FIX',
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $this->tmp,
+                primaryBranch: 'main',
+                worktreesRoot: $this->tmp.'/wt',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'jira',
+                identity: 'acme@example.com',
+                projectKey: 'XXX',
+                site: 'acme.atlassian.net',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
-            site: 'acme.atlassian.net',
+            testing: new TestingConfig(
+                failureSignal: 'A FIX',
+            ),
         );
     }
 

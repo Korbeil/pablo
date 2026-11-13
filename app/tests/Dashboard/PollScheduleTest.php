@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Pablo\Tests\Dashboard;
 
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Dashboard\PollSchedule;
 use PHPUnit\Framework\TestCase;
 
@@ -33,19 +37,22 @@ final class PollScheduleTest extends TestCase
         return new ProjectConfig(
             name: $name,
             type: 'work',
-            repoPath: '/tmp/'.$name,
-            primaryBranch: 'main',
-            worktreesRoot: '/tmp/wt/'.$name,
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'PR',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 720,
-            pollInterval: $pollInterval,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: '/tmp/'.$name,
+                primaryBranch: 'main',
+                worktreesRoot: '/tmp/wt/'.$name,
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 720,
+            ),
+            statePolling: new StatePollingConfig($pollInterval),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
         );

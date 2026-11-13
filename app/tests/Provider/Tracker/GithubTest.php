@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace Pablo\Tests\Provider\Tracker;
 
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TestingConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Provider\Tracker\Github;
@@ -72,22 +77,28 @@ final class GithubTest extends TestCase
         return new ProjectConfig(
             name: 'wallet-kit',
             type: 'open-source',
-            repoPath: $this->tmp,
-            primaryBranch: 'main',
-            worktreesRoot: $this->tmp.'/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'WK',
-            issueRepo: $issueRepo,
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: 'qa-failed',
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $this->tmp,
+                primaryBranch: 'main',
+                worktreesRoot: $this->tmp.'/wt',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'WK',
+                repo: $issueRepo,
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
+            testing: new TestingConfig(
+                failureSignal: 'qa-failed',
+            ),
         );
     }
 

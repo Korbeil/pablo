@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Pablo\Tests\Provider\Confluence;
 
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Provider\Confluence\Confluence;
 use Pablo\Support\PabloError;
 use Pablo\Tests\FakeProcessRunner;
@@ -43,22 +47,25 @@ final class ConfluenceTest extends TestCase
         return new ProjectConfig(
             name: 'acme-pim',
             type: 'work',
-            repoPath: $this->tmp,
-            primaryBranch: 'main',
-            worktreesRoot: $this->tmp.'/wt',
-            provider: 'jira',
-            identity: 'acme@example.com',
-            projectKey: 'PIM',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $this->tmp,
+                primaryBranch: 'main',
+                worktreesRoot: $this->tmp.'/wt',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'jira',
+                identity: 'acme@example.com',
+                projectKey: 'PIM',
+                site: 'acme.atlassian.net',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
-            site: 'acme.atlassian.net',
             confluenceSpace: 'PIM',
         );
     }

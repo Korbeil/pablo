@@ -55,7 +55,7 @@ final class TaskCloser
         $lock = $this->store->taskLock($project, $branch);
         try {
             $hadWorktree = is_dir($task->worktreePath);
-            $this->git->removeWorktree($cfg->repoPath, $task->worktreePath, $task->branch);
+            $this->git->removeWorktree($cfg->repo->path, $task->worktreePath, $task->branch);
             // Before the record disappears: the close event is what preserves
             // the task's final metadata for analytics.
             $this->analytics->taskClosed($task);

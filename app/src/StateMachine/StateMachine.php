@@ -142,10 +142,10 @@ final class StateMachine
             ]);
             $ctx->task->taskAnalystRan = true;
         }
-        if (null !== $ctx->cfg->startupScript && !$ctx->task->startupScriptRan) {
+        if (null !== $ctx->cfg->repo->startupScript && !$ctx->task->startupScriptRan) {
             $this->launchTracked($ctx, Agent::StartupScript, $ctx->agents->runStartupScript(...), [
                 $ctx->task->worktreePath,
-                $ctx->cfg->startupScript,
+                $ctx->cfg->repo->startupScript,
                 $ctx->task->project,
                 $ctx->task->branch,
             ]);
@@ -175,7 +175,7 @@ final class StateMachine
 
     public function enterApproved(TaskCtx $ctx): void
     {
-        if (!$ctx->cfg->testingEnabled) {
+        if (!$ctx->cfg->testing->enabled) {
             return; // terminal: the task waits here until merge auto-closes it
         }
         // Momentary state: immediately settle into needs-testing.
@@ -184,11 +184,11 @@ final class StateMachine
 
     private function currentIssueStatus(TaskCtx $ctx): ?string
     {
-        if (null === $ctx->task->issue || null === $ctx->cfg->failureSignal) {
+        if (null === $ctx->task->issue || null === $ctx->cfg->testing->failureSignal) {
             return null;
         }
         try {
-            $provider = $this->providers->get($ctx->cfg->provider);
+            $provider = $this->providers->get($ctx->cfg->tracker->provider);
             if (!$provider->supportsSignalViaStatus()) {
                 return null;
             }
@@ -262,7 +262,7 @@ final class StateMachine
             ]],
             Agent::StartupScript->value => static fn (TaskCtx $c) => [$c->agents->runStartupScript(...), [
                 $c->task->worktreePath,
-                $c->cfg->startupScript,
+                $c->cfg->repo->startupScript,
                 $c->task->project,
                 $c->task->branch,
             ]],
@@ -307,7 +307,7 @@ final class StateMachine
         $specs = [];
         $all = $this->launchSpecs();
         foreach ($byState[$state->value] ?? [] as $agent) {
-            if (Agent::StartupScript === $agent && null === $ctx->cfg->startupScript) {
+            if (Agent::StartupScript === $agent && null === $ctx->cfg->repo->startupScript) {
                 continue;
             }
             $specs[] = ['label' => $agent, 'build' => $all[$agent->value]];
@@ -328,7 +328,7 @@ final class StateMachine
         if (State::Waiting === $target && \in_array($ctx->task->state, self::WAITING_FORBIDDEN_FROM, true)) {
             throw new PabloError("going from {$ctx->task->state->value} to waiting is impossible — address ".'the feedback and use /pablo-commit-and-pr instead');
         }
-        if (State::NeedsTesting === $target && !$ctx->cfg->testingEnabled) {
+        if (State::NeedsTesting === $target && !$ctx->cfg->testing->enabled) {
             throw new PabloError('needs-testing is disabled for this project (testing.enabled: false)');
         }
         // A pass-through state (ready-to-review, approved) re-enters this

@@ -45,14 +45,14 @@ final class Jira implements Provider
     {
         $key = (string) $data['key'];
         $fields = $data['fields'] ?? [];
-        $site = $cfg->site ?? 'jira';
+        $site = $cfg->tracker->site ?? 'jira';
 
         return new Issue(
             provider: $this->name(),
             key: $key,
             url: "https://{$site}/browse/{$key}",
             title: (string) ($fields['summary'] ?? ''),
-            projectKey: $cfg->projectKey,
+            projectKey: $cfg->tracker->projectKey,
             status: $fields['status']['name'] ?? null,
         );
     }
@@ -63,7 +63,7 @@ final class Jira implements Provider
             return null;
         }
         $key = $m[1];
-        if (explode('-', $key)[0] !== $cfg->projectKey) {
+        if (explode('-', $key)[0] !== $cfg->tracker->projectKey) {
             return null;
         }
 
@@ -83,7 +83,7 @@ final class Jira implements Provider
 
     public function listAssigned(ProjectConfig $cfg): array
     {
-        $jql = "project = {$cfg->projectKey} AND assignee = currentUser() ORDER BY updated DESC";
+        $jql = "project = {$cfg->tracker->projectKey} AND assignee = currentUser() ORDER BY updated DESC";
         $out = $this->runner->run([
             'acli', 'jira', 'workitem', 'search', '--jql', $jql,
             '--fields', self::FIELDS, '--json', '--limit', '50',

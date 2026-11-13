@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Dispatch;
 
+use Pablo\Config\MainUpdateConfig;
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Dispatch\Dispatch;
 use Pablo\Dispatch\DispatchHealth;
 use Pablo\Doctor\Doctor;
@@ -64,19 +69,22 @@ final class DispatchTest extends TestCase
         return new ProjectConfig(
             name: $name,
             type: 'work',
-            repoPath: $this->tmp.'/'.$name,
-            primaryBranch: 'main',
-            worktreesRoot: $this->tmp.'/wt/'.$name,
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'PR',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $this->tmp.'/'.$name,
+                primaryBranch: 'main',
+                worktreesRoot: $this->tmp.'/wt/'.$name,
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
         );
@@ -347,15 +355,29 @@ YAML);
     {
         $base = $this->cfg('a');
         $disabled = new ProjectConfig(
-            name: 'a', type: 'work', repoPath: $base->repoPath,
-            primaryBranch: 'main', worktreesRoot: $base->worktreesRoot,
-            provider: 'github', identity: 'octocat', projectKey: 'PR',
-            syncStrategy: 'rebase', syncAutoApply: false,
-            syncInterval: 30, pollInterval: 10,
-            failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+            name: 'a',
+            type: 'work',
+            repo: new RepoConfig(
+                path: $base->repo->path,
+                primaryBranch: 'main',
+                worktreesRoot: $base->repo->worktreesRoot,
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
-            mainUpdateEnabled: false,
+            mainUpdate: new MainUpdateConfig(
+                enabled: false,
+            ),
         );
         $runners = ['main' => function (ProjectConfig $c, Store $s): void { $this->ran[] = ['main', $c->name]; }];
         $this->runDispatch(['a' => $disabled, 'b' => $this->cfg('b')], new Store($this->tmp.'/state'), $runners);
@@ -366,20 +388,32 @@ YAML);
     {
         $base = $this->cfg('a');
         $fork = new ProjectConfig(
-            name: 'a', type: 'work', repoPath: $base->repoPath,
-            primaryBranch: 'develop', worktreesRoot: $base->worktreesRoot,
-            provider: 'github', identity: 'octocat', projectKey: 'PR',
-            syncStrategy: 'rebase', syncAutoApply: false,
-            syncInterval: 30, pollInterval: 10,
-            failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+            name: 'a',
+            type: 'work',
+            repo: new RepoConfig(
+                path: $base->repo->path,
+                primaryBranch: 'develop',
+                worktreesRoot: $base->repo->worktreesRoot,
+                primaryRemote: 'upstream',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
-            primaryRemote: 'upstream',
         );
         ob_start();
         $this->dispatch->runMainUpdate($fork, new Store($this->tmp.'/state'));
         $out = (string) ob_get_clean();
-        $this->assertSame([[$base->repoPath, 'develop', 'upstream']], $this->git->primaryUpdates);
+        $this->assertSame([[$base->repo->path, 'develop', 'upstream']], $this->git->primaryUpdates);
         $this->assertStringContainsString('[a] main: = up-to-date develop', $out);
     }
 
@@ -389,22 +423,46 @@ YAML);
         mkdir($sharedRepo, 0o777, true);
 
         $a = new ProjectConfig(
-            name: 'a', type: 'work', repoPath: $sharedRepo,
-            primaryBranch: 'main', worktreesRoot: $this->tmp.'/wt/a',
-            provider: 'github', identity: 'octocat', projectKey: 'PR',
-            syncStrategy: 'rebase', syncAutoApply: false,
-            syncInterval: 30, pollInterval: 10,
-            failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+            name: 'a',
+            type: 'work',
+            repo: new RepoConfig(
+                path: $sharedRepo,
+                primaryBranch: 'main',
+                worktreesRoot: $this->tmp.'/wt/a',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
         );
         $b = new ProjectConfig(
-            name: 'b', type: 'work', repoPath: $sharedRepo,
-            primaryBranch: 'main', worktreesRoot: $this->tmp.'/wt/b',
-            provider: 'github', identity: 'octocat', projectKey: 'PB',
-            syncStrategy: 'rebase', syncAutoApply: false,
-            syncInterval: 30, pollInterval: 10,
-            failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
+            name: 'b',
+            type: 'work',
+            repo: new RepoConfig(
+                path: $sharedRepo,
+                primaryBranch: 'main',
+                worktreesRoot: $this->tmp.'/wt/b',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PB',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
         );

@@ -33,8 +33,8 @@ final class TaskCommand extends Command
         }
         $ctx = $this->resolveTargetCtx($input);
         $payload = $ctx->task->toJson();
-        $payload['repo_path'] = $ctx->cfg->repoPath;
-        $payload['primary_branch'] = $ctx->cfg->primaryBranch;
+        $payload['repo_path'] = $ctx->cfg->repo->path;
+        $payload['primary_branch'] = $ctx->cfg->repo->primaryBranch;
         $output->writeln(json_encode(
             $payload,
             \JSON_THROW_ON_ERROR | \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE,

@@ -64,9 +64,9 @@ final class Sync
     private function discover(ProjectConfig $cfg): array
     {
         $out = [];
-        foreach ($this->git->listWorktrees($cfg->repoPath) as $ref) {
-            if ((string) realpath($ref->path) !== (string) realpath($cfg->repoPath)
-                && $ref->branch !== $cfg->primaryBranch) {
+        foreach ($this->git->listWorktrees($cfg->repo->path) as $ref) {
+            if ((string) realpath($ref->path) !== (string) realpath($cfg->repo->path)
+                && $ref->branch !== $cfg->repo->primaryBranch) {
                 $out[] = $ref;
             }
         }
@@ -106,7 +106,7 @@ final class Sync
                 continue;
             }
             $base = $pr->baseRefName;
-            if (null !== $base && '' !== $base && $base !== $cfg->primaryBranch) {
+            if (null !== $base && '' !== $base && $base !== $cfg->repo->primaryBranch) {
                 $baseByBranch[$branch] = $base;
             }
         }
@@ -117,7 +117,7 @@ final class Sync
     /** @return array<int, SyncReport> */
     public function syncProject(ProjectConfig $cfg, Store $store, ?bool $apply, ?AgentLauncherInterface $agents = null): array
     {
-        $effectiveApply = $apply ?? $cfg->syncAutoApply;
+        $effectiveApply = $apply ?? $cfg->sync->autoApply;
         $reports = [];
         $branches = [];
         $byBranch = [];
@@ -155,11 +155,11 @@ final class Sync
                     $reports[] = $this->git->syncWorktree(
                         $path,
                         $branch,
-                        $cfg->primaryBranch,
-                        $cfg->syncStrategy,
+                        $cfg->repo->primaryBranch,
+                        $cfg->sync->strategy,
                         $effectiveApply,
                         base: $stacked[$branch] ?? null,
-                        remote: $cfg->primaryRemote,
+                        remote: $cfg->repo->primaryRemote,
                     );
                 } finally {
                     $lock->release();
@@ -198,7 +198,7 @@ final class Sync
                 $report->agentHandle = null !== $sessionId ? $runtime->sessions()->handle($sessionId) : 'launched';
             }
         }
-        $log = $this->saveLastLog($cfg->name, $cfg->syncStrategy, $reports);
+        $log = $this->saveLastLog($cfg->name, $cfg->sync->strategy, $reports);
         // Best-effort (never throws): a lost history line must not fail the sync.
         $this->history->append(new SyncRun($log, $effectiveApply));
 
@@ -243,13 +243,13 @@ final class Sync
      */
     public function buildConflictAgentPrompt(SyncReport $report, ProjectConfig $cfg): string
     {
-        $remote = $cfg->primaryRemote;
-        $primaryTarget = $remote.'/'.$cfg->primaryBranch;
+        $remote = $cfg->repo->primaryRemote;
+        $primaryTarget = $remote.'/'.$cfg->repo->primaryBranch;
         $target = '' !== $report->target ? $report->target : $primaryTarget;
-        $stacked = $target !== $primaryTarget && $target !== $cfg->primaryBranch;
+        $stacked = $target !== $primaryTarget && $target !== $cfg->repo->primaryBranch;
         $lines = [
             "PABLO sync hit rebase conflicts on branch `{$report->branch}`.",
-            "Rebase onto `{$target}` using strategy `{$cfg->syncStrategy}` was aborted.",
+            "Rebase onto `{$target}` using strategy `{$cfg->sync->strategy}` was aborted.",
             'The worktree is clean — you must re-run the rebase yourself.',
             '',
             '1. `git fetch --prune '.implode(' ', array_unique([$remote, 'origin'])).'`',

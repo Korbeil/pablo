@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Pablo\Tests\Dashboard;
 
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Dashboard\RebaseLogView;
 use Pablo\Provider\Git\RebaseLog;
 use Pablo\Provider\Git\Sync;
@@ -51,19 +55,22 @@ final class RebaseLogViewTest extends TestCase
         return new ProjectConfig(
             name: $name,
             type: 'work',
-            repoPath: '/tmp/'.$name,
-            primaryBranch: 'main',
-            worktreesRoot: '/tmp/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'PR',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 720,
-            pollInterval: 10,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: '/tmp/'.$name,
+                primaryBranch: 'main',
+                worktreesRoot: '/tmp/wt',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 720,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
         );

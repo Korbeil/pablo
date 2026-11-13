@@ -5,7 +5,13 @@ declare(strict_types=1);
 namespace Pablo\Tests\Poller;
 
 use Pablo\Agents\SessionInfo;
+use Pablo\Config\HooksConfig;
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TestingConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\DisplayCache;
@@ -189,22 +195,28 @@ final class PollerTest extends TestCase
         return new ProjectConfig(
             name: 'proj',
             type: 'work',
-            repoPath: $tmp.'/repo',
-            primaryBranch: 'main',
-            worktreesRoot: $tmp.'/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'PR',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: 'qa-failed',
-            testingEnabled: $testingEnabled,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $tmp.'/repo',
+                primaryBranch: 'main',
+                worktreesRoot: $tmp.'/wt',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
+            testing: new TestingConfig(
+                enabled: $testingEnabled,
+                failureSignal: 'qa-failed',
+            ),
         );
     }
 
@@ -771,22 +783,16 @@ final class PollerTest extends TestCase
         $cfg = new ProjectConfig(
             name: $base->name,
             type: $base->type,
-            repoPath: $base->repoPath,
-            primaryBranch: $base->primaryBranch,
-            worktreesRoot: $base->worktreesRoot,
-            provider: $base->provider,
-            identity: $base->identity,
-            projectKey: $base->projectKey,
-            syncStrategy: $base->syncStrategy,
-            syncAutoApply: $base->syncAutoApply,
-            syncInterval: $base->syncInterval,
-            pollInterval: $base->pollInterval,
-            failureSignal: $base->failureSignal,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: $base->repo,
+            tracker: $base->tracker,
+            sync: $base->sync,
+            statePolling: new StatePollingConfig($base->statePolling->intervalMinutes),
             defaultModel: $base->defaultModel,
             prDescriptionLocale: 'en',
-            hookCommand: 'notify',
+            testing: $base->testing,
+            hooks: new HooksConfig(
+                command: 'notify',
+            ),
         );
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::InProgress));
@@ -919,22 +925,28 @@ final class PollerTest extends TestCase
         $cfg = new ProjectConfig(
             name: 'proj',
             type: 'work',
-            repoPath: $e['tmp'].'/repo',
-            primaryBranch: 'main',
-            worktreesRoot: $e['tmp'].'/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'PR',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: 'qa-failed',
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $e['tmp'].'/repo',
+                primaryBranch: 'main',
+                worktreesRoot: $e['tmp'].'/wt',
+                startupScript: '/setup.sh',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
-            startupScript: '/setup.sh',
+            testing: new TestingConfig(
+                failureSignal: 'qa-failed',
+            ),
         );
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::InProgress));
@@ -957,22 +969,28 @@ final class PollerTest extends TestCase
         $cfg = new ProjectConfig(
             name: 'proj',
             type: 'work',
-            repoPath: $e['tmp'].'/repo',
-            primaryBranch: 'main',
-            worktreesRoot: $e['tmp'].'/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'PR',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: 'qa-failed',
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $e['tmp'].'/repo',
+                primaryBranch: 'main',
+                worktreesRoot: $e['tmp'].'/wt',
+                startupScript: '/setup.sh',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
-            startupScript: '/setup.sh',
+            testing: new TestingConfig(
+                failureSignal: 'qa-failed',
+            ),
         );
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::InProgress));
@@ -992,22 +1010,28 @@ final class PollerTest extends TestCase
         $cfg = new ProjectConfig(
             name: 'proj',
             type: 'work',
-            repoPath: $e['tmp'].'/repo',
-            primaryBranch: 'main',
-            worktreesRoot: $e['tmp'].'/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'PR',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: 'qa-failed',
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $e['tmp'].'/repo',
+                primaryBranch: 'main',
+                worktreesRoot: $e['tmp'].'/wt',
+                startupScript: '/setup.sh',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
-            startupScript: '/setup.sh',
+            testing: new TestingConfig(
+                failureSignal: 'qa-failed',
+            ),
         );
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::InProgress));
