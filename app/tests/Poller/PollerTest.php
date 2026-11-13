@@ -117,8 +117,6 @@ final class PollerTest extends TestCase
         $this->agents = new FakeAgents();
         $this->stubs = [
             'ci' => 'pending',
-            'merged' => false,
-            'verdict' => null,
             'sessions' => [],
             'events' => [],
             'removed' => [],
@@ -128,8 +126,6 @@ final class PollerTest extends TestCase
         ];
         $this->gh = new \Pablo\Tests\FakeGhPr();
         $this->gh->onCiStatus = fn () => $this->stubs['ci'];
-        $this->gh->isMergedOverride = fn () => $this->stubs['merged'];
-        $this->gh->evaluateReviewsOverride = fn () => $this->stubs['verdict'];
         $this->git = new \Pablo\Tests\FakeGit();
         $this->runner = new \Pablo\Tests\FakeProcessRunner();
         $this->providers = new class($this->provider) implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
@@ -302,7 +298,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::WaitingReview));
         $this->stubs['ci'] = 'red';
-        $this->stubs['verdict'] = 'approved';
+        $this->gh->verdict = 'approved';
         $this->poll($cfg, $store);
         $this->assertSame(State::CiRed, $this->taskOrFail($store)->state);
         $this->assertSame(['ci-analyst'], $this->agents->launch);
@@ -315,7 +311,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::WaitingReview));
         $this->stubs['ci'] = 'green';
-        $this->stubs['verdict'] = 'approved';
+        $this->gh->verdict = 'approved';
         $this->poll($cfg, $store);
         $this->assertSame(State::NeedsTesting, $this->taskOrFail($store)->state);
         $this->assertNotNull($this->taskOrFail($store)->needsTestingEnteredAt);
@@ -328,7 +324,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::WaitingReview));
         $this->stubs['ci'] = 'green';
-        $this->stubs['verdict'] = 'approved';
+        $this->gh->verdict = 'approved';
         $this->poll($cfg, $store);
         $this->assertSame(State::Approved, $this->taskOrFail($store)->state);
         $this->assertNull($this->taskOrFail($store)->needsTestingEnteredAt);
@@ -341,7 +337,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::WaitingReview));
         $this->stubs['ci'] = 'green';
-        $this->stubs['verdict'] = 'approved';
+        $this->gh->verdict = 'approved';
         $this->poll($cfg, $store);
         $this->assertSame(State::Approved, $this->taskOrFail($store)->state);
 
@@ -371,7 +367,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::WaitingReview));
         $this->stubs['ci'] = 'green';
-        $this->stubs['verdict'] = 'changes';
+        $this->gh->verdict = 'changes';
         $this->poll($cfg, $store);
         $this->assertSame(State::RequestChanges, $this->taskOrFail($store)->state);
         $this->assertSame(['pr-feedback'], $this->agents->launch);
@@ -384,7 +380,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::RequestChanges));
         $this->setLaunch($store, 'pr-feedback', finishedAt: '2026-07-22T00:00:00+00:00', reported: true);
-        $this->stubs['verdict'] = null; // comment review cleared: all threads resolved
+        $this->gh->verdict = null; // comment review cleared: all threads resolved
         $this->poll($cfg, $store);
         // ready-to-review is momentary: PR marked ready, task settles in waiting-review.
         $this->assertSame(State::WaitingReview, $this->taskOrFail($store)->state);
@@ -398,7 +394,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::RequestChanges));
         $this->setLaunch($store, 'pr-feedback', finishedAt: null);
-        $this->stubs['verdict'] = null;
+        $this->gh->verdict = null;
         $this->poll($cfg, $store);
         $this->assertSame(State::RequestChanges, $this->taskOrFail($store)->state);
         $this->assertSame([], $this->gh->readies);
@@ -411,7 +407,7 @@ final class PollerTest extends TestCase
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::RequestChanges));
         $this->setLaunch($store, 'pr-feedback', finishedAt: '2026-07-22T00:00:00+00:00', reported: true);
-        $this->stubs['verdict'] = 'changes';
+        $this->gh->verdict = 'changes';
         $this->poll($cfg, $store);
         $this->assertSame(State::RequestChanges, $this->taskOrFail($store)->state);
         $this->assertSame([], $this->gh->readies);
@@ -528,11 +524,11 @@ final class PollerTest extends TestCase
         $store->save($this->task($e['tmp'], State::Waiting));
         $this->setState($store, State::Waiting, ['stateBeforeWaiting' => State::WaitingReview]);
         $this->stubs['ci'] = 'red';
-        $this->stubs['verdict'] = 'changes';
+        $this->gh->verdict = 'changes';
         $this->poll($cfg, $store);
         $this->assertSame(State::Waiting, $this->taskOrFail($store)->state);
 
-        $this->stubs['merged'] = true;
+        $this->gh->merged = true;
         $this->poll($cfg, $store);
         $this->assertNull($this->getTask($store));
         $this->assertSame(['pr-1'], array_column($this->git->removed, 1));
@@ -544,7 +540,7 @@ final class PollerTest extends TestCase
         $cfg = $this->cfg($e['tmp']);
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp']));
-        $this->stubs['merged'] = true;
+        $this->gh->merged = true;
         $this->git->removeThrows = 'git worktree remove failed: fatal: not a working tree';
         $events = $this->poll($cfg, $store);
         $this->assertNull($this->getTask($store));
@@ -557,7 +553,7 @@ final class PollerTest extends TestCase
         $cfg = $this->cfg($e['tmp']);
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp']));
-        $this->stubs['merged'] = true;
+        $this->gh->merged = true;
         $this->agents->active = [new SessionInfo('a', 'running')];
         $this->poll($cfg, $store);
         $this->assertTrue($this->taskOrFail($store)->merged);
@@ -578,7 +574,7 @@ final class PollerTest extends TestCase
         $cfg = $this->cfg($e['tmp']);
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp']));
-        $this->stubs['merged'] = true;
+        $this->gh->merged = true;
 
         // No active agent sessions: the poller takes the immediate-close
         // branch, and the emitted task_closed event must carry merged=true.
@@ -642,7 +638,7 @@ final class PollerTest extends TestCase
         $cfg = $this->cfg($e['tmp']);
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp'], State::Closed));
-        $this->stubs['merged'] = true;
+        $this->gh->merged = true;
 
         $this->poll($cfg, $store);
 
@@ -730,7 +726,7 @@ final class PollerTest extends TestCase
         $cfg = $this->cfg($e['tmp']);
         $store = new Store($e['tmp'].'/state');
         $store->save($this->task($e['tmp']));
-        $this->stubs['merged'] = true;
+        $this->gh->merged = true;
         $this->poll($cfg, $store);
         $this->assertNull($this->getTask($store));
     }
@@ -1088,7 +1084,7 @@ final class PollerTest extends TestCase
         $store->save($this->task($e['tmp'], State::WaitingReview));
         $this->setState($store, State::WaitingReview, ['ciIgnored' => true]);
         $this->stubs['ci'] = 'red';
-        $this->stubs['verdict'] = null;
+        $this->gh->verdict = null;
         $this->poll($cfg, $store);
         $this->assertSame(State::WaitingReview, $this->taskOrFail($store)->state);
         $this->assertSame([], $this->agents->launch);

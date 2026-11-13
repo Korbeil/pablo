@@ -29,34 +29,22 @@ interface GhPrInterface
      */
     public function prsForBranchesBulk(array $repoBranches): array;
 
-    /**
-     * @param list<CiCheck> $rollup
-     * @param list<string>  $ignoreChecks
-     */
-    public function evaluateCi(array $rollup, array $ignoreChecks = []): string;
-
     /** @param list<string> $ignoreChecks */
     public function ciStatus(string $repoSlug, int $prNumber, array $ignoreChecks = []): string;
 
-    public function readyAnchor(string $repoSlug, int $prNumber): \DateTimeImmutable;
-
-    public function fetchReviews(string $repoSlug, int $prNumber): PrReviews;
-
     /**
-     * @param list<ReviewNode>   $reviews
-     * @param list<ReviewThread> $threads      — unresolved threads keep a comment
-     *                                         review counting as changes; a comment review whose
-     *                                         threads are all resolved and whose body is empty
-     *                                         counts as addressed
-     * @param list<string>       $botWhitelist
+     * The review verdict since GitHub's last "ready for review" event, by
+     * the rules of ReviewVerdict::evaluate().
+     *
+     * @param list<string> $botWhitelist
+     *
+     * @return ReviewVerdict::APPROVED|ReviewVerdict::CHANGES|null
      */
-    public function evaluateReviews(array $reviews, array $threads, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string;
+    public function reviewVerdict(string $repoSlug, int $prNumber, array $botWhitelist): ?string;
 
     public function markReady(string $repoSlug, int $prNumber): void;
 
     public function markDraft(string $repoSlug, int $prNumber): void;
-
-    public function isMerged(string $repoSlug, int $prNumber): bool;
 
     /** OPEN | CLOSED | MERGED (a PR with a mergedAt is MERGED whatever its state says). */
     public function prState(string $repoSlug, int $prNumber): string;

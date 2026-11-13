@@ -102,7 +102,7 @@ final class RepairMergeFlagsCommand extends Command
                 $prNumber = (int) $event['pr_number'];
                 $key = $slug.'#'.$prNumber;
                 try {
-                    $isMerged = $mergedCache[$key] ??= $this->gh->isMerged($slug, $prNumber);
+                    $isMerged = $mergedCache[$key] ??= 'MERGED' === $this->gh->prState($slug, $prNumber);
                 } catch (\Throwable $e) {
                     $output->writeln("<comment>skip {$project}#{$prNumber}: {$e->getMessage()}</comment>");
                     ++$perProject[$project]['skipped'];

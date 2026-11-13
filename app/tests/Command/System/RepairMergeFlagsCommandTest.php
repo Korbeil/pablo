@@ -62,7 +62,7 @@ final class RepairMergeFlagsCommandTest extends CommandTestBed
         $this->writeEvent('2026-08', ['type' => 'state_entered', 'branch' => 'wk-45', 'from' => 'draft', 'to' => 'ci-red']);
         $this->writeEvent('2026-08', ['type' => 'task_closed', 'branch' => 'wk-47', 'merged' => false, 'pr_number' => null]);
         // Genuinely unmerged PR must stay untouched.
-        $this->gh->isMergedOverride = static fn (string $slug, int $pr): bool => 7 === $pr;
+        $this->gh->prStateOverride = static fn (string $slug, int $pr): string => 7 === $pr ? 'MERGED' : 'OPEN';
 
         $command = new RepairMergeFlagsCommand($this->gh, $this->repoSlug, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
         $tester = $this->runCommand($command);
@@ -85,7 +85,7 @@ final class RepairMergeFlagsCommandTest extends CommandTestBed
     public function testDryRunLeavesFilesUntouched(): void
     {
         $this->writeEvent('2026-07', ['type' => 'task_closed', 'branch' => 'wk-45', 'merged' => false, 'pr_number' => 7]);
-        $this->gh->isMergedOverride = static fn (): bool => true;
+        $this->gh->merged = true;
 
         $command = new RepairMergeFlagsCommand($this->gh, $this->repoSlug, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
         $tester = $this->runCommand($command, ['--dry-run' => true]);
