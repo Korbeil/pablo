@@ -61,6 +61,32 @@ final class ConfigSchema
     }
 
     /**
+     * The problem with $value as the value of the dotted $keyPath of $scope
+     * ("must be …", what follows the key in a message), null when valid or
+     * unset: for the code reading a deferred key, so its error is worded as
+     * validate and the doctor word it.
+     *
+     * @throws \LogicException when $keyPath is not a key of $scope
+     */
+    public static function valueError(string $scope, string $keyPath, mixed $value): ?string
+    {
+        $node = null;
+        $children = self::root($scope);
+        foreach (explode('.', $keyPath) as $part) {
+            $node = $children[$part] ?? throw new \LogicException("unknown {$scope} config key {$keyPath}");
+            $children = $node->children ?? [];
+        }
+        if (null === $value) {
+            return null;
+        }
+        if (null !== $node->children) {
+            return \is_array($value) && ([] === $value || !array_is_list($value)) ? null : "must be {$node->mapping}, got ".self::show($value);
+        }
+
+        return null !== $node->check ? ($node->check)($value) : null;
+    }
+
+    /**
      * Whether the dotted $path is a key of $scope.
      */
     public static function knows(string $scope, string $path): bool

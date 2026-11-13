@@ -21,14 +21,13 @@ final class TrackerConfig
     }
 
     /**
-     * @param array<string, mixed> $project
+     * @param array<string, mixed> $project already checked by ConfigSchema (see Config)
      */
     public static function fromYaml(array $project, string $file): self
     {
-        $provider = (string) ConfigValues::required($project, 'issue_tracker.provider', $file);
-        if (!\in_array($provider, Config::PROVIDERS, true)) {
-            throw new PabloError(\sprintf('%s: unknown provider %s (expected one of %s)', $file, var_export($provider, true), '["github", "jira", "linear"]'));
-        }
+        // One of Config::PROVIDERS (checked by the schema), when set.
+        $provider = (string) (ConfigValues::required($project, 'issue_tracker.provider', $file)
+            ?? throw new PabloError("{$file}: missing required key 'issue_tracker.provider'"));
         $identity = (string) ConfigValues::required($project, 'issue_tracker.identity', $file);
         $projectKey = $project['issue_tracker']['project_key'] ?? null;
         if (null === $projectKey) {

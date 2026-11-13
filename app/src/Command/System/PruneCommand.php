@@ -43,7 +43,7 @@ final class PruneCommand extends Command
     {
         $days = $input->getOption('older-than');
         if (null === $days) {
-            $days = $this->globalConfig->pruneKeepDays(Pruner::DEFAULT_KEEP_DAYS, Pruner::MIN_KEEP_DAYS);
+            $days = $this->globalConfig->pruneKeepDays(Pruner::DEFAULT_KEEP_DAYS);
         } elseif (!\is_string($days) || 1 !== preg_match('/^\d+$/', $days) || (int) $days < Pruner::MIN_KEEP_DAYS) {
             throw new PabloError('--older-than must be a whole number of days, at least '.Pruner::MIN_KEEP_DAYS);
         } else {

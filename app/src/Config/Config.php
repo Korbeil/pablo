@@ -112,10 +112,7 @@ final class Config
      */
     public function loadProjectFile(string $path, ?array $defaults = null): ProjectConfig
     {
-        $defaults ??= $this->global->defaults();
-        $this->checkGlobalDefaults($defaults);
-
-        return $this->parseProject($path, $defaults);
+        return $this->parseProject($path, $defaults ?? $this->global->defaults());
     }
 
     /**
@@ -135,7 +132,6 @@ final class Config
         }
         // Global config errors affect every project: fatal, never per file.
         $defaults = $this->global->defaults();
-        $this->checkGlobalDefaults($defaults);
 
         $projects = [];
         $paths = [];
@@ -196,23 +192,6 @@ final class Config
         return array_values(array_unique($names));
     }
 
-    /**
-     * Checks on ~/.pablo/config.yaml alone: they would fail every project.
-     *
-     * @param array<string, mixed> $defaults
-     */
-    private function checkGlobalDefaults(array $defaults): void
-    {
-        $byType = \is_array($defaults['default_model_by_type'] ?? null) ? $defaults['default_model_by_type'] : [];
-        foreach (array_keys($byType) as $typeKey) {
-            if (!\in_array((string) $typeKey, self::PROJECT_TYPES, true)) {
-                throw new PabloError(\sprintf('config.yaml: default_model_by_type has unknown type %s (expected one of ["open-source", "personal", "work"])', var_export((string) $typeKey, true)));
-            }
-        }
-        // The global hooks block on its own: an error there is every project's.
-        HooksConfig::fromYaml([], $defaults, 'config.yaml');
-    }
-
     /** @return array<string, mixed> */
     public function loadYaml(string $path): array
     {
@@ -243,17 +222,15 @@ final class Config
         }
 
         $projectName = (string) ConfigValues::required($data, 'name', $file);
-        $type = (string) ConfigValues::required($data, 'type', $file);
-        if (!\in_array($type, self::PROJECT_TYPES, true)) {
-            throw new PabloError(\sprintf('%s: unknown type %s (expected one of %s)', $file, var_export($type, true), '["open-source", "personal", "work"]'));
-        }
+        // Its value is one of PROJECT_TYPES (checked by the schema), when set.
+        $type = (string) (ConfigValues::required($data, 'type', $file) ?? throw new PabloError("{$file}: missing required key 'type'"));
 
         return new ProjectConfig(
             name: $projectName,
             type: $type,
             repo: RepoConfig::fromYaml($data, $file),
             tracker: TrackerConfig::fromYaml($data, $file),
-            sync: SyncConfig::fromYaml($data, $defaults, $file),
+            sync: SyncConfig::fromYaml($data, $defaults),
             statePolling: StatePollingConfig::fromYaml($data, $defaults),
             defaultModel: $this->defaultModel($data, $defaults, $type, $file),
             prDescriptionLocale: $this->prDescriptionLocale($data, $defaults),
@@ -261,7 +238,7 @@ final class Config
             ci: CiConfig::fromYaml($data, $defaults),
             testing: TestingConfig::fromYaml($data, $defaults),
             mainUpdate: MainUpdateConfig::fromYaml($data, $defaults),
-            hooks: HooksConfig::fromYaml($data, $defaults, $file),
+            hooks: HooksConfig::fromYaml($data, $defaults),
             branchPrefix: $this->branchPrefix($data, $defaults),
             confluenceSpace: $data['confluence']['space'] ?? null,
         );
@@ -305,7 +282,7 @@ final class Config
             throw new PabloError('no value for pr_description_locale — set it in the project config or ~/.pablo/config.yaml');
         }
 
-        return $locale;
+        return (string) $locale;
     }
 
     /**

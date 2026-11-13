@@ -19,16 +19,17 @@ final class SyncConfig
     }
 
     /**
+     * Both arrays are already checked by ConfigSchema (see Config).
+     *
      * @param array<string, mixed> $project
      * @param array<string, mixed> $defaults
      */
-    public static function fromYaml(array $project, array $defaults, string $file): self
+    public static function fromYaml(array $project, array $defaults): self
     {
         $interval = ConfigValues::merged($project, $defaults, 'sync', 'interval_minutes');
-        $strategy = ConfigValues::merged($project, $defaults, 'sync', 'strategy');
-        if (!\in_array($strategy, ['rebase', 'merge'], true)) {
-            throw new PabloError(\sprintf('%s: sync.strategy must be \'rebase\' or \'merge\', got %s', $file, var_export($strategy, true)));
-        }
+        // 'rebase' or 'merge' (checked by the schema), when set.
+        $strategy = ConfigValues::merged($project, $defaults, 'sync', 'strategy')
+            ?? throw new PabloError('no value for sync.strategy — set it in the project config or ~/.pablo/config.yaml');
 
         return new self(
             strategy: (string) $strategy,
