@@ -15,6 +15,37 @@ use Pablo\Support\Json;
 final class AnalyticsReader
 {
     /**
+     * The events `pablo stats` and the /analytics page aggregate, oldest
+     * first: those of $project (all projects when null), not older than
+     * $since (an event without a timestamp is kept; a malformed one counts
+     * as the epoch), and, with $allowedProjects, only those projects' —
+     * the type filter, resolved by the caller through
+     * Dashboard::filterByType().
+     *
+     * @param list<string>|null $allowedProjects
+     *
+     * @return list<AnalyticsEvent>
+     */
+    public function events(?string $project = null, ?\DateTimeImmutable $since = null, ?array $allowedProjects = null): array
+    {
+        $cutoff = $since?->getTimestamp();
+        $allowed = null !== $allowedProjects ? array_fill_keys($allowedProjects, true) : null;
+        $events = [];
+        foreach ($this->read($project, $since) as $payload) {
+            $event = AnalyticsEvent::fromEvent($payload);
+            if (null !== $cutoff && '' !== $event->ts() && $event->timestamp() < $cutoff) {
+                continue;
+            }
+            if (null !== $allowed && !isset($allowed[$event->project()])) {
+                continue;
+            }
+            $events[] = $event;
+        }
+
+        return $events;
+    }
+
+    /**
      * All recorded events, oldest first. With $since, monthly files
      * (<YYYY-MM>.jsonl, named after the UTC month they were written in) that
      * end before $since's month are not even opened; the caller still filters

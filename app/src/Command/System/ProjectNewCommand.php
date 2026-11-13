@@ -26,6 +26,11 @@ use Symfony\Component\Yaml\Yaml;
 #[AsCommand(name: 'project:new', description: 'interactively scaffold a new project config in ~/.pablo/projects/')]
 final class ProjectNewCommand extends Command
 {
+    /** The run's console, set by doExecute() for the ask*() helpers. */
+    private QuestionHelper $questions;
+    private InputInterface $input;
+    private OutputInterface $output;
+
     public function __construct(
         private readonly GitRepoInterface $git,
         Store $store,
@@ -38,25 +43,26 @@ final class ProjectNewCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $helper = new QuestionHelper();
+        $this->questions = new QuestionHelper();
+        $this->input = $input;
+        $this->output = $output;
 
         $cwd = (string) getcwd();
         $detectedRepo = $this->detectedRepoRoot($cwd);
 
         // 1. Repo path
-        $repoPath = $this->askRepoPath($helper, $input, $output, $detectedRepo);
+        $repoPath = $this->askRepoPath($detectedRepo);
         $repoDir = basename($repoPath);
         $detectedBranch = $this->detectedPrimaryBranch($repoPath);
 
         // 2. Project name
-        $projectName = $this->askProjectName($helper, $input, $output, $repoDir);
-        $name = $projectName;
+        $name = $this->askProjectName($repoDir);
 
         // 3. Type
-        $type = $this->askType($helper, $input, $output);
+        $type = $this->askType();
 
         // 4. Provider
-        $provider = $this->askProvider($helper, $input, $output);
+        $provider = $this->askProvider();
 
         // 5. Provider-conditional fields
         $site = null;
@@ -64,14 +70,14 @@ final class ProjectNewCommand extends Command
         $issueRepo = null;
 
         if ('jira' === $provider) {
-            $site = $this->askOptional($helper, $input, $output, 'Jira site (e.g. acme.atlassian.net)', 'acme.atlassian.net');
-            $confluenceSpace = $this->askOptional($helper, $input, $output, 'Confluence space (optional)', null);
+            $site = $this->askOptional('Jira site (e.g. acme.atlassian.net)', 'acme.atlassian.net');
+            $confluenceSpace = $this->askOptional('Confluence space (optional)', null);
         } elseif ('linear' === $provider) {
-            $confluenceSpace = $this->askOptional($helper, $input, $output, 'Confluence space (optional)', null);
+            $confluenceSpace = $this->askOptional('Confluence space (optional)', null);
         } elseif ('github' === $provider) {
             $remoteUrl = $this->git->originUrl($repoPath);
             $defaultIssueRepo = null !== $remoteUrl ? $this->originToSlug($remoteUrl) : null;
-            $issueRepo = $this->askOptional($helper, $input, $output, 'Issue repo (e.g. acme/upstream, optional)', $defaultIssueRepo);
+            $issueRepo = $this->askOptional('Issue repo (e.g. acme/upstream, optional)', $defaultIssueRepo);
         }
 
         // 5b. Git sync remote (fork only: sync against the upstream remote)
@@ -81,29 +87,43 @@ final class ProjectNewCommand extends Command
         $originSlug = null !== $remoteUrl ? $this->originToSlug($remoteUrl) : null;
         $isFork = null !== $issueRepo && null !== $originSlug && $issueRepo !== $originSlug;
         $primaryRemote = $isFork
-            ? ($this->askOptional($helper, $input, $output, 'Primary git remote for sync (e.g. "upstream" when origin is a fork, optional)', 'origin') ?? 'origin')
+            ? ($this->askOptional('Primary git remote for sync (e.g. "upstream" when origin is a fork, optional)', 'origin') ?? 'origin')
             : 'origin';
 
         // 6. Project key
-        $projectKey = $this->askProjectKey($helper, $input, $output, strtoupper($projectName), $provider);
+        $projectKey = $this->askProjectKey(strtoupper($name), $provider);
 
         // 7. Provider identity
         $defaultEmail = $this->git->userEmail($repoPath) ?? '';
-        $identity = $this->askIdentity($helper, $input, $output, $defaultEmail);
+        $identity = $this->askIdentity($defaultEmail);
 
         // 8. Testing flow
-        $testingEnabled = $helper->ask($input, $output, new ConfirmationQuestion('[Y/n] Enable the QA/testing flow (needs-testing -> testing-failed)? ', true));
+        $testingEnabled = $this->ask(new ConfirmationQuestion('[Y/n] Enable the QA/testing flow (needs-testing -> testing-failed)? ', true));
         $failureSignal = null;
-        if ($testingEnabled && $helper->ask($input, $output, new ConfirmationQuestion('[y/N] Add a failure signal (for needs-testing -> testing-failed detection)? ', false))) {
+        if ($testingEnabled && $this->ask(new ConfirmationQuestion('[y/N] Add a failure signal (for needs-testing -> testing-failed detection)? ', false))) {
             $hint = 'github' === $provider ? 'a GitHub label name' : 'a Jira/Linear status value';
-            $failureSignal = $this->askRequired($helper, $input, $output, "Failure signal ({$hint})", null);
+            $failureSignal = $this->askRequired("Failure signal ({$hint})", null);
         }
 
         // Branch prefix (optional; falls back to ~/.pablo/config.yaml)
-        $branchPrefix = $this->askOptional($helper, $input, $output, 'Branch prefix (prepended to every branch, e.g. "pablo/", optional)', null);
+        $branchPrefix = $this->askOptional('Branch prefix (prepended to every branch, e.g. "pablo/", optional)', null);
 
-        // Build YAML
-        $yaml = $this->buildYaml($name, $type, $repoPath, $detectedBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix, $testingEnabled, $primaryRemote);
+        $yaml = Yaml::dump($this->projectConfig([
+            'name' => $name,
+            'type' => $type,
+            'repo_path' => $repoPath,
+            'primary_branch' => $detectedBranch,
+            'primary_remote' => $primaryRemote,
+            'provider' => $provider,
+            'identity' => $identity,
+            'project_key' => $projectKey,
+            'site' => $site,
+            'issue_repo' => $issueRepo,
+            'confluence_space' => $confluenceSpace,
+            'testing_enabled' => (bool) $testingEnabled,
+            'failure_signal' => $failureSignal,
+            'branch_prefix' => $branchPrefix,
+        ]), 4, 2);
 
         // 9. Confirm & write
         $output->writeln('');
@@ -111,7 +131,7 @@ final class ProjectNewCommand extends Command
         $output->writeln($yaml);
         $output->writeln('--------------------');
 
-        if (!$helper->ask($input, $output, new ConfirmationQuestion('[y/N] Write this config to ~/.pablo/projects/? ', false))) {
+        if (!$this->ask(new ConfirmationQuestion('[y/N] Write this config to ~/.pablo/projects/? ', false))) {
             $output->writeln('Aborted.');
 
             return self::SUCCESS;
@@ -170,7 +190,7 @@ final class ProjectNewCommand extends Command
         return $unique;
     }
 
-    private function askRepoPath(QuestionHelper $helper, InputInterface $input, OutputInterface $output, ?string $detectedRepo): string
+    private function askRepoPath(?string $detectedRepo): string
     {
         $default = $detectedRepo ?? '';
         $prompt = 'Repository path (local checkout)';
@@ -188,7 +208,7 @@ final class ProjectNewCommand extends Command
             return PabloPaths::expandTilde($v);
         });
 
-        $path = (string) $helper->ask($input, $output, $question);
+        $path = (string) $this->ask($question);
         if ('' === $path) {
             throw new PabloError('Repository path is required');
         }
@@ -196,7 +216,7 @@ final class ProjectNewCommand extends Command
         return rtrim($path, '/');
     }
 
-    private function askProjectName(QuestionHelper $helper, InputInterface $input, OutputInterface $output, string $default): string
+    private function askProjectName(string $default): string
     {
         $existing = array_keys($this->projectsLoader->loadProjects());
         $question = new Question('Project name ['.$default.'] ', $default);
@@ -215,28 +235,28 @@ final class ProjectNewCommand extends Command
             return $v;
         });
 
-        return (string) $helper->ask($input, $output, $question);
+        return (string) $this->ask($question);
     }
 
-    private function askType(QuestionHelper $helper, InputInterface $input, OutputInterface $output): string
+    private function askType(): string
     {
         $choices = Config::PROJECT_TYPES;
         $question = new ChoiceQuestion('Project type', $choices, 'work');
         $question->setErrorMessage('Invalid type %s');
 
-        return (string) $helper->ask($input, $output, $question);
+        return (string) $this->ask($question);
     }
 
-    private function askProvider(QuestionHelper $helper, InputInterface $input, OutputInterface $output): string
+    private function askProvider(): string
     {
         $choices = Config::PROVIDERS;
         $question = new ChoiceQuestion('Which issue tracker does your project use?', $choices, 'github');
         $question->setErrorMessage('Invalid provider %s');
 
-        return (string) $helper->ask($input, $output, $question);
+        return (string) $this->ask($question);
     }
 
-    private function askOptional(QuestionHelper $helper, InputInterface $input, OutputInterface $output, string $prompt, ?string $default): ?string
+    private function askOptional(string $prompt, ?string $default): ?string
     {
         $display = $prompt;
         $defaultVal = $default ?? '';
@@ -246,7 +266,7 @@ final class ProjectNewCommand extends Command
         $display .= ' ';
 
         $question = new Question($display, '' !== $defaultVal ? $defaultVal : null);
-        $answer = $helper->ask($input, $output, $question);
+        $answer = $this->ask($question);
         if (null === $answer || '' === trim((string) $answer)) {
             return null;
         }
@@ -254,7 +274,7 @@ final class ProjectNewCommand extends Command
         return trim((string) $answer);
     }
 
-    private function askRequired(QuestionHelper $helper, InputInterface $input, OutputInterface $output, string $prompt, ?string $default): string
+    private function askRequired(string $prompt, ?string $default): string
     {
         $display = $prompt;
         if (null !== $default && '' !== $default) {
@@ -272,83 +292,72 @@ final class ProjectNewCommand extends Command
             return $v;
         });
 
-        return (string) $helper->ask($input, $output, $question);
+        return (string) $this->ask($question);
     }
 
-    private function askProjectKey(QuestionHelper $helper, InputInterface $input, OutputInterface $output, string $default, string $provider): string
+    private function askProjectKey(string $default, string $provider): string
     {
         $required = \in_array($provider, ['jira', 'linear'], true);
         $prompt = $required ? 'Project key (issue key prefix)' : 'Project key (branch prefix)';
 
-        return $this->askRequired($helper, $input, $output, $prompt, $default);
+        return $this->askRequired($prompt, $default);
     }
 
-    private function askIdentity(QuestionHelper $helper, InputInterface $input, OutputInterface $output, string $default): string
+    private function askIdentity(string $default): string
     {
-        return $this->askRequired($helper, $input, $output, 'Provider identity (email)', $default);
+        return $this->askRequired('Provider identity (email)', $default);
     }
 
     /**
+     * The project file's content, keys in the order the YAML preview shows.
+     *
+     * @param array{name: string, type: string, repo_path: string, primary_branch: ?string, primary_remote: string, provider: string, identity: string, project_key: string, site: ?string, issue_repo: ?string, confluence_space: ?string, testing_enabled: bool, failure_signal: ?string, branch_prefix: ?string} $answers
+     *
      * @return array<string, mixed>
      */
-    private function buildStructure(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null, bool $testingEnabled = true, string $primaryRemote = 'origin'): array
+    private function projectConfig(array $answers): array
     {
         $data = [
-            'name' => $name,
-            'type' => $type,
+            'name' => $answers['name'],
+            'type' => $answers['type'],
             'repo' => [
-                'path' => $this->toHomeRelative($repoPath),
-                'primary_branch' => $primaryBranch ?? 'main',
+                'path' => PabloPaths::contractTilde($answers['repo_path']),
+                'primary_branch' => $answers['primary_branch'] ?? 'main',
             ],
             'issue_tracker' => [
-                'provider' => $provider,
-                'identity' => $identity,
-                'project_key' => $projectKey,
+                'provider' => $answers['provider'],
+                'identity' => $answers['identity'],
+                'project_key' => $answers['project_key'],
             ],
         ];
 
-        if (null !== $site) {
-            $data['issue_tracker']['site'] = $site;
+        if (null !== $answers['site']) {
+            $data['issue_tracker']['site'] = $answers['site'];
         }
-        if (null !== $issueRepo) {
-            $data['issue_tracker']['repo'] = $issueRepo;
+        if (null !== $answers['issue_repo']) {
+            $data['issue_tracker']['repo'] = $answers['issue_repo'];
         }
-        if (null !== $confluenceSpace) {
-            $data['confluence'] = ['space' => $confluenceSpace];
+        if (null !== $answers['confluence_space']) {
+            $data['confluence'] = ['space' => $answers['confluence_space']];
         }
-        if (!$testingEnabled) {
+        if (!$answers['testing_enabled']) {
             $data['testing'] = ['enabled' => false];
-        } elseif (null !== $failureSignal) {
-            $data['testing'] = ['failure_signal' => $failureSignal];
+        } elseif (null !== $answers['failure_signal']) {
+            $data['testing'] = ['failure_signal' => $answers['failure_signal']];
         }
-        if (null !== $branchPrefix) {
-            $data['branch_prefix'] = $branchPrefix;
+        if (null !== $answers['branch_prefix']) {
+            $data['branch_prefix'] = $answers['branch_prefix'];
         }
-        if ('origin' !== $primaryRemote) {
-            $data['repo']['primary_remote'] = $primaryRemote;
+        if ('origin' !== $answers['primary_remote']) {
+            $data['repo']['primary_remote'] = $answers['primary_remote'];
         }
 
         return $data;
     }
 
-    /**
-     * @param array<string, mixed> $data
-     */
-    private function dumpYaml(array $data): string
+    private function ask(Question $question): mixed
     {
-        return Yaml::dump($data, 4, 2);
-    }
-
-    private function buildYaml(string $name, string $type, string $repoPath, ?string $primaryBranch, string $provider, string $identity, string $projectKey, ?string $site, ?string $issueRepo, ?string $confluenceSpace, ?string $failureSignal, ?string $branchPrefix = null, bool $testingEnabled = true, string $primaryRemote = 'origin'): string
-    {
-        $data = $this->buildStructure($name, $type, $repoPath, $primaryBranch, $provider, $identity, $projectKey, $site, $issueRepo, $confluenceSpace, $failureSignal, $branchPrefix, $testingEnabled, $primaryRemote);
-
-        return $this->dumpYaml($data);
-    }
-
-    private function toHomeRelative(string $path): string
-    {
-        return PabloPaths::contractTilde($path);
+        return $this->questions->ask($this->input, $this->output, $question);
     }
 
     private function detectedRepoRoot(string $cwd): ?string

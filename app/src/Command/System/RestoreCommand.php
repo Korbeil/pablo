@@ -21,7 +21,6 @@ use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
-use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\ConfirmationQuestion;
 use Symfony\Component\Console\Question\Question;
@@ -104,8 +103,7 @@ final class RestoreCommand extends Command
     {
         $version = $manifest->version;
         if ($version > Backup::MANIFEST_VERSION) {
-            $err = $output instanceof ConsoleOutputInterface ? $output->getErrorOutput() : $output;
-            $err->writeln(\sprintf('backup manifest version %d is newer than this PABLO supports (%d) — upgrade PABLO first', $version, Backup::MANIFEST_VERSION));
+            $this->errorOutput($output)->writeln(\sprintf('backup manifest version %d is newer than this PABLO supports (%d) — upgrade PABLO first', $version, Backup::MANIFEST_VERSION));
 
             throw new PabloError('incompatible backup version');
         }

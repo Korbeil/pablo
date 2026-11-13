@@ -281,4 +281,13 @@ final class DashboardTest extends TestCase
 
         $this->assertSame(['oss-task'], $this->branches($board->rest));
     }
+
+    public function testFilterByTypeKeepsOnlyThatTypeAndEverythingForAll(): void
+    {
+        $projects = ['wallet-kit' => $this->cfg('wallet-kit', 'work'), 'home-lab' => $this->cfg('home-lab', 'personal')];
+
+        $this->assertSame(['home-lab'], array_keys(Dashboard::filterByType($projects, 'personal')));
+        $this->assertSame([], Dashboard::filterByType($projects, 'open-source'));
+        $this->assertSame($projects, Dashboard::filterByType($projects, ''));
+    }
 }

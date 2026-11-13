@@ -7,7 +7,6 @@ namespace Pablo\Command\Report;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AnalyticsAggregator;
-use Pablo\Analytics\AnalyticsEvent;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Command\Command;
@@ -17,6 +16,7 @@ use Pablo\Dashboard\Dashboard;
 use Pablo\Domain\Time;
 use Pablo\Listing\Listing;
 use Pablo\Store\Store;
+use Pablo\Support\Format;
 use Pablo\Support\Numbers;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -34,7 +34,8 @@ final class StatsCommand extends Command
 {
     use FormatsOutput;
 
-    private const STATS_FORMATS = [...self::FORMATS, 'csv'];
+    /** On top of FormatsOutput's table|json: a --by breakdown as CSV. */
+    private const EXTRA_FORMATS = ['csv'];
 
     public function __construct(
         private readonly AnalyticsReader $reader,
@@ -56,7 +57,7 @@ final class StatsCommand extends Command
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'restrict to one project', null, $this->suggestions()->projectCompleter())
             ->addOption('type', null, InputOption::VALUE_REQUIRED, 'restrict to one project type (work/open-source/personal)', '', Dashboard::TYPES)
             ->addOption('agent', null, InputOption::VALUE_REQUIRED, 'restrict the agents table to one agent')
-            ->addOption('format', null, InputOption::VALUE_REQUIRED, 'output format: table, json or csv (csv: a --by breakdown)', 'table', self::STATS_FORMATS)
+            ->addFormatOption(self::EXTRA_FORMATS, 'output format: table, json or csv (csv: a --by breakdown)')
             ->addOption('by', null, InputOption::VALUE_REQUIRED, 'break agent runs down by agent, project, model or task (csv defaults to agent)', null, AnalyticsAggregator::BREAKDOWNS)
             ->addOption('limit', null, InputOption::VALUE_REQUIRED, 'with --by: keep the N groups with the most tokens (0 = all)', '20');
     }
@@ -64,11 +65,7 @@ final class StatsCommand extends Command
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
         $days = max(0, (int) $input->getOption('days'));
-        // The shared table|json convention (FormatsOutput), plus csv for a breakdown.
-        $format = (string) $input->getOption('format');
-        if (!\in_array($format, self::STATS_FORMATS, true)) {
-            throw new PabloError(\sprintf("invalid --format '%s'; expected one of: %s", $format, implode(', ', self::STATS_FORMATS)));
-        }
+        $format = $this->outputFormat($input, self::EXTRA_FORMATS);
         $json = 'json' === $format;
         $by = (string) ($input->getOption('by') ?? '');
         if ('' !== $by && !\in_array($by, AnalyticsAggregator::BREAKDOWNS, true)) {
@@ -84,19 +81,15 @@ final class StatsCommand extends Command
             throw new PabloError(\sprintf("invalid --type '%s'; expected one of: %s", $typeFilter, implode(', ', array_filter(Dashboard::TYPES))));
         }
 
-        /** @var list<AnalyticsEvent> $events */
-        $events = [];
-        $since = $cutoffTs > 0 ? new \DateTimeImmutable('@'.$cutoffTs) : null;
-        foreach ($this->reader->read($projectFilter, $since) as $payload) {
-            $event = AnalyticsEvent::fromEvent($payload);
-            if ('' !== $event->ts() && $cutoffTs > 0 && $this->tsOf($event) < $cutoffTs) {
-                continue;
-            }
-            if ('' !== $typeFilter && !$this->projectHasType($event->project(), $typeFilter)) {
-                continue;
-            }
-            $events[] = $event;
-        }
+        // Same type predicate as the task board's tabs, so the CLI and the
+        // web page can never disagree about what a filter includes. Projects
+        // removed from config match no type: their history stays visible
+        // only without --type.
+        $events = $this->reader->events(
+            $projectFilter,
+            $cutoffTs > 0 ? new \DateTimeImmutable('@'.$cutoffTs) : null,
+            '' !== $typeFilter ? array_keys(Dashboard::filterByType($this->projects(), $typeFilter)) : null,
+        );
 
         if ('' !== $by) {
             $this->renderBreakdown($output, $format, $days, $by, $this->aggregator->runBreakdown(
@@ -185,13 +178,13 @@ final class StatsCommand extends Command
             $rows[] = [
                 $key,
                 (string) $g['runs'],
-                self::humanDuration($g['duration_s'], true),
-                self::humanDuration($g['avg_run_s']),
-                self::humanTokens($g['tokens_in']),
-                self::humanTokens($g['tokens_out']),
-                self::humanTokens($g['cache_read']),
-                self::humanTokens($g['cache_write']),
-                self::humanTokens($g['tokens_total']),
+                Format::duration($g['duration_s'], true),
+                Format::duration($g['avg_run_s']),
+                Format::tokens($g['tokens_in']),
+                Format::tokens($g['tokens_out']),
+                Format::tokens($g['cache_read']),
+                Format::tokens($g['cache_write']),
+                Format::tokens($g['tokens_total']),
                 null !== $g['cost'] && $g['cost'] > 0.0 ? \sprintf('%.2f', $g['cost']) : '-',
             ];
         }
@@ -219,9 +212,9 @@ final class StatsCommand extends Command
                 (string) $t['opened'],
                 (string) $t['closed'],
                 $t['closed'] > 0 ? $t['merge_rate_pct'].'%' : '-',
-                self::humanDuration(Numbers::int($t['avg_life_s']), true),
-                self::humanDuration(Numbers::int($t['p50_life_s']), true),
-                self::humanDuration(Numbers::int($t['p90_life_s']), true),
+                Format::duration(Numbers::int($t['avg_life_s']), true),
+                Format::duration(Numbers::int($t['p50_life_s']), true),
+                Format::duration(Numbers::int($t['p90_life_s']), true),
             ];
         }
         $output->write($this->listing->render(
@@ -248,13 +241,13 @@ final class StatsCommand extends Command
                 $name,
                 (string) $a['runs'],
                 (string) $a['starts'],
-                self::humanDuration((int) $a['avg_run_s']),
-                self::humanTokens((int) $a['tokens_in']),
-                self::humanTokens((int) $a['tokens_out']),
-                self::humanTokens((int) $a['context_tokens']),
+                Format::duration((int) $a['avg_run_s']),
+                Format::tokens((int) $a['tokens_in']),
+                Format::tokens((int) $a['tokens_out']),
+                Format::tokens((int) $a['context_tokens']),
                 $a['context_tokens'] > 0 ? $a['cache_hit_pct'].'%' : '-',
                 (float) $a['cost'] > 0.0 ? \sprintf('%.2f', $a['cost']) : '-',
-                self::humanDuration((int) $a['avg_user_wait_s'], false, (int) $a['avg_user_wait_s'] < 0),
+                Format::duration((int) $a['avg_user_wait_s'], false, (int) $a['avg_user_wait_s'] < 0),
             ];
         }
         $output->write($this->listing->render(
@@ -280,75 +273,9 @@ final class StatsCommand extends Command
             $rows[] = [
                 $state,
                 (string) $s['entries'],
-                self::humanDuration((int) $s['avg_dwell_s'], false, (int) $s['avg_dwell_s'] < 0),
+                Format::duration((int) $s['avg_dwell_s'], false, (int) $s['avg_dwell_s'] < 0),
             ];
         }
         $output->write($this->listing->render(['State', 'Entries', 'Avg dwell'], $rows));
-    }
-
-    // ------------------------------------------------------------ helpers ---
-
-    private function tsOf(AnalyticsEvent $event): int
-    {
-        try {
-            return $this->time->parseTs($event->ts())->getTimestamp();
-        } catch (\Exception) { // a malformed timestamp
-            return 0;
-        }
-    }
-
-    /**
-     * Same predicate as the task board's type tabs (Dashboard::projectsOfType),
-     * so the CLI and the web page can never disagree about what a filter
-     * includes. Projects removed from config match no type — their history
-     * stays visible only without --type.
-     */
-    private function projectHasType(string $project, string $type): bool
-    {
-        foreach ($this->projectsLoader->loadProjects() as $name => $cfg) {
-            if ($name === $project && $cfg->type === $type) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /** Compact human duration; -1 input renders as "-" (no data). */
-    public static function humanDuration(int $seconds, bool $allowDays = false, bool $noData = false): string
-    {
-        if ($noData || $seconds < 0) {
-            return '-';
-        }
-        if ($seconds < 60) {
-            return "{$seconds}s";
-        }
-        $minutes = (int) floor($seconds / 60);
-        if ($minutes < 60) {
-            return "{$minutes}m";
-        }
-        $hours = (int) floor($minutes / 60);
-        $remMinutes = $minutes % 60;
-        if ($hours < 48 || !$allowDays) {
-            return 0 === $remMinutes ? "{$hours}h" : "{$hours}h{$remMinutes}m";
-        }
-        $days = (int) floor($hours / 24);
-
-        return $days.'d'.($hours % 24).'h';
-    }
-
-    public static function humanTokens(int $tokens): string
-    {
-        if ($tokens >= 1_000_000) {
-            return \sprintf('%.1fM', $tokens / 1_000_000);
-        }
-        if ($tokens >= 10_000) {
-            return \sprintf('%.0fk', $tokens / 1_000);
-        }
-        if ($tokens >= 1_000) {
-            return \sprintf('%.1fk', $tokens / 1_000);
-        }
-
-        return (string) $tokens;
     }
 }

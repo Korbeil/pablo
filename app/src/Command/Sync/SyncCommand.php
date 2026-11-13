@@ -15,7 +15,6 @@ use Pablo\Provider\Git\SyncReport;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -39,7 +38,7 @@ final class SyncCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project', null, $this->suggestions()->projectCompleter())
+            ->addProjectArgument()
             ->addOption('apply', null, InputOption::VALUE_NONE, 'actually sync (default dry-run unless sync.auto_apply is set)')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'only report, even when sync.auto_apply is set')
             ->addFormatOption();
@@ -51,16 +50,7 @@ final class SyncCommand extends Command
             throw new PabloError('--apply and --dry-run are mutually exclusive');
         }
         $json = $this->wantsJson($input);
-        $projects = $this->projects();
-        $project = $input->getArgument('project') ?: null;
-        if (null !== $project) {
-            if (!isset($projects[$project])) {
-                throw $this->projectsLoader->unknownProject($project);
-            }
-            $projects = [$project => $projects[$project]];
-        } else {
-            $this->warnProjectErrors($output);
-        }
+        $projects = $this->selectedProjects($input, $output);
         $store = $this->store();
         $agents = $this->agents();
         // null defers to each project's sync.auto_apply.

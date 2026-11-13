@@ -36,6 +36,19 @@ final class AnalyticsEvent
         return (string) ($this->event['ts'] ?? '');
     }
 
+    /**
+     * The event's Unix timestamp; 0 when it is missing or malformed. Parsed
+     * like Time::parseTs(), the one reading every analytics consumer shares.
+     */
+    public function timestamp(): int
+    {
+        try {
+            return (new \DateTimeImmutable($this->ts()))->getTimestamp();
+        } catch (\Exception) { // a malformed timestamp
+            return 0;
+        }
+    }
+
     public function project(): string
     {
         return (string) ($this->event['project'] ?? '');

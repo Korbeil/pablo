@@ -12,7 +12,6 @@ use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
-use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -33,21 +32,14 @@ final class MainUpdateCommand extends Command
     protected function configure(): void
     {
         $this
-            ->addArgument('project', InputArgument::OPTIONAL, 'limit to one project (runs even when main_update.enabled is false)', null, $this->suggestions()->projectCompleter())
+            ->addProjectArgument('limit to one project (runs even when main_update.enabled is false)')
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'run every check and report what would happen, without touching the checkout (still fetches)');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $projects = $this->projects();
-        $project = $input->getArgument('project') ?: null;
-        if (null !== $project) {
-            if (!isset($projects[$project])) {
-                throw $this->projectsLoader->unknownProject($project);
-            }
-            $projects = [$project => $projects[$project]];
-        } else {
-            $this->warnProjectErrors($output);
+        $projects = $this->selectedProjects($input, $output);
+        if (!$input->getArgument('project')) {
             $projects = array_filter($projects, static fn ($cfg) => $cfg->mainUpdate->enabled);
         }
 

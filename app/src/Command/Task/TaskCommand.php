@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Command\Task;
 
 use Pablo\Command\Command;
+use Pablo\Command\FormatsOutput;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -13,6 +14,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'task:info', description: 'dump a task record (by default the cwd\'s) as JSON')]
 final class TaskCommand extends Command
 {
+    use FormatsOutput;
     use TargetsTask;
 
     public const CURRENT_ALIAS = 'current';
@@ -35,10 +37,7 @@ final class TaskCommand extends Command
         $payload = $ctx->task->toJson();
         $payload['repo_path'] = $ctx->cfg->repo->path;
         $payload['primary_branch'] = $ctx->cfg->repo->primaryBranch;
-        $output->writeln(json_encode(
-            $payload,
-            \JSON_THROW_ON_ERROR | \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE,
-        ));
+        $this->writeJson($output, $payload);
 
         return self::SUCCESS;
     }

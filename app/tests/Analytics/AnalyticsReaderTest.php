@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Analytics;
 
+use Pablo\Analytics\AnalyticsEvent;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
@@ -56,5 +57,29 @@ final class AnalyticsReaderTest extends TestCase
         // The month is taken in UTC: 2026-02-01T00:30+01:00 is still January.
         $this->assertSame(['legacy', 'jan', 'feb', 'mar'], array_column($reader->read(null, new \DateTimeImmutable('2026-02-01T00:30:00+01:00')), 'branch'));
         $this->assertSame(['mar'], array_column($reader->read('proj', new \DateTimeImmutable('2026-03-01T00:00:00+00:00')), 'branch'));
+    }
+
+    public function testEventsApplyTheWindowAndTheAllowedProjects(): void
+    {
+        $reader = new AnalyticsReader();
+        $branches = static fn (array $events): array => array_map(static fn (AnalyticsEvent $e): string => $e->branch(), $events);
+
+        $this->assertSame(['legacy', 'jan', 'feb', 'mar'], $branches($reader->events()));
+        // February's file is read (it overlaps the window), its older event dropped.
+        $this->assertSame(['mar'], $branches($reader->events(null, new \DateTimeImmutable('2026-02-20T00:00:00+00:00'))));
+        $this->assertSame(['legacy', 'feb'], $branches($reader->events(null, null, ['other'])));
+        $this->assertSame([], $reader->events('proj', null, ['other']));
+    }
+
+    public function testEventsKeepAnEventWithoutTimestampAndDropAMalformedOneFromAWindow(): void
+    {
+        file_put_contents($this->root.'/proj/2026-03.jsonl', json_encode(['type' => 'task_opened', 'project' => 'proj', 'branch' => 'no-ts'])."\n", \FILE_APPEND);
+        file_put_contents($this->root.'/proj/2026-03.jsonl', json_encode(['ts' => 'garbage', 'type' => 'task_opened', 'project' => 'proj', 'branch' => 'bad-ts'])."\n", \FILE_APPEND);
+
+        $branches = array_map(static fn (AnalyticsEvent $e): string => $e->branch(), (new AnalyticsReader())->events('proj', new \DateTimeImmutable('2026-03-01T00:00:00+00:00')));
+
+        $this->assertContains('no-ts', $branches);
+        $this->assertNotContains('bad-ts', $branches);
+        $this->assertContains('mar', $branches);
     }
 }

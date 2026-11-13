@@ -11,6 +11,7 @@ use Pablo\Provider\Git\SyncHistory;
 use Pablo\Provider\Git\SyncReport;
 use Pablo\Provider\Git\SyncRun;
 use Pablo\Tests\Command\CommandTestBed;
+use Symfony\Component\Console\Tester\CommandTester;
 
 final class RebaseLogCommandTest extends CommandTestBed
 {
@@ -179,5 +180,25 @@ final class RebaseLogCommandTest extends CommandTestBed
         $tester = $this->runCommand($this->command());
 
         $this->assertStringContainsString('no rebase logs found', $tester->getDisplay());
+    }
+
+    public function testABrokenProjectFileIsWarnedOnStderrKeepingTheJsonClean(): void
+    {
+        file_put_contents($this->projectsDir.'/broken.yaml', "name: broken\ntype: work\n");
+
+        $tester = new CommandTester($this->command());
+        $tester->execute(['--format' => 'json'], ['capture_stderr_separately' => true]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertSame(['logs' => []], json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR));
+        $this->assertStringContainsString("pablo: warning: skipping invalid project config {$this->projectsDir}/broken.yaml", $tester->getErrorOutput());
+    }
+
+    public function testUnknownProjectFails(): void
+    {
+        $tester = $this->runCommand($this->command(), ['project' => 'nope']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("unknown project 'nope'", $tester->getDisplay());
     }
 }
