@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Install\Scheduler;
 
+use Pablo\Support\PabloError;
+
 /**
  * The background services of a PABLO install: the dispatcher every five
  * minutes, the housekeeping (`system:prune`) daily at 03:00 — run late
@@ -23,7 +25,7 @@ interface SchedulerInterface
      *                                     in place of the bundled files' @PATH@ placeholder
      * @param \Closure(string): void $info
      *
-     * @throws \Pablo\Support\PabloError
+     * @throws PabloError
      */
     public function install(string $pabloBin, bool $withWeb, string $path, \Closure $info): void;
 

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Install;
 
+use Pablo\Support\Files;
+
 /**
  * Puts ~/.local/bin on the PATH when it is not already there: a block
  * appended to the shell's rc file between markers (so a second install never
@@ -48,9 +50,7 @@ final class PathRc
         }
 
         $dir = \dirname($rc);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0o777, true);
-        }
+        Files::ensureDir($dir);
         if (str_ends_with($rc, '.fish')) {
             $block = self::BEGIN."\n# Added by the PABLO installer (removed by pablo system:uninstall).\n"
                 ."contains {$binDir} \$PATH; or set -gx PATH {$binDir} \$PATH\n".self::END."\n";
@@ -108,7 +108,7 @@ final class PathRc
 
         $fish = $home.'/.config/fish/conf.d/pablo.fish';
         if (is_file($fish) && str_contains((string) file_get_contents($fish), self::BEGIN)) {
-            @unlink($fish);
+            Files::tryRemove($fish);
             $removed[] = "removed {$fish}";
         }
 

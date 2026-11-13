@@ -13,6 +13,7 @@ use Pablo\Domain\Time;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
+use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
@@ -215,9 +216,8 @@ final class Sync
     {
         $path = self::logsDir()."/rebase-last-{$projectName}.json";
         $dir = \dirname($path);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0o777, true);
-        }
+        // best-effort: the last rebase log is informational.
+        Files::tryEnsureDir($dir);
         $log = new RebaseLog($projectName, $this->time->utcnow(), $strategy, $reports);
         file_put_contents($path, json_encode($log->toArray(), \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE)."\n");
 

@@ -16,6 +16,7 @@ use Pablo\Config\Config;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\State;
+use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Hooks\Hooks;
 use Pablo\Provider\Gh\GhPrInterface;
@@ -139,7 +140,7 @@ final class WatchAgentCommand extends Command
      * token/cost usage harvested from the selected runtime's local storage. Must never
      * break the watcher — harvest() already swallows its own failures.
      */
-    private function recordAgentRunFinished(\Pablo\Domain\Task $task, ?string $launchedAt, string $finishedAt, string $runId, string $agentName, string $backend, string $fingerprint): void
+    private function recordAgentRunFinished(Task $task, ?string $launchedAt, string $finishedAt, string $runId, string $agentName, string $backend, string $fingerprint): void
     {
         try {
             $durationS = null;

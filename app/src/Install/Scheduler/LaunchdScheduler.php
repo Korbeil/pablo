@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Install\Scheduler;
 
+use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -75,9 +76,7 @@ final class LaunchdScheduler implements SchedulerInterface
     /** @throws PabloError */
     private function load(string $label, string $pabloBin, string $path): void
     {
-        if (!is_dir($this->logDir)) {
-            @mkdir($this->logDir, 0o777, true);
-        }
+        Files::ensureDir($this->logDir);
         $content = str_replace(
             ['@PABLO_BIN@', '@LOG_DIR@', '@HOME@', '@PATH@'],
             array_map(

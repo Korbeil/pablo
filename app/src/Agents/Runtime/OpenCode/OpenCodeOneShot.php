@@ -38,6 +38,7 @@ final class OpenCodeOneShot implements RuntimeOneShotInterface
         try {
             $out = $runner->run(self::argv($instruction), check: false, timeout: $timeout, cwd: $cwd);
         } catch (\Throwable) {
+            // The summary is optional by contract: any runner failure means "no summary".
             return null;
         }
 
@@ -48,6 +49,7 @@ final class OpenCodeOneShot implements RuntimeOneShotInterface
             try {
                 $runner->run(['opencode', 'session', 'delete', $result['session']], check: false, timeout: self::DELETE_TIMEOUT_S);
             } catch (\Throwable) {
+                // a leftover throwaway session is harmless
             }
         }
 

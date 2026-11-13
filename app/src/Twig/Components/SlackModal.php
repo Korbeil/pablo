@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Twig\Components;
 
+use Pablo\Config\ProjectConfig;
 use Pablo\Dashboard\Dashboard;
 use Pablo\Domain\State;
 use Pablo\Listing\Listing;
@@ -96,7 +97,7 @@ final class SlackModal
         $this->open = false;
     }
 
-    /** @param array<string, \Pablo\Config\ProjectConfig> $projects */
+    /** @param array<string, ProjectConfig> $projects */
     private function block(array $projects, State $state): string
     {
         return $this->listing->renderSlack(

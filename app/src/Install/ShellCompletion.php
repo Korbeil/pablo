@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Install;
 
+use Pablo\Support\Files;
 use Symfony\Component\Console\Command\CompleteCommand;
 use Symfony\Component\Console\Command\DumpCompletionCommand;
 
@@ -75,9 +76,8 @@ final class ShellCompletion
             $messages = ["shell completion for {$name} is up to date ({$path})"];
         } else {
             $dir = \dirname($path);
-            if (!is_dir($dir)) {
-                @mkdir($dir, 0o777, true);
-            }
+            // best-effort: the failed write below is reported as a warning.
+            Files::tryEnsureDir($dir);
             if (false === @file_put_contents($path, $script)) {
                 return ["⚠ could not write {$path}: no shell completion (pablo completion {$name} prints the script)"];
             }
@@ -98,7 +98,7 @@ final class ShellCompletion
         foreach (self::SHELLS as $shell) {
             $path = (string) self::path($shell, $home);
             if (!is_link($path) && is_file($path) && self::isOurs($path)) {
-                @unlink($path);
+                Files::tryRemove($path);
                 $removed[] = "removed {$path}";
             }
         }
@@ -108,9 +108,9 @@ final class ShellCompletion
 
     private static function isOurs(string $path): bool
     {
-        $content = @file_get_contents($path);
+        $content = Files::tryRead($path);
 
-        return false !== $content && \in_array(self::MARKER, explode("\n", $content), true);
+        return null !== $content && \in_array(self::MARKER, explode("\n", $content), true);
     }
 
     /** @return list<string> */

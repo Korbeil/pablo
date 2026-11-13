@@ -218,7 +218,7 @@ final class CopilotUsage implements UsageHarvesterInterface
         }
         try {
             return (int) round((float) $this->time->parseTs($ts)->format('U.u') * 1000);
-        } catch (\Throwable) {
+        } catch (\Exception) { // a malformed timestamp
             return 0;
         }
     }

@@ -8,6 +8,7 @@ use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
+use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
 
 /**
@@ -104,7 +105,7 @@ final class Hooks
         }
         try {
             return 'https://github.com/'.$this->repoSlug->for($cfg).'/pull/'.$task->prNumber;
-        } catch (\Throwable) {
+        } catch (PabloError) { // no GitHub origin: the hook just gets no PR URL
             return '';
         }
     }

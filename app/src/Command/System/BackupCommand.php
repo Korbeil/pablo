@@ -10,6 +10,7 @@ use Pablo\Backup\Backup;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Domain\Task;
+use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputArgument;
@@ -21,7 +22,7 @@ final class BackupCommand extends Command
 {
     public function __construct(
         private readonly Backup $backup,
-        private readonly \Pablo\Provider\Git\GitRepoInterface $git,
+        private readonly GitRepoInterface $git,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,

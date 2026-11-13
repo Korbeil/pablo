@@ -8,6 +8,7 @@ use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
+use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 
@@ -71,9 +72,7 @@ final class ConfigSeeder
 
         $projectsDir = $this->config->projectsDir();
         if (!is_dir($projectsDir)) {
-            if (!@mkdir($projectsDir, 0o777, true) && !is_dir($projectsDir)) {
-                throw new PabloError("cannot create {$projectsDir}");
-            }
+            Files::ensureDir($projectsDir);
             $info("created {$projectsDir}");
         }
 
@@ -126,8 +125,8 @@ final class ConfigSeeder
      */
     public static function value(string $file, string $key): ?string
     {
-        $content = @file_get_contents($file);
-        if (false === $content) {
+        $content = Files::tryRead($file);
+        if (null === $content) {
             return null;
         }
         if (1 !== preg_match('/^'.preg_quote($key, '/').':[ \t]*["\']?([^"\'#\s]*)/m', $content, $m) || '' === $m[1]) {
@@ -144,7 +143,8 @@ final class ConfigSeeder
      */
     public static function set(string $file, string $key, string $value): void
     {
-        $content = (string) @file_get_contents($file);
+        // A missing file is fine: the key is appended to an empty one.
+        $content = Files::tryRead($file) ?? '';
         $pattern = '/^'.preg_quote($key, '/').':.*$/m';
         if (1 === preg_match($pattern, $content)) {
             $content = (string) preg_replace($pattern, $key.': '.$value, $content, 1);
@@ -162,14 +162,8 @@ final class ConfigSeeder
     /** @param \Closure(string): void $info */
     private function seed(string $file, \Closure $info): void
     {
-        $example = @file_get_contents(self::example());
-        if (false === $example) {
-            throw new PabloError('cannot read the bundled '.self::example());
-        }
-        $dir = \dirname($file);
-        if (!is_dir($dir) && !@mkdir($dir, 0o777, true) && !is_dir($dir)) {
-            throw new PabloError("cannot create {$dir}");
-        }
+        $example = Files::read(self::example());
+        Files::ensureDir(\dirname($file));
         if (false === @file_put_contents($file, $example)) {
             throw new PabloError("cannot write {$file}");
         }

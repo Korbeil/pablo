@@ -223,8 +223,8 @@ final class DispatchHealth
         if (!is_file($path)) {
             return null;
         }
-        $raw = @file_get_contents($path);
-        if (false === $raw) {
+        $raw = Files::tryRead($path);
+        if (null === $raw) {
             return null;
         }
         $data = Json::tryDecodeArray($raw);

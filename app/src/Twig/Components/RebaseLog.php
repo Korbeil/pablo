@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Twig\Components;
 
 use Pablo\Dashboard\Dashboard;
+use Pablo\Dashboard\RebaseLogSection;
 use Pablo\Dashboard\RebaseLogView;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
 use Symfony\UX\LiveComponent\Attribute\LiveArg;
@@ -42,7 +43,7 @@ final class RebaseLog
         $this->type = $type;
     }
 
-    /** @return list<\Pablo\Dashboard\RebaseLogSection> */
+    /** @return list<RebaseLogSection> */
     public function logs(): array
     {
         return $this->view->forProjects($this->dashboard->projectsOfType($this->type));

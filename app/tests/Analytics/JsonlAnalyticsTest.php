@@ -192,4 +192,15 @@ final class JsonlAnalyticsTest extends TestCase
         $this->assertFalse(is_dir($blocker.'/proj'));
         putenv('PABLO_ANALYTICS_DIR='.$this->root);
     }
+
+    public function testAFailedAppendIsLoggedNotThrown(): void
+    {
+        mkdir($this->root, 0o777, true);
+        touch($this->root.'/proj'); // a file where the project directory should be
+
+        (new JsonlAnalytics())->taskOpened($this->task()); // must not throw
+
+        $log = (string) file_get_contents($this->root.'/analytics-errors.log');
+        $this->assertStringContainsString('cannot append to '.$this->root.'/proj/', $log);
+    }
 }

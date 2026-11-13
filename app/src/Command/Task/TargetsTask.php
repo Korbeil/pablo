@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
+use Pablo\Command\Command;
 use Pablo\Domain\Task;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Support\PabloError;
@@ -21,7 +22,7 @@ use Symfony\Component\Console\Input\InputOption;
  * Used by every `task:*` command that acts on an existing task, so they all
  * target the same way (see site/content/cli.html "Choosing the task").
  *
- * @phpstan-require-extends \Pablo\Command\Command
+ * @phpstan-require-extends Command
  */
 trait TargetsTask
 {

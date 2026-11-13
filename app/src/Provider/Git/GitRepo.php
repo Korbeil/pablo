@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Provider\Git;
 
+use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Exception\RuntimeException as ProcessRuntimeException;
@@ -161,6 +162,7 @@ final class GitRepo implements GitRepoInterface
                     return $local;
                 }
             } catch (PabloError) {
+                // not a repo / no local identity: fall back to the global one
             }
         }
         try {
@@ -169,6 +171,7 @@ final class GitRepo implements GitRepoInterface
                 return $global;
             }
         } catch (PabloError) {
+            // no global identity either
         }
 
         return null;
@@ -176,9 +179,7 @@ final class GitRepo implements GitRepoInterface
 
     public function createWorktree(string $repo, string $worktreesRoot, string $branch, string $base, string $remote = 'origin'): string
     {
-        if (!is_dir($worktreesRoot)) {
-            @mkdir($worktreesRoot, 0o777, true);
-        }
+        Files::ensureDir($worktreesRoot);
         $path = rtrim($worktreesRoot, '/').'/'.$branch;
         if (file_exists($path)) {
             throw new PabloError("worktree path already exists: {$path}");
@@ -243,9 +244,7 @@ final class GitRepo implements GitRepoInterface
     public function recreateWorktree(string $repo, string $worktreesRoot, string $branch): string
     {
         $this->git($repo, ['fetch', 'origin'], check: false);
-        if (!is_dir($worktreesRoot)) {
-            @mkdir($worktreesRoot, 0o777, true);
-        }
+        Files::ensureDir($worktreesRoot);
         $path = rtrim($worktreesRoot, '/').'/'.$branch;
         if (file_exists($path)) {
             throw new PabloError("worktree path already exists: {$path}");
@@ -267,9 +266,7 @@ final class GitRepo implements GitRepoInterface
     public function cloneRepo(string $originUrl, string $path): void
     {
         $dir = \dirname($path);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0o777, true);
-        }
+        Files::ensureDir($dir);
         $process = $this->run(['git', 'clone', $originUrl, $path], self::TIMEOUT_CLONE);
         if (!$process->isSuccessful()) {
             $err = '' !== trim($process->getErrorOutput()) ? trim($process->getErrorOutput()) : trim($process->getOutput());

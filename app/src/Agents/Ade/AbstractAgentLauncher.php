@@ -8,9 +8,11 @@ use Pablo\Agents\Ade\Headless\HeadlessRunner;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
+use Pablo\Domain\Agent;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
+use Pablo\Support\Files;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -94,9 +96,8 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     protected function logFallback(string $worktree, string $label, ?string $reason): void
     {
         $logs = $this->agentsDir().'/logs';
-        if (!is_dir($logs)) {
-            @mkdir($logs, 0o777, true);
-        }
+        // best-effort: a fallback log must never stop the launch.
+        Files::tryEnsureDir($logs);
         file_put_contents(
             $logs.'/'.$this->ade.'-fallback.log',
             $this->time->utcnow()." worktree={$worktree} label={$label} reason={$reason}\n",
@@ -104,7 +105,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         );
     }
 
-    public function launch(string $worktree, \Pablo\Domain\Agent $agent, string $prompt, string $project, string $branch): string
+    public function launch(string $worktree, Agent $agent, string $prompt, string $project, string $branch): string
     {
         $pid = Detached::spawn([
             $this->shimPath, 'internal:launch-agent',

@@ -8,7 +8,9 @@ use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Store\Store;
+use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -25,7 +27,7 @@ use Symfony\Component\Yaml\Yaml;
 final class ProjectNewCommand extends Command
 {
     public function __construct(
-        private readonly \Pablo\Provider\Git\GitRepoInterface $git,
+        private readonly GitRepoInterface $git,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -116,9 +118,7 @@ final class ProjectNewCommand extends Command
         }
 
         $destDir = $this->projectsLoader->projectsDir();
-        if (!is_dir($destDir)) {
-            @mkdir($destDir, 0o777, true);
-        }
+        Files::ensureDir($destDir);
 
         // Track the enabled-provider SET across projects: agents must be
         // regenerated whenever it differs after the write, not only when this
@@ -136,7 +136,7 @@ final class ProjectNewCommand extends Command
                 throw new PabloError($duplicate);
             }
         } catch (PabloError $e) {
-            @unlink($destPath);
+            Files::tryRemove($destPath);
             throw new PabloError('Generated config failed validation: '.$e->getMessage());
         }
 
@@ -203,13 +203,13 @@ final class ProjectNewCommand extends Command
         $question->setValidator(static function (?string $v) use ($existing): string {
             $v = trim((string) $v);
             if ('' === $v) {
-                throw new \RuntimeException('Project name cannot be empty');
+                throw new PabloError('Project name cannot be empty');
             }
             if (1 === preg_match('/\s/', $v)) {
-                throw new \RuntimeException('Project name cannot contain spaces');
+                throw new PabloError('Project name cannot contain spaces');
             }
             if (\in_array($v, $existing, true)) {
-                throw new \RuntimeException("Project '{$v}' already exists");
+                throw new PabloError("Project '{$v}' already exists");
             }
 
             return $v;
@@ -266,7 +266,7 @@ final class ProjectNewCommand extends Command
         $question->setValidator(static function (?string $v): string {
             $v = trim((string) $v);
             if ('' === $v) {
-                throw new \RuntimeException('This value cannot be empty');
+                throw new PabloError('This value cannot be empty');
             }
 
             return $v;

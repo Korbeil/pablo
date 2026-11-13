@@ -515,7 +515,7 @@ final class AnalyticsAggregator
     {
         try {
             return $this->time->parseTs($event->ts())->getTimestamp();
-        } catch (\Throwable) {
+        } catch (\Exception) { // a malformed timestamp
             return 0;
         }
     }

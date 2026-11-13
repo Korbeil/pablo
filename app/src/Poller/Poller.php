@@ -471,7 +471,7 @@ final class Poller
             $agentCount = $count;
             $agentActivity = $activity;
         } catch (\Throwable) {
-            // ignore
+            // Best-effort display column: an ADE CLI failing (or missing) must not fail the poll.
         }
 
         $task->displayCache = new DisplayCache(

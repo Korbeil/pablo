@@ -11,6 +11,7 @@ use Pablo\Poller\Poller;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Git\Sync;
 use Pablo\Store\Store;
+use Pablo\Support\Files;
 
 /**
  * The cron dispatcher, fired by the pablo-dispatch systemd user timer.
@@ -107,9 +108,8 @@ final class Dispatch
     {
         $path = self::lockPath();
         $dir = \dirname($path);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0o777, true);
-        }
+        // best-effort: an unopenable lock is reported as "not acquired" below.
+        Files::tryEnsureDir($dir);
         $fd = fopen($path, 'c+');
         if (false === $fd) {
             return false;
@@ -259,9 +259,8 @@ final class Dispatch
                     $durationS = microtime(true) - $jobStartedAt;
                     $stamp = Stamps::stampsDir()."/{$cfgValue->name}.{$job}";
                     $dir = \dirname($stamp);
-                    if (!is_dir($dir)) {
-                        @mkdir($dir, 0o777, true);
-                    }
+                    // best-effort: a missing stamp only re-runs the job next time.
+                    Files::tryEnsureDir($dir);
                     file_put_contents($stamp, $this->stamps->encodeStamp($now, $durationS));
                 }
             }

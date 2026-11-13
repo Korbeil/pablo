@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Hooks;
 
 use Pablo\Agents\Ade\Detached;
+use Pablo\Support\Files;
 use Pablo\Support\PabloPaths;
 
 /**
@@ -23,9 +24,8 @@ final class DetachedHookRunner implements HookRunnerInterface
     {
         // Resolved per call, never at container compile time (HOME may differ).
         $log = $this->logFile ?? PabloPaths::pabloPath('logs', 'PABLO_LOGS_DIR').'/hooks.log';
-        if (!is_dir(\dirname($log))) {
-            @mkdir(\dirname($log), 0o777, true);
-        }
+        // best-effort: a missing hooks log must never stop the hook.
+        Files::tryEnsureDir(\dirname($log));
         $assignments = [];
         foreach ($env as $name => $value) {
             $assignments[] = escapeshellarg($name.'='.$value);

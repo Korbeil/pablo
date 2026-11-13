@@ -100,7 +100,7 @@ final class Listing
     {
         try {
             $dt = new \DateTimeImmutable($isoTimestamp);
-        } catch (\Throwable) {
+        } catch (\Exception) { // a malformed timestamp
             return '?';
         }
 
@@ -640,7 +640,7 @@ final class Listing
             try {
                 $info = $this->gh->prForBranch($this->repoSlug->for($cfg), $task->branch);
             } catch (PabloError) {
-                // ignore
+                // no PR found (or gh failed): the Slack line goes out without one
             }
             if (null !== $info) {
                 $pr = new SlackPr($info->number, $info->title, $info->url, $info->isDraft);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Agents;
 
+use Pablo\Domain\Agent;
 use Pablo\Poller\Poller;
 use Pablo\StateMachine\StateMachine;
 
@@ -14,7 +15,7 @@ use Pablo\StateMachine\StateMachine;
  */
 interface AgentLauncherInterface
 {
-    public function launch(string $worktree, \Pablo\Domain\Agent $agent, string $prompt, string $project, string $branch): string;
+    public function launch(string $worktree, Agent $agent, string $prompt, string $project, string $branch): string;
 
     public function runStartupScript(string $worktree, string $script, string $project, string $branch): string;
 

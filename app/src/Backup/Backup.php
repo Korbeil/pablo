@@ -11,6 +11,7 @@ use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Store\Store;
+use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
@@ -121,14 +122,12 @@ final class Backup
         $staging = $this->stage($pabloRoot, $projectsDir, $projects, $store);
         try {
             $dir = \dirname($gz);
-            if (!is_dir($dir)) {
-                @mkdir($dir, 0o777, true);
-            }
+            Files::ensureDir($dir);
             $phar = new \PharData($rawTar);
             $phar->buildFromDirectory($staging);
             unset($phar);
             (new \PharData($rawTar))->compress(\Phar::GZ);
-            @unlink($rawTar);
+            Files::tryRemove($rawTar);
         } finally {
             $this->cleanupDir($staging);
         }
@@ -144,9 +143,7 @@ final class Backup
         if (!is_file($archive)) {
             throw new PabloError("backup archive not found: {$archive}");
         }
-        if (!is_dir($dest)) {
-            @mkdir($dest, 0o777, true);
-        }
+        Files::ensureDir($dest);
         $phar = new \PharData($archive);
         $phar->extractTo($dest, null, true);
 
@@ -200,9 +197,7 @@ final class Backup
         if (!is_dir($src)) {
             return [];
         }
-        if (!is_dir($projectsDir)) {
-            @mkdir($projectsDir, 0o777, true);
-        }
+        Files::ensureDir($projectsDir);
         $written = [];
         foreach (glob(rtrim($src, '/').'/*.yaml') ?: [] as $yamlPath) {
             $dest = $projectsDir.'/'.basename($yamlPath);
@@ -230,10 +225,10 @@ final class Backup
             if (is_dir($path)) {
                 $this->cleanupDir($path);
             } else {
-                @unlink($path);
+                Files::tryRemove($path);
             }
         }
-        @rmdir($dir);
+        @rmdir($dir); // best-effort cleanup of the staging dir
     }
 
     /**
@@ -248,9 +243,7 @@ final class Backup
             foreach (glob(rtrim($projectsDir, '/').'/*.yaml') ?: [] as $yamlPath) {
                 $dest = $staging.'/projects/'.basename($yamlPath);
                 $dir = \dirname($dest);
-                if (!is_dir($dir)) {
-                    @mkdir($dir, 0o777, true);
-                }
+                Files::ensureDir($dir);
                 copy($yamlPath, $dest);
             }
         }
@@ -281,9 +274,7 @@ final class Backup
 
     private function copyDir(string $src, string $dest): void
     {
-        if (!is_dir($dest)) {
-            @mkdir($dest, 0o777, true);
-        }
+        Files::ensureDir($dest);
         foreach (scandir($src) ?: [] as $item) {
             if ('.' === $item || '..' === $item) {
                 continue;

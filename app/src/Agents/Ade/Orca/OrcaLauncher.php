@@ -9,7 +9,9 @@ use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
+use Pablo\Support\Files;
 use Pablo\Support\Json;
+use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
@@ -64,13 +66,11 @@ final class OrcaLauncher extends AbstractAgentLauncher
     private function withLaunchLock(string $worktree, callable $fn): mixed
     {
         $locks = $this->agentsDir().'/locks';
-        if (!is_dir($locks)) {
-            @mkdir($locks, 0o777, true);
-        }
+        Files::ensureDir($locks);
         $stem = preg_replace('/[^a-zA-Z0-9]/', '_', $worktree) ?: 'root';
         $fd = fopen($locks.'/'.$stem.'.launch.lock', 'w');
         if (false === $fd) {
-            throw new \Pablo\Support\PabloError('cannot open launch lock: '.$locks.'/'.$stem.'.launch.lock');
+            throw new PabloError('cannot open launch lock: '.$locks.'/'.$stem.'.launch.lock');
         }
         try {
             flock($fd, \LOCK_EX);

@@ -152,7 +152,7 @@ final class ClaudeCodeAgentFiles implements RuntimeAgentFilesInterface
         if ($legacy === $this->generatedDir() || !is_dir($legacy)) {
             return [];
         }
-        @unlink($legacy.'/agents.json');
+        Files::tryRemove($legacy.'/agents.json');
         if (!@rmdir($legacy)) {
             Files::remove($legacy);
         }

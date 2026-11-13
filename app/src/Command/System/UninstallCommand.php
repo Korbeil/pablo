@@ -78,7 +78,7 @@ final class UninstallCommand extends Command
 
         // The binary `pablo update` kept for --rollback: only PABLO writes it.
         $previous = Updater::previousOf(InstallPaths::binPath());
-        if (is_file($previous) && @unlink($previous)) {
+        if (is_file($previous) && Files::tryRemove($previous)) {
             $info('removed '.$previous);
         }
 

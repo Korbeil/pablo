@@ -214,7 +214,7 @@ final class AnalyticsController extends AbstractController
     {
         try {
             return (new \DateTimeImmutable($event->ts()))->getTimestamp();
-        } catch (\Throwable) {
+        } catch (\Exception) { // a malformed timestamp
             return 0;
         }
     }
