@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\Task;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Config\ProjectConfig;
@@ -211,14 +210,14 @@ YAML,
         $repoSlug = new RepoSlug($this->git);
         $registry = $this->currentProviders;
         $gh = new FakeGhPr();
-        $sm = new StateMachine($gh, $registry, $repoSlug, $time);
-        $factory = new AgentLauncherFactory($global, new FakeProcessRunner());
+        $sm = new StateMachine($gh, $registry, $repoSlug, $time, \Pablo\Tests\Registries::hooks());
+        $factory = \Pablo\Tests\Registries::launchers(new FakeProcessRunner(), $global);
         $starter = new TaskStarter(
             $this->currentProviders,
             new Naming(),
             $this->git,
             $sm,
-            new TaskSummarizer($this->summarizerRunner),
+            new TaskSummarizer($this->summarizerRunner, \Pablo\Tests\Registries::runtimes()),
             new FakeAnalytics(),
             $this->store,
             $loader,

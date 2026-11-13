@@ -146,8 +146,8 @@ final class PollerTest extends TestCase
         $git->originUrl = 'git@github.com:acme/proj.git';
         $repoSlug = new RepoSlug($git);
         $time = new \Pablo\Domain\Time();
-        $sm = new StateMachine($this->gh, $this->providers, $repoSlug, $time);
-        $this->poller = new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner));
+        $sm = new StateMachine($this->gh, $this->providers, $repoSlug, $time, \Pablo\Tests\Registries::hooks());
+        $this->poller = new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), \Pablo\Tests\Registries::hooks());
     }
 
     /** A poller whose analytics/usage collaborators are test doubles. */
@@ -157,9 +157,9 @@ final class PollerTest extends TestCase
         $git->originUrl = 'git@github.com:acme/proj.git';
         $repoSlug = new RepoSlug($git);
         $time = new \Pablo\Domain\Time();
-        $sm = new StateMachine($this->gh, $this->providers, $repoSlug, $time);
+        $sm = new StateMachine($this->gh, $this->providers, $repoSlug, $time, \Pablo\Tests\Registries::hooks());
 
-        return new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), $analytics);
+        return new Poller($this->gh, $this->git, $this->providers, $repoSlug, $sm, $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), \Pablo\Tests\Registries::hooks(), $analytics);
     }
 
     protected function tearDown(): void
@@ -789,7 +789,7 @@ final class PollerTest extends TestCase
         $repoSlug = new RepoSlug($git);
         $time = new \Pablo\Domain\Time();
         $hooks = new \Pablo\Hooks\Hooks($runner, $repoSlug);
-        $poller = new Poller($this->gh, $this->git, $this->providers, $repoSlug, new StateMachine($this->gh, $this->providers, $repoSlug, $time, new FakeAnalytics(), $hooks), $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), new FakeAnalytics(), $hooks);
+        $poller = new Poller($this->gh, $this->git, $this->providers, $repoSlug, new StateMachine($this->gh, $this->providers, $repoSlug, $time, $hooks, new FakeAnalytics()), $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), $hooks, new FakeAnalytics());
 
         $poller->pollProject($cfg, $store, $this->agents);
         $this->assertSame(['agent-finished'], $runner->events());
@@ -1104,7 +1104,7 @@ final class PollerTest extends TestCase
         $task->ciIgnored = true;
         $store->save($task);
         $ctx = new TaskCtx($task, $cfg, $store, $this->agents);
-        $sm = new StateMachine($this->gh, $this->providerRegistry(), new RepoSlug($this->git), new \Pablo\Domain\Time());
+        $sm = new StateMachine($this->gh, $this->providerRegistry(), new RepoSlug($this->git), new \Pablo\Domain\Time(), \Pablo\Tests\Registries::hooks());
         $sm->enterState($ctx, State::Draft);
         $this->assertFalse($task->ciIgnored);
     }

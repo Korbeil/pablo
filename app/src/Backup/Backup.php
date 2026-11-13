@@ -44,7 +44,7 @@ final class Backup
         private readonly GitRepoInterface $git,
         private readonly ProcessRunnerInterface $runner,
         private readonly Time $time,
-        private readonly AdeRegistry $ades = new AdeRegistry(),
+        private readonly AdeRegistry $ades,
     ) {
     }
 

@@ -26,7 +26,7 @@ final class TaskSummarizer
 
     public function __construct(
         private readonly ProcessRunnerInterface $runner,
-        private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
+        private readonly AgentRuntimeRegistry $runtimes,
     ) {
     }
 

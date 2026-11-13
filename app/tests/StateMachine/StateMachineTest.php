@@ -83,7 +83,7 @@ final class StateMachineTest extends TestCase
         $git = new FakeGit();
         $git->originUrl = 'git@github.com:acme/wallet-kit.git';
         $repoSlug = new RepoSlug($git);
-        $this->sm = new StateMachine($this->gh, $providers, $repoSlug, new Time());
+        $this->sm = new StateMachine($this->gh, $providers, $repoSlug, new Time(), Registries::hooks());
     }
 
     protected function tearDown(): void
@@ -419,7 +419,7 @@ final class StateMachineTest extends TestCase
         };
         $git = new FakeGit();
         $git->originUrl = 'git@github.com:acme/wallet-kit.git';
-        $this->sm = new StateMachine(new FakeGhPr(), $providers, new RepoSlug($git), new Time());
+        $this->sm = new StateMachine(new FakeGhPr(), $providers, new RepoSlug($git), new Time(), Registries::hooks());
         $this->task->state = State::WaitingReview;
         $this->sm->enterState($this->ctx, State::NeedsTesting);
         $this->assertSame('A FIX', $this->task->lastSeenIssueStatus);
@@ -434,7 +434,7 @@ final class StateMachineTest extends TestCase
         $git = $this->hookGit = new FakeGit();
         $git->originUrl = 'git@github.com:acme/wallet-kit.git';
         $repoSlug = new RepoSlug($git);
-        $this->sm = new StateMachine($this->gh, new StubProviders(), $repoSlug, new Time(), new FakeAnalytics(), new Hooks($runner, $repoSlug));
+        $this->sm = new StateMachine($this->gh, new StubProviders(), $repoSlug, new Time(), new Hooks($runner, $repoSlug), new FakeAnalytics());
         $this->ctx = new TaskCtx(task: $this->task, cfg: new ProjectConfig(
             name: $this->cfg->name,
             type: $this->cfg->type,

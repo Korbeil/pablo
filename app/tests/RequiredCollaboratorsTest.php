@@ -11,7 +11,8 @@ use PHPUnit\Framework\TestCase;
  * runner, a usage harvester that shells out, an agent launcher) must be a
  * required constructor argument, never defaulted to a real implementation.
  * A default would let a test that forgets one argument silently get a real
- * ProcessRunner — and real CLIs — defeating the FakeAgents/fakes rule.
+ * ProcessRunner — and real CLIs — defeating the FakeAgents/fakes rule. The
+ * same goes for the hook runner, which spawns the user's own hook command.
  *
  * Side-effect-free defaults (Time, NullAnalytics, the env-resolving
  * registries) stay allowed.
@@ -20,7 +21,7 @@ final class RequiredCollaboratorsTest extends TestCase
 {
     private const FORBIDDEN = [
         // `Type $x = new …` / `Type $x = null` default on an outside-world collaborator (a `= null` builds nothing)
-        '/\b(ProcessRunnerInterface|UsageHarvesterInterface|AgentLauncherInterface)\s+\$\w+\s*=\s*new\b/',
+        '/\b(ProcessRunnerInterface|UsageHarvesterInterface|AgentLauncherInterface|HookRunnerInterface)\s+\$\w+\s*=\s*new\b/',
         // `$x ?? new ProcessRunner()` and friends in a constructor body
         '/\?\?=?\s*new\s+(ProcessRunner|AgentUsage|OrcaLauncher|HeadlessLauncher|OpenChamberLauncher)\s*\(/',
         // a real runner/harvester as any parameter default
@@ -84,5 +85,9 @@ final class RequiredCollaboratorsTest extends TestCase
         yield 'OpenChamberLauncher' => [\Pablo\Agents\Ade\OpenChamber\OpenChamberLauncher::class, 'runner'];
         yield 'Poller' => [\Pablo\Poller\Poller::class, 'usage'];
         yield 'WatchAgentCommand' => [\Pablo\Command\Internal\WatchAgentCommand::class, 'usage'];
+        yield 'Hooks' => [\Pablo\Hooks\Hooks::class, 'runner'];
+        yield 'StateMachine hooks' => [\Pablo\StateMachine\StateMachine::class, 'hooks'];
+        yield 'Poller hooks' => [\Pablo\Poller\Poller::class, 'hooks'];
+        yield 'WatchAgentCommand hooks' => [\Pablo\Command\Internal\WatchAgentCommand::class, 'hooks'];
     }
 }

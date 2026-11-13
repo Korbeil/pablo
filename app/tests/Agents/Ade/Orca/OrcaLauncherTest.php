@@ -35,7 +35,7 @@ final class OrcaLauncherTest extends TestCase
         $this->agentsDir = $this->tmp.'/agents';
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
         $this->runner = new FakeProcessRunner();
-        $this->agents = new OrcaLauncher($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo');
+        $this->agents = new OrcaLauncher($this->runner, \Pablo\Tests\Registries::defaultRuntime(), new \Pablo\Domain\Time(), null, '/x/pablo');
     }
 
     protected function tearDown(): void

@@ -42,7 +42,7 @@ final class HeadlessRunnerTest extends TestCase
 
     public function testPidAlive(): void
     {
-        $runner = new HeadlessRunner(new Time(), new OpenCodeRuntime());
+        $runner = new HeadlessRunner(new Time(), new OpenCodeRuntime(\Pablo\Tests\Registries::templates()));
 
         $this->assertTrue($runner->pidAlive((int) getmypid()));
         $this->assertFalse($runner->pidAlive(self::deadPid()));

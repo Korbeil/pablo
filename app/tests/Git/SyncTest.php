@@ -31,14 +31,8 @@ final class SyncTest extends TestCase
         $slugGit = new \Pablo\Tests\FakeGit();
         $slugGit->originUrl = 'git@github.com:octocat/proj.git';
 
-        return new Sync(
-            new \Pablo\Provider\Git\GitRepo(),
-            $this->gh,
-            new RepoSlug($slugGit),
-            new \Pablo\Domain\Time(),
-            // Short lock timeout: testLockedTaskSkippedCleanly waits it out.
-            lockTimeoutS: 0.2,
-        );
+        return new Sync(new \Pablo\Provider\Git\GitRepo(), $this->gh, new RepoSlug($slugGit), new \Pablo\Domain\Time(), \Pablo\Tests\Registries::runtimes(), // Short lock timeout: testLockedTaskSkippedCleanly waits it out.
+            lockTimeoutS: 0.2);
     }
 
     private function realGit(): \Pablo\Provider\Git\GitRepoInterface

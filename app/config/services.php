@@ -117,9 +117,10 @@ return static function (ContainerConfigurator $container): void {
     // Bounded context pre-fetched into auto-launched agent prompts.
     $services->set(LaunchContext::class);
 
-    // Agent backends are selected per call (env > global config > orca), so
-    // commands get the factory; a default-behaviour launcher is exposed as
-    // the interface for consumers that never need an explicit backend.
+    // ADEs and runtimes are selected per call (env > global config > default):
+    // code needing one injects its registry, code launching agents the
+    // factory; a default-behaviour launcher is exposed as the interface for
+    // consumers that never need an explicit backend.
     $services->set(AgentRuntimeRegistry::class);
     $services->set(AdeRegistry::class);
     $services->set(AgentLauncherFactory::class);

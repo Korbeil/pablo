@@ -29,7 +29,7 @@ final class AgentUsageTest extends TestCase
         $runner = new FakeProcessRunner();
         $runner->onProbe = static fn (array $argv): ProbeResult => new ProbeResult(1, 'nothing');
 
-        (new AgentUsage(runner: $runner))->harvest('/wt', '2026-08-20T10:00:00+00:00', null);
+        (new AgentUsage($runner, \Pablo\Tests\Registries::runtimes(), \Pablo\Tests\Registries::ades()))->harvest('/wt', '2026-08-20T10:00:00+00:00', null);
 
         return array_values(array_unique(array_map(static fn (array $argv): string => $argv[0], $runner->probeCalls)));
     }

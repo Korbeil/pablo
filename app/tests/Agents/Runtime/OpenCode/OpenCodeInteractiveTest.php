@@ -59,7 +59,7 @@ final class OpenCodeInteractiveTest extends TestCase
     public function testOpensTheTuiOnTheAgentsSession(): void
     {
         $this->fakeOpenCode();
-        $process = $this->runScript((new OpenCodeRuntime())->interactiveCommand('task-analyst', "it's \$HOME's CI", 'opencode-go/glm-5.3-flash'));
+        $process = $this->runScript((new OpenCodeRuntime(\Pablo\Tests\Registries::templates()))->interactiveCommand('task-analyst', "it's \$HOME's CI", 'opencode-go/glm-5.3-flash'));
 
         $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
         $argv = explode("\n", trim((string) file_get_contents($this->tmp.'/run-argv')));
@@ -72,7 +72,7 @@ final class OpenCodeInteractiveTest extends TestCase
     public function testAFailedRunLeavesItsErrorAndNoTui(): void
     {
         $this->fakeOpenCode(runFails: true);
-        $process = $this->runScript((new OpenCodeRuntime())->interactiveCommand('task-analyst', 'p', null));
+        $process = $this->runScript((new OpenCodeRuntime(\Pablo\Tests\Registries::templates()))->interactiveCommand('task-analyst', 'p', null));
 
         $this->assertSame(1, $process->getExitCode());
         $this->assertStringContainsString('Model unavailable', $process->getOutput());

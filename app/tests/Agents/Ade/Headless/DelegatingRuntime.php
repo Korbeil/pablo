@@ -24,7 +24,7 @@ abstract class DelegatingRuntime implements AgentRuntimeInterface
 
     public function __construct()
     {
-        $this->inner = new OpenCodeRuntime();
+        $this->inner = new OpenCodeRuntime(\Pablo\Tests\Registries::templates());
     }
 
     abstract public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string;

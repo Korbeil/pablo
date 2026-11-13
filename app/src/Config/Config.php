@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Config;
 
+use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
@@ -262,8 +263,9 @@ final class Config
         }
         $defaultModel = (string) $defaultModel;
         // The model id format depends on the runtime that receives it:
-        // each runtime says what it accepts.
-        $modelError = (new AgentRuntimeRegistry($this->global))->resolve(AgentRuntimeRegistry::nameFrom($defaults))->modelError($defaultModel);
+        // each runtime says what it accepts. Built here, not injected: the
+        // registry depends on AgentTemplates, which depends on this loader.
+        $modelError = (new AgentRuntimeRegistry($this->global, new AgentTemplates($this)))->resolve(AgentRuntimeRegistry::nameFrom($defaults))->modelError($defaultModel);
         if (null !== $modelError) {
             throw new PabloError("{$file}: default_model {$modelError}");
         }

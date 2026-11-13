@@ -4,18 +4,16 @@ declare(strict_types=1);
 
 namespace Pablo\Agents;
 
-use Pablo\Agents\Ade\AdeInterface;
 use Pablo\Agents\Ade\AdeRegistry;
-use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
-use Pablo\Config\GlobalConfig;
 use Pablo\Domain\Time;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Creates the agent launcher of the selected ADE (see AdeRegistry), running
- * the selected agent runtime (see AgentRuntimeRegistry).
+ * the selected agent runtime (see AgentRuntimeRegistry). Code that needs an
+ * ADE or a runtime itself injects the registry, not this factory.
  *
  * ADE and runtime are resolved per call — env override first, then the
  * global config — never at container compile time (the compiled container is
@@ -26,11 +24,10 @@ use Pablo\Support\ProcessRunnerInterface;
 final class AgentLauncherFactory
 {
     public function __construct(
-        private readonly GlobalConfig $globalConfig,
         private readonly ProcessRunnerInterface $runner,
+        private readonly AgentRuntimeRegistry $runtimes,
+        private readonly AdeRegistry $ades,
         private readonly Time $time = new Time(),
-        private ?AgentRuntimeRegistry $runtimes = null,
-        private ?AdeRegistry $ades = null,
     ) {
     }
 
@@ -39,35 +36,12 @@ final class AgentLauncherFactory
      */
     public function create(?string $ade = null): AgentLauncherInterface
     {
-        $ade = $this->ades()->resolve($ade);
-        $runtime = $this->runtime();
+        $ade = $this->ades->resolve($ade);
+        $runtime = $this->runtimes->resolve();
         if (null !== ($error = $ade->runtimeError($runtime))) {
             throw new PabloError($error);
         }
 
         return $ade->launcher($runtime, $this->runner, $this->time);
-    }
-
-    public function runtime(): AgentRuntimeInterface
-    {
-        return $this->runtimes()->resolve();
-    }
-
-    public function runtimes(): AgentRuntimeRegistry
-    {
-        return $this->runtimes ??= new AgentRuntimeRegistry($this->globalConfig);
-    }
-
-    /**
-     * @throws PabloError on an unknown agent_backend
-     */
-    public function ade(): AdeInterface
-    {
-        return $this->ades()->resolve();
-    }
-
-    public function ades(): AdeRegistry
-    {
-        return $this->ades ??= new AdeRegistry($this->globalConfig);
     }
 }

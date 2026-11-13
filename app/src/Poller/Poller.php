@@ -45,8 +45,8 @@ final class Poller
         private readonly StateMachine $stateMachine,
         private readonly Time $time,
         private readonly UsageHarvesterInterface $usage,
+        private readonly Hooks $hooks,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
-        private readonly Hooks $hooks = new Hooks(),
     ) {
     }
 

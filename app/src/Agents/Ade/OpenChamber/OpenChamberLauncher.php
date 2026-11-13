@@ -39,13 +39,13 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
 
     public function __construct(
         ProcessRunnerInterface $runner,
+        AgentRuntimeInterface $runtime,
         Time $time = new Time(),
         ?Store $store = null,
         ?string $shimPath = null,
         ?string $agentsDir = null,
-        ?AgentRuntimeInterface $runtime = null,
     ) {
-        parent::__construct(OpenChamberAde::NAME, $runner, $time, $store, $shimPath, $runtime);
+        parent::__construct(OpenChamberAde::NAME, $runner, $runtime, $time, $store, $shimPath);
         $this->agentFilesDir = $agentsDir;
     }
 

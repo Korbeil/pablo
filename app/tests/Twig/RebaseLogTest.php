@@ -30,12 +30,7 @@ final class RebaseLogTest extends WebTestCase
         $slugGit = new \Pablo\Tests\FakeGit();
         $slugGit->originUrl = 'git@github.com:octocat/proj.git';
 
-        return new Sync(
-            new \Pablo\Provider\Git\GitRepo(),
-            new \Pablo\Tests\FakeGhPr(),
-            new \Pablo\Support\RepoSlug($slugGit),
-            new \Pablo\Domain\Time(),
-        );
+        return new Sync(new \Pablo\Provider\Git\GitRepo(), new \Pablo\Tests\FakeGhPr(), new \Pablo\Support\RepoSlug($slugGit), new \Pablo\Domain\Time(), \Pablo\Tests\Registries::runtimes());
     }
 
     private string $tmp;

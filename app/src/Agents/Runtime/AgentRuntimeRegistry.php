@@ -14,7 +14,7 @@ use Pablo\Agents\Runtime\Copilot\CopilotRuntime;
 use Pablo\Agents\Runtime\Copilot\CopilotSessions;
 use Pablo\Agents\Runtime\OpenCode\OpenCodeRuntime;
 use Pablo\Agents\Runtime\OpenCode\OpenCodeSessions;
-use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
 use Pablo\Support\PabloError;
 
 /**
@@ -39,6 +39,12 @@ final class AgentRuntimeRegistry extends NamedRegistry
     public const array NAMES = [OpenCodeRuntime::NAME, ClaudeCodeRuntime::NAME, CopilotRuntime::NAME];
 
     public const string DEFAULT = OpenCodeRuntime::NAME;
+
+    /** @param AgentTemplates $templates the shared render every runtime starts from */
+    public function __construct(GlobalConfig $globalConfig, private readonly AgentTemplates $templates)
+    {
+        parent::__construct($globalConfig);
+    }
 
     /**
      * The runtime name from the env override or the given global defaults.
@@ -73,12 +79,10 @@ final class AgentRuntimeRegistry extends NamedRegistry
 
     protected function build(string $name): AgentRuntimeInterface
     {
-        $templates = new AgentTemplates(new Config($this->globalConfig));
-
         return match ($name) {
-            ClaudeCodeRuntime::NAME => new ClaudeCodeRuntime(new ClaudeCodeAgents($templates), globalConfig: $this->globalConfig),
-            CopilotRuntime::NAME => new CopilotRuntime(new CopilotAgents($templates)),
-            default => new OpenCodeRuntime($templates),
+            ClaudeCodeRuntime::NAME => new ClaudeCodeRuntime(new ClaudeCodeAgents($this->templates), globalConfig: $this->globalConfig),
+            CopilotRuntime::NAME => new CopilotRuntime(new CopilotAgents($this->templates)),
+            default => new OpenCodeRuntime($this->templates),
         };
     }
 }

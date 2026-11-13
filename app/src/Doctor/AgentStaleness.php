@@ -21,8 +21,8 @@ final class AgentStaleness
      */
     public function __construct(
         private readonly AgentTemplates $agentTemplates,
+        private readonly AgentRuntimeRegistry $runtimes,
         private $check = null,
-        private ?AgentRuntimeRegistry $runtimes = null,
     ) {
     }
 
@@ -37,7 +37,7 @@ final class AgentStaleness
             return ($this->check)();
         }
         // An unknown runtime name is reported by the doctor itself.
-        $runtime = ($this->runtimes ??= new AgentRuntimeRegistry())->resolveOrDefault();
+        $runtime = $this->runtimes->resolveOrDefault();
 
         return $runtime->agentFiles()->staleness(
             $agentsDir ?? $this->agentTemplates->templatesDir(),

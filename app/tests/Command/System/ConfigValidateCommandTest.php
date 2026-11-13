@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Command\System\ConfigValidateCommand;
 use Pablo\Config\Config;
 use Pablo\Config\ConfigValidator;
@@ -49,10 +48,10 @@ final class ConfigValidateCommandTest extends TestCase
         $runner = new FakeProcessRunner();
         $command = new ConfigValidateCommand(
             new ConfigValidator($global, new Config($global)),
-            new Doctor($runner, new AgentLauncherFactory($global, $runner), static fn (string $bin): string => '/usr/bin/'.$bin),
+            new Doctor($runner, \Pablo\Tests\Registries::runtimes($global), \Pablo\Tests\Registries::ades($global), static fn (string $bin): string => '/usr/bin/'.$bin),
             new Store($this->tmp.'/state'),
             new Config($global),
-            new AgentLauncherFactory($global, $runner),
+            \Pablo\Tests\Registries::launchers($runner, $global),
             new FakeAgents(),
         );
         $tester = new CommandTester($command);

@@ -57,8 +57,8 @@ final class StateMachine
         private readonly ProviderRegistryInterface $providers,
         private readonly RepoSlug $repoSlug,
         private readonly Time $time,
+        private readonly Hooks $hooks,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
-        private readonly Hooks $hooks = new Hooks(),
     ) {
     }
 

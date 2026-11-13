@@ -32,9 +32,9 @@ final class ConfigSeeder
     public function __construct(
         private readonly GlobalConfig $global,
         private readonly Config $config,
+        private readonly AgentRuntimeRegistry $runtimes,
+        private readonly AdeRegistry $ades,
         ?\Closure $hasCommand = null,
-        private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
-        private readonly AdeRegistry $ades = new AdeRegistry(),
     ) {
         $this->hasCommand = $hasCommand ?? InstallPaths::hasCommand(...);
     }
@@ -44,7 +44,7 @@ final class ConfigSeeder
      *
      * @throws PabloError
      */
-    public static function validate(?string $runtime, ?string $backend): void
+    public function validate(?string $runtime, ?string $backend): void
     {
         if (null !== $runtime) {
             AgentRuntimeRegistry::checkName($runtime, '--runtime');
@@ -53,7 +53,7 @@ final class ConfigSeeder
             AdeRegistry::checkName($backend, '--backend');
         }
         if (null !== $backend && null !== $runtime
-            && null !== ($error = (new AdeRegistry())->resolve($backend)->runtimeError((new AgentRuntimeRegistry())->resolve($runtime)))) {
+            && null !== ($error = $this->ades->resolve($backend)->runtimeError($this->runtimes->resolve($runtime)))) {
             throw new PabloError($error);
         }
     }

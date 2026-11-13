@@ -58,6 +58,8 @@ final class InstallCommand extends Command
     public function __construct(
         private readonly GlobalConfig $globalConfig,
         private readonly SchedulerFactory $schedulers,
+        private readonly AgentRuntimeRegistry $runtimes,
+        private readonly AdeRegistry $ades,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -92,7 +94,8 @@ final class InstallCommand extends Command
 
         // 0. Bad options are refused before anything is touched; so is a
         //    platform without a scheduler, and an invalid scheduler.path.
-        ConfigSeeder::validate($runtimeOption, $backendOption);
+        $seeder = new ConfigSeeder($this->globalConfig, $this->projectsLoader, $this->runtimes, $this->ades);
+        $seeder->validate($runtimeOption, $backendOption);
         if (null !== $portOption && !GlobalConfig::isPort($portOption)) {
             throw new PabloError("invalid --port {$portOption}: expected a number between 1 and 65535");
         }
@@ -103,9 +106,7 @@ final class InstallCommand extends Command
         $this->globalConfig->schedulerPath();
 
         // 1. Config.
-        $runtime = $this->agentLaunchers->runtimes()->resolve(
-            (new ConfigSeeder($this->globalConfig, $this->projectsLoader))->apply($runtimeOption, $backendOption, $info),
-        );
+        $runtime = $this->runtimes->resolve($seeder->apply($runtimeOption, $backendOption, $info));
         if (null !== $portOption) {
             // `pablo web` (and so the service) reads it: no port in the unit files.
             ConfigSeeder::set($this->globalConfig->configPath(), 'dashboard_port', (string) (int) $portOption);
@@ -132,7 +133,7 @@ final class InstallCommand extends Command
             throw new PabloError('system:generate-agents failed (see above)');
         }
         $this->link($runtime, $info);
-        foreach ($this->agentLaunchers->runtimes()->all() as $any) {
+        foreach ($this->runtimes->all() as $any) {
             array_map($info, $any->agentFiles()->cleanupLegacy());
         }
 
@@ -191,7 +192,7 @@ final class InstallCommand extends Command
     private function schedulerPath(AgentRuntimeInterface $runtime): string
     {
         $clis = [$runtime->probe()->argv[0] ?? ''];
-        $adeProbe = $this->agentLaunchers->ades()->resolveOrDefault()->probe();
+        $adeProbe = $this->ades->resolveOrDefault()->probe();
         if (null !== $adeProbe) {
             $clis[] = $adeProbe->argv[0] ?? '';
         }

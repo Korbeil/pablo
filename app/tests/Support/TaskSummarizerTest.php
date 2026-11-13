@@ -26,7 +26,7 @@ final class TaskSummarizerTest extends TestCase
         putenv('PABLO_AGENT_RUNTIME=claude-code');
         $runner = new FakeProcessRunner();
         $runner->outputs = [json_encode(['type' => 'result', 'is_error' => false, 'session_id' => 'x', 'result' => "Fix webhook retry with backoff.\n"], \JSON_THROW_ON_ERROR)];
-        $summarizer = new TaskSummarizer($runner);
+        $summarizer = new TaskSummarizer($runner, \Pablo\Tests\Registries::runtimes());
 
         $this->assertSame('Fix webhook retry with backoff', $summarizer->summarize('/repo', 'do the webhooks'));
 
@@ -44,7 +44,7 @@ final class TaskSummarizerTest extends TestCase
         putenv('PABLO_AGENT_RUNTIME=copilot');
         $runner = new FakeProcessRunner();
         $runner->outputs = ["Fix webhook retry with backoff.\n"];
-        $summarizer = new TaskSummarizer($runner);
+        $summarizer = new TaskSummarizer($runner, \Pablo\Tests\Registries::runtimes());
 
         $this->assertSame('Fix webhook retry with backoff', $summarizer->summarize('/repo', 'do the webhooks'));
 
@@ -69,7 +69,7 @@ final class TaskSummarizerTest extends TestCase
     {
         $runner = new FakeProcessRunner();
         $runner->outputs = [self::validEvents('fix webhook retry handling with backoff')];
-        $summarizer = new TaskSummarizer($runner);
+        $summarizer = new TaskSummarizer($runner, \Pablo\Tests\Registries::runtimes());
 
         $this->assertSame('fix webhook retry handling with backoff', $summarizer->summarize('/repo', 'do the webhooks'));
 
@@ -91,7 +91,7 @@ final class TaskSummarizerTest extends TestCase
     {
         $runner = new FakeProcessRunner();
         $runner->outputs = [self::validEvents('')];
-        $summarizer = new TaskSummarizer($runner);
+        $summarizer = new TaskSummarizer($runner, \Pablo\Tests\Registries::runtimes());
 
         $this->assertNull($summarizer->summarize('/repo', 'do the webhooks'));
         $this->assertCount(2, $runner->calls);
@@ -103,7 +103,7 @@ final class TaskSummarizerTest extends TestCase
     {
         $runner = new FakeProcessRunner();
         $runner->onRun = static fn (): string => throw new \RuntimeException('boom');
-        $summarizer = new TaskSummarizer($runner);
+        $summarizer = new TaskSummarizer($runner, \Pablo\Tests\Registries::runtimes());
 
         $this->assertNull($summarizer->summarize('/repo', 'do the webhooks'));
     }

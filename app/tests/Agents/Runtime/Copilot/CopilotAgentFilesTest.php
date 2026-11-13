@@ -112,14 +112,14 @@ final class CopilotAgentFilesTest extends TestCase
     {
         $this->install();
         putenv('COPILOT_HOME='.$this->tmp.'/copilot');
-        $results = (new AgentStaleness($this->templates))->check();
+        $results = (new AgentStaleness($this->templates, \Pablo\Tests\Registries::runtimes()))->check();
         $this->assertSame('pablo-task-analyst', $results[0]->agent);
         $this->assertSame(AgentFileState::Ok, $results[0]->state);
     }
 
     public function testMissingStaleAndForeignAreReported(): void
     {
-        $staleness = new AgentStaleness($this->templates);
+        $staleness = new AgentStaleness($this->templates, \Pablo\Tests\Registries::runtimes());
         $this->assertTrue($staleness->hasHardFailure($this->staleness()));
         $this->assertSame(AgentFileState::Missing, $this->states()['pablo-ci-analyst']);
 

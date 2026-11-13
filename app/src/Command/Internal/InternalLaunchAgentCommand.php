@@ -34,6 +34,7 @@ final class InternalLaunchAgentCommand extends Command
         private readonly AnalyticsInterface $analytics,
         private readonly Time $time,
         private readonly LaunchContext $launchContext,
+        private readonly AdeRegistry $ades,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -94,7 +95,7 @@ final class InternalLaunchAgentCommand extends Command
     private function withLaunchContext(string $backend, string $agent, string $project, string $branch, string $prompt): string
     {
         try {
-            if (!$this->agentLaunchers->ades()->resolve($backend)->takesLaunchContext()) {
+            if (!$this->ades->resolve($backend)->takesLaunchContext()) {
                 return $prompt;
             }
             $agentEnum = Agent::tryFrom($agent);

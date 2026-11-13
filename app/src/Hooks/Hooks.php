@@ -26,8 +26,8 @@ final class Hooks
     public const EVENT_AGENT_FINISHED = 'agent-finished';
 
     public function __construct(
-        private readonly HookRunnerInterface $runner = new NullHookRunner(),
-        private readonly ?RepoSlug $repoSlug = null,
+        private readonly HookRunnerInterface $runner,
+        private readonly RepoSlug $repoSlug,
     ) {
     }
 
@@ -100,7 +100,7 @@ final class Hooks
 
     private function prUrl(ProjectConfig $cfg, Task $task): string
     {
-        if (null === $task->prNumber || null === $this->repoSlug) {
+        if (null === $task->prNumber) {
             return '';
         }
         try {

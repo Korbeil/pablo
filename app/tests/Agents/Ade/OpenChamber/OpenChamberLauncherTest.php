@@ -37,7 +37,7 @@ final class OpenChamberLauncherTest extends TestCase
         $this->agentFilesDir = $this->tmp.'/agent-files';
         mkdir($this->agentFilesDir, 0o777, true);
         $this->runner = new FakeProcessRunner();
-        $this->agents = new OpenChamberLauncher($this->runner, new \Pablo\Domain\Time(), null, '/x/pablo', $this->agentFilesDir);
+        $this->agents = new OpenChamberLauncher($this->runner, \Pablo\Tests\Registries::defaultRuntime(), new \Pablo\Domain\Time(), null, '/x/pablo', $this->agentFilesDir);
     }
 
     private string $agentFilesDir;

@@ -63,7 +63,7 @@ final class AdeContractTest extends TestCase
             $this->assertTrue($probe->soft, 'an ADE CLI only degrades: agents fall back to a headless run');
         }
 
-        $runtime = (new AgentRuntimeRegistry(new GlobalConfig()))->resolve(AgentRuntimeRegistry::DEFAULT);
+        $runtime = \Pablo\Tests\Registries::runtimes(new GlobalConfig())->resolve(AgentRuntimeRegistry::DEFAULT);
         $this->assertNull($ade->runtimeError($runtime), 'every ADE runs the default runtime');
         $launcher = $ade->launcher($runtime, new FakeProcessRunner(), new Time());
         $this->assertInstanceOf(AgentLauncherInterface::class, $launcher);
@@ -73,8 +73,8 @@ final class AdeContractTest extends TestCase
     public function testFactoryBuildsTheConfiguredAde(string $name): void
     {
         $this->writeGlobalConfig("agent_backend: {$name}\n");
-        $factory = new \Pablo\Agents\AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner());
-        $this->assertSame($name, $factory->ade()->name());
+        $this->assertSame($name, \Pablo\Tests\Registries::ades()->resolve()->name());
+        $factory = \Pablo\Tests\Registries::launchers(new FakeProcessRunner(), new GlobalConfig());
         $this->assertInstanceOf(AgentLauncherInterface::class, $factory->create());
     }
 
@@ -93,7 +93,7 @@ final class AdeContractTest extends TestCase
     public function testEveryRuntimeHasAnAdeAndTheDefaultAdeRunsThemAll(): void
     {
         $default = $this->ade(AdeRegistry::DEFAULT);
-        foreach ((new AgentRuntimeRegistry(new GlobalConfig()))->all() as $runtime) {
+        foreach ((\Pablo\Tests\Registries::runtimes(new GlobalConfig()))->all() as $runtime) {
             $this->assertNull($default->runtimeError($runtime), "{$runtime->name()} must run on the default ADE");
         }
     }

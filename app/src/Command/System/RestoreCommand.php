@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Backup\Backup;
@@ -32,6 +33,7 @@ final class RestoreCommand extends Command
         private readonly Backup $backup,
         private readonly GitRepoInterface $git,
         private readonly ProcessRunnerInterface $runner,
+        private readonly AdeRegistry $ades,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -85,7 +87,7 @@ final class RestoreCommand extends Command
             }
 
             if ([] !== $repoPaths && !(bool) $input->getOption('skip-ade') && !(bool) $input->getOption('skip-orca')) {
-                foreach ($this->agentLaunchers->ades()->resolveOrDefault()->restore($this->runner, $repoPaths) as $line) {
+                foreach ($this->ades->resolveOrDefault()->restore($this->runner, $repoPaths) as $line) {
                     $output->writeln($line);
                 }
             }

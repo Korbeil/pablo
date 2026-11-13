@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Command\System\SetupCommand;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
@@ -49,7 +48,7 @@ YAML;
         /** @var callable|null */
         $onWhich = $this->onWhich;
 
-        return new Doctor($this->runner, new AgentLauncherFactory(new GlobalConfig(), $this->runner), $onWhich);
+        return new Doctor($this->runner, \Pablo\Tests\Registries::runtimes(new GlobalConfig()), \Pablo\Tests\Registries::ades(new GlobalConfig()), $onWhich);
     }
 
     /** @var callable|null */
@@ -115,7 +114,7 @@ YAML;
             $this->doctor(),
             new Store(),
             new Config(new GlobalConfig()),
-            new AgentLauncherFactory(new GlobalConfig(), $this->runner),
+            \Pablo\Tests\Registries::launchers($this->runner, new GlobalConfig()),
             new FakeAgents(),
         );
         $tester = new CommandTester($command);

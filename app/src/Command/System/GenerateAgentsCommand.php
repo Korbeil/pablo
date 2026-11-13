@@ -36,6 +36,7 @@ final class GenerateAgentsCommand extends Command
 {
     public function __construct(
         private readonly AgentTemplates $agentTemplates,
+        private readonly AgentRuntimeRegistry $runtimes,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -58,7 +59,7 @@ final class GenerateAgentsCommand extends Command
         $agentsDir = $input->getOption('agents-dir') ?? $this->agentTemplates->templatesDir();
         $outputDir = $input->getOption('output-dir') ?? AgentTemplates::renderedDir();
         $runtimeName = $input->getOption('runtime');
-        $runtime = $this->agentLaunchers->runtimes()->resolve(null !== $runtimeName ? AgentRuntimeRegistry::checkName($runtimeName, 'runtime') : null);
+        $runtime = $this->runtimes->resolve(null !== $runtimeName ? AgentRuntimeRegistry::checkName($runtimeName, 'runtime') : null);
 
         $projectsDir = $this->projectsLoader->projectsDir();
         if (!is_dir($projectsDir)) {

@@ -49,7 +49,7 @@ final class Sync
         private readonly GhPrInterface $gh,
         private readonly RepoSlug $repoSlug,
         private readonly Time $time,
-        private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
+        private readonly AgentRuntimeRegistry $runtimes,
         private readonly float $lockTimeoutS = self::SYNC_LOCK_TIMEOUT_S,
         private readonly SyncHistory $history = new SyncHistory(),
     ) {

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Command\System\DoctorCommand;
 use Pablo\Config\Config;
@@ -61,15 +60,15 @@ YAML;
         /** @var callable|null */
         $which = $this->onWhich;
 
-        return new Doctor($this->runner, new AgentLauncherFactory(new GlobalConfig(), $this->runner), $which ?: static fn (string $name): string => '/usr/bin/'.$name);
+        return new Doctor($this->runner, \Pablo\Tests\Registries::runtimes(new GlobalConfig()), \Pablo\Tests\Registries::ades(new GlobalConfig()), $which ?: static fn (string $name): string => '/usr/bin/'.$name);
     }
 
     private function command(): DoctorCommand
     {
         $global = new GlobalConfig();
-        $staleness = new AgentStaleness(new AgentTemplates(new Config($global)));
+        $staleness = new AgentStaleness(new AgentTemplates(new Config($global)), \Pablo\Tests\Registries::runtimes());
 
-        return new DoctorCommand($this->doctor(), $staleness, new SchedulerHealth(new SchedulerFactory($this->runner, 'Linux'), new DispatchHealth()), new Store(), new Config($global), new AgentLauncherFactory($global, $this->runner), new FakeAgents(), new ConfigValidator($global, new Config($global)));
+        return new DoctorCommand($this->doctor(), $staleness, new SchedulerHealth(new SchedulerFactory($this->runner, 'Linux'), new DispatchHealth()), new Store(), new Config($global), \Pablo\Tests\Registries::launchers($this->runner, $global), new FakeAgents(), new ConfigValidator($global, new Config($global)));
     }
 
     protected function setUp(): void
