@@ -119,7 +119,7 @@ final class PhpServer
             return $dest;
         }
 
-        Files::mkdir(\dirname($dest));
+        Files::ensureDir(\dirname($dest));
         $in = @fopen($binary, 'r');
         $tmp = $dest.'.tmp-'.getmypid();
         $out = @fopen($tmp, 'w');
@@ -134,7 +134,7 @@ final class PhpServer
             fclose($out);
         }
         if ($copied !== $size || !@rename($tmp, $dest)) {
-            @unlink($tmp);
+            Files::tryRemove($tmp);
             throw new PabloError("cannot extract the phar of {$binary} to {$dest}");
         }
 
@@ -155,10 +155,8 @@ final class PhpServer
         if (is_file($dest) && is_executable($dest) && filesize($dest) === filesize($source)) {
             return $dest;
         }
-        $content = @file_get_contents($source);
-        if (false === $content) {
-            throw new PabloError("cannot read the PHP CLI embedded in the binary ({$source})");
-        }
+        $content = Files::tryRead($source)
+            ?? throw new PabloError("cannot read the PHP CLI embedded in the binary ({$source})");
         Files::write($dest, $content, 0o755);
 
         return $dest;
@@ -172,7 +170,7 @@ final class PhpServer
      */
     public static function writeRouter(string $dir, string $phar): string
     {
-        Files::mkdir($dir.'/public');
+        Files::ensureDir($dir.'/public');
         $router = $dir.'/router.php';
         Files::write($router, "<?php\n\n// Written by `pablo web`: php -S cannot route into a phar by itself.\nreturn require ".var_export('phar://'.$phar.'/'.self::FRONT_CONTROLLER, true).";\n");
 

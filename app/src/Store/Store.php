@@ -6,6 +6,7 @@ namespace Pablo\Store;
 
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Symfony\Component\Process\Process;
@@ -100,20 +101,18 @@ final class Store
         $task->updatedAt = $this->time->utcnow();
         $path = $this->path($task->project, $task->branch);
         $dir = \dirname($path);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0o777, true);
-        }
+        Files::ensureDir($dir);
         // A unique temp name in the same directory (so rename() stays an
         // atomic same-filesystem replace) and a checked write: a short write
         // (full disk) or a failed rename must leave the previous record intact.
         $tmp = $path.'.'.bin2hex(random_bytes(4)).'.tmp';
         $content = $this->encode($task->toJson());
         if (@file_put_contents($tmp, $content) !== \strlen($content)) {
-            @unlink($tmp);
+            Files::tryRemove($tmp);
             throw new PabloError("cannot write task record {$path} (temp file {$tmp}): disk full or not writable?");
         }
         if (!@rename($tmp, $path)) {
-            @unlink($tmp);
+            Files::tryRemove($tmp);
             throw new PabloError("cannot write task record {$path}: rename from {$tmp} failed");
         }
     }
@@ -214,9 +213,7 @@ final class Store
     {
         $path = $this->lockPath($project, $branch);
         $dir = \dirname($path);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0o777, true);
-        }
+        Files::ensureDir($dir);
         $fd = fopen($path, 'c+');
         if (false === $fd) {
             throw new PabloError("cannot open lock file: {$path}");
@@ -258,8 +255,8 @@ final class Store
      */
     private function read(string $path): array|string
     {
-        $raw = @file_get_contents($path);
-        if (false === $raw) {
+        $raw = Files::tryRead($path);
+        if (null === $raw) {
             return 'not readable';
         }
         try {

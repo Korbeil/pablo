@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Agents\Runtime\ClaudeCode;
 
+use Pablo\Support\Files;
 use Pablo\Support\PabloPaths;
 
 /**
@@ -69,14 +70,14 @@ final class ClaudeCodeTrust
         $json = json_encode($config, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_PRESERVE_ZERO_FRACTION);
         $tmp = $file.'.pablo-'.getmypid();
         if (false === $json || false === @file_put_contents($tmp, $json."\n")) {
-            @unlink($tmp);
+            Files::tryRemove($tmp);
 
             return false;
         }
         $perms = @fileperms($file);
         @chmod($tmp, false !== $perms ? $perms & 0o777 : 0o600);
         if (!@rename($tmp, $file)) {
-            @unlink($tmp);
+            Files::tryRemove($tmp);
 
             return false;
         }

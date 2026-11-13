@@ -8,6 +8,7 @@ use Pablo\Agents\Ade\Detached;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
+use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\PabloPaths;
 
@@ -39,9 +40,7 @@ final class HeadlessRunner
     public function logFor(string $label): string
     {
         $logs = $this->agentsDir.'/logs';
-        if (!is_dir($logs)) {
-            @mkdir($logs, 0o777, true);
-        }
+        Files::ensureDir($logs);
 
         return $logs.'/'.time().'-'.$label.'.log';
     }
@@ -138,7 +137,7 @@ final class HeadlessRunner
             if (!\is_array($record) || !isset($record['pid'])) {
                 // Not a headless pidfile (e.g. another ADE's session record).
                 if (!\is_array($record)) {
-                    @unlink($pidfile);
+                    Files::tryRemove($pidfile);
                 }
                 continue;
             }

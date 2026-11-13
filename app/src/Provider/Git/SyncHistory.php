@@ -40,7 +40,7 @@ final class SyncHistory
         try {
             $line = json_encode($run->toArray(), \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR);
             $path = self::path($run->log->project);
-            Files::mkdir(\dirname($path));
+            Files::ensureDir(\dirname($path));
             $lock = @fopen($path.'.lock', 'c');
             if (false === $lock) {
                 return;

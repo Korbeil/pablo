@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Install;
 
+use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 
 /**
@@ -40,9 +41,7 @@ final class Links
             return "linked {$dest}";
         }
         $dir = \dirname($dest);
-        if (!is_dir($dir) && !@mkdir($dir, 0o777, true) && !is_dir($dir)) {
-            throw new PabloError("cannot create {$dir}");
-        }
+        Files::ensureDir($dir);
         if (is_link($dest) && !@unlink($dest)) {
             throw new PabloError("cannot replace {$dest}");
         }
@@ -60,7 +59,7 @@ final class Links
             return false;
         }
 
-        return @unlink($dest);
+        return Files::tryRemove($dest);
     }
 
     public function isOurs(string $dest): bool

@@ -7,7 +7,9 @@ namespace Pablo\Analytics;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Support\Files;
 use Pablo\Support\Json;
+use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 
 /**
@@ -179,17 +181,15 @@ final class JsonlAnalytics implements AnalyticsInterface
         try {
             $line = json_encode(
                 ['ts' => $this->time->utcnow(), 'project' => $project, ...$event],
-                \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE,
+                \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR,
             );
-            if (false === $line) {
-                throw new \RuntimeException('json_encode failed');
-            }
             $dir = self::root().'/'.$project;
-            if (!is_dir($dir)) {
-                @mkdir($dir, 0o777, true);
+            $file = $dir.'/'.gmdate('Y-m').'.jsonl';
+            if (!Files::tryEnsureDir($dir) || false === @file_put_contents($file, $line."\n", \FILE_APPEND | \LOCK_EX)) {
+                throw new PabloError("cannot append to {$file}");
             }
-            @file_put_contents($dir.'/'.gmdate('Y-m').'.jsonl', $line."\n", \FILE_APPEND | \LOCK_EX);
         } catch (\Throwable $e) {
+            // Analytics never throws into a task flow: the failure is logged, the event dropped.
             try {
                 @file_put_contents(
                     self::root().'/analytics-errors.log',

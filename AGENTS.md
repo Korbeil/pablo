@@ -167,7 +167,13 @@ run detached after a saved transition or a finished agent through
 sends nothing, see `site/content/states.html#get-notified`) ·
 `src/Dispatch/` (cron entry point) ·
 `src/Support/` (`PabloError`, `PabloPaths` — every `~/.pablo` path and the
-phar/resources helpers —, `ProcessRunner`, `Files`, `Json` — decode
+phar/resources helpers —, `ProcessRunner`, `Files` — phar-safe
+`list()`/`copy()`/`remove()`, and the checked file operations: a required
+one goes through a throwing helper (`ensureDir()`, `read()`, `write()`, a
+`PabloError` naming the path), a deliberate best-effort one (logs, pidfiles,
+caches, analytics) through `tryEnsureDir()`/`tryRead()`/`tryRemove()`, which
+never throw; no bare `@` on a required file operation, and a remaining `@`
+is either checked on the next line or commented as best-effort —, `Json` — decode
 JSON through it, never a bare `json_decode`: `decodeArray()`/`decodeList()`
 throw a `PabloError` naming what was read, `tryDecodeArray()` returns null
 for best-effort readers (only `Store`'s validation and `ClaudeCodeTrust`'s

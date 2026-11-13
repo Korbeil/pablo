@@ -24,7 +24,7 @@ final class ServiceFiles
             return true;
         }
 
-        return is_file($path) && str_contains((string) @file_get_contents($path), self::marker($name));
+        return is_file($path) && str_contains((string) Files::tryRead($path), self::marker($name));
     }
 
     /**
@@ -65,6 +65,6 @@ final class ServiceFiles
             return false;
         }
 
-        return @unlink($path);
+        return Files::tryRemove($path);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Twig\Components;
 
+use Pablo\Config\Config;
 use Pablo\Support\PabloError;
 use Pablo\Task\StartResult;
 use Pablo\Task\TaskStarter;
@@ -63,7 +64,7 @@ final class NewTaskModal
         ksort($projected);
 
         $groups = [];
-        foreach (\Pablo\Config\Config::PROJECT_TYPES as $type) {
+        foreach (Config::PROJECT_TYPES as $type) {
             foreach ($projected as $cfg) {
                 if ($cfg->type === $type) {
                     $groups[$cfg->type] ??= [];

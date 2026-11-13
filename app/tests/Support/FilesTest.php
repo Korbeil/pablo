@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Support;
 
 use Pablo\Support\Files;
+use Pablo\Support\PabloError;
 use PHPUnit\Framework\TestCase;
 
 final class FilesTest extends TestCase
@@ -76,5 +77,63 @@ final class FilesTest extends TestCase
         Files::remove($this->tmp.'/src');
 
         $this->assertDirectoryDoesNotExist($this->tmp.'/src');
+    }
+
+    public function testEnsureDirCreatesParentsAndAcceptsAnExistingDir(): void
+    {
+        Files::ensureDir($this->tmp.'/a/b/c');
+        Files::ensureDir($this->tmp.'/a/b/c');
+
+        $this->assertDirectoryExists($this->tmp.'/a/b/c');
+        $this->assertTrue(Files::tryEnsureDir($this->tmp.'/a/b/c'));
+    }
+
+    public function testEnsureDirNamesThePathItCannotCreate(): void
+    {
+        // A regular file in the way blocks mkdir() even for root.
+        $dir = $this->tmp.'/src/a.md/sub';
+
+        $this->assertFalse(Files::tryEnsureDir($dir));
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage($dir);
+        Files::ensureDir($dir);
+    }
+
+    public function testEnsureDirFailsInAnUnwritableDirectory(): void
+    {
+        if (\function_exists('posix_geteuid') && 0 === posix_geteuid()) {
+            $this->markTestSkipped('root ignores directory permissions');
+        }
+        mkdir($this->tmp.'/locked', 0o500);
+        try {
+            $this->expectException(PabloError::class);
+            $this->expectExceptionMessage($this->tmp.'/locked/sub');
+            Files::ensureDir($this->tmp.'/locked/sub');
+        } finally {
+            chmod($this->tmp.'/locked', 0o700);
+        }
+    }
+
+    public function testReadAndTryRead(): void
+    {
+        $this->assertSame('a', Files::read($this->tmp.'/src/a.md'));
+        $this->assertSame('a', Files::tryRead($this->tmp.'/src/a.md'));
+        $this->assertNull(Files::tryRead($this->tmp.'/missing'));
+
+        $this->expectException(PabloError::class);
+        $this->expectExceptionMessage('cannot read '.$this->tmp.'/missing');
+        Files::read($this->tmp.'/missing');
+    }
+
+    public function testTryRemoveIsTrueOnceTheFileIsGone(): void
+    {
+        symlink($this->tmp.'/nowhere', $this->tmp.'/dangling');
+
+        $this->assertTrue(Files::tryRemove($this->tmp.'/src/a.md'));
+        $this->assertFileDoesNotExist($this->tmp.'/src/a.md');
+        $this->assertTrue(Files::tryRemove($this->tmp.'/dangling'));
+        $this->assertFalse(is_link($this->tmp.'/dangling'));
+        $this->assertTrue(Files::tryRemove($this->tmp.'/missing'));
+        $this->assertFalse(Files::tryRemove($this->tmp.'/src/skills'), 'a directory is not removed');
     }
 }

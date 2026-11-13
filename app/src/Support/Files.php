@@ -5,11 +5,17 @@ declare(strict_types=1);
 namespace Pablo\Support;
 
 /**
- * Directory listing and copying that also work inside the phar.
+ * Checked file operations, plus directory listing and copying that also work
+ * inside the phar.
  *
  * glob() only knows the local filesystem: on a `phar://` path it silently
  * returns nothing, which would make every bundled command and skill vanish
  * from the standalone binary. scandir()/copy() go through stream wrappers.
+ *
+ * A required operation goes through a throwing helper (ensureDir(), read(),
+ * write()), so its failure names the path instead of surfacing later as an
+ * obscure fopen/rename error; a deliberate best-effort one (logs, pidfiles,
+ * caches) goes through a try* helper, which never throws.
  */
 final class Files
 {
@@ -53,7 +59,7 @@ final class Files
     public static function copy(string $source, string $dest): void
     {
         if (is_dir($source)) {
-            self::mkdir($dest);
+            self::ensureDir($dest);
             foreach (self::list($source) as $child) {
                 self::copy($child, $dest.'/'.basename($child));
             }
@@ -61,12 +67,8 @@ final class Files
             return;
         }
 
-        self::mkdir(\dirname($dest));
-        $content = @file_get_contents($source);
-        if (false === $content) {
-            throw new PabloError("cannot read {$source}");
-        }
-        self::write($dest, $content);
+        self::ensureDir(\dirname($dest));
+        self::write($dest, self::read($source));
     }
 
     /**
@@ -79,11 +81,11 @@ final class Files
      */
     public static function write(string $path, string $content, ?int $mode = null): void
     {
-        self::mkdir(\dirname($path));
+        self::ensureDir(\dirname($path));
         if (is_link($path) && !@unlink($path)) {
             throw new PabloError("cannot replace the symlink {$path}");
         }
-        if (is_file($path) && @file_get_contents($path) === $content) {
+        if (is_file($path) && self::tryRead($path) === $content) {
             if (null !== $mode) {
                 @chmod($path, $mode);
             }
@@ -100,24 +102,65 @@ final class Files
             @chmod($tmp, $perms & 0o7777);
         }
         if (!@rename($tmp, $path)) {
-            @unlink($tmp);
+            self::tryRemove($tmp);
             throw new PabloError("cannot write {$path}");
         }
     }
 
-    /** @throws PabloError */
-    public static function mkdir(string $dir): void
+    /**
+     * Create $dir and its parents unless it exists. Race-safe: a directory
+     * created concurrently by another process is fine.
+     *
+     * @throws PabloError naming $dir when it cannot be created
+     */
+    public static function ensureDir(string $dir): void
     {
-        if (!is_dir($dir) && !@mkdir($dir, 0o777, true) && !is_dir($dir)) {
-            throw new PabloError("cannot create {$dir}");
+        if (!self::tryEnsureDir($dir)) {
+            throw new PabloError("cannot create the directory {$dir}");
         }
+    }
+
+    /** Best-effort ensureDir(): whether $dir exists afterwards, never throws. */
+    public static function tryEnsureDir(string $dir): bool
+    {
+        return is_dir($dir) || @mkdir($dir, 0o777, true) || is_dir($dir);
+    }
+
+    /** @throws PabloError naming $path when it cannot be read */
+    public static function read(string $path): string
+    {
+        $content = self::tryRead($path);
+        if (null === $content) {
+            throw new PabloError("cannot read {$path}");
+        }
+
+        return $content;
+    }
+
+    /** The content of $path, or null when it is missing or unreadable. */
+    public static function tryRead(string $path): ?string
+    {
+        // Suppressed on purpose: a missing file is an expected outcome here.
+        $content = @file_get_contents($path);
+
+        return false === $content ? null : $content;
+    }
+
+    /**
+     * Best-effort removal of a file or symlink (not a directory: see
+     * remove()); whether it is gone, never throws.
+     */
+    public static function tryRemove(string $path): bool
+    {
+        // Suppressed on purpose: a missing file is already the wanted state.
+        return @unlink($path) || (!is_link($path) && !file_exists($path));
     }
 
     /** Remove a file, a symlink or a directory tree; a missing path is fine. */
     public static function remove(string $path): void
     {
         if (is_link($path) || is_file($path)) {
-            @unlink($path);
+            self::tryRemove($path);
 
             return;
         }

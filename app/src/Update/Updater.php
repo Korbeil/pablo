@@ -6,6 +6,7 @@ namespace Pablo\Update;
 
 use Pablo\App\ConsoleApplication;
 use Pablo\Dispatch\Dispatch;
+use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProbeResult;
@@ -142,7 +143,7 @@ final class Updater
             $this->download($base.'/'.$asset, $tmp.'/'.$asset);
             $this->download($base.'/sha256sums.txt', $tmp.'/sha256sums.txt');
 
-            $expected = self::expectedHash((string) @file_get_contents($tmp.'/sha256sums.txt'), $asset);
+            $expected = self::expectedHash(Files::read($tmp.'/sha256sums.txt'), $asset);
             if (null === $expected) {
                 throw new PabloError("{$asset} is not listed in the release's sha256sums.txt: refusing an unverified binary");
             }
@@ -166,7 +167,7 @@ final class Updater
             }
             $info("replaced {$binary} with {$version} (the previous binary is kept as {$this->previousPath()})");
         } finally {
-            self::removeTree($tmp);
+            Files::remove($tmp);
         }
     }
 
@@ -212,7 +213,7 @@ final class Updater
 
             return $version;
         } finally {
-            self::removeTree($tmp);
+            Files::remove($tmp);
         }
     }
 
@@ -256,6 +257,7 @@ final class Updater
      */
     private function runVersion(string $path, string $tmp, string $what): string
     {
+        // Best-effort: without it the version check still runs, its cache lands in $tmp.
         @mkdir($tmp.'/home', 0o700);
         $check = $this->runner->probe(['env', 'HOME='.$tmp.'/home', $path, '--version'], 120.0);
         if (0 !== $check->exitCode) {
@@ -312,9 +314,7 @@ final class Updater
     {
         $path = Dispatch::lockPath();
         $dir = \dirname($path);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0o777, true);
-        }
+        Files::ensureDir($dir);
         $fd = @fopen($path, 'c+');
         if (false === $fd) {
             throw new PabloError("cannot open {$path}");
@@ -369,23 +369,5 @@ final class Updater
         if (0 !== $result->exitCode || !is_file($dest)) {
             throw new PabloError("cannot download {$url}".('' !== $result->output ? ': '.$result->output : ''));
         }
-    }
-
-    private static function removeTree(string $path): void
-    {
-        if (is_link($path) || is_file($path)) {
-            @unlink($path);
-
-            return;
-        }
-        if (!is_dir($path)) {
-            return;
-        }
-        foreach (scandir($path) ?: [] as $entry) {
-            if ('.' !== $entry && '..' !== $entry) {
-                self::removeTree($path.'/'.$entry);
-            }
-        }
-        @rmdir($path);
     }
 }

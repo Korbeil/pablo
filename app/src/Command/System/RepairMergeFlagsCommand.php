@@ -9,10 +9,13 @@ use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Config\ProjectConfig;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
+use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\PabloError;
+use Pablo\Support\RepoSlug;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -31,7 +34,7 @@ final class RepairMergeFlagsCommand extends Command
 {
     public function __construct(
         private readonly GhPrInterface $gh,
-        private readonly \Pablo\Support\RepoSlug $repoSlug,
+        private readonly RepoSlug $repoSlug,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -156,8 +159,8 @@ final class RepairMergeFlagsCommand extends Command
     }
 
     /**
-     * @param array<string, \Pablo\Config\ProjectConfig> $projects
-     * @param array<string, string>                      $slugs
+     * @param array<string, ProjectConfig> $projects
+     * @param array<string, string>        $slugs
      */
     private function slugFor(array $projects, string $project, array &$slugs): string
     {
@@ -191,7 +194,7 @@ final class RepairMergeFlagsCommand extends Command
         }
         $tmp = $file.'.repair-'.uniqid();
         if (false === @file_put_contents($tmp, implode("\n", $lines)."\n")) {
-            @unlink($tmp);
+            Files::tryRemove($tmp);
 
             return;
         }

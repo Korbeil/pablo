@@ -10,6 +10,7 @@ use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Time;
 use Pablo\Store\Store;
+use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -179,9 +180,8 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
     private function writeSessionPidfile(string $sessionId, string $worktree, string $agent): void
     {
         $dir = $this->agentsDir();
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0o777, true);
-        }
+        // best-effort: the session pidfile only helps cleanup.
+        Files::tryEnsureDir($dir);
         file_put_contents(
             $dir.'/openchamber-'.$sessionId.'.json',
             json_encode([
@@ -321,6 +321,6 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
 
     private function cleanupSessionFile(string $sessionId): void
     {
-        @unlink($this->agentsDir().'/openchamber-'.$sessionId.'.json');
+        Files::tryRemove($this->agentsDir().'/openchamber-'.$sessionId.'.json');
     }
 }

@@ -236,7 +236,7 @@ final class Pruner
         $logs = [];
         $legacy = [];
         foreach (Files::list($agentsDir, '*.json') as $pidfile) {
-            $record = Json::tryDecodeArray((string) @file_get_contents($pidfile));
+            $record = Json::tryDecodeArray(Files::tryRead($pidfile) ?? '');
             if (!\is_array($record) || !isset($record['pid']) || !is_numeric($record['pid'])) {
                 continue;
             }
@@ -316,7 +316,7 @@ final class Pruner
                 if ('' === $chunk) {
                     break;
                 }
-                Files::mkdir(\dirname($archive));
+                Files::ensureDir(\dirname($archive));
                 if (\strlen($chunk) !== @file_put_contents($archive, $chunk, \FILE_APPEND | \LOCK_EX)) {
                     throw new PabloError("cannot archive {$path} into {$archive}: left as is");
                 }

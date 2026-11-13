@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Doctor;
 
+use Pablo\Support\Files;
+
 /**
  * The verdict for one file `pablo system:install` linked into a runtime's
  * user directory: missing, not PABLO's, a broken link, stale against a fresh
@@ -53,8 +55,8 @@ final class LinkedFileCheck
 
     public static function compare(string $label, string $realPath, string $fresh): AgentFileStatus
     {
-        $installed = @file_get_contents($realPath);
-        if (false === $installed) {
+        $installed = Files::tryRead($realPath);
+        if (null === $installed) {
             return new AgentFileStatus($label, AgentFileState::Unverifiable, "cannot read installed file: {$realPath}");
         }
 

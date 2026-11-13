@@ -36,6 +36,7 @@ final class CopilotOneShot implements RuntimeOneShotInterface
         try {
             return $runner->run(self::argv($instruction), check: false, timeout: $timeout, cwd: $cwd);
         } catch (\Throwable) {
+            // The summary is optional by contract: any runner failure means "no summary".
             return null;
         }
     }

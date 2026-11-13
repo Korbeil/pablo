@@ -33,11 +33,7 @@ final class PabloCommand
             if (false !== $real && $real === realpath($dest)) {
                 return "{$dest} is this binary";
             }
-            $content = @file_get_contents($binaryPath);
-            if (false === $content) {
-                throw new PabloError("cannot read {$binaryPath}");
-            }
-            Files::write($dest, $content, 0o755);
+            Files::write($dest, Files::read($binaryPath), 0o755);
 
             return "installed {$dest} (copied from {$binaryPath})";
         }
@@ -53,7 +49,7 @@ final class PabloCommand
         if (!is_file($path) || filesize($path) > 4096) {
             return null;
         }
-        if (1 !== preg_match(self::SHIM_PATTERN, (string) @file_get_contents($path), $m)) {
+        if (1 !== preg_match(self::SHIM_PATTERN, Files::tryRead($path) ?? '', $m)) {
             return null;
         }
 
@@ -73,7 +69,7 @@ final class PabloCommand
         $real = realpath($path);
         if ('' !== $binaryPath && false !== $real && $real === realpath($binaryPath)) {
             register_shutdown_function(static function () use ($path): void {
-                @unlink($path);
+                Files::tryRemove($path);
             });
 
             return true;
@@ -82,6 +78,6 @@ final class PabloCommand
             return false;
         }
 
-        return @unlink($path);
+        return Files::tryRemove($path);
     }
 }
