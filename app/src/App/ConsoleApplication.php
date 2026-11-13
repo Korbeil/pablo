@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Pablo\App;
 
 use Symfony\Component\Console\Application as SymfonyApplication;
+use Symfony\Component\Console\CommandLoader\CommandLoaderInterface;
 
 /**
- * Standalone pablo console application. Commands are injected from the DI
- * container, tagged `pablo.command` (see config/services.php).
+ * Standalone pablo console application. Its commands come from the DI
+ * container, tagged `pablo.command` (see config/services.php), through the
+ * lazy loader PabloCommandLoaderPass builds: a run instantiates only the
+ * command it executes.
  */
 final class ConsoleApplication extends SymfonyApplication
 {
@@ -24,14 +27,11 @@ final class ConsoleApplication extends SymfonyApplication
      */
     private static string $buildVersion = '@package_version@';
 
-    /**
-     * @param iterable<\Symfony\Component\Console\Command\Command> $commands
-     */
-    public function __construct(iterable $commands = [])
+    public function __construct(?CommandLoaderInterface $commandLoader = null)
     {
         parent::__construct('pablo', self::version());
-        foreach ($commands as $command) {
-            $this->addCommand($command);
+        if (null !== $commandLoader) {
+            $this->setCommandLoader($commandLoader);
         }
     }
 

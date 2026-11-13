@@ -6,6 +6,8 @@ namespace Pablo\App;
 
 use Pablo\Support\PabloPaths;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
+use Symfony\Component\DependencyInjection\Compiler\PassConfig;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\HttpKernel\Kernel as BaseKernel;
 
 /**
@@ -38,6 +40,12 @@ final class Kernel extends BaseKernel
     public function getProjectDir(): string
     {
         return \dirname(__DIR__, 2);
+    }
+
+    protected function build(ContainerBuilder $container): void
+    {
+        // bin/pablo's lazy command loader (see the pass for why it runs then).
+        $container->addCompilerPass(new PabloCommandLoaderPass(), PassConfig::TYPE_BEFORE_REMOVING);
     }
 
     public function getCacheDir(): string

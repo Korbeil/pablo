@@ -62,8 +62,8 @@ use Pablo\Update\Updater;
 use Pablo\Web\TrustedHostsSubscriber;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
+use function Symfony\Component\DependencyInjection\Loader\Configurator\abstract_arg;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
-use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
 
 return static function (ContainerConfigurator $container): void {
     $services = $container->services()
@@ -127,9 +127,12 @@ return static function (ContainerConfigurator $container): void {
     $services->set(AgentRuntimeRegistry::class);
     $services->set(AdeRegistry::class);
     $services->set(AgentLauncherFactory::class);
-    // Lazy: every command is constructed up front to build the CLI, and
-    // create() refuses an incompatible backend/runtime pair (OpenChamber +
-    // anything but OpenCode) — `pablo system:doctor` must still run to report it.
+    // Lazy: create() refuses an incompatible backend/runtime pair (OpenChamber
+    // + anything but OpenCode), and services that only sometimes launch hold
+    // it: Poller and Sync under `system:dispatch`, whose preflight must report
+    // the pair rather than die building its graph, Listing under `task:list`,
+    // the dashboard's Twig components. (bin/pablo builds only the command it
+    // runs, so `system:doctor`, which does not hold one, no longer builds it.)
     $services->set(AgentLauncherInterface::class)
         ->factory([service(AgentLauncherFactory::class), 'create'])
         ->lazy()
@@ -184,7 +187,9 @@ return static function (ContainerConfigurator $container): void {
     $services->load('Pablo\\Twig\\', '../src/Twig');
     $services->set(TrustedHostsSubscriber::class);
 
+    // Its lazy command loader is built from the `pablo.command` tag by
+    // PabloCommandLoaderPass (registered in Kernel::build()).
     $services->set(ConsoleApplication::class)
         ->public()
-        ->args([tagged_iterator('pablo.command')]);
+        ->args([abstract_arg('the pablo.command loader, set by PabloCommandLoaderPass')]);
 };

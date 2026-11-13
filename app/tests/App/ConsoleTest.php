@@ -8,6 +8,9 @@ use Pablo\App\ConsoleApplication;
 use Pablo\App\Kernel;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
+use Symfony\Component\Console\Command\LazyCommand;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Tester\CommandTester;
 
 final class ConsoleTest extends TestCase
@@ -96,6 +99,61 @@ YAML;
         ] as $name) {
             $this->assertContains($name, $names, "missing command {$name}");
         }
+    }
+
+    /**
+     * bin/pablo must build only the command it runs: building every command
+     * (and its whole service graph) on each `pablo …` and each shell Tab is
+     * what the lazy loader (PabloCommandLoaderPass) avoids.
+     */
+    public function testRunningOneCommandInstantiatesNoOther(): void
+    {
+        $app = $this->app();
+
+        $this->assertSame(0, $app->run(new ArrayInput(['--version' => true]), new BufferedOutput()));
+        $this->assertSame([], $this->instantiatedCommands($app));
+
+        $this->assertSame(0, $app->run(new ArrayInput(['command' => 'list']), new BufferedOutput()));
+        $this->assertSame([], $this->instantiatedCommands($app));
+
+        $this->assertSame(0, $app->run(new ArrayInput(['command' => 'project:list']), new BufferedOutput()));
+        $this->assertSame(['project:list'], $this->instantiatedCommands($app));
+    }
+
+    /**
+     * Names and descriptions come from #[AsCommand], without building the
+     * command: hidden internal ones stay hidden, aliases resolve.
+     */
+    public function testListsCommandsFromTheirAttributes(): void
+    {
+        $app = $this->app();
+
+        $this->assertTrue($app->get('internal:launch-agent')->isHidden());
+        $this->assertSame($app->get('task:list'), $app->get('tasks'));
+        $this->assertSame('active task worktrees and their states', $app->get('task:list')->getDescription());
+        $this->assertSame([], $this->instantiatedCommands($app));
+    }
+
+    /**
+     * Names of the PABLO commands the application has built so far.
+     *
+     * @return list<string>
+     */
+    private function instantiatedCommands(ConsoleApplication $app): array
+    {
+        $factory = new \ReflectionProperty(LazyCommand::class, 'command');
+        $built = [];
+        foreach ($app->all() as $name => $command) {
+            if (\in_array($name, ['help', 'list', 'completion', '_complete'], true) || $name !== $command->getName()) {
+                continue; // Symfony's own commands, aliases
+            }
+            $this->assertInstanceOf(LazyCommand::class, $command, "{$name} is not loaded lazily");
+            if (!$factory->getValue($command) instanceof \Closure) {
+                $built[] = $name;
+            }
+        }
+
+        return $built;
     }
 
     public function testProjectsExitsZero(): void
