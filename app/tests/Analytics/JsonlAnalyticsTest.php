@@ -8,6 +8,7 @@ use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class JsonlAnalyticsTest extends TestCase
@@ -16,7 +17,7 @@ final class JsonlAnalyticsTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->root = sys_get_temp_dir().'/pablo-analytics-'.uniqid();
+        $this->root = TempDir::create('analytics');
         putenv('PABLO_ANALYTICS_DIR='.$this->root);
     }
 
@@ -195,7 +196,6 @@ final class JsonlAnalyticsTest extends TestCase
 
     public function testAFailedAppendIsLoggedNotThrown(): void
     {
-        mkdir($this->root, 0o777, true);
         touch($this->root.'/proj'); // a file where the project directory should be
 
         (new JsonlAnalytics())->taskOpened($this->task()); // must not throw

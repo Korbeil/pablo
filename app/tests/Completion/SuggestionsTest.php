@@ -10,6 +10,7 @@ use Pablo\Config\GlobalConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Store\Store;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class SuggestionsTest extends TestCase
@@ -18,7 +19,7 @@ final class SuggestionsTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-suggest-'.bin2hex(random_bytes(4));
+        $this->tmp = TempDir::create('suggest');
         mkdir($this->tmp.'/projects', 0o777, true);
         putenv('PABLO_PROJECTS_DIR='.$this->tmp.'/projects');
     }

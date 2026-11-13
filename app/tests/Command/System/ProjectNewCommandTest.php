@@ -7,6 +7,7 @@ namespace Pablo\Tests\Command\System;
 use Pablo\Command\System\ProjectNewCommand;
 use Pablo\Config\Config;
 use Pablo\Tests\FakeGit;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
@@ -28,7 +29,7 @@ final class ProjectNewCommandTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-project-new-'.uniqid();
+        $this->tmp = TempDir::create('project-new');
         $this->projectsDir = $this->tmp.'/projects';
         mkdir($this->projectsDir, 0o777, true);
 

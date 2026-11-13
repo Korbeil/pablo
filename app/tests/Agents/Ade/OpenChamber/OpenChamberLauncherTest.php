@@ -6,6 +6,7 @@ namespace Pablo\Tests\Agents\Ade\OpenChamber;
 
 use Pablo\Agents\Ade\OpenChamber\OpenChamberLauncher;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -30,8 +31,7 @@ final class OpenChamberLauncherTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-oc-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('oc');
         $this->agentsDir = $this->tmp.'/agents';
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
         $this->agentFilesDir = $this->tmp.'/agent-files';

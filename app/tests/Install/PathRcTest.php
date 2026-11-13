@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Install;
 
 use Pablo\Install\PathRc;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class PathRcTest extends TestCase
@@ -13,8 +14,7 @@ final class PathRcTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->home = sys_get_temp_dir().'/pablo-pathrc-'.bin2hex(random_bytes(4));
-        mkdir($this->home, 0o777, true);
+        $this->home = TempDir::create('pathrc');
     }
 
     protected function tearDown(): void

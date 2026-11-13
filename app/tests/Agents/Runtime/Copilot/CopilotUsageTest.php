@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents\Runtime\Copilot;
 
 use Pablo\Agents\Runtime\Copilot\CopilotUsage;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -21,7 +22,7 @@ final class CopilotUsageTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->home = sys_get_temp_dir().'/pablo-copilot-usage-'.uniqid();
+        $this->home = TempDir::create('copilot-usage');
         mkdir($this->home.'/session-state', 0o777, true);
     }
 

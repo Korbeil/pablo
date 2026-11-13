@@ -16,12 +16,15 @@ use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Task\TaskCloser;
 use Pablo\Task\TaskStateChanger;
+use Pablo\Tests\EngineGraph;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeAnalytics;
 use Pablo\Tests\FakeGhPr;
 use Pablo\Tests\FakeGit;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\SandboxedEnv;
 use Pablo\Tests\StubProviders;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
@@ -29,11 +32,13 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 abstract class CommandTestBed extends TestCase
 {
+    use SandboxedEnv;
     use UsesGlobalConfig;
 
     protected string $tmp;
     protected string $wt;
     protected string $projectsDir;
+    protected EngineGraph $graph;
     protected Store $store;
     protected FakeAgents $agents;
     protected FakeGit $git;
@@ -51,7 +56,7 @@ abstract class CommandTestBed extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-cmd-'.uniqid();
+        $this->tmp = TempDir::create('cmd');
         mkdir($this->tmp.'/repo', 0o777, true);
         mkdir($this->tmp.'/wt', 0o777, true);
         $this->wt = $this->tmp.'/wt/wk-45';
@@ -61,36 +66,32 @@ abstract class CommandTestBed extends TestCase
         mkdir($this->projectsDir, 0o777, true);
         $this->writeProjects();
 
-        $this->store = new Store($this->tmp.'/state');
-        $this->agents = new FakeAgents();
-        $this->runner = new FakeProcessRunner();
-        $this->time = new Time();
-
-        $this->git = new FakeGit();
-        $this->git->originUrl = 'git@github.com:acme/wallet-kit.git';
-
-        $this->gh = new FakeGhPr();
-        $this->providers = new StubProviders();
-
-        $this->globalConfig = new GlobalConfig();
-        $this->projectsLoader = new Config($this->globalConfig);
-        // Launchers built by the factory share the fake runner: a real one
-        // would call the real ADE CLI and, when it refuses, fall back to a
-        // real headless `opencode run`. Their pidfiles/logs stay in the tmp
-        // dir and the detached watcher re-invocation is /bin/true.
-        $this->agentLaunchers = new AgentLauncherFactory($this->globalConfig, $this->runner);
-        putenv('PABLO_AGENTS_DIR='.$this->tmp.'/agents');
-        putenv('PABLO_SHIM=/bin/true');
-        $this->repoSlug = new RepoSlug($this->git);
-        $this->analytics = new FakeAnalytics();
-        $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time, $this->analytics);
+        $this->graph = new EngineGraph($this->tmp.'/state');
+        $this->graph->git->originUrl = 'git@github.com:acme/wallet-kit.git';
+        $this->store = $this->graph->store;
+        $this->agents = $this->graph->agents;
+        $this->runner = $this->graph->runner;
+        $this->time = $this->graph->time;
+        $this->git = $this->graph->git;
+        $this->gh = $this->graph->gh;
+        $this->providers = $this->graph->providers;
+        $this->globalConfig = $this->graph->global;
+        $this->projectsLoader = $this->graph->config;
+        $this->agentLaunchers = $this->graph->agentLaunchers;
+        $this->repoSlug = $this->graph->repoSlug;
+        $this->analytics = $this->graph->analytics;
+        $this->stateMachine = $this->graph->stateMachine;
+        // Launched agents' pidfiles/logs stay in the tmp dir and the
+        // detached watcher re-invocation is /bin/true.
+        $this->setEnv('PABLO_AGENTS_DIR', $this->tmp.'/agents');
+        $this->setEnv('PABLO_SHIM', '/bin/true');
 
         $task = new Task('wallet-kit', 'wk-45', $this->wt, State::InProgress);
         $task->prNumber = 7;
         $task->issue = new Issue('github', '45', 'u', 'T', 'WK');
         $this->store->save($task);
 
-        putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
+        $this->setEnv('PABLO_PROJECTS_DIR', $this->projectsDir);
         $this->prevCwd = (string) getcwd();
         chdir($this->wt);
     }
@@ -98,9 +99,7 @@ abstract class CommandTestBed extends TestCase
     protected function tearDown(): void
     {
         chdir($this->prevCwd);
-        putenv('PABLO_PROJECTS_DIR');
-        putenv('PABLO_AGENTS_DIR');
-        putenv('PABLO_SHIM');
+        $this->restoreEnv();
         $this->unsetGlobalConfig();
     }
 

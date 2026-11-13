@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeUsage;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -21,7 +22,7 @@ final class ClaudeCodeUsageTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->configDir = sys_get_temp_dir().'/pablo-claude-usage-'.uniqid();
+        $this->configDir = TempDir::create('claude-usage');
         mkdir($this->configDir.'/projects/'.ClaudeCodeUsage::projectKey(self::WORKTREE), 0o777, true);
     }
 

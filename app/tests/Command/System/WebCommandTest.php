@@ -10,6 +10,7 @@ use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Store\Store;
 use Pablo\Tests\FakeAgents;
+use Pablo\Tests\TempDir;
 use Pablo\Web\PhpServer;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -80,7 +81,7 @@ final class WebCommandTest extends TestCase
     public function testAnInvalidDashboardPortInTheConfigIsReported(): void
     {
         $previous = getenv('PABLO_CONFIG');
-        $config = sys_get_temp_dir().'/pablo-web-config-'.bin2hex(random_bytes(4)).'.yaml';
+        $config = TempDir::file('web-config', '.yaml');
         file_put_contents($config, "dashboard_port: nope\n");
         putenv('PABLO_CONFIG='.$config);
 
@@ -123,7 +124,7 @@ final class WebCommandTest extends TestCase
 
     private function start(): int
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-web-cmd-'.bin2hex(random_bytes(4));
+        $this->tmp = TempDir::create('web-cmd');
         foreach (['home/.pablo/projects', 'home/.pablo/stamps', 'home/.pablo/logs', 'home/.pablo/state', 'bin'] as $dir) {
             mkdir($this->tmp.'/'.$dir, 0o777, true);
         }

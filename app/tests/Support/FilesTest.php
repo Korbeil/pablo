@@ -6,6 +6,7 @@ namespace Pablo\Tests\Support;
 
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class FilesTest extends TestCase
@@ -14,7 +15,7 @@ final class FilesTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-files-'.bin2hex(random_bytes(4));
+        $this->tmp = TempDir::create('files');
         mkdir($this->tmp.'/src/skills/b', 0o777, true);
         file_put_contents($this->tmp.'/src/b.md', 'b');
         file_put_contents($this->tmp.'/src/a.md', 'a');

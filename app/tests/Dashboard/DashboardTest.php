@@ -19,6 +19,7 @@ use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class DashboardTest extends TestCase
@@ -29,8 +30,7 @@ final class DashboardTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-dash-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('dash');
         $this->store = new Store($this->tmp.'/state');
         $git = new \Pablo\Tests\FakeGit();
         $git->originUrl = static fn (string $repo): string => 'git@github.com:acme/'.basename($repo).'.git';

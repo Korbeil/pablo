@@ -49,8 +49,7 @@ YAML;
 
     protected function setUp(): void
     {
-        $this->projectsDir = sys_get_temp_dir().'/pablo-projects-'.uniqid();
-        mkdir($this->projectsDir, 0o777, true);
+        $this->projectsDir = TempDir::create('projects');
         $this->writeGlobalConfig(self::DEFAULTS);
         file_put_contents($this->projectsDir.'/wallet-kit.yaml', self::PROJECT);
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);

@@ -12,6 +12,7 @@ use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\AgentFileState;
 use Pablo\Doctor\AgentStaleness;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 
@@ -28,7 +29,7 @@ final class ClaudeCodeAgentFilesTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-cc-stale-'.uniqid();
+        $this->tmp = TempDir::create('cc-stale');
         mkdir($this->tmp.'/pablo-claude', 0o777, true);
         mkdir($this->tmp.'/claude/commands', 0o777, true);
         mkdir($this->tmp.'/claude/skills', 0o777, true);

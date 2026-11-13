@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Twig;
 
 use Pablo\Tests\RestoresErrorHandlers;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\UX\LiveComponent\Test\InteractsWithLiveComponents;
@@ -27,7 +28,7 @@ final class PollProgressTest extends WebTestCase
     protected function setUp(): void
     {
         $this->snapshotErrorHandlers();
-        $this->tmp = sys_get_temp_dir().'/pablo-pollprogress-'.uniqid();
+        $this->tmp = TempDir::create('pollprogress');
         mkdir($this->tmp.'/projects', 0o777, true);
         mkdir($this->tmp.'/stamps', 0o777, true);
 

@@ -14,6 +14,8 @@ use Pablo\Doctor\AgentFileState;
 use Pablo\Install\Links;
 use Pablo\Support\Files;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\SandboxedEnv;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -24,33 +26,28 @@ use PHPUnit\Framework\TestCase;
  */
 final class RuntimeContractTest extends TestCase
 {
+    use SandboxedEnv;
     use UsesGlobalConfig;
 
     private const ENV = ['HOME', 'PABLO_RUNTIME_DIR', 'PABLO_CLAUDE_DIR', 'CLAUDE_CONFIG_DIR', 'COPILOT_HOME', 'PABLO_AGENT_RUNTIME'];
 
     private string $tmp;
 
-    /** @var array<string, string|false> */
-    private array $env = [];
-
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-runtime-contract-'.uniqid();
+        $this->tmp = TempDir::create('runtime-contract');
         mkdir($this->tmp.'/home', 0o777, true);
         foreach (self::ENV as $name) {
-            $this->env[$name] = getenv($name);
-            putenv($name);
+            $this->setEnv($name, null);
         }
-        putenv('HOME='.$this->tmp.'/home');
-        putenv('PABLO_RUNTIME_DIR='.$this->tmp.'/runtime');
+        $this->setEnv('HOME', $this->tmp.'/home');
+        $this->setEnv('PABLO_RUNTIME_DIR', $this->tmp.'/runtime');
         $this->writeGlobalConfig("{}\n");
     }
 
     protected function tearDown(): void
     {
-        foreach ($this->env as $name => $value) {
-            putenv(false === $value ? $name : "{$name}={$value}");
-        }
+        $this->restoreEnv();
         $this->unsetGlobalConfig();
         Files::remove($this->tmp);
     }

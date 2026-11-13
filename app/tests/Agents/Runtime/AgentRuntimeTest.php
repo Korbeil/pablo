@@ -17,6 +17,7 @@ use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Support\PabloError;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 
@@ -32,8 +33,7 @@ final class AgentRuntimeTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-runtime-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('runtime');
         putenv('PABLO_AGENTS_DIR='.$this->tmp.'/agents');
         putenv('PABLO_AGENT_RUNTIME');
         putenv('PABLO_AGENT_BACKEND');

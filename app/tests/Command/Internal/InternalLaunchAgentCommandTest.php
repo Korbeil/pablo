@@ -25,17 +25,8 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
         parent::setUp();
         $this->agentsDir = $this->tmp.'/agents';
         mkdir($this->agentsDir, 0o777, true);
-        putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
-        putenv('PABLO_STATE_DIR='.$this->tmp.'/state');
-        putenv('PABLO_SHIM=/bin/true');
-    }
-
-    protected function tearDown(): void
-    {
-        putenv('PABLO_AGENTS_DIR');
-        putenv('PABLO_STATE_DIR');
-        putenv('PABLO_SHIM');
-        parent::tearDown();
+        $this->setEnv('PABLO_AGENTS_DIR', $this->agentsDir);
+        $this->setEnv('PABLO_STATE_DIR', $this->tmp.'/state');
     }
 
     public function testResolvesModelFromProjectConfig(): void

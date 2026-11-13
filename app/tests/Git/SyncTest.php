@@ -15,6 +15,7 @@ use Pablo\Provider\Gh\PrInfo;
 use Pablo\Provider\Git\Sync;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class SyncTest extends TestCase
@@ -54,8 +55,7 @@ final class SyncTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-sync-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('sync');
         // syncProject writes rebase-last-*.json and the sync history: keep
         // them out of the developer's ~/.pablo/logs.
         putenv('PABLO_LOGS_DIR='.$this->tmp.'/logs');

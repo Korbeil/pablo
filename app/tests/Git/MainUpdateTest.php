@@ -6,6 +6,7 @@ namespace Pablo\Tests\Git;
 
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Support\PabloError;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class MainUpdateTest extends TestCase
@@ -18,8 +19,7 @@ final class MainUpdateTest extends TestCase
     protected function setUp(): void
     {
         $this->gitRepo = new GitRepo();
-        $this->tmp = sys_get_temp_dir().'/pablo-main-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('main');
         $repos = RepoHelper::makeRepos($this->tmp);
         $this->clone = $repos['clone'];
         $this->other = $repos['other'];

@@ -14,6 +14,7 @@ use Pablo\Store\Store;
 use Pablo\Tests\Config\ConfigValidatorTest;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -27,7 +28,7 @@ final class ConfigValidateCommandTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-validate-cmd-'.uniqid();
+        $this->tmp = TempDir::create('validate-cmd');
         mkdir($this->tmp.'/projects', 0o777, true);
         mkdir($this->tmp.'/repo/.git', 0o777, true);
         putenv('PABLO_PROJECTS_DIR='.$this->tmp.'/projects');

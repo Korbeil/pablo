@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests;
 
 use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\Runtime\OpenCode\OpenCodeUsage;
 use Pablo\Backup\Backup;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
@@ -20,8 +21,10 @@ use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 
 /**
- * The full engine service graph wired over fakes — one object to pass around
- * in engine-layer tests (poller, listing, state machine, dispatch...).
+ * The engine service graph wired over fakes (FakeAgents, FakeGit, FakeGhPr,
+ * FakeProcessRunner, StubProviders, FakeAnalytics), its store in a temp dir:
+ * the one place tests build it. CommandTestBed holds one; tests that need
+ * the services without the command bed's project and task build their own.
  */
 final class EngineGraph
 {
@@ -46,9 +49,9 @@ final class EngineGraph
     public Dispatch $dispatch;
     public Backup $backup;
 
-    public function __construct()
+    public function __construct(?string $stateDir = null)
     {
-        $this->store = new Store(sys_get_temp_dir().'/pablo-graph-'.uniqid());
+        $this->store = new Store($stateDir ?? TempDir::create('graph'));
         $this->agents = new FakeAgents();
         $this->runner = new FakeProcessRunner();
         $this->time = new Time();
@@ -56,6 +59,9 @@ final class EngineGraph
         $this->gh = new FakeGhPr();
         $this->global = new GlobalConfig();
         $this->config = new Config($this->global);
+        // Launchers built by the factory share the fake runner: a real one
+        // would call the real ADE CLI and, when it refuses, fall back to a
+        // real headless `opencode run`.
         $this->agentLaunchers = new AgentLauncherFactory($this->global, $this->runner);
         $this->providers = new StubProviders();
         $this->repoSlug = new RepoSlug($this->git);
@@ -71,7 +77,7 @@ final class EngineGraph
             $this->repoSlug,
             $this->stateMachine,
             $this->time,
-            new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner),
+            new OpenCodeUsage($this->runner),
             $this->analytics,
         );
         $this->listing = new Listing($this->stamps, $this->gh, $this->providers, $this->repoSlug, $this->time);

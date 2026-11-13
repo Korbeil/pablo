@@ -6,6 +6,7 @@ namespace Pablo\Tests\Support;
 
 use Pablo\Support\FileLock;
 use Pablo\Support\PabloError;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class FileLockTest extends TestCase
@@ -14,7 +15,7 @@ final class FileLockTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-filelock-'.bin2hex(random_bytes(4));
+        $this->tmp = TempDir::create('filelock');
     }
 
     protected function tearDown(): void

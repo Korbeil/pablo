@@ -366,10 +366,19 @@ a constructor-injected service behind an interface where tests need fakes
 (`GhPrInterface`, `GitRepoInterface`, `ProcessRunnerInterface`,
 `ProviderRegistryInterface`, `AnalyticsInterface`). Test doubles live beside
 `tests/FakeAgents.php` (`FakeGit`, `FakeGhPr`, `FakeProcessRunner`,
-`StubProviders`, `FakeAnalytics`) and
-`tests/Command/CommandTestBed.php` is the abstract bed for command tests,
-wiring that fake graph in `setUp`. `tests/EngineGraph.php` builds the same
-graph for engine-layer tests (poller, listing, dispatch).
+`StubProviders`, `FakeAnalytics`). `tests/EngineGraph.php` is the one place
+that fake service graph is wired (store in a temp dir, launchers over the
+fake runner); `tests/Command/CommandTestBed.php`, the abstract bed for
+command tests, builds one in `setUp` (plus a `wallet-kit` project and task,
+its own cwd and env) and exposes its services as protected fields; the
+tests needing the services without that bed (`StatsCommandTest`,
+`TaskHistoryCommandTest`) build an `EngineGraph` directly. Environment
+changes (`HOME`, `PABLO_*`, `PATH`…) go through the `tests/SandboxedEnv.php`
+trait — `setEnv()`, then `restoreEnv()` in `tearDown` — never a hand-written
+`getenv`/`putenv` save-restore. Temp dirs and files come from
+`tests/TempDir.php` (`TempDir::create($prefix)` / `TempDir::file()`: 64
+random bits, created atomically with a retry), never `uniqid()`, which
+collides between suites running in parallel on a loaded machine.
 `tests/PortabilityTest.php` is a tripwire scanning `src/**/*.php` for
 `systemctl`/`journalctl`/`/etc/`/`/proc/`/`/opt/` to keep the engine
 Linux+macOS portable. `tests/RequiredCollaboratorsTest.php` fails when an

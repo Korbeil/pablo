@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Hooks;
 
 use Pablo\Hooks\DetachedHookRunner;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -17,7 +18,7 @@ final class DetachedHookRunnerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-hook-'.uniqid();
+        $this->tmp = TempDir::create('hook');
         mkdir($this->tmp.'/wt', 0o777, true);
     }
 

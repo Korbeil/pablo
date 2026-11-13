@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Install;
 
 use Pablo\Install\ShellCompletion;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -14,8 +15,7 @@ final class ShellCompletionTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->home = sys_get_temp_dir().'/pablo-completion-'.bin2hex(random_bytes(4));
-        mkdir($this->home, 0o777, true);
+        $this->home = TempDir::create('completion');
     }
 
     protected function tearDown(): void

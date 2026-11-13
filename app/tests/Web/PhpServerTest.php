@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Web;
 
 use Pablo\Support\PabloError;
+use Pablo\Tests\TempDir;
 use Pablo\Web\PhpServer;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
@@ -22,8 +23,7 @@ final class PhpServerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-phpserver-'.bin2hex(random_bytes(4));
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('phpserver');
     }
 
     protected function tearDown(): void

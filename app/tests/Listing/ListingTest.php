@@ -25,6 +25,7 @@ use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\FakeAgents;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class FakeProvider implements Provider
@@ -84,8 +85,7 @@ final class ListingTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-listing-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('listing');
         $this->cfg = new ProjectConfig(
             name: 'wallet-kit',
             type: 'open-source',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents\Ade\OpenChamber;
 
 use Pablo\Agents\Ade\OpenChamber\OpenChamberCli;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
 
@@ -19,8 +20,7 @@ final class OpenChamberCliTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-occli-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('occli');
     }
 
     protected function tearDown(): void

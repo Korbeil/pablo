@@ -10,6 +10,7 @@ use Pablo\Domain\Task;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\RestoresErrorHandlers;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\UX\LiveComponent\Test\InteractsWithLiveComponents;
@@ -32,7 +33,7 @@ final class TaskBoardTest extends WebTestCase
     protected function setUp(): void
     {
         $this->snapshotErrorHandlers();
-        $this->tmp = sys_get_temp_dir().'/pablo-taskboard-'.uniqid();
+        $this->tmp = TempDir::create('taskboard');
         mkdir($this->tmp.'/projects', 0o777, true);
 
         putenv('PABLO_STATE_DIR='.$this->tmp.'/state');

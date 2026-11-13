@@ -8,6 +8,7 @@ use Pablo\Agents\Ade\Headless\HeadlessRunner;
 use Pablo\Agents\Runtime\OpenCode\OpenCodeRuntime;
 use Pablo\Domain\Time;
 use Pablo\Support\Files;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -22,7 +23,7 @@ final class HeadlessRunnerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-headless-runner-'.uniqid();
+        $this->tmp = TempDir::create('headless-runner');
         mkdir($this->tmp.'/agents', 0o777, true);
         putenv('PABLO_AGENTS_DIR='.$this->tmp.'/agents');
         $this->runner = new HeadlessRunner(new Time(), new class extends DelegatingRuntime {

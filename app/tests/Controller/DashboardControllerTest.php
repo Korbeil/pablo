@@ -11,6 +11,7 @@ use Pablo\Domain\Task;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Pablo\Tests\RestoresErrorHandlers;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -33,7 +34,7 @@ final class DashboardControllerTest extends WebTestCase
     protected function setUp(): void
     {
         $this->snapshotErrorHandlers();
-        $this->tmp = sys_get_temp_dir().'/pablo-web-'.uniqid();
+        $this->tmp = TempDir::create('web');
         mkdir($this->tmp.'/projects', 0o777, true);
         mkdir($this->tmp.'/stamps', 0o777, true);
         mkdir($this->tmp.'/logs', 0o777, true);

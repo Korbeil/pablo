@@ -83,8 +83,7 @@ YAML;
 
     protected function setUp(): void
     {
-        $this->projectsDir = sys_get_temp_dir().'/pablo-config-'.uniqid();
-        mkdir($this->projectsDir, 0o777, true);
+        $this->projectsDir = TempDir::create('config');
         $this->writeGlobalConfig(self::DEFAULTS);
     }
 

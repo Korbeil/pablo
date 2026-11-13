@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Analytics;
 
 use Pablo\Analytics\AnalyticsReader;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class AnalyticsReaderTest extends TestCase
@@ -13,7 +14,7 @@ final class AnalyticsReaderTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->root = sys_get_temp_dir().'/pablo-reader-'.uniqid();
+        $this->root = TempDir::create('reader');
         mkdir($this->root.'/proj', 0o777, true);
         mkdir($this->root.'/other', 0o777, true);
         putenv('PABLO_ANALYTICS_DIR='.$this->root);

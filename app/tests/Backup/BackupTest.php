@@ -9,6 +9,7 @@ use Pablo\Config\Config;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Store\Store;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 
@@ -36,7 +37,7 @@ final class BackupTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-backup-'.uniqid();
+        $this->tmp = TempDir::create('backup');
         $this->pabloRoot = $this->tmp.'/pablo';
         $this->projectsDir = $this->tmp.'/projects';
         $this->dest = $this->tmp.'/out';

@@ -15,6 +15,7 @@ use Pablo\Provider\Git\Sync;
 use Pablo\Provider\Git\SyncHistory;
 use Pablo\Provider\Git\SyncReport;
 use Pablo\Provider\Git\SyncRun;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class RebaseLogViewTest extends TestCase
@@ -37,8 +38,7 @@ final class RebaseLogViewTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->logs = sys_get_temp_dir().'/pablo-logs-'.uniqid();
-        mkdir($this->logs, 0o777, true);
+        $this->logs = TempDir::create('logs');
         putenv('PABLO_LOGS_DIR='.$this->logs);
         $this->view = new RebaseLogView($this->sync());
     }

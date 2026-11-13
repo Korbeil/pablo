@@ -7,6 +7,7 @@ namespace Pablo\Tests\Agents\Runtime;
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\Runtime\RenderedFileCheck;
 use Pablo\Doctor\AgentFileState;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class RenderedFileCheckTest extends TestCase
@@ -15,7 +16,7 @@ final class RenderedFileCheckTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-rendered-check-'.uniqid();
+        $this->tmp = TempDir::create('rendered-check');
         mkdir($this->tmp.'/skill', 0o777, true);
         file_put_contents($this->tmp.'/file.md', 'fresh');
         file_put_contents($this->tmp.'/skill/SKILL.md', 'fresh');

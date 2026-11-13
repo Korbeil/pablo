@@ -8,6 +8,7 @@ use Pablo\Agents\Ade\Headless\HeadlessLauncher;
 use Pablo\Domain\Time;
 use Pablo\Support\Files;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -23,7 +24,7 @@ final class HeadlessLauncherTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-headless-'.uniqid();
+        $this->tmp = TempDir::create('headless');
         $this->agentsDir = $this->tmp.'/agents';
         mkdir($this->agentsDir, 0o777, true);
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);

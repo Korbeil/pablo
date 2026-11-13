@@ -264,7 +264,7 @@ final class InstallCommandTest extends TestCase
         mkdir($this->sandbox.'/nvm/bin', 0o777, true);
         file_put_contents($this->sandbox.'/nvm/bin/node', "#!/bin/sh\n");
         chmod($this->sandbox.'/nvm/bin/node', 0o755);
-        putenv('PATH='.$this->sandbox.'/bin:'.$this->sandbox.'/nvm/bin');
+        $this->setEnv('PATH', $this->sandbox.'/bin:'.$this->sandbox.'/nvm/bin');
         mkdir($this->home.'/.pablo', 0o777, true);
         file_put_contents($this->home.'/.pablo/config.yaml', "scheduler:\n  path: ['~/my tools/bin']\n");
 
@@ -416,13 +416,13 @@ final class InstallCommandTest extends TestCase
 
     public function testPathIsAddedForTheUsersShellOnlyWhenMissing(): void
     {
-        putenv('SHELL=/usr/bin/zsh');
+        $this->setEnv('SHELL', '/usr/bin/zsh');
         $this->assertSame(0, $this->install(['--runtime' => 'opencode'])->getStatusCode());
         $this->assertStringContainsString($this->home.'/.local/bin', (string) file_get_contents($this->home.'/.zshrc'));
         $this->assertFileDoesNotExist($this->home.'/.bashrc');
 
-        putenv('SHELL=/usr/bin/fish');
-        putenv('PATH='.$this->sandbox.'/bin:'.$this->home.'/.local/bin');
+        $this->setEnv('SHELL', '/usr/bin/fish');
+        $this->setEnv('PATH', $this->sandbox.'/bin:'.$this->home.'/.local/bin');
         $tester = $this->install(['--runtime' => 'opencode']);
         $this->assertStringContainsString('is already on your PATH', $tester->getDisplay());
         $this->assertFileDoesNotExist($this->home.'/.config/fish/conf.d/pablo.fish');
@@ -465,7 +465,7 @@ final class InstallCommandTest extends TestCase
 
     public function testTheCompletionGoesToTheUsersShell(): void
     {
-        putenv('SHELL=/usr/bin/fish');
+        $this->setEnv('SHELL', '/usr/bin/fish');
         $this->assertSame(0, $this->install(['--runtime' => 'opencode'])->getStatusCode());
 
         $this->assertFileExists($this->home.'/.config/fish/completions/pablo.fish');

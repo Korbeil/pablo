@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Git;
 
 use Pablo\Provider\Git\GitRepo;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
@@ -24,8 +25,7 @@ final class SyncForkTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-git-fork-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('git-fork');
         $this->upstream = $this->tmp.'/upstream.git';
         $this->fork = $this->tmp.'/fork.git';
         $this->clone = $this->tmp.'/clone';

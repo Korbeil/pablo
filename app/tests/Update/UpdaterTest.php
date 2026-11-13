@@ -7,6 +7,7 @@ namespace Pablo\Tests\Update;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProbeResult;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\TempDir;
 use Pablo\Update\Updater;
 use PHPUnit\Framework\TestCase;
 
@@ -30,7 +31,7 @@ final class UpdaterTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-updater-'.bin2hex(random_bytes(4));
+        $this->tmp = TempDir::create('updater');
         mkdir($this->tmp.'/bin', 0o777, true);
         $this->binary = $this->tmp.'/bin/pablo';
         file_put_contents($this->binary, self::OLD_BINARY);

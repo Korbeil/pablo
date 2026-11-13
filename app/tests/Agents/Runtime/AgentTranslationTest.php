@@ -7,6 +7,7 @@ namespace Pablo\Tests\Agents\Runtime;
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentTranslation;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class AgentTranslationTest extends TestCase
@@ -38,7 +39,7 @@ final class AgentTranslationTest extends TestCase
 
     public function testReadCommandSplitsNameFrontmatterAndBody(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-cmd-'.uniqid().'.md';
+        $this->tmp = TempDir::file('cmd', '.md');
         file_put_contents($this->tmp, "---\ndescription: Do it\n---\nBody\n");
 
         [$name, $front, $body] = AgentTranslation::readCommand($this->tmp);
@@ -50,7 +51,9 @@ final class AgentTranslationTest extends TestCase
 
     public function testReadCommandFailsOnAMissingFileAsATemplateError(): void
     {
-        $missing = sys_get_temp_dir().'/pablo-no-such-command-'.uniqid().'.md';
+        $dir = TempDir::create('no-such-command');
+        rmdir($dir); // a unique path that does not exist
+        $missing = $dir.'/missing.md';
 
         $this->expectException(AgentTemplateError::class);
         $this->expectExceptionMessage("Cannot read command: {$missing}");

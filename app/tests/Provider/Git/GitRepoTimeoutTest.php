@@ -7,6 +7,7 @@ namespace Pablo\Tests\Provider\Git;
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Support\PabloError;
 use Pablo\Tests\Git\RepoHelper;
+use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 
@@ -25,8 +26,7 @@ final class GitRepoTimeoutTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-git-timeout-'.uniqid();
-        mkdir($this->tmp, 0o777, true);
+        $this->tmp = TempDir::create('git-timeout');
         $repos = RepoHelper::makeRepos($this->tmp);
         $this->clone = $repos['clone'];
         $this->other = $repos['other'];

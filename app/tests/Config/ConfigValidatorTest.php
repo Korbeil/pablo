@@ -8,6 +8,7 @@ use Pablo\Config\Config;
 use Pablo\Config\ConfigIssue;
 use Pablo\Config\ConfigValidator;
 use Pablo\Config\GlobalConfig;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
@@ -36,7 +37,7 @@ YAML;
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-validate-'.uniqid();
+        $this->tmp = TempDir::create('validate');
         mkdir($this->tmp.'/projects', 0o777, true);
         mkdir($this->tmp.'/repo/.git', 0o777, true);
         putenv('PABLO_PROJECTS_DIR='.$this->tmp.'/projects');

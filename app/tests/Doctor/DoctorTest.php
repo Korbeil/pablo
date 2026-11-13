@@ -80,8 +80,7 @@ YAML;
 
     protected function setUp(): void
     {
-        $this->projectsDir = sys_get_temp_dir().'/pablo-projects-'.uniqid();
-        mkdir($this->projectsDir, 0o777, true);
+        $this->projectsDir = TempDir::create('projects');
         $this->writeGlobalConfig(self::DEFAULTS);
         // A real checkout: the doctor's config section checks repo.path.
         mkdir($this->projectsDir.'/wallet-kit/.git', 0o777, true);
@@ -175,7 +174,7 @@ YAML;
     public function testOpenChamberDesktopAppIsRefusedWithoutRunningIt(): void
     {
         $this->writeGlobalConfig(self::DEFAULTS."\nagent_backend: openchamber\n");
-        $desktop = sys_get_temp_dir().'/pablo-doctor-oc-'.uniqid();
+        $desktop = TempDir::file('doctor-oc');
         file_put_contents($desktop, "\x7fELF\x02\x01\x01");
         $this->onWhich = static fn (string $name): string => 'openchamber' === $name ? $desktop : '/usr/bin/'.$name;
         try {

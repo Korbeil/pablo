@@ -7,6 +7,7 @@ namespace Pablo\Tests\Command\Report;
 use Pablo\Analytics\AnalyticsAggregator;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Command\Report\StatsCommand;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -36,11 +37,10 @@ YAML;
     protected function setUp(): void
     {
         $this->writeGlobalConfig(self::CONFIG_DEFAULTS);
-        $this->root = sys_get_temp_dir().'/pablo-stats-'.uniqid();
+        $this->root = TempDir::create('stats');
         mkdir($this->root.'/proj', 0o777, true);
         putenv('PABLO_ANALYTICS_DIR='.$this->root);
-        $this->projectsDir = sys_get_temp_dir().'/pablo-stats-projects-'.uniqid();
-        mkdir($this->projectsDir, 0o777, true);
+        $this->projectsDir = TempDir::create('stats-projects');
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
     }
 

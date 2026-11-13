@@ -11,6 +11,7 @@ use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\AgentFileState;
 use Pablo\Doctor\AgentStaleness;
+use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
 
@@ -27,7 +28,7 @@ final class CopilotAgentFilesTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->tmp = sys_get_temp_dir().'/pablo-copilot-stale-'.uniqid();
+        $this->tmp = TempDir::create('copilot-stale');
         mkdir($this->tmp.'/copilot/agents', 0o777, true);
         mkdir($this->tmp.'/copilot/skills', 0o777, true);
         mkdir($this->tmp.'/rendered/agents', 0o777, true);
