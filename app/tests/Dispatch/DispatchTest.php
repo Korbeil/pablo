@@ -66,7 +66,7 @@ final class DispatchTest extends TestCase
         $this->unsetGlobalConfig();
     }
 
-    private function cfg(string $name): ProjectConfig
+    private function cfg(string $name, string $provider = 'github'): ProjectConfig
     {
         return new ProjectConfig(
             name: $name,
@@ -77,7 +77,7 @@ final class DispatchTest extends TestCase
                 worktreesRoot: $this->tmp.'/wt/'.$name,
             ),
             tracker: new TrackerConfig(
-                provider: 'github',
+                provider: $provider,
                 identity: 'octocat',
                 projectKey: 'PR',
             ),
@@ -600,5 +600,163 @@ YAML);
         $this->assertNotNull($last);
         $this->assertSame(DispatchHealth::OUTCOME_PREFLIGHT_FAILED, $last->outcome);
         $this->assertStringContainsString('gh: not authenticated', (string) $last->detail);
+    }
+
+    /** @return list<string> the CLIs probed so far, by argv[0] */
+    private function probedClis(): array
+    {
+        return array_map(static fn (array $argv): string => $argv[0], $this->runner->probeCalls);
+    }
+
+    public function testIdleTickSpawnsNoSubprocessButCountsAsAHealthyRun(): void
+    {
+        $env = $this->env();
+        $now = 1_800_000_000.0;
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now);
+        $this->ran = [];
+        $this->runner->probeCalls = [];
+        $this->runner->calls = [];
+
+        // Five minutes later nothing is due (poll every 10, sync every 30).
+        ob_start();
+        $rc = $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 300);
+        $out = (string) ob_get_clean();
+
+        $this->assertSame(0, $rc);
+        $this->assertSame([], $this->ran);
+        $this->assertSame([], $this->runner->probeCalls, 'an idle tick probes no CLI');
+        $this->assertSame([], $this->runner->calls, 'an idle tick runs no command');
+        $this->assertSame([], $this->git->primaryUpdates);
+        $this->assertSame('', $out);
+
+        // The scheduler still looks alive to the doctor and the dashboard.
+        $last = (new DispatchHealth())->lastDispatch();
+        $this->assertNotNull($last);
+        $this->assertSame(DispatchHealth::OUTCOME_OK, $last->outcome);
+        $this->assertSame(DispatchHealth::iso($now + 300), $last->startedAt);
+        $this->assertNotNull($last->finishedAt);
+    }
+
+    public function testDueTickProbesEachCliOnce(): void
+    {
+        $env = $this->env();
+        ob_start();
+        $rc = $this->runDispatch($env['projects'], $env['store'], $env['runners']);
+        ob_end_clean();
+
+        $this->assertSame(0, $rc);
+        $this->assertCount(4, $this->ran);
+        $probed = $this->probedClis();
+        $this->assertSame(['gh'], array_values(array_filter($probed, static fn (string $cli): bool => 'gh' === $cli)), 'one preflight for the whole run, not one per job');
+        $this->assertSame(array_values(array_unique($probed)), $probed);
+    }
+
+    public function testPreflightOnlyProbesTheTrackersOfProjectsWithAJobDue(): void
+    {
+        $now = microtime(true); // stampAge() ages stamps from the real clock
+        $projects = ['jira' => $this->cfg('jira', 'jira'), 'b' => $this->cfg('b')];
+        $runners = ['poll' => function (ProjectConfig $c, Store $s): void { $this->ran[] = ['poll', $c->name]; }];
+        $store = new Store($this->tmp.'/state');
+        $this->runDispatch($projects, $store, $runners, $now);
+        $this->assertContains('acli', $this->probedClis());
+
+        // Only b is due again: the Jira CLI is not needed by this run.
+        $this->stampAge('b', 'poll', 11 * 60);
+        $this->ran = [];
+        $this->runner->probeCalls = [];
+        $this->runDispatch($projects, $store, $runners, $now + 1);
+        $this->assertSame([['poll', 'b']], $this->ran);
+        $this->assertContains('gh', $this->probedClis());
+        $this->assertNotContains('acli', $this->probedClis());
+    }
+
+    /**
+     * A tick whose only due job is backing off runs nothing, so it needs no
+     * tool: it is idle (no probe) and, as before, a healthy run — the failing
+     * job is reported by its own health record, not by the run.
+     */
+    public function testBackedOffJobAloneIsAnIdleTick(): void
+    {
+        $env = $this->env();
+        $env['runners'] = ['sync' => $this->failingSync()];
+        $now = 1_800_000_000.0;
+        ob_start();
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now);
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 300);
+        ob_end_clean();
+        $this->assertSame(2, $this->syncFailures());
+
+        // +600s: both syncs are due (they never succeeded) but back off until +900s.
+        $this->ran = [];
+        $this->runner->probeCalls = [];
+        ob_start();
+        $rc = $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 600);
+        $out = (string) ob_get_clean();
+
+        $this->assertSame(0, $rc);
+        $this->assertSame([], $this->ran);
+        $this->assertSame([], $this->runner->probeCalls);
+        $this->assertStringContainsString('[a] sync: backing off', $out);
+        $this->assertSame(DispatchHealth::OUTCOME_OK, (new DispatchHealth())->lastDispatch()?->outcome);
+        $this->assertSame(2, $this->syncFailures());
+    }
+
+    public function testIdleTickStillFailsOnAnImpossibleAgentSetup(): void
+    {
+        $env = $this->env();
+        $now = 1_800_000_000.0;
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now);
+        $this->runner->probeCalls = [];
+
+        $this->writeGlobalConfig("agent_runtime: claude-code\nagent_backend: openchamber\n");
+        $rc = $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 300);
+
+        $this->assertSame(1, $rc);
+        $this->assertSame([], $this->runner->probeCalls, 'the agent settings check is a config read');
+        $last = (new DispatchHealth())->lastDispatch();
+        $this->assertNotNull($last);
+        $this->assertSame(DispatchHealth::OUTCOME_PREFLIGHT_FAILED, $last->outcome);
+        $this->assertStringContainsString('OpenChamber only works with OpenCode', (string) $last->detail);
+    }
+
+    public function testIdleTickStillReportsInvalidProjectConfigs(): void
+    {
+        $env = $this->env();
+        $now = 1_800_000_000.0;
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now);
+        $this->runner->probeCalls = [];
+        $err = fopen('php://memory', 'w+');
+        \assert(false !== $err);
+        $this->dispatch->stderr = $err;
+
+        $rc = $this->dispatch->run($env['projects'], $env['store'], $env['runners'], $now + 300, ['/x/bad.yaml' => 'bad.yaml: invalid YAML']);
+
+        $this->assertSame(1, $rc);
+        $this->assertSame([], $this->runner->probeCalls);
+        rewind($err);
+        $this->assertStringContainsString('skipping invalid project config /x/bad.yaml', (string) stream_get_contents($err));
+        $last = (new DispatchHealth())->lastDispatch();
+        $this->assertSame(DispatchHealth::OUTCOME_FAILED, $last?->outcome);
+        $this->assertSame('invalid project config: bad.yaml', $last->detail);
+    }
+
+    public function testPreflightFailureLeavesJobsDueSoTheNextTickChecksAgain(): void
+    {
+        $env = $this->env();
+        $now = 1_800_000_000.0;
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => 'gh' === $argv[0]
+            ? new \Pablo\Support\ProbeResult(1, 'not authenticated')
+            : new \Pablo\Support\ProbeResult(0, 'ok');
+        ob_start();
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now);
+        $this->runner->probeCalls = [];
+        $rc = $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 300);
+        ob_end_clean();
+
+        // No stamp was written, so the failure stays visible on every tick.
+        $this->assertSame(1, $rc);
+        $this->assertSame([], $this->ran);
+        $this->assertContains('gh', $this->probedClis());
+        $this->assertSame(DispatchHealth::OUTCOME_PREFLIGHT_FAILED, (new DispatchHealth())->lastDispatch()?->outcome);
     }
 }

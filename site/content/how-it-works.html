@@ -17,9 +17,13 @@
 
 <ol>
   <li>takes a global lock, so two runs never overlap (a second one exits immediately);</li>
-  <li>checks the tools it needs. A problem with <code>gh</code>, with the <a href="page:glossary#runtime">runtime</a>'s command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), or an impossible agent setup (OpenChamber with Claude Code or Copilot) stops the run; a problem with a tracker tool or the ADE only produces a warning, and only the projects using that tool are affected;</li>
-  <li>for each project, runs the jobs whose interval has elapsed since their last success: first every due sync, one after the other, then the due polls, <a href="#concurrent-polls">a few projects at a time</a>, then every due main update, one after the other.</li>
+  <li>works out which jobs are due: those whose interval has elapsed since their last success, unless they are <a href="#dispatcher-health">backing off</a>;</li>
+  <li>checks the agent setup: an impossible one (OpenChamber with Claude Code or Copilot) stops the run, due jobs or not;</li>
+  <li>when at least one job is due, checks the tools those jobs need. A problem with <code>gh</code> or with the <a href="page:glossary#runtime">runtime</a>'s command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>) stops the run; a problem with a tracker tool or the ADE only produces a warning, and only the projects using that tool are affected. Tracker tools are only checked for the projects with a job due;</li>
+  <li>runs the due jobs: first every due sync, one after the other, then the due polls, <a href="#concurrent-polls">a few projects at a time</a>, then every due main update, one after the other.</li>
 </ol>
+
+<p>Most runs have nothing due: they take the lock, check the agent setup (a read of <code>config.yaml</code>), record a healthy run and exit, without starting any other program. A run stopped by a tool problem saves no “last run” time, so its jobs stay due and the next run checks the tools again.</p>
 
 <table>
   <thead><tr><th>Job</th><th>What it does</th><th>Interval setting</th><th>Default</th></tr></thead>
@@ -53,7 +57,7 @@
 <ul>
   <li>per project and job: the last attempt, the last success, the last error (one line, cut at 300 characters) and how many times in a row it failed;</li>
   <li>for the poll job, how many tasks' checks failed on its last run. A task whose check fails doesn't fail the job: the other tasks are still polled;</li>
-  <li>for the whole run: when it started and finished, and whether it went fine, had a failing job, or stopped on the tool check.</li>
+  <li>for the whole run: when it started and finished, and whether it went fine, had a failing job, or stopped on the tool check. A run with nothing due went fine, so the record also shows the scheduler is alive.</li>
 </ul>
 
 <p>A job that fails twice in a row backs off instead of retrying every 5 minutes: it waits 5 minutes × 2<sup>failures − 1</sup> after its last attempt (10, 20, 40 minutes…), never longer than its own interval. One success ends the back-off, and so does running the job by hand: <code>pablo system:poll</code> and <code>pablo sync:run</code> ignore the back-off and, when they work, reset the failure count (not <code>pablo sync:run --dry-run</code>, which proves too little).</p>
