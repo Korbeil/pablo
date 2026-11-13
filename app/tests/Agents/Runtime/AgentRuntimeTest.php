@@ -75,8 +75,21 @@ final class AgentRuntimeTest extends TestCase
         $runtime = new OpenCodeRuntime();
         $this->assertSame("opencode run --model 'a/b' --agent task-analyst 'Analyze #1'", $runtime->launchCommand('task-analyst', 'Analyze #1', 'a/b'));
         $this->assertSame("opencode run --agent task-analyst 'x'", $runtime->launchCommand('task-analyst', 'x', null));
-        $this->assertNull($runtime->newSessionId());
         $this->assertSame('opencode -s ses_1', $runtime->sessions()->resumeCommand('ses_1'));
+        $this->assertNull($runtime->modelError('opencode-go/glm-5.3-flash'));
+    }
+
+    public function testOpenCodeRunsUnderAPabloAssignedSession(): void
+    {
+        $runtime = new OpenCodeRuntime();
+        $sid = $runtime->newSessionId();
+        $this->assertMatchesRegularExpression('/^ses_pablo[0-9a-f]{20}$/', $sid);
+        $this->assertNotSame($sid, $runtime->newSessionId(), 'every launch gets its own session');
+        $this->assertSame("opencode run -s '{$sid}' --model 'a/b' --agent task-analyst 'go'", $runtime->launchCommand('task-analyst', 'go', 'a/b', $sid));
+        $this->assertTrue($runtime->sessions()->owns($sid));
+        $this->assertSame('opencode -s '.$sid, $runtime->sessions()->resumeCommand($runtime->sessions()->handle($sid)));
+        // Handles recorded before PABLO assigned ids carry OpenCode's own.
+        $this->assertSame('opencode -s ses_3a1b2c', SessionRef::command('ses_3a1b2c'));
         $this->assertNull($runtime->modelError('opencode-go/glm-5.3-flash'));
     }
 

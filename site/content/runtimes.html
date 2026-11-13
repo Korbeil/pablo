@@ -29,12 +29,13 @@ pablo system:doctor                          # checks the runtime and its genera
 
 <h2 id="opencode">OpenCode</h2>
 
-<p>The default, and the only runtime OpenChamber can run. You need <a href="https://opencode.ai">OpenCode</a> set up with your usual model provider.</p>
+<p>The default, and the only runtime OpenChamber can run. You need <a href="https://opencode.ai">OpenCode</a> 2.x set up with your usual model provider.</p>
 
 <ul>
   <li><b>What is installed.</b> The agents, the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, rendered into <code>~/.pablo/runtime/opencode/</code> and linked into <code>~/.config/opencode/</code>.</li>
   <li><b>Guardrails.</b> The agents' permissions are OpenCode frontmatter rules, enforced by OpenCode, and their step budget is OpenCode's own step limit (see <a href="page:agents#read-only-enforced">Read-only, enforced</a>).</li>
-  <li><b>Sessions.</b> <code>opencode -s &lt;session&gt;</code> reopens a run. Headless runs can be followed in OpenCode's web interface: see <a href="page:how-it-works#headless-opencode-web-ui">Follow headless OpenCode runs in the browser</a>.</li>
+  <li><b>How they launch.</b> <code>opencode run -s &lt;session&gt; --model &lt;default_model&gt; --agent &lt;name&gt; '&lt;prompt&gt;'</code>, from the worktree.</li>
+  <li><b>Sessions.</b> Each run gets a session id chosen by PABLO (<code>ses_pablo…</code>; <code>-s</code> creates the session under it), so the rebase log names the resolver's session as soon as it starts. <code>opencode -s &lt;session&gt;</code> reopens a run. Headless runs can be followed in OpenCode's web interface: see <a href="page:how-it-works#headless-opencode-web-ui">Follow headless OpenCode runs in the browser</a>.</li>
 </ul>
 
 <h2 id="claude-code">Claude Code</h2>
