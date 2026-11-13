@@ -23,49 +23,7 @@ use Symfony\Component\Process\ExecutableFinder;
  */
 final class Doctor
 {
-    private const CLI_PROBES = [
-        'gh' => [['gh', 'auth', 'status'], 'run: gh auth login'],
-        'acli' => [['acli', 'jira', 'auth', 'status'], 'run: acli auth login'],
-        'acli-confluence' => [['acli', 'confluence', 'auth', 'status'], 'run: acli confluence auth login'],
-        'linear' => [['linear', 'auth', 'status'], 'run: linear auth login (schpet/linear-cli)'],
-    ];
-
     private const ALWAYS_REQUIRED = ['gh'];
-
-    /**
-     * Wizard ordering: hard requirements first (the ADEs' then the runtimes'
-     * CLIs go right after gh), then the per-provider trackers (only included
-     * when a project uses them).
-     */
-    private const CLI_ORDER_BEFORE_AGENTS = ['gh'];
-    private const CLI_ORDER_AFTER_AGENTS = ['acli', 'acli-confluence', 'linear'];
-
-    /** @var array<string, array<string, string>> platform => install command */
-    private const INSTALL_COMMANDS = [
-        'gh' => [
-            'Darwin' => 'brew install gh',
-            'Linux' => 'sudo apt-get install gh',
-        ],
-        'acli' => [
-            'Darwin' => 'brew tap atlassian-labs/acli && brew install acli',
-            'Linux' => 'brew tap atlassian-labs/acli && brew install acli',
-        ],
-        'acli-confluence' => [
-            'Darwin' => 'brew tap atlassian-labs/acli && brew install acli',
-            'Linux' => 'brew tap atlassian-labs/acli && brew install acli',
-        ],
-        'linear' => [
-            'Darwin' => 'brew install schpet/tap/linear',
-            'Linux' => 'deno install -A --reload -f -g -n linear jsr:@schpet/linear-cli',
-        ],
-    ];
-
-    private const DOCS_URLS = [
-        'gh' => 'https://cli.github.com',
-        'acli' => 'https://developer.atlassian.com/cloud/acli/',
-        'acli-confluence' => 'https://developer.atlassian.com/cloud/acli/',
-        'linear' => 'https://github.com/schpet/linear-cli',
-    ];
 
     private const PROBE_TIMEOUT_S = 30;
 
@@ -158,20 +116,53 @@ final class Doctor
         return implode("\n", array_map(static fn (string $e): string => \sprintf('❌ %-10s %s', 'config', $e), $errors));
     }
 
-    /** @return list<string> */
-    public function cliOrder(): array
-    {
-        return [...self::CLI_ORDER_BEFORE_AGENTS, ...array_keys($this->agentProbes()), ...self::CLI_ORDER_AFTER_AGENTS];
-    }
-
     /**
-     * Every ADE's then every runtime's probe, keyed by CLI id.
+     * The tracker CLIs. Soft: a dead acli/linear only degrades the projects
+     * using that provider, it never blocks a dispatch run.
      *
      * @return array<string, CliProbe>
      */
-    private function agentProbes(): array
+    private static function trackerProbes(): array
     {
-        $probes = [];
+        $acli = [
+            'Darwin' => 'brew tap atlassian-labs/acli && brew install acli',
+            'Linux' => 'brew tap atlassian-labs/acli && brew install acli',
+        ];
+        $acliDocs = 'https://developer.atlassian.com/cloud/acli/';
+
+        return [
+            'acli' => new CliProbe('acli', ['acli', 'jira', 'auth', 'status'], 'run: acli auth login', $acli, $acliDocs, soft: true),
+            'acli-confluence' => new CliProbe('acli-confluence', ['acli', 'confluence', 'auth', 'status'], 'run: acli confluence auth login', $acli, $acliDocs, soft: true),
+            'linear' => new CliProbe(
+                'linear',
+                ['linear', 'auth', 'status'],
+                'run: linear auth login (schpet/linear-cli)',
+                [
+                    'Darwin' => 'brew install schpet/tap/linear',
+                    'Linux' => 'deno install -A --reload -f -g -n linear jsr:@schpet/linear-cli',
+                ],
+                'https://github.com/schpet/linear-cli',
+                soft: true,
+            ),
+        ];
+    }
+
+    /**
+     * Every CLI doctor knows, keyed by CLI id: gh, every ADE's then every
+     * runtime's probe, then the trackers'. Built per call (the ADE and
+     * runtime probes depend on the runtime environment).
+     *
+     * @return array<string, CliProbe>
+     */
+    private function probes(): array
+    {
+        $probes = ['gh' => new CliProbe(
+            'gh',
+            ['gh', 'auth', 'status'],
+            'run: gh auth login',
+            ['Darwin' => 'brew install gh', 'Linux' => 'sudo apt-get install gh'],
+            'https://cli.github.com',
+        )];
         foreach ($this->agentLaunchers->ades()->all() as $ade) {
             $probe = $ade->probe();
             if (null !== $probe) {
@@ -183,47 +174,43 @@ final class Doctor
             $probes[$probe->cli] = $probe;
         }
 
-        return $probes;
+        return $probes + self::trackerProbes();
     }
 
-    /** Whether a failing $cli only degrades (agents fall back), never blocks a dispatch run. */
+    /**
+     * Wizard ordering: hard requirements first (gh, then the ADEs' and the
+     * runtimes' CLIs), then the per-provider trackers (only included when a
+     * project uses them).
+     *
+     * @return list<string>
+     */
+    public function cliOrder(): array
+    {
+        return array_keys($this->probes());
+    }
+
+    /**
+     * Whether a failing $cli only degrades (agents fall back to a headless
+     * run, a tracker only fails its own projects), never blocks a dispatch run.
+     */
     public function isSoft(string $cli): bool
     {
-        $probe = $this->agentProbes()[$cli] ?? null;
-
-        return null !== $probe && $probe->soft;
+        return $this->probes()[$cli]->soft ?? false;
     }
 
-    /** @return array{0: list<string>, 1: string} probe argv and failure hint */
-    private function probeFor(string $cli): array
+    private function probeFor(string $cli): CliProbe
     {
-        $runtime = $this->agentProbes()[$cli] ?? null;
-        if (null !== $runtime) {
-            return [$runtime->argv, $runtime->hint];
-        }
-        if (!isset(self::CLI_PROBES[$cli])) {
-            throw new PabloError("unknown CLI '{$cli}'");
-        }
-
-        return self::CLI_PROBES[$cli];
+        return $this->probes()[$cli] ?? throw new PabloError("unknown CLI '{$cli}'");
     }
 
     public function installCommand(string $cli): ?string
     {
-        $runtime = $this->agentProbes()[$cli] ?? null;
-        $perOs = null !== $runtime ? $runtime->installCommands : (self::INSTALL_COMMANDS[$cli] ?? null);
-        if (null === $perOs) {
-            return null;
-        }
-
-        return $perOs[\PHP_OS_FAMILY] ?? null;
+        return $this->probes()[$cli]->installCommands[\PHP_OS_FAMILY] ?? null;
     }
 
     public function docsUrl(string $cli): ?string
     {
-        $runtime = $this->agentProbes()[$cli] ?? null;
-
-        return null !== $runtime ? $runtime->docsUrl : (self::DOCS_URLS[$cli] ?? null);
+        return $this->probes()[$cli]->docsUrl ?? null;
     }
 
     private function which(string $bin): ?string
@@ -254,7 +241,8 @@ final class Doctor
     {
         $results = [];
         foreach ($cliIds as $cliName) {
-            [$probeArgv, $hint] = $this->probeFor($cliName);
+            $cli = $this->probeFor($cliName);
+            [$probeArgv, $hint] = [$cli->argv, $cli->hint];
             $path = $this->which($probeArgv[0]);
             if (null === $path) {
                 $results[] = new CheckResult(
@@ -267,7 +255,7 @@ final class Doctor
                 continue;
             }
             // Another program under the same name (e.g. a desktop app): never run it.
-            $refusal = ($this->agentProbes()[$cliName]->refuse ?? null)?->__invoke($path);
+            $refusal = null !== $cli->refuse ? ($cli->refuse)($path) : null;
             if (null !== $refusal) {
                 $results[] = new CheckResult(
                     cli: $cliName,
