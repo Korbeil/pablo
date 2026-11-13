@@ -17,7 +17,6 @@ use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
-use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
 use Symfony\Component\Process\Exception\ExceptionInterface as ProcessException;
 
@@ -49,7 +48,6 @@ final class Sync
         private readonly GitRepoInterface $git,
         private readonly GhPrInterface $gh,
         private readonly RepoSlug $repoSlug,
-        private readonly ProcessRunnerInterface $runner,
         private readonly Time $time,
         private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
         private readonly float $lockTimeoutS = self::SYNC_LOCK_TIMEOUT_S,
@@ -187,16 +185,12 @@ final class Sync
         foreach ($reports as $report) {
             if ('conflict' === $report->action && $effectiveApply && null !== $agents) {
                 $prompt = $this->buildConflictAgentPrompt($report, $cfg);
-                // Most runtimes take a PABLO-assigned session id; one that
-                // picks its own finds it back once the run started.
+                // The session id is assigned up front, so its handle is known
+                // before the run even starts.
                 $runtime = $this->runtimes->resolve();
                 $sessionId = $runtime->newSessionId();
                 $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->defaultModel, $sessionId);
-                if (null === $sessionId) {
-                    sleep(1);
-                    $sessionId = $runtime->sessions()->findSession($this->runner, $report->worktree);
-                }
-                $report->agentHandle = null !== $sessionId ? $runtime->sessions()->handle($sessionId) : 'launched';
+                $report->agentHandle = $runtime->sessions()->handle($sessionId);
             }
         }
         $log = $this->saveLastLog($cfg->name, $cfg->sync->strategy, $reports);

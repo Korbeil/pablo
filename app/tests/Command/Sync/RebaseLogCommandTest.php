@@ -20,7 +20,7 @@ final class RebaseLogCommandTest extends CommandTestBed
     {
         parent::setUp();
         putenv('PABLO_LOGS_DIR='.$this->tmp.'/logs');
-        $this->sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->runner, $this->time);
+        $this->sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time);
     }
 
     protected function tearDown(): void

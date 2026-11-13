@@ -57,18 +57,14 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
         return 'opencode-go/glm-5.3-flash';
     }
 
-    public function newSessionId(): ?string
+    public function newSessionId(): string
     {
-        return null;
+        return self::SESSION_PREFIX.bin2hex(random_bytes(10));
     }
 
     public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string
     {
-        // OpenCode v2 removed `run --dir` and the TUI's positional directory
-        // + --prompt flags: callers cd into the worktree first.
-        return 'opencode run'
-            .(null !== $model ? ' --model '.escapeshellarg($model) : '')
-            .' --agent '.RuntimeSupport::word($agent).' '.escapeshellarg($prompt);
+        return $this->runArgs($agent, $prompt, $model, $sessionId);
     }
 
     /**
@@ -82,16 +78,28 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
      */
     public function interactiveCommand(string $agent, string $prompt, ?string $model): string
     {
-        $session = escapeshellarg(self::SESSION_PREFIX.bin2hex(random_bytes(10)));
-        $run = 'opencode run -s '.$session
-            .(null !== $model ? ' --model '.escapeshellarg($model) : '')
-            .' --agent '.RuntimeSupport::word($agent).' '.escapeshellarg($prompt);
+        $id = $this->newSessionId();
+        $session = escapeshellarg($id);
+        $run = $this->runArgs($agent, $prompt, $model, $id);
         $script = 'err=$(mktemp); nohup '.$run.' >/dev/null 2>"$err" & pid=$!; i=0; '
             .'until opencode session export '.$session.' >/dev/null 2>&1; do '
             .'if ! kill -0 "$pid" 2>/dev/null || [ "$i" -ge '.self::SESSION_WAIT_S.' ]; then cat "$err"; rm -f "$err"; exit 1; fi; '
             .'sleep 1; i=$((i+1)); done; rm -f "$err"; exec opencode -s '.$session;
 
         return 'sh -c '.escapeshellarg($script);
+    }
+
+    /**
+     * `opencode run` on $prompt, under session $sessionId when given (`-s`
+     * creates it). OpenCode v2 removed `run --dir` and the TUI's positional
+     * directory + --prompt flags: callers cd into the worktree first.
+     */
+    private function runArgs(string $agent, string $prompt, ?string $model, ?string $sessionId): string
+    {
+        return 'opencode run'
+            .(null !== $sessionId ? ' -s '.escapeshellarg($sessionId) : '')
+            .(null !== $model ? ' --model '.escapeshellarg($model) : '')
+            .' --agent '.RuntimeSupport::word($agent).' '.escapeshellarg($prompt);
     }
 
     public function modelError(string $model): ?string

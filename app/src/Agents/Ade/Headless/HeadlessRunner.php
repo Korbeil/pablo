@@ -48,7 +48,7 @@ final class HeadlessRunner
 
     /**
      * Run $agent on $prompt in $worktree. $sessionId: a session id assigned
-     * up front; null lets the runtime pick one.
+     * up front; null draws a fresh one from the runtime.
      */
     public function launch(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string
     {

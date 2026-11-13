@@ -49,7 +49,7 @@ final class DispatchTest extends TestCase
         $repoSlug = new \Pablo\Support\RepoSlug($git);
         $providers = new \Pablo\Tests\StubProviders();
         $sm = new \Pablo\StateMachine\StateMachine($gh, $providers, $repoSlug, $time);
-        $sync = new \Pablo\Provider\Git\Sync($git, $gh, $repoSlug, $this->runner, $time);
+        $sync = new \Pablo\Provider\Git\Sync($git, $gh, $repoSlug, $time);
         $poller = new \Pablo\Poller\Poller($gh, $git, $providers, $repoSlug, $sm, $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner));
         $stamps = new \Pablo\Dispatch\Stamps();
         $this->dispatch = new Dispatch($doctor, $sync, $poller, new \Pablo\Agents\AgentLauncherFactory($global, $this->runner), $stamps, $git);

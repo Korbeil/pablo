@@ -63,9 +63,8 @@ interface AgentLauncherInterface
     public function refreshAgentDisplayCache(string $project, string $branch, string $worktree): void;
 
     /**
-     * $sessionId: a session id assigned up front; null lets the runtime pick
-     * one (AgentRuntimeInterface::newSessionId(), or the runtime's own id when
-     * that is null).
+     * $sessionId: a session id assigned up front; null draws a fresh one
+     * (AgentRuntimeInterface::newSessionId()).
      */
     public function launchHeadless(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string;
 

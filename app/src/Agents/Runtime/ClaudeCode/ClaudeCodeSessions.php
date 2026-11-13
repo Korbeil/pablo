@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
-use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * Claude Code takes a PABLO-assigned session id (--session-id): a bare UUID,
@@ -28,10 +27,5 @@ final class ClaudeCodeSessions implements RuntimeSessionsInterface
     public function resumeCommand(string $handle): string
     {
         return 'claude --resume '.$handle;
-    }
-
-    public function findSession(ProcessRunnerInterface $runner, string $worktree): ?string
-    {
-        return null;
     }
 }
