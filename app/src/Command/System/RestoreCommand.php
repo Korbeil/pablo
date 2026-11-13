@@ -54,7 +54,7 @@ final class RestoreCommand extends Command
         $pabloRoot = $this->backup->pabloRoot();
         $projectsDir = $this->projectsLoader->projectsDir();
 
-        $extracted = sys_get_temp_dir().'/pablo-restore-'.uniqid();
+        $extracted = $this->backup->newStagingDir('restore');
         try {
             $manifest = $this->backup->extractArchive($archive, $extracted);
             $this->assertVersion($manifest, $output);

@@ -113,7 +113,7 @@ castor release:list                # the last 10 releases (--limit to see more)
   <li><code>FakeAgents</code> is injected wherever a real agent launcher could be reached, so a test can never start a real <code>opencode run</code>, <code>claude -p</code> or <code>copilot -p</code> (a real, paid model call).</li>
   <li><code>tests/EngineGraph.php</code> is the one place the fake service graph is wired; <code>tests/Command/CommandTestBed.php</code>, the base of the command tests, builds one with a sample project and task.</li>
   <li>A test that changes <code>HOME</code> or a <code>PABLO_*</code> variable does it through the <code>SandboxedEnv</code> trait, which puts the original values back in <code>tearDown</code>.</li>
-  <li>Temp directories and files come from <code>TempDir::create()</code> / <code>TempDir::file()</code>: a random name, created atomically, so suites running side by side never share one (not <code>uniqid()</code>).</li>
+  <li>Temp directories and files come from <code>TempDir::create()</code> / <code>TempDir::file()</code>: a random name, created atomically, so suites running side by side never share one (not <code>uniqid()</code>). They are removed when the test process exits, whatever the result; set <code>PABLO_KEEP_TEST_TMP=1</code> to keep them for debugging (the directory is printed at exit).
   <li>A test that boots the kernel must use the <code>RestoresErrorHandlers</code> trait around the boot, or PHPUnit flags it as risky.</li>
 </ul>
 

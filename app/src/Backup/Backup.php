@@ -45,6 +45,8 @@ final class Backup
         private readonly ProcessRunnerInterface $runner,
         private readonly Time $time,
         private readonly AdeRegistry $ades,
+        /** Where staging directories go; the system temp dir by default. */
+        private readonly ?string $stagingRoot = null,
     ) {
     }
 
@@ -119,8 +121,9 @@ final class Backup
         }
         $rawTar = \strlen($gz) > 3 ? substr($gz, 0, -3) : $gz.'.tar';
 
-        $staging = $this->stage($pabloRoot, $projectsDir, $projects, $store);
+        $staging = $this->newStagingDir('backup');
         try {
+            $this->stage($staging, $projectsDir, $pabloRoot, $projects, $store);
             $dir = \dirname($gz);
             Files::ensureDir($dir);
             $phar = new \PharData($rawTar);
@@ -212,33 +215,44 @@ final class Backup
         return $written;
     }
 
+    /**
+     * A new empty staging directory `<tmp>/pablo-<kind>-<random>`, created
+     * atomically; the caller removes it with cleanupDir() in a `finally`.
+     */
+    public function newStagingDir(string $kind): string
+    {
+        $root = $this->stagingRoot ?? sys_get_temp_dir();
+        for ($i = 0; $i < 10; ++$i) {
+            $dir = $root.'/pablo-'.$kind.'-'.bin2hex(random_bytes(8));
+            if (@mkdir($dir, 0o700, true)) { // checked: false on collision, retried
+                return $dir;
+            }
+        }
+
+        throw new PabloError('cannot create a staging directory in '.$root);
+    }
+
+    /**
+     * Removes $dir and its content. A symlink inside is removed, never
+     * followed; $dir itself may be a link to a directory, which is emptied
+     * and kept (a ~/.pablo subdirectory the user moved elsewhere).
+     */
     public function cleanupDir(string $dir): void
     {
         if (!is_dir($dir)) {
             return;
         }
-        foreach (scandir($dir) ?: [] as $item) {
-            if ('.' === $item || '..' === $item) {
-                continue;
-            }
-            $path = $dir.'/'.$item;
-            if (is_dir($path)) {
-                $this->cleanupDir($path);
-            } else {
-                Files::tryRemove($path);
-            }
+        foreach (Files::list($dir) as $child) {
+            Files::remove($child);
         }
-        @rmdir($dir); // best-effort cleanup of the staging dir
+        @rmdir($dir); // best-effort: fails on a link, which is kept on purpose
     }
 
     /**
      * @param array<string, ProjectConfig> $projects
      */
-    private function stage(string $pabloRoot, string $projectsDir, array $projects, Store $store): string
+    private function stage(string $staging, string $projectsDir, string $pabloRoot, array $projects, Store $store): void
     {
-        $staging = sys_get_temp_dir().'/pablo-backup-'.uniqid();
-        mkdir($staging, 0o777, true);
-
         if (is_dir($projectsDir)) {
             foreach (glob(rtrim($projectsDir, '/').'/*.yaml') ?: [] as $yamlPath) {
                 $dest = $staging.'/projects/'.basename($yamlPath);
@@ -268,8 +282,6 @@ final class Backup
                 file_put_contents($staging.'/'.$name, $content);
             }
         }
-
-        return $staging;
     }
 
     private function copyDir(string $src, string $dest): void
