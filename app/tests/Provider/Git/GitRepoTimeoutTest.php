@@ -28,24 +28,24 @@ final class GitRepoTimeoutTest extends TestCase
 
     private string $tmp;
     private string $clone;
-    private string $other;
     private string $wt;
 
     protected function setUp(): void
     {
         $this->tmp = TempDir::create('git-timeout');
-        $repos = RepoHelper::makeRepos($this->tmp);
+        // The task worktree pr-1 with one pushed commit, then main advanced on origin.
+        $repos = RepoHelper::makeReposThen('timeout', $this->tmp, static function (string $dir, array $repos): void {
+            $wt = (new GitRepo())->createWorktree($repos['clone'], $dir.'/wtroot', 'pr-1', 'main');
+            RepoHelper::git($wt, ['config', 'user.email', 'test@example.com']);
+            RepoHelper::git($wt, ['config', 'user.name', 'Test']);
+            RepoHelper::commitFile($wt, 'feature.txt', "f\n", 'feature');
+            RepoHelper::git($wt, ['push', '-q', 'origin', 'pr-1']);
+
+            RepoHelper::commitFile($repos['other'], 'new.txt', "x\n", 'advance main');
+            RepoHelper::git($repos['other'], ['push', '-q', 'origin', 'main']);
+        });
         $this->clone = $repos['clone'];
-        $this->other = $repos['other'];
-
-        $this->wt = (new GitRepo())->createWorktree($this->clone, $this->tmp.'/wtroot', 'pr-1', 'main');
-        RepoHelper::git($this->wt, ['config', 'user.email', 'test@example.com']);
-        RepoHelper::git($this->wt, ['config', 'user.name', 'Test']);
-        RepoHelper::commitFile($this->wt, 'feature.txt', "f\n", 'feature');
-        RepoHelper::git($this->wt, ['push', '-q', 'origin', 'pr-1']);
-
-        RepoHelper::commitFile($this->other, 'new.txt', "x\n", 'advance main');
-        RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
+        $this->wt = $this->tmp.'/wtroot/pr-1';
     }
 
     protected function tearDown(): void

@@ -401,6 +401,14 @@ are made writable, symlinks are unlinked and never followed, and a forked
 child only ever removes its own root. So a test needs no tearDown cleanup
 of its own; `PABLO_KEEP_TEST_TMP=1` keeps the files and prints the root
 on stderr, for debugging.
+Real git repositories are built once per process and copied per test:
+`RepoHelper::makeRepos()` (bare origin + two clones) /
+`makeReposThen($key, …)` (the same plus a class's own setup, e.g. a task
+worktree), or `tests/Git/GitFixtures.php` (`GitFixtures::get($key, $dest,
+$build)`) for any other layout; the copy re-points every absolute path, so
+remotes and worktrees stay inside it. Don't `git init`/`clone` in a
+`setUp()`. `CommandTestBed`'s `$this->wt` is a plain directory; a test that
+resolves its task from the cwd calls `initGitWorktree()` first.
 `tests/PortabilityTest.php` is a tripwire scanning `src/**/*.php` for
 `systemctl`/`journalctl`/`/etc/`/`/proc/`/`/opt/` to keep the engine
 Linux+macOS portable. `tests/RequiredCollaboratorsTest.php` fails when an

@@ -32,15 +32,17 @@ final class SyncForkTest extends TestCase
         $this->maintainer = $this->tmp.'/maintainer';
         $this->collaborator = $this->tmp.'/collaborator';
 
-        (new Process(['git', 'init', '-q', '--bare', '-b', 'main', $this->upstream]))->run();
-        $this->cloneOf($this->upstream, $this->maintainer);
-        RepoHelper::commitFile($this->maintainer, 'README.md', "hello\n", 'initial');
-        RepoHelper::git($this->maintainer, ['push', '-q', 'origin', 'main']);
+        GitFixtures::get('fork', $this->tmp, static function (string $dir): void {
+            (new Process(['git', 'init', '-q', '--bare', '-b', 'main', $dir.'/upstream.git']))->mustRun();
+            self::cloneOf($dir.'/upstream.git', $dir.'/maintainer');
+            RepoHelper::commitFile($dir.'/maintainer', 'README.md', "hello\n", 'initial');
+            RepoHelper::git($dir.'/maintainer', ['push', '-q', 'origin', 'main']);
 
-        (new Process(['git', 'clone', '-q', '--bare', $this->upstream, $this->fork]))->run();
-        $this->cloneOf($this->fork, $this->clone);
-        RepoHelper::git($this->clone, ['remote', 'add', 'upstream', $this->upstream]);
-        $this->cloneOf($this->fork, $this->collaborator);
+            (new Process(['git', 'clone', '-q', '--bare', $dir.'/upstream.git', $dir.'/fork.git']))->mustRun();
+            self::cloneOf($dir.'/fork.git', $dir.'/clone');
+            RepoHelper::git($dir.'/clone', ['remote', 'add', 'upstream', $dir.'/upstream.git']);
+            self::cloneOf($dir.'/fork.git', $dir.'/collaborator');
+        });
     }
 
     protected function tearDown(): void
@@ -48,9 +50,9 @@ final class SyncForkTest extends TestCase
         (new Filesystem())->remove($this->tmp);
     }
 
-    private function cloneOf(string $source, string $dest): void
+    private static function cloneOf(string $source, string $dest): void
     {
-        (new Process(['git', 'clone', '-q', $source, $dest]))->run();
+        (new Process(['git', 'clone', '-q', $source, $dest]))->mustRun();
         RepoHelper::git($dest, ['config', 'user.email', 'test@example.com']);
         RepoHelper::git($dest, ['config', 'user.name', 'Test']);
     }

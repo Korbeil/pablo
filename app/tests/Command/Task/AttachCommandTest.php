@@ -19,7 +19,8 @@ final class AttachCommandTest extends CommandTestBed
         // A second, PABLO-foreign worktree (the pre-saved wk-45 task record
         // from the bed keeps $this->wt already attached).
         $this->wt77 = $this->tmp.'/wt/wk-77';
-        (new \Symfony\Component\Process\Process(['git', 'init', '-q', $this->wt77]))->run();
+        // A plain directory: git is faked below (fakeGit()).
+        mkdir($this->wt77, 0o777, true);
         chdir($this->wt77);
         $this->fakeGit();
     }

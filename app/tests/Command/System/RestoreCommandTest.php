@@ -43,13 +43,14 @@ final class RestoreCommandTest extends TestCase
     protected function setUp(): void
     {
         $this->tmp = TempDir::create('restore');
-        $repos = RepoHelper::makeRepos($this->tmp);
+        // The task branch oms-1, pushed, with the clone back on main.
+        $repos = RepoHelper::makeReposThen('restore', $this->tmp, static function (string $dir, array $repos): void {
+            RepoHelper::git($repos['clone'], ['checkout', '-b', 'oms-1']);
+            RepoHelper::commitFile($repos['clone'], 'task.txt', "work\n", 'task work');
+            RepoHelper::git($repos['clone'], ['push', '-q', '-u', 'origin', 'oms-1']);
+            RepoHelper::git($repos['clone'], ['checkout', 'main']);
+        });
         $this->clone = $repos['clone'];
-
-        RepoHelper::git($this->clone, ['checkout', '-b', 'oms-1']);
-        RepoHelper::commitFile($this->clone, 'task.txt', "work\n", 'task work');
-        RepoHelper::git($this->clone, ['push', '-q', '-u', 'origin', 'oms-1']);
-        RepoHelper::git($this->clone, ['checkout', 'main']);
 
         $this->pabloRoot = $this->tmp.'/pablo';
         $this->wt = $this->tmp.'/wt';

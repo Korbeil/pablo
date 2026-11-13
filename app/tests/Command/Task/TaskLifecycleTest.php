@@ -23,6 +23,13 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 final class TaskLifecycleTest extends CommandTestBed
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Most commands here act on the cwd's task, resolved through git.
+        $this->initGitWorktree();
+    }
+
     public function testStateForcesWithSharedHandler(): void
     {
         $this->runCommand(new StateCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agents), ['state' => 'request-changes']);

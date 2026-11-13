@@ -52,19 +52,19 @@ final class SyncTest extends TestCase
         // syncProject writes rebase-last-*.json and the sync history: keep
         // them out of the developer's ~/.pablo/logs.
         putenv('PABLO_LOGS_DIR='.$this->tmp.'/logs');
-        $repos = RepoHelper::makeRepos($this->tmp);
+        // The task worktree pr-1 off main, then main advanced on origin.
+        $repos = RepoHelper::makeReposThen('sync', $this->tmp, static function (string $dir, array $repos): void {
+            (new \Pablo\Provider\Git\GitRepo())->createWorktree($repos['clone'], $dir.'/wtroot', 'pr-1', 'main');
+            RepoHelper::commitFile($repos['other'], 'new.txt', "x\n", 'advance main');
+            RepoHelper::git($repos['other'], ['push', '-q', 'origin', 'main']);
+        });
         $this->clone = $repos['clone'];
         $this->other = $repos['other'];
 
         $this->cfg = $this->makeConfig(false);
         $this->store = new Store($this->tmp.'/state');
-        $this->wt = $this->realGit()->createWorktree($this->clone, $this->cfg->repo->worktreesRoot, 'pr-1', 'main');
+        $this->wt = $this->cfg->repo->worktreesRoot.'/pr-1';
         $this->store->save(new Task('proj', 'pr-1', $this->wt, State::Draft));
-
-        RepoHelper::commitFile($this->other, 'new.txt', "x\n", 'advance main');
-        RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
-
-        // Stop syncProject from reaching a real gh CLI for PR-base resolution.
     }
 
     protected function tearDown(): void
