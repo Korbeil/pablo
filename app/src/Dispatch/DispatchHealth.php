@@ -220,19 +220,9 @@ final class DispatchHealth
     /** @return array<string, mixed>|null */
     private function readJson(string $path): ?array
     {
-        if (!is_file($path)) {
-            return null;
-        }
-        $raw = Files::tryRead($path);
-        if (null === $raw) {
-            return null;
-        }
-        $data = Json::tryDecodeArray($raw);
-        if (!\is_array($data)) {
-            return null;
-        }
+        /** @var array<string, mixed>|null $data */
+        $data = Json::tryDecodeArray(Files::tryRead($path) ?? '');
 
-        /* @var array<string, mixed> $data */
         return $data;
     }
 

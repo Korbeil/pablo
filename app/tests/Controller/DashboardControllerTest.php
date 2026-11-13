@@ -335,7 +335,7 @@ final class DashboardControllerTest extends WebTestCase
      */
     public function testPollProgressShowsOneSharedCountdown(): void
     {
-        file_put_contents($this->tmp.'/stamps/wallet-kit.poll', (string) time());
+        (new \Pablo\Dispatch\Stamps())->write('wallet-kit', 'poll', (float) time(), 0.0);
 
         $crawler = $this->browser()->request('GET', '/');
 
@@ -348,7 +348,7 @@ final class DashboardControllerTest extends WebTestCase
 
     public function testPollRecapListsEveryProjectWithItsLastRun(): void
     {
-        file_put_contents($this->tmp.'/stamps/wallet-kit.poll', (string) time());
+        (new \Pablo\Dispatch\Stamps())->write('wallet-kit', 'poll', (float) time(), 0.0);
 
         $crawler = $this->browser()->request('GET', '/');
 
@@ -442,7 +442,7 @@ final class DashboardControllerTest extends WebTestCase
     {
         $this->seed('wk-draft', State::Draft, project: 'wallet-kit');
         $this->seed('bk-draft', State::Draft, project: 'bookkeeper');
-        file_put_contents($this->tmp.'/stamps/bookkeeper.poll', (string) time());
+        (new \Pablo\Dispatch\Stamps())->write('bookkeeper', 'poll', (float) time(), 0.0);
 
         $crawler = $this->browser()->request('GET', '/?type=open-source');
 

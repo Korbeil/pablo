@@ -102,7 +102,7 @@ final class Pruner
     /** @return list<PruneItem> */
     public function agentLogs(float $cutoff): array
     {
-        $agentsDir = self::agentsDir();
+        $agentsDir = PabloPaths::agentsDir();
         [$liveLogs, $legacy] = $this->liveRuns($agentsDir);
 
         $items = [];
@@ -129,13 +129,13 @@ final class Pruner
     {
         $items = [];
         foreach (self::SERVICE_LOGS as $name) {
-            $log = self::logsDir().'/'.$name;
+            $log = PabloPaths::logsDir().'/'.$name;
             if (!is_file($log) || is_link($log)) {
                 continue;
             }
             $size = (int) @filesize($log);
             if ($size > 0) {
-                $archive = self::logsDir().'/'.self::ARCHIVE_DIR.'/'.$name.'.'.date('Y-m-d', (int) $now);
+                $archive = PabloPaths::logsDir().'/'.self::ARCHIVE_DIR.'/'.$name.'.'.date('Y-m-d', (int) $now);
                 $items[] = new PruneItem(PruneItem::SERVICE_LOG, $log, $size, $archive);
             }
         }
@@ -153,7 +153,7 @@ final class Pruner
     {
         $items = [];
         foreach (self::SERVICE_LOGS as $name) {
-            foreach (Files::list(self::logsDir().'/'.self::ARCHIVE_DIR, $name.'.*') as $archive) {
+            foreach (Files::list(PabloPaths::logsDir().'/'.self::ARCHIVE_DIR, $name.'.*') as $archive) {
                 if (!is_file($archive) || is_link($archive)) {
                     continue;
                 }
@@ -213,16 +213,6 @@ final class Pruner
         }
 
         return $items;
-    }
-
-    public static function agentsDir(): string
-    {
-        return PabloPaths::pabloPath('agents', 'PABLO_AGENTS_DIR');
-    }
-
-    public static function logsDir(): string
-    {
-        return PabloPaths::pabloPath('logs', 'PABLO_LOGS_DIR');
     }
 
     /**

@@ -96,6 +96,18 @@ final class PabloPaths
         return '' === $relative ? self::pabloDir() : self::pabloDir().'/'.$relative;
     }
 
+    /** ~/.pablo/logs (or PABLO_LOGS_DIR): sync history, last rebase logs, service and hook logs. */
+    public static function logsDir(): string
+    {
+        return self::pabloPath('logs', 'PABLO_LOGS_DIR');
+    }
+
+    /** ~/.pablo/agents (or PABLO_AGENTS_DIR): agent pidfiles, run logs and launch locks. */
+    public static function agentsDir(): string
+    {
+        return self::pabloPath('agents', 'PABLO_AGENTS_DIR');
+    }
+
     /**
      * ~/.pablo/runtime (or PABLO_RUNTIME_DIR): every file PABLO renders or
      * extracts for the agent runtimes — opencode/{agents,commands,skills},

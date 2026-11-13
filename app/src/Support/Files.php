@@ -77,6 +77,10 @@ final class Files
      * repository checkout, and writing through the link would edit the
      * checkout.
      *
+     * Atomic: a unique temp file in the same directory, renamed over $path; a
+     * short write or failed rename throws and leaves $path intact. Identical
+     * content is not rewritten.
+     *
      * @throws PabloError
      */
     public static function write(string $path, string $content, ?int $mode = null): void
@@ -92,9 +96,10 @@ final class Files
 
             return;
         }
-        $tmp = $path.'.pablo-tmp-'.getmypid();
-        if (false === @file_put_contents($tmp, $content)) {
-            throw new PabloError("cannot write {$path}");
+        $tmp = $path.'.pablo-tmp-'.bin2hex(random_bytes(4));
+        if (@file_put_contents($tmp, $content) !== \strlen($content)) {
+            self::tryRemove($tmp);
+            throw new PabloError("cannot write {$path} (temp file {$tmp}): disk full or not writable?");
         }
         if (null !== $mode) {
             @chmod($tmp, $mode);
@@ -103,7 +108,7 @@ final class Files
         }
         if (!@rename($tmp, $path)) {
             self::tryRemove($tmp);
-            throw new PabloError("cannot write {$path}");
+            throw new PabloError("cannot write {$path}: rename from {$tmp} failed");
         }
     }
 
