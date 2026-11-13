@@ -11,8 +11,7 @@ use Pablo\Support\Files;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Pid liveness works with ext-posix and, through `kill -0`, without it
- * (ext-posix is only suggested in composer.json). wait() sees a run end
+ * Pid liveness goes through Support\Pid (see PidTest). wait() sees a run end
  * within its poll interval, and still gives up on a run that outlives the
  * timeout.
  */
@@ -46,14 +45,6 @@ final class HeadlessRunnerTest extends TestCase
 
         $this->assertTrue($runner->pidAlive((int) getmypid()));
         $this->assertFalse($runner->pidAlive(self::deadPid()));
-    }
-
-    public function testKillZeroFallback(): void
-    {
-        $killZero = new \ReflectionMethod(HeadlessRunner::class, 'killZero');
-
-        $this->assertTrue($killZero->invoke(null, (int) getmypid()));
-        $this->assertFalse($killZero->invoke(null, self::deadPid()));
     }
 
     public function testWaitReturnsSoonAfterTheRunExits(): void

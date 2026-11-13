@@ -177,7 +177,7 @@ is either checked on the next line or commented as best-effort —, `Json` — d
 JSON through it, never a bare `json_decode`: `decodeArray()`/`decodeList()`
 throw a `PabloError` naming what was read, `tryDecodeArray()` returns null
 for best-effort readers (only `Store`'s validation and `ClaudeCodeTrust`'s
-object round-trip call `json_decode` themselves) —, `Naming`, `Numbers`, `RepoSlug`, `TaskSummarizer`).
+object round-trip call `json_decode` themselves) —, `Naming`, `Numbers`, `Pid` — process liveness with or without ext-posix, never a bare `posix_kill()` —, `RepoSlug`, `TaskSummarizer`).
 
 **Dashboard** (`pablo web`, see `site/content/dashboard.html`): `src/Dashboard/`
 (`Dashboard` — the cache-only data service, `TaskView`, `PollSchedule`,
