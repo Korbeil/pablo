@@ -6,6 +6,7 @@ namespace Pablo\Tests;
 
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Gh\PrSnapshot;
 use Pablo\Provider\Gh\ReviewVerdict;
 
 /**
@@ -81,6 +82,25 @@ final class FakeGhPr implements GhPrInterface
         $this->calls[] = "reviewVerdict:{$prNumber}";
 
         return $this->verdict;
+    }
+
+    /** canned pollSnapshot(): empty by default, so every read falls back to its per-PR call */
+    public ?PrSnapshot $snapshot = null;
+
+    /** @var callable|null fn(slug, branches, prNumbers, reviewPrNumbers): PrSnapshot, overrides */
+    public $onPollSnapshot;
+
+    /** @var list<array{branches: list<string>, prs: list<int>, reviews: list<int>}> every pollSnapshot() call */
+    public array $snapshotCalls = [];
+
+    public function pollSnapshot(string $repoSlug, array $branches, array $prNumbers, array $reviewPrNumbers): PrSnapshot
+    {
+        $this->snapshotCalls[] = ['branches' => $branches, 'prs' => $prNumbers, 'reviews' => $reviewPrNumbers];
+        if (null !== $this->onPollSnapshot) {
+            return ($this->onPollSnapshot)($repoSlug, $branches, $prNumbers, $reviewPrNumbers);
+        }
+
+        return $this->snapshot ?? new PrSnapshot();
     }
 
     public function markReady(string $repoSlug, int $prNumber): void

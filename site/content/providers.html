@@ -20,6 +20,8 @@
   </tbody>
 </table>
 
+<p>The background poll asks the same questions in bulk: one <code>gh api graphql</code> query per repository (per 20 pull requests and 50 branches) reads every task's pull request, its CI checks and, for tasks waiting on a review, its reviews. Whatever that query could not read in full (a pull request it could not resolve, more than 100 checks, reviews or comment threads) is asked with the commands above, one pull request at a time, as are the reads that follow a state change in the same poll.</p>
+
 <h2>Jira: <code>acli</code></h2>
 
 <p>Atlassian's own CLI. Log in once with <code>acli auth login</code> (a browser login) for Jira; Confluence has a login of its own (below). Run it again if Atlassian ever revokes access.</p>

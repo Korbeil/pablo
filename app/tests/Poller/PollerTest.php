@@ -19,7 +19,12 @@ use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Poller\Poller;
+use Pablo\Provider\Gh\CiCheck;
 use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Gh\PrReviews;
+use Pablo\Provider\Gh\PrSnapshot;
+use Pablo\Provider\Gh\ReviewNode;
+use Pablo\Provider\Gh\ReviewSnapshot;
 use Pablo\Provider\Tracker\Provider;
 use Pablo\StateMachine\StateMachine;
 use Pablo\StateMachine\TaskCtx;
@@ -1247,6 +1252,189 @@ final class PollerTest extends TestCase
             $this->assertContains("{$branch}: display cache refresh failed: proj: repo at {$e['tmp']}/repo has no origin remote", $events);
         }
         $this->assertSame([], $this->gh->calls);
+    }
+
+    /** @param list<CiCheck> $rollup */
+    private function snapshotOf(PrInfo $branchPr, array $rollup, ?ReviewSnapshot $reviews = null): PrSnapshot
+    {
+        return new PrSnapshot(
+            branchPrs: ['pr-1' => $branchPr],
+            states: [$branchPr->number => $branchPr->state],
+            rollups: [$branchPr->number => $rollup],
+            reviews: null !== $reviews ? [$branchPr->number => $reviews] : [],
+        );
+    }
+
+    public function testTheBatchAnswersEveryReadOfATask(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp']));
+        $this->git->gitOutput = 'pr-1';
+        $this->gh->snapshot = $this->snapshotOf(
+            new PrInfo(7, 't', 'OPEN', true, 'u', null),
+            [new CiCheck('test', failed: false, pending: true, runKey: "CI\0test")],
+        );
+
+        $this->poll($cfg, $store);
+
+        $this->assertSame([['branches' => ['pr-1'], 'prs' => [7], 'reviews' => []]], $this->gh->snapshotCalls);
+        $this->assertSame([], $this->gh->calls); // no per-task gh call at all
+        $this->assertCount(1, $this->revParses());
+        $this->assertSame(State::Draft, $this->taskOrFail($store)->state);
+        $this->assertSame('📝 draft #7', $this->taskOrFail($store)->displayCache->prState);
+    }
+
+    public function testTheBatchedRollupHonoursIgnoreChecks(): void
+    {
+        $e = $this->newEnv();
+        $base = $this->cfg($e['tmp']);
+        $cfg = new ProjectConfig(
+            name: $base->name, type: $base->type, repo: $base->repo, tracker: $base->tracker, sync: $base->sync,
+            statePolling: $base->statePolling, defaultModel: $base->defaultModel, prDescriptionLocale: 'en',
+            testing: $base->testing, ci: new \Pablo\Config\CiConfig(ignoreChecks: ['hold']),
+        );
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::CiRed));
+        $this->git->gitOutput = 'pr-1';
+        $this->gh->snapshot = $this->snapshotOf(new PrInfo(7, 't', 'OPEN', true, 'u', null), [
+            new CiCheck('ci/circleci: hold', failed: false, pending: true),
+            new CiCheck('build', failed: true, pending: false, runKey: "CI\0build", startedAt: '2026-07-22T10:00:00Z'),
+            new CiCheck('build', failed: false, pending: false, runKey: "CI\0build", startedAt: '2026-07-22T10:05:00Z'),
+        ]);
+
+        $this->poll($cfg, $store);
+
+        // The superseded failed run and the ignored hold are left out: green.
+        $this->assertSame(State::WaitingReview, $this->taskOrFail($store)->state);
+        $this->assertSame([7], $this->gh->readies);
+        // Only the display reads the PR again, after the transition.
+        $this->assertSame(['prForBranch:pr-1'], $this->gh->calls);
+    }
+
+    public function testTheBatchedReviewsDecideTheReviewCheck(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::WaitingReview));
+        $this->git->gitOutput = 'pr-1';
+        $anchor = new \DateTimeImmutable('2026-07-20T12:00:00Z');
+        $this->gh->snapshot = $this->snapshotOf(
+            new PrInfo(7, 't', 'OPEN', false, 'u', null),
+            [],
+            new ReviewSnapshot(new PrReviews('me', [
+                new ReviewNode('bob', 'User', 'CHANGES_REQUESTED', '2026-07-10T00:00:00Z', 'r1'), // previous round
+                new ReviewNode('alice', 'User', 'APPROVED', '2026-07-21T00:00:00Z', 'r2'),
+            ]), $anchor),
+        );
+
+        $this->poll($cfg, $store);
+
+        $this->assertSame([7], $this->gh->snapshotCalls[0]['reviews']);
+        $this->assertSame(State::NeedsTesting, $this->taskOrFail($store)->state);
+        $this->assertSame(['prForBranch:pr-1'], $this->gh->calls);
+    }
+
+    public function testOnlyTheStatesThatReadReviewsAskForThem(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $finished = new AgentLaunch(Agent::PrFeedback, $this->freshTs(600), 1, $this->freshTs(300), reported: true);
+        $running = new AgentLaunch(Agent::PrFeedback, $this->freshTs(60), 1);
+        foreach ([
+            ['a', State::Draft, 1, false, []],
+            ['b', State::WaitingReview, 2, false, []],
+            ['c', State::RequestChanges, 3, false, [Agent::PrFeedback->value => $finished]],
+            ['d', State::RequestChanges, 4, false, [Agent::PrFeedback->value => $running]],
+            ['e', State::Approved, 5, false, []],
+            ['f', State::WaitingReview, 6, true, []],   // merged: only its display is read
+            ['g', State::InProgress, null, false, []],
+        ] as [$branch, $state, $pr, $merged, $launches]) {
+            $task = new Task('proj', $branch, $e['tmp'].'/wt/'.$branch, $state);
+            $task->prNumber = $pr;
+            $task->merged = $merged;
+            $task->agentLaunches = $launches;
+            $store->save($task);
+        }
+        $this->git->gitHandler = static fn (): string => 'checked-out';
+        $this->agents->active = [new SessionInfo('a', 'running')]; // keeps f from closing
+
+        $this->poll($cfg, $store);
+
+        $this->assertCount(1, $this->gh->snapshotCalls);
+        $call = $this->gh->snapshotCalls[0];
+        $this->assertCount(7, $call['branches']);
+        $this->assertSame([1, 2, 3, 4, 5], $call['prs']);
+        $this->assertSame([2, 3], $call['reviews']);
+    }
+
+    public function testAPrMissingFromTheBatchIsReadOnItsOwn(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::WaitingReview));
+        $this->git->gitOutput = 'pr-1';
+        // The batch only resolved the branch: no state, rollup or reviews for #7.
+        $this->gh->snapshot = new PrSnapshot(branchPrs: ['pr-1' => new PrInfo(7, 't', 'OPEN', false, 'u', null)]);
+        $this->stubs['ci'] = 'green';
+        $this->gh->verdict = 'changes';
+
+        $this->poll($cfg, $store);
+
+        $this->assertSame(State::RequestChanges, $this->taskOrFail($store)->state);
+        // prState still comes from the branch's PR; CI and reviews per PR; the display re-reads after the transition.
+        $this->assertSame(['ciStatus:7', 'reviewVerdict:7', 'prForBranch:pr-1'], $this->gh->calls);
+    }
+
+    public function testAFailedBatchFallsBackToThePerTaskCalls(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp']));
+        $this->git->gitOutput = 'pr-1';
+        $this->gh->prByBranch['pr-1'] = new PrInfo(7, 't', 'OPEN', true, 'u', null);
+        $this->gh->onPollSnapshot = static function (): never {
+            throw new \RuntimeException('gh exploded');
+        };
+
+        $events = $this->poll($cfg, $store);
+
+        $this->assertSame(['prForBranch:pr-1', 'ciStatus:7'], $this->gh->calls);
+        $this->assertSame(0, $this->poller->lastCheckFailures());
+        $this->assertSame([], $events);
+        $this->assertSame('📝 draft #7', $this->taskOrFail($store)->displayCache->prState);
+    }
+
+    public function testATransitionDropsTheBatchedAnswersOfThatPr(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::CiRed));
+        // A second task on the same PR (a mis-attached worktree): polled after
+        // the first one marked the PR ready, it must not read the old batch.
+        $twin = new Task('proj', 'pr-2', $e['tmp'].'/wt/pr-2', State::Draft);
+        $twin->prNumber = 7;
+        $store->save($twin);
+        $this->git->gitOutput = 'pr-1';
+        $this->gh->snapshot = $this->snapshotOf(new PrInfo(7, 't', 'OPEN', true, 'u', null), []);
+        $this->gh->onPrForBranch = fn (): PrInfo => new PrInfo(7, 't', 'OPEN', [] === $this->gh->readies, 'u', null);
+        $this->stubs['ci'] = 'pending';
+
+        $this->poll($cfg, $store);
+
+        $this->assertSame(State::WaitingReview, $this->taskOrFail($store)->state);
+        $twin = $store->get('proj', 'pr-2');
+        $this->assertNotNull($twin);
+        $this->assertSame(State::Draft, $twin->state); // pending, read live
+        // pr-2's CI is read live (the batch said green), its branch PR is the one re-read after pr-1's transition.
+        $this->assertSame(['prForBranch:pr-1', 'ciStatus:7'], $this->gh->calls);
+        $this->assertSame('📖 open #7', $twin->displayCache->prState);
     }
 
     public function testCountsFailedTaskChecks(): void
