@@ -200,7 +200,7 @@ final class TasksCommandTest extends CommandTestBed
     /** @param array<string, mixed> $input */
     private function list(array $input): \Symfony\Component\Console\Tester\CommandTester
     {
-        $listing = new Listing(new Stamps(), $this->gh, $this->providers, $this->repoSlug, $this->stateMachine, $this->time);
+        $listing = new Listing(new Stamps(), $this->gh, $this->providers, $this->repoSlug, $this->time);
 
         return $this->runCommand(
             new TasksCommand($listing, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents),

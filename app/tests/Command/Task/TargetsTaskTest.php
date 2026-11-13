@@ -79,7 +79,7 @@ final class TargetsTaskTest extends CommandTestBed
     public function testRelaunchByBranch(): void
     {
         $tester = $this->runCommand(
-            new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents),
+            new RelaunchCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents),
             ['branch' => 'wk-45', '--only' => 'task-analyst'],
         );
         $this->assertSame(0, $tester->getStatusCode());

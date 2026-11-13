@@ -37,16 +37,6 @@ final class Poller
     public const LAUNCH_WINDOW_S = 240;
     public const LAUNCH_MAX_ATTEMPTS = 3;
 
-    public const POLL_CHECKS = [
-        State::Draft->value => ['checkCiRed', 'checkCiGreen'],
-        State::CiRed->value => ['checkCiGreen'],
-        State::ReadyToReview->value => ['checkCiRed', 'checkReviews'],
-        State::WaitingReview->value => ['checkCiRed', 'checkReviews'],
-        State::Approved->value => ['checkCiRed'],
-        State::NeedsTesting->value => ['checkFailureSignal'],
-        State::RequestChanges->value => ['checkFeedbackAddressed'],
-    ];
-
     public function __construct(
         private readonly GhPrInterface $gh,
         private readonly GitRepoInterface $git,
@@ -62,8 +52,28 @@ final class Poller
 
     // ------------------------------------------------------------- checks ---
 
-    /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
-    public function checkCiRed(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    /**
+     * The checks polled in $state, in order: the first one returning a
+     * state moves the task there.
+     *
+     * @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle
+     *
+     * @return list<\Closure(TaskCtx, string): ?State>
+     */
+    private function checksFor(State $state, ?array $trackerStatuses): array
+    {
+        return match ($state) {
+            State::Draft => [$this->checkCiRed(...), $this->checkCiGreen(...)],
+            State::CiRed => [$this->checkCiGreen(...)],
+            State::ReadyToReview, State::WaitingReview => [$this->checkCiRed(...), $this->checkReviews(...)],
+            State::Approved => [$this->checkCiRed(...)],
+            State::NeedsTesting => [fn (TaskCtx $ctx): ?State => $this->checkFailureSignal($ctx, $trackerStatuses)],
+            State::RequestChanges => [$this->checkFeedbackAddressed(...)],
+            default => [],
+        };
+    }
+
+    private function checkCiRed(TaskCtx $ctx, string $slug): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if ($ctx->task->ciIgnored || null === $prNumber) {
@@ -76,8 +86,7 @@ final class Poller
         return null;
     }
 
-    /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
-    public function checkCiGreen(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    private function checkCiGreen(TaskCtx $ctx, string $slug): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if (null === $prNumber) {
@@ -90,8 +99,7 @@ final class Poller
         return null;
     }
 
-    /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
-    public function checkReviews(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    private function checkReviews(TaskCtx $ctx, string $slug): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if (null === $prNumber) {
@@ -117,10 +125,8 @@ final class Poller
      * (ready-to-review marks it ready on GitHub, resetting the review anchor).
      * Deliberately NOT the /pablo-commit-and-pr path: nothing is committed or
      * pushed here, the git work stays whatever the worktree holds.
-     *
-     * @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle
      */
-    public function checkFeedbackAddressed(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    private function checkFeedbackAddressed(TaskCtx $ctx, string $slug): ?State
     {
         $prNumber = $ctx->task->prNumber;
         if (null === $prNumber) {
@@ -141,7 +147,7 @@ final class Poller
     }
 
     /** @param array<string, string>|null $trackerStatuses key => status snapshot for this poll cycle */
-    public function checkFailureSignal(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
+    private function checkFailureSignal(TaskCtx $ctx, ?array $trackerStatuses): ?State
     {
         $task = $ctx->task;
         if (null === $ctx->cfg->testing->failureSignal || null === $task->needsTestingEnteredAt) {
@@ -211,7 +217,6 @@ final class Poller
     private function stampFinishedAgents(TaskCtx $ctx, array &$events): void
     {
         $task = $ctx->task;
-        $now = $this->time->parseTs($this->time->utcnow())->getTimestamp();
         $changed = false;
         $finished = [];
         foreach ($task->agentLaunches as $label => $record) {
@@ -223,8 +228,7 @@ final class Poller
                 if ($record->attempts < self::LAUNCH_MAX_ATTEMPTS) {
                     continue; // still within the healing window; don't preempt relaunch
                 }
-                $ageS = $now - $this->time->parseTs($record->launchedAt)->getTimestamp();
-                if ($ageS < self::LAUNCH_WINDOW_S) {
+                if ($this->ageS($record->launchedAt) < self::LAUNCH_WINDOW_S) {
                     continue; // give the agent time to show up before declaring it done
                 }
                 // PABLO gave up retrying a PABLO-triggered agent, it launched a
@@ -272,6 +276,12 @@ final class Poller
         }
     }
 
+    /** Seconds since $launchedAt. */
+    private function ageS(string $launchedAt): int
+    {
+        return $this->time->parseTs($this->time->utcnow())->getTimestamp() - $this->time->parseTs($launchedAt)->getTimestamp();
+    }
+
     /** @param list<string> $events */
     private function relaunchStuckAgents(TaskCtx $ctx, array &$events): void
     {
@@ -292,30 +302,22 @@ final class Poller
             $ctx->agents->setWorktreeDisplayName($task->worktreePath, $task->issue->key, $ghIssue);
         }
         $healed = false;
-        foreach ($this->stateMachine->specsFor($ctx, $task->state) as $spec) {
-            $record = $task->agentLaunches[$spec['label']->value] ?? null;
+        foreach ($this->stateMachine->agentsFor($task->state) as $agent) {
+            $record = $task->agentLaunches[$agent->value] ?? null;
             if (null === $record || null === $record->launchedAt) {
                 continue;
             }
             if (null !== $record->finishedAt) {
                 continue; // already concluded; don't re-fire a done agent
             }
-            $ageS = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->getTimestamp()
-                - (new \DateTimeImmutable($record->launchedAt))->getTimestamp();
-            if ($ageS < self::LAUNCH_WINDOW_S) {
+            $ageS = $this->ageS($record->launchedAt);
+            if ($ageS < self::LAUNCH_WINDOW_S || $record->attempts >= self::LAUNCH_MAX_ATTEMPTS) {
                 continue;
             }
-            if ($record->attempts >= self::LAUNCH_MAX_ATTEMPTS) {
+            if (!$this->stateMachine->launch($ctx, $agent, $record->attempts + 1)) {
                 continue;
             }
-            [$fn, $args] = $spec['build']($ctx);
-            $fn(...$args);
-            $task->agentLaunches[$spec['label']->value] = new AgentLaunch(
-                $spec['label'],
-                $this->time->utcnow(),
-                $record->attempts + 1,
-            );
-            $events[] = "{$task->branch}: {$spec['label']->value} re-launch #".($record->attempts + 1)
+            $events[] = "{$task->branch}: {$agent->value} re-launch #".($record->attempts + 1)
                 ." (no session observed after {$ageS}s)";
             $healed = true;
         }
@@ -396,7 +398,7 @@ final class Poller
             return; // everything else is deferred while paused
         }
 
-        if (\in_array($task->state, StateMachine::AGENT_LAUNCH_STATES, true)) {
+        if ([] !== $this->stateMachine->agentsFor($task->state)) {
             $this->stampFinishedAgents($ctx, $events);
             $this->relaunchStuckAgents($ctx, $events);
         }
@@ -407,8 +409,8 @@ final class Poller
             return;
         }
 
-        foreach (self::POLL_CHECKS[$task->state->value] ?? [] as $checkName) {
-            $target = $this->{$checkName}($ctx, $slug, $trackerStatuses);
+        foreach ($this->checksFor($task->state, $trackerStatuses) as $check) {
+            $target = $check($ctx, $slug);
             if (null !== $target) {
                 $this->stateMachine->enterState($ctx, $target);
                 $events[] = "{$task->branch}: → {$ctx->task->state->value}";

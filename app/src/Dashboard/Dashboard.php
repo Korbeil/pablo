@@ -10,7 +10,6 @@ use Pablo\Domain\AgentActivity;
 use Pablo\Domain\PrBadge;
 use Pablo\Domain\Task;
 use Pablo\Listing\Listing;
-use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
@@ -48,7 +47,6 @@ final class Dashboard
         private readonly Config $config,
         private readonly Listing $listing,
         private readonly RepoSlug $repoSlug,
-        private readonly StateMachine $stateMachine,
     ) {
     }
 
@@ -149,7 +147,6 @@ final class Dashboard
     private function viewFor(Task $task, ProjectConfig $cfg): TaskView
     {
         $cache = $task->displayCache;
-        $def = $this->stateMachine->states()[$task->state->value] ?? null;
 
         $agents = AgentActivity::fromDisplay($cache->agentCount, $cache->agentActivity);
         $pr = null !== $cache->prState
@@ -160,8 +157,8 @@ final class Dashboard
             project: $task->project,
             branch: $task->branch,
             state: $task->state,
-            stateEmoji: $def['emoji'] ?? '',
-            stateLabel: $def['label'] ?? $task->state->value,
+            stateEmoji: $task->state->emoji(),
+            stateLabel: $task->state->label(),
             agents: $agents,
             pr: $pr,
             prUrl: $pr->url($this->slugFor($cfg)),

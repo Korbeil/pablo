@@ -17,7 +17,6 @@ use Pablo\Domain\Time;
 use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Provider\Gh\PrInfo;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
-use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
@@ -52,7 +51,6 @@ final class Listing
         private readonly GhPrInterface $gh,
         private readonly ProviderRegistryInterface $providers,
         private readonly RepoSlug $repoSlug,
-        private readonly StateMachine $stateMachine,
         private readonly Time $time,
     ) {
     }
@@ -485,12 +483,11 @@ final class Listing
         $slug = $this->repoSlug->for($cfg);
         $pr = $this->prCell($task, $cfg, $fetchLive, $prefetch->prsFor($slug));
         $cell = $this->agentCells($task, $fetchLive, $agents, $prefetch->sessionsFor($task));
-        $def = $this->stateMachine->states()[$task->state->value] ?? null;
 
         return new TaskRow(
             task: $task,
-            stateLabel: $def['label'] ?? $task->state->value,
-            stateEmoji: $def['emoji'] ?? '',
+            stateLabel: $task->state->label(),
+            stateEmoji: $task->state->emoji(),
             tracker: $tracker,
             prCell: $pr,
             agentCell: $cell,

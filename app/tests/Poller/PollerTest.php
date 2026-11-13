@@ -988,6 +988,20 @@ final class PollerTest extends TestCase
         $this->assertSame(1, $this->taskOrFail($store)->agentLaunches['startup-script']->attempts);
     }
 
+    public function testNoStartupScriptRelaunchOnceUnconfigured(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']); // no startup_script any more
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::InProgress));
+        $this->setState($store, State::InProgress, ['prNumber' => null]);
+        $this->setLaunch($store, 'startup-script', 1, 301);
+        $this->agents->startupScript = &$this->stubs['startups'];
+        $this->poll($cfg, $store);
+        $this->assertSame([], $this->stubs['startups']);
+        $this->assertSame(1, $this->taskOrFail($store)->agentLaunches['startup-script']->attempts);
+    }
+
     public function testNoRelaunchWhenFinishedAgentInOrca(): void
     {
         $e = $this->newEnv();

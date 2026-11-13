@@ -197,8 +197,9 @@ fetches; never add a write or a live call without the same confirmation step.
 `Listing` renders terminal cells over, so the two surfaces cannot drift;
 `tests/Listing/ListingTest.php` is what proves terminal output unchanged.
 
-**New state**: add a case to `State` in `src/Domain/State.php` + a
-`StateDef` in the `states()` table in `StateMachine.php`. Always transition
+**New state**: add a case to `State` in `src/Domain/State.php` (with its
+`emoji()`) + its arm in `StateMachine::onEnter()` (and in `AGENTS_BY_STATE`
+if it launches agents, in `Poller::checksFor()` if it is polled). Always transition
 via `StateMachine::enterState()`, never mutate `task.state` directly.
 
 **New provider**: implement `Provider\Tracker\Provider`, register in

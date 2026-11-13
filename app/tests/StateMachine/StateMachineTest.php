@@ -367,6 +367,30 @@ final class StateMachineTest extends TestCase
         );
     }
 
+    public function testAgentsForListsEachLaunchingState(): void
+    {
+        $this->assertSame([\Pablo\Domain\Agent::TaskAnalyst, \Pablo\Domain\Agent::StartupScript], $this->sm->agentsFor(State::InProgress));
+        $this->assertSame([\Pablo\Domain\Agent::CiAnalyst], $this->sm->agentsFor(State::CiRed));
+        $this->assertSame([\Pablo\Domain\Agent::PrFeedback], $this->sm->agentsFor(State::RequestChanges));
+        $this->assertSame([\Pablo\Domain\Agent::TaskFeedback], $this->sm->agentsFor(State::TestingFailed));
+        $this->assertSame([], $this->sm->agentsFor(State::Draft));
+    }
+
+    public function testLaunchRecordsTheAttempt(): void
+    {
+        $this->assertTrue($this->sm->launch($this->ctx, \Pablo\Domain\Agent::CiAnalyst, 3));
+        $this->assertSame(['ci-analyst'], $this->agents->launch);
+        $this->assertStringContainsString('PR #7', $this->agents->launchPrompts[0]);
+        $this->assertSame(3, $this->task->agentLaunches['ci-analyst']->attempts);
+    }
+
+    public function testLaunchFiresNothingForAnUnconfiguredStartupScript(): void
+    {
+        $this->assertFalse($this->sm->launch($this->ctx, \Pablo\Domain\Agent::StartupScript));
+        $this->assertSame([], $this->agents->startupScript);
+        $this->assertArrayNotHasKey('startup-script', $this->task->agentLaunches);
+    }
+
     public function testAnalystPromptForPromptTask(): void
     {
         $this->task->issue = null;
