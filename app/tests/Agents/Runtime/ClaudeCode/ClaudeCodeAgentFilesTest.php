@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentTranslation;
 use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeAgentFiles;
 use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeAgents;
 use Pablo\Config\Config;
@@ -81,7 +82,7 @@ final class ClaudeCodeAgentFilesTest extends TestCase
     {
         $states = [];
         foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $states[ClaudeCodeAgents::agentId($name)] = $state;
+            $states[AgentTranslation::agentId($name)] = $state;
         }
 
         return $states;

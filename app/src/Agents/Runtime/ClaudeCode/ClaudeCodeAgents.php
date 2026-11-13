@@ -6,6 +6,7 @@ namespace Pablo\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentTranslation;
 use Pablo\Agents\Runtime\PermissionRules;
 use Pablo\Agents\Runtime\RuntimeSupport;
 
@@ -62,9 +63,7 @@ final class ClaudeCodeAgents
      */
     public function profile(string $agent, ?string $agentsDir = null, array $providers = []): ClaudeAgentProfile
     {
-        $agentsDir ??= $this->templates->templatesDir();
-
-        return self::profileFromMarkdown($this->templates->render($agentsDir, $agent, $providers), $agent);
+        return self::profileFromMarkdown(AgentTranslation::renderAgent($this->templates, $agent, $agentsDir, $providers), $agent);
     }
 
     /**
@@ -84,14 +83,6 @@ final class ClaudeCodeAgents
         return json_encode($agents, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES | \JSON_UNESCAPED_UNICODE | \JSON_THROW_ON_ERROR)."\n";
     }
 
-    /** Prefix of the subagent files linked into ~/.claude/agents. */
-    public const ID_PREFIX = 'pablo-';
-
-    public static function agentId(string $agent): string
-    {
-        return self::ID_PREFIX.$agent;
-    }
-
     /**
      * Every agent as a Claude Code subagent file, keyed by file name
      * (`pablo-<agent>.md`), for ~/.claude/agents.
@@ -104,13 +95,7 @@ final class ClaudeCodeAgents
      */
     public function renderAgentFiles(string $agentsDir, array $providers): array
     {
-        $files = [];
-        foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $id = self::agentId($name);
-            $files[$id.'.md'] = $this->profile($name, $agentsDir, $providers)->agentFile($id);
-        }
-
-        return $files;
+        return AgentTranslation::agentFiles('.md', fn (string $name, string $id): string => $this->profile($name, $agentsDir, $providers)->agentFile($id));
     }
 
     /**
@@ -201,12 +186,7 @@ final class ClaudeCodeAgents
      */
     public function renderCommand(string $commandPath): string
     {
-        $markdown = @file_get_contents($commandPath);
-        if (false === $markdown) {
-            throw new AgentTemplateError("Cannot read command: {$commandPath}");
-        }
-        $name = basename($commandPath, '.md');
-        [$front, $body] = RuntimeSupport::splitFrontmatter($markdown, $name);
+        [$name, $front, $body] = AgentTranslation::readCommand($commandPath);
 
         $tools = [];
         $permission = \is_array($front['permission'] ?? null) ? $front['permission'] : [];
@@ -248,11 +228,6 @@ final class ClaudeCodeAgents
             .'allowed-tools: '.implode(', ', array_keys($tools))."\n"
             ."---\n";
 
-        $noEdits = "- **No code edits.** This command only commits what is already in\n"
-            ."  the worktree: never edit or create files, except writing\n"
-            ."  `.pablo-pr-body.md` for the PR body.\n";
-        $body = preg_replace('/^## Hard rules\R\R/m', "## Hard rules\n\n".$noEdits, $body, 1) ?? $body;
-
-        return $frontmatter.$body;
+        return $frontmatter.AgentTranslation::withNoEditsRule($body, 'command');
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Agents\Runtime\ClaudeCode;
 
+use Pablo\Agents\Runtime\UsageWindow;
 use Pablo\Analytics\PromptFingerprint;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Analytics\UsageSnapshot;
@@ -18,7 +19,7 @@ use Pablo\Support\Numbers;
  * <config dir>/projects/<cwd with every non-alphanumeric char as '-'>/<session uuid>.jsonl
  * (<config dir> = CLAUDE_CONFIG_DIR, else ~/.claude). Candidates are the
  * worktree's transcripts touched since the launch (minus a small grace) whose
- * first prompt is not older than that. With a prompt fingerprint, the one
+ * first prompt is not older than that (see UsageWindow). With a prompt fingerprint, the one
  * whose first user message hashes to it is the run ("exact"); without one,
  * every candidate is merged ("window"). Nothing matched means nothing is
  * recorded, never a guess.
@@ -30,7 +31,6 @@ use Pablo\Support\Numbers;
  */
 final class ClaudeCodeUsage implements UsageHarvesterInterface
 {
-    private const SESSION_GRACE_S = 5;
     private const MAX_TRANSCRIPTS = 8;
 
     public function __construct(
@@ -59,29 +59,17 @@ final class ClaudeCodeUsage implements UsageHarvesterInterface
     public function harvest(string $worktree, string $launchedAt, ?string $fingerprint): ?UsageSnapshot
     {
         try {
-            $windowStartS = $this->time->parseTs($launchedAt)->getTimestamp() - self::SESSION_GRACE_S;
-            $candidates = [];
-            foreach (glob($this->configDir().'/projects/'.self::projectKey($worktree).'/*.jsonl') ?: [] as $path) {
-                if ((int) @filemtime($path) < $windowStartS) {
-                    continue;
-                }
-                $transcript = $this->read($path);
-                if (null === $transcript || $transcript['startedS'] < $windowStartS) {
-                    continue;
-                }
-                $candidates[] = $transcript;
-            }
+            $candidates = UsageWindow::candidates(
+                glob($this->configDir().'/projects/'.self::projectKey($worktree).'/*.jsonl') ?: [],
+                UsageWindow::startS($this->time, $launchedAt),
+                $this->read(...),
+            );
             if ([] === $candidates) {
                 return null;
             }
-            usort($candidates, static fn (array $a, array $b): int => $a['startedS'] <=> $b['startedS']);
-
-            if (null !== $fingerprint && '' !== $fingerprint) {
-                foreach ($candidates as $transcript) {
-                    if ($transcript['fingerprint'] === $fingerprint) {
-                        return self::snapshot([$transcript], 'exact');
-                    }
-                }
+            $exact = UsageWindow::exact($candidates, $fingerprint);
+            if (null !== $exact) {
+                return self::snapshot([$exact], 'exact');
             }
 
             return self::snapshot(\array_slice($candidates, 0, self::MAX_TRANSCRIPTS), 'window');
@@ -116,7 +104,7 @@ final class ClaudeCodeUsage implements UsageHarvesterInterface
                 if (null === $message || !\in_array($type, ['user', 'assistant'], true)) {
                     continue;
                 }
-                $tsMs = $this->timestampMs($row['timestamp'] ?? null);
+                $tsMs = UsageWindow::timestampMs($this->time, $row['timestamp'] ?? null);
                 if ('user' === $type && null === $startedS) {
                     $text = self::textOf($message['content'] ?? null);
                     if (null === $text) {
@@ -213,17 +201,5 @@ final class ClaudeCodeUsage implements UsageHarvesterInterface
         }
 
         return [] === $chunks ? null : implode('', $chunks);
-    }
-
-    private function timestampMs(mixed $ts): int
-    {
-        if (!\is_string($ts) || '' === $ts) {
-            return 0;
-        }
-        try {
-            return (int) round((float) $this->time->parseTs($ts)->format('U.u') * 1000);
-        } catch (\Throwable) {
-            return 0;
-        }
     }
 }
