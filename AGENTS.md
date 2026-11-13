@@ -383,7 +383,14 @@ trait — `setEnv()`, then `restoreEnv()` in `tearDown` — never a hand-written
 `getenv`/`putenv` save-restore. Temp dirs and files come from
 `tests/TempDir.php` (`TempDir::create($prefix)` / `TempDir::file()`: 64
 random bits, created atomically with a retry), never `uniqid()`, which
-collides between suites running in parallel on a loaded machine.
+collides between suites running in parallel on a loaded machine, nor a
+bare `sys_get_temp_dir()`/`tempnam()` path. They live under one root per
+process (`<tmp>/pablo-tests-<random>/`), which a shutdown function removes
+when that process exits — pass, failure or error alike; read-only entries
+are made writable, symlinks are unlinked and never followed, and a forked
+child only ever removes its own root. So a test needs no tearDown cleanup
+of its own; `PABLO_KEEP_TEST_TMP=1` keeps the files and prints the root
+on stderr, for debugging.
 `tests/PortabilityTest.php` is a tripwire scanning `src/**/*.php` for
 `systemctl`/`journalctl`/`/etc/`/`/proc/`/`/opt/` to keep the engine
 Linux+macOS portable. `tests/RequiredCollaboratorsTest.php` fails when an

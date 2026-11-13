@@ -21,18 +21,24 @@ final class BackupTest extends TestCase
 
     private ?Backup $backupSvc = null;
 
+    private \Pablo\Tests\FakeGit $git;
+
     private function backup(): Backup
     {
-        $git = new \Pablo\Tests\FakeGit();
-        $git->originUrl = 'git@example.com:acme/acme.git';
+        return $this->backupSvc ??= new Backup($this->git, $this->runner, new \Pablo\Domain\Time(), \Pablo\Tests\Registries::ades(), $this->staging);
+    }
 
-        return $this->backupSvc ??= new Backup($git, $this->runner, new \Pablo\Domain\Time(), \Pablo\Tests\Registries::ades());
+    /** @return list<string> what is left in the staging root */
+    private function stagingLeftovers(): array
+    {
+        return array_values(array_diff(scandir($this->staging) ?: [], ['.', '..']));
     }
 
     private string $tmp;
     private string $pabloRoot;
     private string $projectsDir;
     private string $dest;
+    private string $staging;
     private Store $store;
 
     protected function setUp(): void
@@ -41,6 +47,9 @@ final class BackupTest extends TestCase
         $this->pabloRoot = $this->tmp.'/pablo';
         $this->projectsDir = $this->tmp.'/projects';
         $this->dest = $this->tmp.'/out';
+        $this->staging = $this->tmp.'/staging';
+        $this->git = new \Pablo\Tests\FakeGit();
+        $this->git->originUrl = 'git@example.com:acme/acme.git';
 
         mkdir($this->pabloRoot.'/state/acme', 0o777, true);
         mkdir($this->pabloRoot.'/stamps', 0o777, true);
@@ -121,6 +130,7 @@ YAML,
         $path = $this->backup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->dest);
 
         $this->assertFileExists($path);
+        $this->assertSame([], $this->stagingLeftovers());
 
         $extracted = $this->tmp.'/extract';
         $manifest = $this->backup()->extractArchive($path, $extracted);
@@ -182,5 +192,51 @@ YAML,
         $restored = $this->backup()->restoreStoreTree($extracted, $target, false);
         $this->assertContains('state:skipped', $restored);
         $this->assertFileExists($target.'/state/marker.json');
+    }
+
+    public function testStagingDirIsRemovedWhenStagingFails(): void
+    {
+        $loader = new Config(new \Pablo\Config\GlobalConfig());
+        $projects = $loader->loadProjects($this->projectsDir);
+        $this->git->originUrl = static fn (): never => throw new \Pablo\Support\PabloError('git exploded');
+
+        try {
+            $this->backup()->writeArchive($this->pabloRoot, $this->projectsDir, $projects, $this->store, $this->dest);
+            $this->fail('writeArchive() should have thrown');
+        } catch (\Pablo\Support\PabloError $e) {
+            $this->assertSame('git exploded', $e->getMessage());
+        }
+
+        $this->assertSame([], $this->stagingLeftovers(), 'the half-built staging directory is removed');
+    }
+
+    public function testCleanupDirRemovesALinkInsideWithoutFollowingIt(): void
+    {
+        $outside = $this->tmp.'/outside';
+        mkdir($outside);
+        file_put_contents($outside.'/keep.txt', 'mine');
+        $dir = $this->tmp.'/doomed';
+        mkdir($dir.'/sub', 0o777, true);
+        file_put_contents($dir.'/sub/file.txt', 'x');
+        symlink($outside, $dir.'/sub/link');
+
+        $this->backup()->cleanupDir($dir);
+
+        $this->assertFileDoesNotExist($dir);
+        $this->assertFileExists($outside.'/keep.txt');
+    }
+
+    public function testCleanupDirEmptiesALinkedDirectoryButKeepsTheLink(): void
+    {
+        $target = $this->tmp.'/real-state';
+        mkdir($target);
+        file_put_contents($target.'/old.json', '{}');
+        $link = $this->tmp.'/state-link';
+        symlink($target, $link);
+
+        $this->backup()->cleanupDir($link);
+
+        $this->assertTrue(is_link($link));
+        $this->assertSame(['.', '..'], scandir($target));
     }
 }
