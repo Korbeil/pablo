@@ -46,7 +46,7 @@ final class OrcaCliTest extends TestCase
     {
         $runner = new FakeProcessRunner();
         $runner->onRun = static fn (): string => (string) json_encode(['ok' => false, 'error' => ['code' => 'selector_not_found']]);
-        $launcher = new OrcaLauncher($runner, \Pablo\Tests\Registries::defaultRuntime(), new Time(), null, '/x/pablo');
+        $launcher = new OrcaLauncher($runner, new Time(), \Pablo\Tests\Registries::defaultRuntime());
 
         $reason = (new \ReflectionMethod($launcher, 'waitForOrcaAdoption'))->invoke($launcher, '/tmp/wt', 1);
 

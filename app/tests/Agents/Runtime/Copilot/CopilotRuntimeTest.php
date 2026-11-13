@@ -213,7 +213,7 @@ final class CopilotRuntimeTest extends TestCase
             return json_encode(['id' => 'x', 'ok' => true, 'result' => ['handle' => 'term_9']], \JSON_THROW_ON_ERROR);
         };
         $wt = sys_get_temp_dir();
-        $agents = new OrcaLauncher($runner, $this->runtime(), new \Pablo\Domain\Time(), null, '/x/pablo');
+        $agents = new OrcaLauncher($runner, new \Pablo\Domain\Time(), $this->runtime());
 
         $this->assertSame('term_9', $agents->doLaunchAgent($wt, 'ci-analyst', 'Why is CI red?', 'gpt-5.3-codex'));
         $key = array_search('--command', $calls[1], true);

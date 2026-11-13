@@ -37,7 +37,7 @@ final class OpenChamberAde extends AbstractAde
 
     public function launcher(AgentRuntimeInterface $runtime, ProcessRunnerInterface $runner, Time $time): AgentLauncherInterface
     {
-        return new OpenChamberLauncher($runner, $runtime, $time);
+        return new OpenChamberLauncher($runner, $time, $runtime);
     }
 
     public function runtimeError(AgentRuntimeInterface $runtime): ?string

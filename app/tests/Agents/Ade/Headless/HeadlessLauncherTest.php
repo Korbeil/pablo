@@ -29,7 +29,7 @@ final class HeadlessLauncherTest extends TestCase
         mkdir($this->agentsDir, 0o777, true);
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
         $this->runner = new FakeProcessRunner();
-        $this->agents = new HeadlessLauncher($this->runner, \Pablo\Tests\Registries::defaultRuntime(), new Time(), null, '/x/pablo');
+        $this->agents = new HeadlessLauncher($this->runner, new Time(), \Pablo\Tests\Registries::defaultRuntime());
     }
 
     protected function tearDown(): void
@@ -94,7 +94,7 @@ final class HeadlessLauncherTest extends TestCase
         };
         $worktree = $this->tmp.'/wt';
         mkdir($worktree);
-        $agents = new HeadlessLauncher($this->runner, $runtime, new Time(), null, '/x/pablo');
+        $agents = new HeadlessLauncher($this->runner, new Time(), $runtime);
 
         $handle = $agents->launchHeadless($worktree, 'task-analyst', 'go');
         $pid = (int) substr($handle, 4);

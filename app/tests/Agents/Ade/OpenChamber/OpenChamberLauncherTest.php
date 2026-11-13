@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents\Ade\OpenChamber;
 
 use Pablo\Agents\Ade\OpenChamber\OpenChamberLauncher;
+use Pablo\Domain\Time;
 use Pablo\Tests\FakeProcessRunner;
+use Pablo\Tests\SandboxedEnv;
 use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
@@ -16,6 +18,8 @@ use PHPUnit\Framework\TestCase;
  */
 final class OpenChamberLauncherTest extends TestCase
 {
+    use SandboxedEnv;
+
     protected FakeProcessRunner $runner;
 
     /** Registers a canned runner and returns it. */
@@ -33,18 +37,20 @@ final class OpenChamberLauncherTest extends TestCase
     {
         $this->tmp = TempDir::create('oc');
         $this->agentsDir = $this->tmp.'/agents';
-        putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
-        $this->agentFilesDir = $this->tmp.'/agent-files';
+        $this->setEnv('PABLO_AGENTS_DIR', $this->agentsDir);
+        // The agent files are read from ~/.pablo/runtime/opencode/agents.
+        $this->setEnv('PABLO_RUNTIME_DIR', $this->tmp.'/runtime');
+        $this->agentFilesDir = $this->tmp.'/runtime/opencode/agents';
         mkdir($this->agentFilesDir, 0o777, true);
         $this->runner = new FakeProcessRunner();
-        $this->agents = new OpenChamberLauncher($this->runner, \Pablo\Tests\Registries::defaultRuntime(), new \Pablo\Domain\Time(), null, '/x/pablo', $this->agentFilesDir);
+        $this->agents = new OpenChamberLauncher($this->runner, new Time(), \Pablo\Tests\Registries::defaultRuntime());
     }
 
     private string $agentFilesDir;
 
     protected function tearDown(): void
     {
-        putenv('PABLO_AGENTS_DIR');
+        $this->restoreEnv();
     }
 
     /** @param array<string, mixed> $payload */
