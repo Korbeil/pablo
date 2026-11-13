@@ -30,6 +30,8 @@ pr_description_locale: en
 #   path: [~/tools/bin]  # extra dirs first on the services' PATH (re-run system:install)
 # prune:
 #   keep_days: 10        # days of logs system:prune keeps (daily at 03:00; at least 1)
+# dispatch:
+#   poll_concurrency: 2  # projects the background job polls at once (1-8; 1 = one after the other)
 # shell_completion: false  # do not install the shell completion (pablo system:install --without-completion)
 # agent_runtime: opencode | claude-code | copilot  (default: opencode)
 # The runtime: the agent CLI that runs the agents. With claude-code, PABLO launches

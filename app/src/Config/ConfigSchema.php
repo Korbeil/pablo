@@ -265,6 +265,10 @@ final class ConfigSchema
                 'keep_days' => self::leaf(self::positiveInt('days'), deferred: true),
             ], deferred: true),
             'shell_completion' => self::leaf(self::flag(...), deferred: true),
+            // Read by the dispatcher alone, which falls back to 1 on a bad value.
+            'dispatch' => SchemaKey::map([
+                'poll_concurrency' => self::leaf(self::intRange(1, GlobalConfig::MAX_POLL_CONCURRENCY, 'projects'), deferred: true),
+            ], deferred: true),
         ];
     }
 
@@ -318,6 +322,16 @@ final class ConfigSchema
             $whole = \is_int($value) || (\is_string($value) && 1 === preg_match('/^\d+$/', $value));
 
             return $whole && (int) $value >= 1 ? null : "must be a whole number of {$unit}, at least 1, got ".self::show($value);
+        };
+    }
+
+    /** @return \Closure(mixed): ?string */
+    private static function intRange(int $min, int $max, string $unit): \Closure
+    {
+        return static function (mixed $value) use ($min, $max, $unit): ?string {
+            $whole = \is_int($value) || (\is_string($value) && 1 === preg_match('/^\d+$/', $value));
+
+            return $whole && (int) $value >= $min && (int) $value <= $max ? null : "must be a whole number of {$unit}, from {$min} to {$max}, got ".self::show($value);
         };
     }
 

@@ -18,7 +18,7 @@
 <ol>
   <li>takes a global lock, so two runs never overlap (a second one exits immediately);</li>
   <li>checks the tools it needs. A problem with <code>gh</code>, with the <a href="page:glossary#runtime">runtime</a>'s command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), or an impossible agent setup (OpenChamber with Claude Code or Copilot) stops the run; a problem with a tracker tool or the ADE only produces a warning, and only the projects using that tool are affected;</li>
-  <li>for each project, runs the jobs whose interval has elapsed since their last success.</li>
+  <li>for each project, runs the jobs whose interval has elapsed since their last success: first every due sync, one after the other, then the due polls, <a href="#concurrent-polls">a few projects at a time</a>, then every due main update, one after the other.</li>
 </ol>
 
 <table>
@@ -31,6 +31,20 @@
 </table>
 
 <p>A job's “last run” time is only saved when it succeeds, so a failure is retried on the next run. One project failing never blocks the others, and that includes its YAML file: a project file that doesn't load (invalid YAML, a missing or invalid key, a name another file already uses) only drops that project. Each run prints the file and its error on stderr, then dispatches the other projects and exits non-zero. An invalid <code>~/.pablo/config.yaml</code> is different: it affects every project, so nothing runs. Adding or removing a project changes nothing in the scheduler: each project's cadence lives in its YAML file.</p>
+
+<h3 id="concurrent-polls">Polling several projects at once</h3>
+
+<p>Polling is mostly waiting on <code>gh</code>, <code>git</code> and the tracker commands, so the dispatcher polls up to <code>dispatch.poll_concurrency</code> projects at once (default 2; see <a href="page:configuration#global-only-keys">Global-only keys</a>). Each one runs in a child process of the same <code>pablo</code> (<code>pablo internal:dispatch-job</code>); the dispatcher keeps the global lock while they run and records their stamps and health itself, exactly as when it runs them one after the other.</p>
+
+<ul>
+  <li><b>Only polls overlap.</b> Sync and main update write to git repositories (rebase, push, reset of the primary checkout), so they still run one at a time, sync before the polls and main after them: a project's own jobs keep their order and never overlap. Two projects on the same repository are never polled at the same time either.</li>
+  <li><b>Same requests, sooner.</b> Polling at once never adds a request: each project makes the calls it always made, only the run ends sooner. It does send them closer together, and every project shares your <code>gh</code> account and tracker account. GitHub asks clients to avoid concurrent requests and limits bursts on top of the hourly quota (<a href="https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits">secondary rate limits</a>), which is why the default is 2 and the maximum 8.</li>
+  <li><b>A rate limit slows the run down.</b> When a project's poll fails on something that looks like a rate limit (or one of its tasks' checks does), that project fails alone and <a href="#dispatcher-health">backs off</a> as usual, and the projects still waiting in that run are polled one at a time, as with <code>poll_concurrency: 1</code>. Nothing is retried.</li>
+  <li><b>Output stays readable.</b> Each project's lines are printed together once its poll ends, so the log groups them by project, in the order the polls finish.</li>
+  <li><b>Bounded.</b> A poll still running after 10 minutes is stopped and counts as that project's failure, and no poll starts more than 10 minutes into the run: the ones left wait for the next run. One project's failure, crash or hang never blocks the others.</li>
+</ul>
+
+<p>Set <code>dispatch.poll_concurrency: 1</code> to poll one project after the other, in the dispatcher's own process, as before.</p>
 
 <h3 id="dispatcher-health">Health and back-off</h3>
 

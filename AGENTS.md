@@ -167,7 +167,7 @@ flows, never persists prompt content — see `site/content/analytics.html`) ·
 run detached after a saved transition or a finished agent through
 `HookRunnerInterface` — `tests/FakeHookRunner.php` in tests; PABLO itself
 sends nothing, see `site/content/states.html#get-notified`) ·
-`src/Dispatch/` (cron entry point) ·
+`src/Dispatch/` (cron entry point, its stamps/health and the poll `WorkerPool`) ·
 `src/Support/` (`PabloError`, `PabloPaths` — every `~/.pablo` path and the
 phar/resources helpers —, `ProcessRunner`, `Files` — phar-safe
 `list()`/`copy()`/`remove()`, and the checked file operations: a required
@@ -213,7 +213,16 @@ directly — commands wrap `pablo` CLI calls; agents are read-only,
 auto-launched on certain state transitions) and background
 (`pablo system:dispatch`, run every 5 min by systemd/launchd; global flock, per
 project × {sync, poll, main} checks a stamp in `~/.pablo/stamps/` against that
-project's own interval; one project's failure never blocks others), plus the
+project's own interval; one project's failure never blocks others). Due syncs
+run first, one at a time, then the due polls — up to `dispatch.poll_concurrency`
+projects at once (default 2, 1 = in-process and sequential), each in a child
+`pablo internal:dispatch-job` started by `Dispatch/WorkerPool` through
+`JobWorkerSpawnerInterface` (`tests/FakeJobWorkers.php` in tests; never
+`pcntl_fork()`), never two on one repository, output printed whole per child,
+a timed-out child killed, the rest of the tick back to one at a time on a
+rate-limit-looking failure — then the due main updates, one at a time; the
+parent alone writes stamps and health. Never make sync or main concurrent:
+they write to shared repositories. Plus the
 daily housekeeping (`pablo system:prune`, `src/Housekeeping/`, its own
 `pablo-prune.timer` / `com.pablo.prune` at 03:00; only content older than
 `prune.keep_days` (default 10) is ever removed, service logs are copy-truncated in place). `DispatchHealth`
@@ -388,7 +397,8 @@ collides between suites running in parallel on a loaded machine.
 `systemctl`/`journalctl`/`/etc/`/`/proc/`/`/opt/` to keep the engine
 Linux+macOS portable. `tests/RequiredCollaboratorsTest.php` fails when an
 outside-world collaborator (`ProcessRunnerInterface`,
-`UsageHarvesterInterface`, `AgentLauncherInterface`, `HookRunnerInterface`) gets a default instead
+`UsageHarvesterInterface`, `AgentLauncherInterface`, `HookRunnerInterface`,
+`JobWorkerSpawnerInterface`) gets a default instead
 of being a required constructor argument — so a forgotten fake can never
 silently become a real CLI. `tests/GitConfigTripwireTest.php` forbids
 setting a git identity anywhere.
@@ -431,7 +441,8 @@ error naming the key. Overridable keys: `sync.strategy` (`rebase`/`merge`),
 `default_model` (project > global-only `default_model_by_type.<type>` >
 global; validated by the runtime's `modelError()`), `pr_description_locale`,
 `branch_prefix`. Global-only: `agent_backend`, `agent_runtime`,
-`claude_code.*`, `dashboard_port`, `dashboard_trusted_hosts`. Required per project: `name` (unique),
+`claude_code.*`, `dashboard_port`, `dashboard_trusted_hosts`,
+`dispatch.poll_concurrency`. Required per project: `name` (unique),
 `type` (`work`/`open-source`/`personal`), `repo.path`, `repo.primary_branch`,
 `issue_tracker.{provider,identity,project_key}` (providers:
 `github`/`jira`/`linear`); optional: `repo.primary_remote` (`origin`),

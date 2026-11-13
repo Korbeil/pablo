@@ -37,7 +37,9 @@ final class DispatchTest extends TestCase
         putenv('PABLO_STAMPS_DIR='.$this->stamps);
         // An empty global config: the developer's real ~/.pablo/config.yaml
         // (e.g. agent_backend: openchamber) must not leak into the preflight.
-        $this->writeGlobalConfig("{}\n");
+        // poll_concurrency: 1 — these tests pin the sequential dispatcher;
+        // DispatchConcurrencyTest covers the pooled polls.
+        $this->writeGlobalConfig("dispatch:\n  poll_concurrency: 1\n");
         $this->ran = [];
         $this->runner = new \Pablo\Tests\FakeProcessRunner();
         $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
@@ -52,7 +54,7 @@ final class DispatchTest extends TestCase
         $sync = new \Pablo\Provider\Git\Sync($git, $gh, $repoSlug, $time, \Pablo\Tests\Registries::runtimes($global));
         $poller = new \Pablo\Poller\Poller($gh, $git, $providers, $repoSlug, $sm, $time, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), \Pablo\Tests\Registries::hooks());
         $stamps = new \Pablo\Dispatch\Stamps();
-        $this->dispatch = new Dispatch($doctor, $sync, $poller, \Pablo\Tests\Registries::launchers($this->runner, $global), $stamps, $git);
+        $this->dispatch = new Dispatch($doctor, $sync, $poller, \Pablo\Tests\Registries::launchers($this->runner, $global), $stamps, $git, new \Pablo\Dispatch\WorkerPool(new \Pablo\Tests\FakeJobWorkers()), $global);
         $fh = fopen('/dev/null', 'w');
         \assert(false !== $fh);
         $this->dispatch->stderr = $fh;

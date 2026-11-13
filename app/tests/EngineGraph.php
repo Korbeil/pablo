@@ -14,6 +14,7 @@ use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Dispatch\Dispatch;
 use Pablo\Dispatch\Stamps;
+use Pablo\Dispatch\WorkerPool;
 use Pablo\Doctor\Doctor;
 use Pablo\Domain\Time;
 use Pablo\Hooks\Hooks;
@@ -56,6 +57,7 @@ final class EngineGraph
     public Poller $poller;
     public Listing $listing;
     public Dispatch $dispatch;
+    public FakeJobWorkers $jobWorkers;
     public Backup $backup;
 
     public function __construct(?string $stateDir = null)
@@ -96,7 +98,8 @@ final class EngineGraph
             $this->analytics,
         );
         $this->listing = new Listing($this->stamps, $this->gh, $this->providers, $this->repoSlug, $this->time);
-        $this->dispatch = new Dispatch($this->doctor, $this->sync, $this->poller, $this->agentLaunchers, $this->stamps, $this->git);
+        $this->jobWorkers = new FakeJobWorkers();
+        $this->dispatch = new Dispatch($this->doctor, $this->sync, $this->poller, $this->agentLaunchers, $this->stamps, $this->git, new WorkerPool($this->jobWorkers, sleep: static function (): void {}), $this->global);
         $this->backup = new Backup($this->git, $this->runner, $this->time, $this->ades);
     }
 }
