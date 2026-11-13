@@ -284,9 +284,36 @@ final class GitRepo implements GitRepoInterface
         $this->git($repo, ['fetch', 'origin']);
     }
 
-    public function pushWithLease(string $worktree, string $branch): void
+    public function pushWithLease(string $worktree, string $branch, string $remote = 'origin'): void
     {
-        $this->git($worktree, ['push', '--force-with-lease', 'origin', $branch]);
+        // The lease's expected value is <remote>/<branch>, the tracking ref
+        // sync just fetched and compared against.
+        $this->git($worktree, ['push', '--force-with-lease', $remote, $branch]);
+    }
+
+    /**
+     * The remote a task branch is pushed to, which in a fork setup is not the
+     * primary remote: branch.<name>.pushRemote, else remote.pushDefault, else
+     * branch.<name>.remote when the branch tracks its own name there (a branch
+     * created off <primary_remote>/<primary> tracks that one, the rebase
+     * target, not where the branch lives), else origin. A configured remote
+     * that does not exist is ignored.
+     */
+    private function pushRemoteFor(string $wt, string $branch): string
+    {
+        $remotes = preg_split('/\r?\n/', $this->git($wt, ['remote'], check: false)) ?: [];
+        $config = fn (string $key): string => $this->git($wt, ['config', '--get', $key], check: false);
+        $candidates = [$config("branch.{$branch}.pushRemote"), $config('remote.pushDefault')];
+        if ("refs/heads/{$branch}" === $config("branch.{$branch}.merge")) {
+            $candidates[] = $config("branch.{$branch}.remote");
+        }
+        foreach ($candidates as $candidate) {
+            if ('' !== $candidate && \in_array($candidate, $remotes, true)) {
+                return $candidate;
+            }
+        }
+
+        return 'origin';
     }
 
     public function updatePrimary(string $repo, string $branch, string $remote = 'origin', bool $dryRun = false): MainUpdateReport
@@ -435,9 +462,16 @@ final class GitRepo implements GitRepoInterface
         ?string $base,
         string $remote,
     ): SyncReport {
+        // $remote is the primary remote (rebase target, stacked bases); the
+        // branch itself lives on its push remote, which differs in a fork
+        // setup (primary_remote: upstream, the branch on origin).
+        $pushRemote = $this->pushRemoteFor($wt, $branch);
         $this->git($wt, ['fetch', '--prune', $remote]);
+        if ($pushRemote !== $remote) {
+            $this->git($wt, ['fetch', '--prune', $pushRemote]);
+        }
 
-        $remoteBranch = "{$remote}/{$branch}";
+        $remoteBranch = "{$pushRemote}/{$branch}";
         $hasRemote = $this->refExists($wt, $remoteBranch);
         $own = $hasRemote ? $this->counts($wt, $remoteBranch) : new AheadBehind(0, 0);
         $remoteNew = $own->behind;
@@ -501,6 +535,7 @@ final class GitRepo implements GitRepoInterface
                 if (null !== $conflict) {
                     $conflict->branch = $branch;
                     $conflict->target = $target;
+                    $conflict->pushRemote = $pushRemote;
 
                     return $conflict;
                 }
@@ -518,6 +553,7 @@ final class GitRepo implements GitRepoInterface
             $this->git($wt, ['reset', '--hard', $origHead], check: false);
             $conflict->branch = $branch;
             $conflict->target = $target;
+            $conflict->pushRemote = $pushRemote;
 
             return $conflict;
         }
@@ -525,7 +561,7 @@ final class GitRepo implements GitRepoInterface
         // 3. Push (lease-protected) if the branch exists remotely and moved.
         if ($hasRemote && $this->git($wt, ['rev-parse', 'HEAD']) !== $this->git($wt, ['rev-parse', $remoteBranch])) {
             try {
-                $push($wt, $branch);
+                $push($wt, $branch, $pushRemote);
             } catch (PabloError $e) {
                 $this->git($wt, ['reset', '--hard', $origHead]);
 

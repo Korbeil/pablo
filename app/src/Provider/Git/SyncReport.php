@@ -17,6 +17,7 @@ final class SyncReport
         public string $detail = '',
         public string $agentHandle = '', // agent session handle (see RuntimeSessionsInterface::handle(), SessionRef) when the conflict agent launched
         public string $target = '', // ref the sync rebased/merged onto (e.g. origin/main); set on conflict
+        public string $pushRemote = '', // remote the branch is pushed to (origin, or the fork's); set on conflict
     ) {
     }
 

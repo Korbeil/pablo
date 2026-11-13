@@ -52,7 +52,8 @@ interface GitRepoInterface
 
     public function fetchOrigin(string $repo): void;
 
-    public function pushWithLease(string $worktree, string $branch): void;
+    /** Push $branch to $remote with --force-with-lease (expected value: the <remote>/<branch> tracking ref). */
+    public function pushWithLease(string $worktree, string $branch, string $remote = 'origin'): void;
 
     /**
      * Bring the project's primary checkout up to date with $remote/$branch:
@@ -72,7 +73,12 @@ interface GitRepoInterface
      * Rebase/merge $upstream into the worktree; report on conflict,
      * aborting the operation on failure.
      *
-     * @param callable(string, string): void|null $push
+     * $remote is the primary remote: the rebase/merge target and stacked
+     * bases come from it. The branch's own remote copy, and the push, use the
+     * branch's push remote (pushRemote / remote.pushDefault / its same-name
+     * upstream, else origin), which differs in a fork setup.
+     *
+     * @param callable(string, string, string): void|null $push called with ($worktree, $branch, $pushRemote)
      */
     public function syncWorktree(
         string $wt,

@@ -12,6 +12,10 @@
   <li>if the history changed and the branch exists on the remote, <b>push with <code>--force-with-lease</code></b>, never plain <code>--force</code>. If the lease fails (someone pushed in the meantime), the worktree is rolled back and sync tries again next time.</li>
 </ol>
 
+<h3 id="forks">Working from a fork</h3>
+
+<p>With <code>repo.primary_remote: upstream</code> (your fork is <code>origin</code>, the project's repository <code>upstream</code>), sync tells two remotes apart. The <b>primary remote</b> gives the branch to rebase or merge onto: <code>upstream/&lt;primary_branch&gt;</code>, or a stacked pull request's base there. The branch's <b>push remote</b> is where the branch itself lives: sync fetches it too, brings in its new commits, checks it for an <a href="#skipped-on-purpose">unpushed rewrite</a>, and pushes there with the lease. The push remote is the branch's <code>branch.&lt;name&gt;.pushRemote</code>, else <code>remote.pushDefault</code>, else the remote the branch tracks when it tracks a branch of the same name (<code>git push -u myfork &lt;branch&gt;</code>), else <code>origin</code>. With the default <code>primary_remote: origin</code> both are <code>origin</code>, as before.</p>
+
 <p>Every git command runs with a time limit sized to what it does: 2 minutes for read-only commands, 15 for those that rewrite the working tree (worktree creation, checkout, rebase, merge, reset, hooks included), 20 for <code>fetch</code> and <code>push</code> (a <code>pre-push</code> hook may run your tests), an hour for a <code>clone</code>. A git command that runs past its limit is stopped and handled like any other failure: a push that times out is rolled back like a failed lease, and a rebase or merge that times out is aborted and the worktree reset to where it was, with the error reported for that project.</p>
 
 <h3>Report first, apply when you're ready</h3>

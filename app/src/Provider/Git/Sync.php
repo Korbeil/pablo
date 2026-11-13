@@ -244,6 +244,7 @@ final class Sync
     public function buildConflictAgentPrompt(SyncReport $report, ProjectConfig $cfg): string
     {
         $remote = $cfg->repo->primaryRemote;
+        $pushRemote = '' !== $report->pushRemote ? $report->pushRemote : 'origin';
         $primaryTarget = $remote.'/'.$cfg->repo->primaryBranch;
         $target = '' !== $report->target ? $report->target : $primaryTarget;
         $stacked = $target !== $primaryTarget && $target !== $cfg->repo->primaryBranch;
@@ -252,12 +253,12 @@ final class Sync
             "Rebase onto `{$target}` using strategy `{$cfg->sync->strategy}` was aborted.",
             'The worktree is clean — you must re-run the rebase yourself.',
             '',
-            '1. `git fetch --prune '.implode(' ', array_unique([$remote, 'origin'])).'`',
-            "2. If `{$remote}/{$report->branch}` has new commits, rebase onto it first.",
+            '1. `git fetch --prune '.implode(' ', array_unique([$remote, $pushRemote])).'`',
+            "2. If `{$pushRemote}/{$report->branch}` has new commits, rebase onto it first.",
             "3. `git rebase {$target}`",
             '4. Resolve every conflict. `git add` resolved files, `git rebase --continue`.',
             '5. Repeat until the rebase completes cleanly.',
-            "6. `git push --force-with-lease origin {$report->branch}`",
+            "6. `git push --force-with-lease {$pushRemote} {$report->branch}`",
             '',
             'Conflicting files from the original attempt:',
         ];
