@@ -80,7 +80,7 @@ final class InternalLaunchAgentCommand extends Command
         // agent file's frontmatter model.
         $agents = $this->agentLaunchers->create($backend);
         $handle = $agents->doLaunchAgent($worktree, $agent, $prompt, $this->modelFor($project));
-        $agents->spawnWatcher($project, $branch, $handle, $agent, '', null, $runId, PromptFingerprint::of($prompt));
+        $agents->spawnWatcher($project, $branch, $handle, $agent, $runId, PromptFingerprint::of($prompt));
         $agents->refreshAgentDisplayCache($project, $branch, $worktree);
 
         return self::SUCCESS;

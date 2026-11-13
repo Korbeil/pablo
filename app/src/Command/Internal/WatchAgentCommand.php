@@ -15,13 +15,10 @@ use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
-use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Hooks\Hooks;
-use Pablo\Provider\Gh\GhPrInterface;
 use Pablo\Store\Store;
-use Pablo\Support\RepoSlug;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -31,8 +28,6 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class WatchAgentCommand extends Command
 {
     public function __construct(
-        private readonly GhPrInterface $gh,
-        private readonly RepoSlug $repoSlug,
         private readonly Time $time,
         Store $store,
         Config $projectsLoader,
@@ -52,8 +47,6 @@ final class WatchAgentCommand extends Command
             ->addOption('project', null, InputOption::VALUE_REQUIRED)
             ->addOption('branch', null, InputOption::VALUE_REQUIRED)
             ->addOption('handle', null, InputOption::VALUE_REQUIRED)
-            ->addOption('then', null, InputOption::VALUE_REQUIRED, '', null, ['pr-draft'])
-            ->addOption('expect-state', null, InputOption::VALUE_REQUIRED)
             ->addOption('agent', null, InputOption::VALUE_REQUIRED)
             ->addOption('run-id', null, InputOption::VALUE_REQUIRED, 'analytics run id from internal:launch-agent')
             ->addOption('prompt-fingerprint', null, InputOption::VALUE_REQUIRED, 'sha256 prefix of the launch prompt for usage attribution')
@@ -101,19 +94,6 @@ final class WatchAgentCommand extends Command
                     );
                     $finished = $launch->agent;
                     $this->recordAgentRunFinished($task, $launch->launchedAt, $finishedAt, $runId, $launch->agent->value, (string) ($input->getOption('backend') ?: AdeRegistry::DEFAULT), (string) ($input->getOption('prompt-fingerprint') ?? ''));
-                }
-            }
-            $expect = null !== $input->getOption('expect-state') ? State::tryFrom((string) $input->getOption('expect-state')) : null;
-            // Otherwise the state moved on: nothing more than the stamp to save,
-            // and no one to notify about a run the task has left behind.
-            $current = null === $expect || $task->state === $expect;
-            if (!$current) {
-                $finished = null;
-            }
-            if ($current && 'pr-draft' === $input->getOption('then') && null !== $task->prNumber) {
-                $cfg = $this->projects()[$project] ?? null;
-                if (null !== $cfg) {
-                    $this->gh->markDraft($this->repoSlug->for($cfg), $task->prNumber);
                 }
             }
             $store->save($task);

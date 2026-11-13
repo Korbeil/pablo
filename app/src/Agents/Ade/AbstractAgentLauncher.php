@@ -134,19 +134,14 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         return HeadlessRunner::HANDLE_PREFIX.$pid;
     }
 
-    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null, ?string $runId = null, ?string $promptFingerprint = null): void
+    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, ?string $runId = null, ?string $promptFingerprint = null): void
     {
         $argv = [
             $this->shimPath, 'internal:watch-agent',
             '--backend', $this->ade,
             '--project', $project, '--branch', $branch,
             '--handle', $handle, '--agent', $agent,
-            '--then', $then,
         ];
-        if (null !== $expectState) {
-            $argv[] = '--expect-state';
-            $argv[] = $expectState;
-        }
         if (null !== $runId) {
             $argv[] = '--run-id';
             $argv[] = $runId;

@@ -36,7 +36,7 @@ final class InternalRunStartupScriptCommand extends Command
         // Stamp the launch finished once the script exits, as for an agent:
         // otherwise the poller sees an unfinished launch with no live session
         // and re-runs a script that already ran.
-        $agents->spawnWatcher($project, $branch, $handle, Agent::StartupScript->value, '');
+        $agents->spawnWatcher($project, $branch, $handle, Agent::StartupScript->value);
         $agents->refreshAgentDisplayCache($project, $branch, $worktree);
 
         return self::SUCCESS;

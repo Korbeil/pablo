@@ -56,7 +56,7 @@ interface AgentLauncherInterface
      * @param string|null $runId             analytics run id forwarded to the watcher (--run-id)
      * @param string|null $promptFingerprint sha256 prefix of the launch prompt for usage attribution
      */
-    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, string $then, ?string $expectState = null, ?string $runId = null, ?string $promptFingerprint = null): void;
+    public function spawnWatcher(string $project, string $branch, string $handle, string $agent, ?string $runId = null, ?string $promptFingerprint = null): void;
 
     public function setWorktreeDisplayName(string $worktree, string $name, ?string $issueNumber = null): void;
 
