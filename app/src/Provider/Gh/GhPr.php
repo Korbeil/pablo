@@ -349,6 +349,253 @@ GQL;
         );
     }
 
+    /**
+     * The GraphQL fragments of pollSnapshot(), one per per-PR call it
+     * replaces, each asking exactly what that call asks:
+     *  - snapBranch: `gh pr list --head <b> --state all --limit 1` (prForBranch());
+     *  - snapStatus: prState(), plus the statusCheckRollup `gh pr view` exports
+     *    (ciStatus()), same commit and first page of 100 contexts;
+     *  - snapReviews: the first page of REVIEWS_QUERY plus TIMELINE_QUERY
+     *    (reviewVerdict()).
+     */
+    private const SNAPSHOT_FRAGMENTS = [
+        'snapBranch' => 'fragment snapBranch on PullRequest { number title state isDraft mergedAt url baseRefName }',
+        'snapStatus' => <<<'GQL'
+fragment snapStatus on PullRequest {
+  state
+  mergedAt
+  commits(last: 1) {
+    nodes {
+      commit {
+        statusCheckRollup {
+          contexts(first: 100) {
+            pageInfo { hasNextPage }
+            nodes {
+              __typename
+              ... on StatusContext { context state createdAt }
+              ... on CheckRun { name status conclusion startedAt checkSuite { workflowRun { workflow { name } } } }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+GQL,
+        'snapReviews' => <<<'GQL'
+fragment snapReviews on PullRequest {
+  createdAt
+  author { login }
+  timelineItems(itemTypes: [READY_FOR_REVIEW_EVENT], last: 1) {
+    nodes { ... on ReadyForReviewEvent { createdAt } }
+  }
+  reviews(last: 100) {
+    pageInfo { hasPreviousPage }
+    nodes { id author { login __typename } state submittedAt body }
+  }
+  reviewThreads(first: 100) {
+    pageInfo { hasNextPage }
+    nodes { isResolved comments(last: 100) { nodes { pullRequestReview { id } } } }
+  }
+}
+GQL,
+    ];
+
+    /**
+     * PRs per pollSnapshot() query. A PR with its reviews is up to ~10k nodes
+     * (100 threads x 100 comments): 20 of them stay well under GitHub's
+     * 500k-node limit and its timeout.
+     */
+    public const SNAPSHOT_PRS_PER_QUERY = 20;
+
+    /** Head-branch lookups per pollSnapshot() query (one node each). */
+    public const SNAPSHOT_BRANCHES_PER_QUERY = 50;
+
+    /** What gh exports for a check run that has not started: Go's zero time. */
+    private const GO_ZERO_TIME = '0001-01-01T00:00:00Z';
+
+    public function pollSnapshot(string $repoSlug, array $branches, array $prNumbers, array $reviewPrNumbers): PrSnapshot
+    {
+        $branches = array_values(array_unique($branches));
+        $prNumbers = array_values(array_unique($prNumbers));
+        $withReviews = array_fill_keys($reviewPrNumbers, true);
+        $branchChunks = array_chunk($branches, self::SNAPSHOT_BRANCHES_PER_QUERY);
+        $prChunks = array_chunk($prNumbers, self::SNAPSHOT_PRS_PER_QUERY);
+
+        $branchPrs = [];
+        $states = [];
+        $rollups = [];
+        $reviews = [];
+        for ($i = 0, $n = max(\count($branchChunks), \count($prChunks)); $i < $n; ++$i) {
+            $repository = $this->snapshotQuery($repoSlug, $branchChunks[$i] ?? [], $prChunks[$i] ?? [], $withReviews);
+            if (null === $repository) {
+                continue; // this query failed as a whole: its PRs are read one by one
+            }
+            foreach ($branchChunks[$i] ?? [] as $k => $branch) {
+                $nodes = $repository["b{$k}"]['nodes'] ?? null;
+                if (\is_array($nodes)) {
+                    $first = $nodes[0] ?? null;
+                    $branchPrs[$branch] = \is_array($first) ? $this->prFromItem($first) : null;
+                }
+            }
+            foreach ($prChunks[$i] ?? [] as $prNumber) {
+                $pr = $repository["p{$prNumber}"] ?? null;
+                if (!\is_array($pr) || !isset($pr['state'])) {
+                    continue; // unresolved (NOT_FOUND, no access…): read one by one
+                }
+                $states[$prNumber] = self::normalizeState((string) $pr['state'], $pr['mergedAt'] ?? null);
+                $rollup = self::snapshotRollup($pr);
+                if (null !== $rollup) {
+                    $rollups[$prNumber] = $rollup;
+                }
+                $review = isset($withReviews[$prNumber]) ? $this->snapshotReviews($pr) : null;
+                if (null !== $review) {
+                    $reviews[$prNumber] = $review;
+                }
+            }
+        }
+
+        return new PrSnapshot($branchPrs, $states, $rollups, $reviews);
+    }
+
+    /**
+     * One aliased query: `b<k>` per head branch, `p<number>` per PR. Run with
+     * check: false, since gh exits non-zero when one alias cannot be resolved
+     * while the others' data is still there.
+     *
+     * @param list<string>     $branches
+     * @param list<int>        $prNumbers
+     * @param array<int, true> $withReviews
+     *
+     * @return array<string, mixed>|null data.repository, null when the query failed
+     */
+    private function snapshotQuery(string $repoSlug, array $branches, array $prNumbers, array $withReviews): ?array
+    {
+        $ownerRepo = explode('/', $repoSlug, 2);
+        $vars = ['$owner: String!', '$repo: String!'];
+        $fields = [];
+        $used = [];
+        $argv = ['gh', 'api', 'graphql'];
+        foreach ($branches as $k => $branch) {
+            $vars[] = "\$b{$k}: String!";
+            $fields[] = "b{$k}: pullRequests(headRefName: \$b{$k}, states: [OPEN, CLOSED, MERGED], first: 1, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { ...snapBranch } }";
+            $used['snapBranch'] = true;
+            array_push($argv, '-f', "b{$k}={$branch}");
+        }
+        foreach ($prNumbers as $prNumber) {
+            $spreads = '...snapStatus';
+            $used['snapStatus'] = true;
+            if (isset($withReviews[$prNumber])) {
+                $spreads .= ' ...snapReviews';
+                $used['snapReviews'] = true;
+            }
+            $fields[] = "p{$prNumber}: pullRequest(number: {$prNumber}) { {$spreads} }";
+        }
+        // GraphQL refuses an unused fragment: only the spread ones are sent.
+        $query = 'query('.implode(', ', $vars).") {\n  repository(owner: \$owner, name: \$repo) {\n    "
+            .implode("\n    ", $fields)."\n  }\n}\n"
+            .implode("\n", array_intersect_key(self::SNAPSHOT_FRAGMENTS, $used));
+        array_push($argv, '-f', 'query='.$query, '-f', 'owner='.$ownerRepo[0], '-f', 'repo='.($ownerRepo[1] ?? ''));
+
+        try {
+            $out = $this->runner->run($argv, check: false, timeout: self::GH_CALL_TIMEOUT_S);
+        } catch (\Throwable) {
+            return null; // timed out, gh missing…
+        }
+        $response = Json::tryDecodeArray($out);
+        $repository = $response['data']['repository'] ?? null;
+        if (!\is_array($repository)) {
+            return null;
+        }
+        // An error leaves a null somewhere under its alias (a null rollup
+        // would read as "no checks"): the per-PR call would have failed, so
+        // the whole alias is dropped and read one by one. An error outside
+        // any alias discards the lot.
+        foreach ($response['errors'] ?? [] as $error) {
+            $path = \is_array($error) ? ($error['path'] ?? null) : null;
+            if (!\is_array($path) || 'repository' !== ($path[0] ?? null) || !\is_string($path[1] ?? null)) {
+                return null;
+            }
+            unset($repository[$path[1]]);
+        }
+
+        return $repository;
+    }
+
+    /**
+     * The rollup `gh pr view --json statusCheckRollup` would export, shaped
+     * like gh's own export so CiCheck::fromRollup() reads it the same way;
+     * null when the contexts span more than one page (gh would page on).
+     *
+     * @param array<string, mixed> $pr
+     *
+     * @return list<CiCheck>|null
+     */
+    private static function snapshotRollup(array $pr): ?array
+    {
+        $commit = $pr['commits']['nodes'][0]['commit'] ?? null;
+        $contexts = \is_array($commit) ? ($commit['statusCheckRollup']['contexts'] ?? null) : null;
+        if (!\is_array($contexts)) {
+            return []; // no commit or no checks: gh exports none
+        }
+        if (true === ($contexts['pageInfo']['hasNextPage'] ?? false)) {
+            return null;
+        }
+        $checks = [];
+        foreach ($contexts['nodes'] ?? [] as $node) {
+            if (!\is_array($node)) {
+                continue;
+            }
+            $checks[] = CiCheck::fromRollup('CheckRun' === ($node['__typename'] ?? null)
+                ? [
+                    'name' => (string) ($node['name'] ?? ''),
+                    'workflowName' => (string) ($node['checkSuite']['workflowRun']['workflow']['name'] ?? ''),
+                    'status' => (string) ($node['status'] ?? ''),
+                    'conclusion' => (string) ($node['conclusion'] ?? ''),
+                    'startedAt' => (string) ($node['startedAt'] ?? self::GO_ZERO_TIME),
+                ]
+                : [
+                    'context' => (string) ($node['context'] ?? ''),
+                    'state' => (string) ($node['state'] ?? ''),
+                    'startedAt' => (string) ($node['createdAt'] ?? self::GO_ZERO_TIME),
+                ]);
+        }
+
+        return $checks;
+    }
+
+    /**
+     * reviewVerdict()'s inputs, when one page held them all; null otherwise
+     * (more reviews or threads, no author, missing data), so fetchReviews()
+     * pages through them.
+     *
+     * @param array<string, mixed> $pr
+     */
+    private function snapshotReviews(array $pr): ?ReviewSnapshot
+    {
+        $author = $pr['author']['login'] ?? null;
+        $reviews = $pr['reviews'] ?? null;
+        $threads = $pr['reviewThreads'] ?? null;
+        if (!\is_string($author) || !\is_array($reviews) || !\is_array($threads) || !isset($pr['createdAt'])
+            || false !== ($reviews['pageInfo']['hasPreviousPage'] ?? true)
+            || false !== ($threads['pageInfo']['hasNextPage'] ?? true)) {
+            return null;
+        }
+        $nodes = array_values(array_filter($pr['timelineItems']['nodes'] ?? [], static fn ($n) => null !== $n));
+        $anchor = [] !== $nodes
+            ? $this->time->parseTs((string) $nodes[\count($nodes) - 1]['createdAt'])
+            : $this->time->parseTs((string) $pr['createdAt']);
+
+        return new ReviewSnapshot(
+            new PrReviews(
+                $author,
+                array_map(ReviewNode::fromNode(...), array_values(array_filter($reviews['nodes'] ?? [], static fn ($n) => null !== $n))),
+                array_map(ReviewThread::fromNode(...), array_values(array_filter($threads['nodes'] ?? [], static fn ($n) => null !== $n))),
+            ),
+            $anchor,
+        );
+    }
+
     public function markReady(string $repoSlug, int $prNumber): void
     {
         $this->runner->run(['gh', 'pr', 'ready', (string) $prNumber, '--repo', $repoSlug], timeout: self::GH_CALL_TIMEOUT_S);

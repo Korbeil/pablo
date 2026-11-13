@@ -20,6 +20,7 @@ use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Hooks\Hooks;
 use Pablo\Provider\Gh\GhPrInterface;
+use Pablo\Provider\Gh\PrSnapshot;
 use Pablo\Provider\Gh\ReviewVerdict;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
@@ -354,7 +355,7 @@ final class Poller
         if (null !== $task->prNumber) {
             // The display cache reads the branch's PR anyway: fetched now, it
             // also answers prState() when it is the task's PR.
-            $prs->warm($actualBranch);
+            $prs->warm($actualBranch, $task->prNumber);
             $prState = $prs->prState($task->prNumber, $actualBranch);
         }
 
@@ -505,6 +506,41 @@ final class Poller
         }
     }
 
+    /**
+     * Every PR read this cycle's checks and display caches need, batched
+     * per repository (GhPrInterface::pollSnapshot()): each task's head-branch
+     * PR, the state and CI rollup of each known PR, and the reviews of the
+     * PRs whose state reads them (checksFor(): checkReviews(), and
+     * checkFeedbackAddressed() once pr-feedback has finished). A merged task
+     * only needs its display. Whatever the batch misses is read per task.
+     *
+     * @param array<Task>           $tasks
+     * @param array<string, string> $branches task branch => checked-out branch
+     */
+    private function fetchPrSnapshot(string $slug, array $tasks, array $branches): PrSnapshot
+    {
+        $prNumbers = [];
+        $reviewPrNumbers = [];
+        foreach ($tasks as $task) {
+            if (null === $task->prNumber || $task->merged) {
+                continue;
+            }
+            $prNumbers[] = $task->prNumber;
+            if (\in_array($task->state, [State::ReadyToReview, State::WaitingReview], true)
+                || (State::RequestChanges === $task->state && null !== ($task->agentLaunches[Agent::PrFeedback->value] ?? null)?->finishedAt)) {
+                $reviewPrNumbers[] = $task->prNumber;
+            }
+        }
+        if ([] === $branches) {
+            return new PrSnapshot();
+        }
+        try {
+            return $this->gh->pollSnapshot($slug, array_values($branches), $prNumbers, $reviewPrNumbers);
+        } catch (\Throwable) {
+            return new PrSnapshot(); // every read falls back to its per-PR call
+        }
+    }
+
     /** The branch checked out in the task's worktree, else the task's own branch. */
     private function actualBranch(Task $task): string
     {
@@ -529,12 +565,18 @@ final class Poller
         $events = [];
         $this->lastCheckFailures = 0;
         $trackerStatuses = $this->fetchTrackerStatuses($cfg, $store);
+        $tasks = $store->allTasks($cfg->name);
+        $branches = [];
+        foreach ($tasks as $task) {
+            $branches[$task->branch] = $this->actualBranch($task);
+        }
         try {
-            $prs = new PollPrs($this->gh, $this->repoSlug->for($cfg));
+            $slug = $this->repoSlug->for($cfg);
+            $prs = new PollPrs($this->gh, $slug, $this->fetchPrSnapshot($slug, $tasks, $branches));
         } catch (\Throwable $e) {
             $prs = PollPrs::unavailable($this->gh, $e);
         }
-        foreach ($store->allTasks($cfg->name) as $task) {
+        foreach ($tasks as $task) {
             try {
                 $lock = $store->taskLock($cfg->name, $task->branch, self::POLL_LOCK_TIMEOUT_S);
                 try {
@@ -543,7 +585,7 @@ final class Poller
                         continue;
                     }
                     $ctx = new TaskCtx(task: $fresh, cfg: $cfg, store: $store, agents: $agents);
-                    $actualBranch = $this->actualBranch($fresh);
+                    $actualBranch = $branches[$task->branch];
                     $before = [$fresh->state, $fresh->stateEnteredAt];
                     $prBefore = $fresh->prNumber;
                     try {

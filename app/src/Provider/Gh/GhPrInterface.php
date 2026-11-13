@@ -42,6 +42,20 @@ interface GhPrInterface
      */
     public function reviewVerdict(string $repoSlug, int $prNumber, array $botWhitelist): ?string;
 
+    /**
+     * One poll cycle's reads of a repository in as few calls as possible
+     * (one GraphQL query per SNAPSHOT_PRS_PER_QUERY PRs / SNAPSHOT_BRANCHES_PER_QUERY
+     * branches): prForBranch() of each $branches, prState() and the
+     * ciStatus() rollup of each $prNumbers, reviewVerdict()'s inputs of each
+     * $reviewPrNumbers. Never throws: whatever it could not read in full is
+     * absent from the snapshot, for the per-PR call to answer.
+     *
+     * @param list<string> $branches
+     * @param list<int>    $prNumbers
+     * @param list<int>    $reviewPrNumbers a subset of $prNumbers
+     */
+    public function pollSnapshot(string $repoSlug, array $branches, array $prNumbers, array $reviewPrNumbers): PrSnapshot;
+
     public function markReady(string $repoSlug, int $prNumber): void;
 
     public function markDraft(string $repoSlug, int $prNumber): void;
