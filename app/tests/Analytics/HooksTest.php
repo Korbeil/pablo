@@ -96,8 +96,6 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
         // harvest() finds no OpenCode sessions and records null usage —
         // without ever invoking a real binary.
         $cmd = new WatchAgentCommand(
-            $this->gh,
-            $this->repoSlug,
             $this->time,
             $this->store,
             $this->projectsLoader,
@@ -143,8 +141,6 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
         $this->store->save($task);
 
         $cmd = new WatchAgentCommand(
-            $this->gh,
-            $this->repoSlug,
             $this->time,
             $this->store,
             $this->projectsLoader,
@@ -179,8 +175,6 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
     public function testWatcherWithoutAgentRecordsNoRunEvent(): void
     {
         $cmd = new WatchAgentCommand(
-            $this->gh,
-            $this->repoSlug,
             $this->time,
             $this->store,
             $this->projectsLoader,
@@ -193,8 +187,6 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
-            '--then' => 'pr-draft',
-            '--expect-state' => 'request-changes',
         ]);
         $input->bind($cmd->getDefinition());
         $cmd->run($input, new NullOutput());
