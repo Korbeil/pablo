@@ -34,58 +34,66 @@ final class GlobalConfig
     }
 
     /**
-     * The per-key defaults the project loader merges over. Returns empty
-     * sections when the config file is absent, so projects can still rely
-     * on their own explicit values.
+     * Sections every reader may index without checking: a missing (or null)
+     * one reads as this.
+     */
+    private const SECTIONS = [
+        'sync' => [],
+        'state_polling' => [],
+        'main_update' => [],
+        'review' => [],
+        'ci' => [],
+        'testing' => ['enabled' => true],
+        'hooks' => [],
+        'claude_code' => [],
+        'scheduler' => [],
+    ];
+
+    /** Keys read as strings: a bare number YAML read as one is cast. */
+    private const TEXT_KEYS = ['default_model', 'pr_description_locale', 'branch_prefix', 'agent_backend', 'agent_runtime'];
+
+    /**
+     * The file's keys, the project loader's per-key defaults. A missing file
+     * reads as an empty one, so projects can still rely on their own explicit
+     * values.
      *
      * @return array<string, mixed>
      */
     public function defaults(?string $path = null): array
     {
         $path ??= $this->configPath();
-        if (!is_file($path)) {
-            return ['sync' => [], 'state_polling' => [], 'main_update' => [], 'review' => [], 'ci' => [], 'testing' => ['enabled' => true], 'branch_prefix' => null, 'hooks' => []];
+        $data = [];
+        if (is_file($path)) {
+            try {
+                $data = Yaml::parseFile($path);
+            } catch (ParseException $e) {
+                throw new PabloError(basename($path).': invalid YAML: '.$e->getMessage());
+            }
+            if (!\is_array($data)) {
+                throw new PabloError(basename($path).': expected a mapping at top level');
+            }
+
+            // A bad value of a key every project inherits would fail them all:
+            // fatal here. Unknown keys are ignored (validate and the doctor
+            // report them), and global-only keys are refused by the command
+            // reading them (see ConfigSchema).
+            $error = ConfigSchema::loadError($data, ConfigSchema::GLOBAL, $path, 'config.yaml');
+            if (null !== $error) {
+                throw new PabloError($error->text());
+            }
         }
-        try {
-            $data = Yaml::parseFile($path);
-        } catch (ParseException $e) {
-            throw new PabloError(basename($path).': invalid YAML: '.$e->getMessage());
+        foreach (self::SECTIONS as $key => $empty) {
+            if (!\is_array($data[$key] ?? null)) {
+                $data[$key] = $empty;
+            }
         }
-        if (!\is_array($data)) {
-            throw new PabloError(basename($path).': expected a mapping at top level');
+        foreach (self::TEXT_KEYS as $key) {
+            if (isset($data[$key])) {
+                $data[$key] = (string) $data[$key];
+            }
         }
 
-        // A bad value of a key every project inherits would fail them all:
-        // fatal here. Unknown keys are ignored (validate and the doctor
-        // report them), and global-only keys are refused by the command
-        // reading them (see ConfigSchema).
-        $error = ConfigSchema::loadError($data, ConfigSchema::GLOBAL, $path, 'config.yaml');
-        if (null !== $error) {
-            throw new PabloError($error->text());
-        }
-        $byType = $data['default_model_by_type'] ?? null;
-
-        return [
-            'sync' => \is_array($data['sync'] ?? null) ? $data['sync'] : [],
-            'state_polling' => \is_array($data['state_polling'] ?? null) ? $data['state_polling'] : [],
-            'main_update' => \is_array($data['main_update'] ?? null) ? $data['main_update'] : [],
-            'review' => \is_array($data['review'] ?? null) ? $data['review'] : [],
-            'ci' => \is_array($data['ci'] ?? null) ? $data['ci'] : [],
-            'testing' => \is_array($data['testing'] ?? null) ? $data['testing'] : ['enabled' => true],
-            'default_model' => isset($data['default_model']) ? (string) $data['default_model'] : null,
-            'default_model_by_type' => \is_array($byType) ? $byType : null,
-            'pr_description_locale' => isset($data['pr_description_locale']) ? (string) $data['pr_description_locale'] : null,
-            'branch_prefix' => isset($data['branch_prefix']) ? (string) $data['branch_prefix'] : null,
-            'agent_backend' => isset($data['agent_backend']) ? (string) $data['agent_backend'] : null,
-            'agent_runtime' => isset($data['agent_runtime']) ? (string) $data['agent_runtime'] : null,
-            'claude_code' => \is_array($data['claude_code'] ?? null) ? $data['claude_code'] : [],
-            'dashboard_port' => $data['dashboard_port'] ?? null,
-            'dashboard_trusted_hosts' => $data['dashboard_trusted_hosts'] ?? null,
-            'scheduler' => \is_array($data['scheduler'] ?? null) ? $data['scheduler'] : [],
-            'hooks' => \is_array($data['hooks'] ?? null) ? $data['hooks'] : [],
-            'prune' => $data['prune'] ?? null,
-            'shell_completion' => $data['shell_completion'] ?? null,
-        ];
+        return $data;
     }
 
     /**
@@ -93,24 +101,17 @@ final class GlobalConfig
      * logs, service log archives, other versions' caches), else $default.
      * Read per call, like every other key.
      *
-     * @throws PabloError when it is not a whole number of days, at least $min
+     * @throws PabloError when it is not a whole number of days, at least 1
      */
-    public function pruneKeepDays(int $default, int $min = 1): int
+    public function pruneKeepDays(int $default): int
     {
         $prune = $this->defaults()['prune'] ?? null;
-        if (null === $prune) {
-            return $default;
-        }
-        if (!\is_array($prune)) {
-            throw new PabloError('config.yaml: prune must be a mapping (e.g. prune: {keep_days: 10})');
-        }
-        $days = $prune['keep_days'] ?? null;
+        $this->check('prune', $prune);
+        $days = \is_array($prune) ? ($prune['keep_days'] ?? null) : null;
         if (null === $days) {
             return $default;
         }
-        if (!(\is_int($days) || (\is_string($days) && 1 === preg_match('/^\d+$/', $days))) || (int) $days < $min) {
-            throw new PabloError("config.yaml: prune.keep_days must be a whole number of days, at least {$min}, got ".var_export($days, true));
-        }
+        $this->check('prune.keep_days', $days);
 
         return (int) $days;
     }
@@ -127,19 +128,10 @@ final class GlobalConfig
     public function dashboardTrustedHosts(): array
     {
         $hosts = $this->defaults()['dashboard_trusted_hosts'] ?? null;
-        if (null === $hosts) {
-            return [];
-        }
-        if (!\is_array($hosts) || !array_is_list($hosts)) {
-            throw new PabloError('config.yaml: dashboard_trusted_hosts must be a list of host names, got '.get_debug_type($hosts));
-        }
+        $this->check('dashboard_trusted_hosts', $hosts);
         $normalized = [];
-        foreach ($hosts as $host) {
-            $name = \is_string($host) ? TrustedHosts::normalize($host) : null;
-            if (null === $name) {
-                throw new PabloError('config.yaml: dashboard_trusted_hosts: '.var_export($host, true).' is not a host name or IP address (no scheme, port or wildcard)');
-            }
-            $normalized[$name] = true;
+        foreach (\is_array($hosts) ? $hosts : [] as $host) {
+            $normalized[(string) TrustedHosts::normalize((string) $host)] = true;
         }
 
         return array_keys($normalized);
@@ -155,19 +147,15 @@ final class GlobalConfig
      */
     public function schedulerPath(): array
     {
-        $scheduler = $this->defaults()['scheduler'] ?? [];
+        $scheduler = $this->defaults()['scheduler'];
         $value = \is_array($scheduler) ? ($scheduler['path'] ?? null) : null;
         if (null === $value) {
             return [];
         }
-        if (\is_string($value)) {
-            $value = explode(':', $value);
-        }
-        if (!\is_array($value) || [] !== array_filter($value, static fn (mixed $dir): bool => !\is_string($dir))) {
-            throw new PabloError('config.yaml: scheduler.path must be a list of directories (or a colon-separated string)');
-        }
+        $this->check('scheduler.path', $value);
+        $dirs = \is_string($value) ? explode(':', $value) : (array) $value;
 
-        return array_values(array_filter(array_map(trim(...), $value), static fn (string $dir): bool => '' !== $dir));
+        return array_values(array_filter(array_map(static fn (mixed $dir): string => trim((string) $dir), $dirs), static fn (string $dir): bool => '' !== $dir));
     }
 
     /**
@@ -182,9 +170,7 @@ final class GlobalConfig
         if (null === $port) {
             return $default;
         }
-        if (!self::isPort($port)) {
-            throw new PabloError('config.yaml: dashboard_port must be a port number (1-65535), got '.var_export($port, true));
-        }
+        $this->check('dashboard_port', $port);
 
         return (int) $port;
     }
@@ -197,6 +183,20 @@ final class GlobalConfig
     public function shellCompletion(): bool
     {
         return !\in_array($this->defaults()['shell_completion'] ?? null, [false, 'false'], true);
+    }
+
+    /**
+     * A deferred key's value, checked by the schema (same wording as
+     * validate and the doctor).
+     *
+     * @throws PabloError when it is invalid
+     */
+    private function check(string $keyPath, mixed $value): void
+    {
+        $problem = ConfigSchema::valueError(ConfigSchema::GLOBAL, $keyPath, $value);
+        if (null !== $problem) {
+            throw new PabloError("config.yaml: {$keyPath} {$problem}");
+        }
     }
 
     /** A TCP port: an integer (or digits) between 1 and 65535. */

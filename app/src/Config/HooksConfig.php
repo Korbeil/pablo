@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Config;
 
 use Pablo\Domain\State;
-use Pablo\Support\PabloError;
 
 /**
  * hooks.*: the user's own command, run after transitions and agent runs.
@@ -24,44 +23,22 @@ final class HooksConfig
 
     /**
      * Each key is the project's value when it sets it (even to null, which
-     * turns the hook off for that project), else the global one.
+     * turns the hook off for that project), else the global one. Both arrays
+     * are already checked by ConfigSchema (see Config, GlobalConfig).
      *
      * @param array<string, mixed> $project
      * @param array<string, mixed> $defaults
      */
-    public static function fromYaml(array $project, array $defaults, string $file): self
+    public static function fromYaml(array $project, array $defaults): self
     {
-        if (\array_key_exists('hooks', $project) && null !== $project['hooks'] && !\is_array($project['hooks'])) {
-            throw new PabloError("{$file}: hooks must be a mapping (command, states, agent_finished)");
-        }
         $command = self::value($project, $defaults, 'command');
-        if (null !== $command && !\is_string($command)) {
-            throw new PabloError("{$file}: hooks.command must be a shell command string");
-        }
-        $command = null !== $command && '' !== trim($command) ? $command : null;
+        $states = self::value($project, $defaults, 'states');
 
-        $rawStates = self::value($project, $defaults, 'states');
-        $states = null;
-        if (null !== $rawStates) {
-            if (!\is_array($rawStates)) {
-                throw new PabloError("{$file}: hooks.states must be a list of states");
-            }
-            $states = [];
-            foreach ($rawStates as $raw) {
-                $state = \is_string($raw) ? State::tryFrom($raw) : null;
-                if (null === $state) {
-                    throw new PabloError(\sprintf('%s: hooks.states has unknown state %s (expected one of %s)', $file, var_export($raw, true), implode(', ', array_map(static fn (State $s): string => $s->value, State::cases()))));
-                }
-                $states[] = $state;
-            }
-        }
-
-        $agentFinished = self::value($project, $defaults, 'agent_finished') ?? true;
-        if (!\is_bool($agentFinished)) {
-            throw new PabloError("{$file}: hooks.agent_finished must be true or false");
-        }
-
-        return new self($command, $states, $agentFinished);
+        return new self(
+            command: \is_string($command) && '' !== trim($command) ? $command : null,
+            states: \is_array($states) ? array_values(array_map(static fn (mixed $state): State => State::from((string) $state), $states)) : null,
+            agentFinished: (bool) (self::value($project, $defaults, 'agent_finished') ?? true),
+        );
     }
 
     /**

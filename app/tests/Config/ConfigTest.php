@@ -456,6 +456,15 @@ YAML;
         $this->assertStringContainsString('gitlab', $message);
     }
 
+    public function testANullTypeOrProviderIsMissing(): void
+    {
+        $this->write('bad.yaml', str_replace('type: personal', 'type: ~', self::MINIMAL_PROJECT));
+        $this->assertStringContainsString("bad.yaml: missing required key 'type'", $this->onlyProjectError());
+
+        $this->write('bad.yaml', str_replace('provider: github', 'provider: ~', self::MINIMAL_PROJECT));
+        $this->assertStringContainsString("bad.yaml: missing required key 'issue_tracker.provider'", $this->onlyProjectError());
+    }
+
     public function testGithubRequiresProjectKey(): void
     {
         $this->write('bad.yaml', str_replace("  project_key: MI\n", '', self::MINIMAL_PROJECT));

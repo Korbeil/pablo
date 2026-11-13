@@ -23,14 +23,6 @@ final class TrackerConfigTest extends TestCase
         $this->assertNull($tracker->repo, 'an empty issue_tracker.repo means the project repo');
     }
 
-    public function testUnknownProvider(): void
-    {
-        $this->expectException(PabloError::class);
-        $this->expectExceptionMessage("p.yaml: unknown provider 'gitlab'");
-
-        TrackerConfig::fromYaml(['issue_tracker' => ['provider' => 'gitlab', 'identity' => 'me', 'project_key' => 'X']], 'p.yaml');
-    }
-
     public function testMissingProjectKey(): void
     {
         $this->expectException(PabloError::class);

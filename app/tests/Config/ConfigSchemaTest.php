@@ -76,6 +76,7 @@ final class ConfigSchemaTest extends TestCase
         yield 'boolean' => [['sync' => ['auto_apply' => 'yes']], "sync.auto_apply must be true or false, got 'yes'"];
         yield 'list' => [['ci' => ['ignore_checks' => 'approval']], "ci.ignore_checks must be a list of check names (e.g. [a, b]), got 'approval'"];
         yield 'section' => [['sync' => 'rebase'], "sync must be a mapping, got 'rebase'"];
+        yield 'type' => [['type' => 'hobby'], "type must be one of: work, open-source, personal, got 'hobby'"];
         yield 'enum' => [['issue_tracker' => ['provider' => 'gitlab']], "issue_tracker.provider must be one of: github, jira, linear, got 'gitlab'"];
         yield 'hook state' => [['hooks' => ['states' => ['red']]], "hooks.states has unknown state 'red'"];
     }
@@ -122,6 +123,24 @@ final class ConfigSchemaTest extends TestCase
         $issue = ConfigSchema::loadError(['default_model_by_type' => ['hobby' => 'x']], ConfigSchema::GLOBAL, '/x/config.yaml', 'config.yaml');
         $this->assertNotNull($issue);
         $this->assertSame("config.yaml: default_model_by_type has unknown type 'hobby' (expected one of: work, open-source, personal)", $issue->text());
+    }
+
+    public function testValueErrorIsTheSchemasProblemForOneKey(): void
+    {
+        $this->assertNull(ConfigSchema::valueError(ConfigSchema::GLOBAL, 'dashboard_port', 8400));
+        $this->assertNull(ConfigSchema::valueError(ConfigSchema::GLOBAL, 'prune.keep_days', null), 'null is unset');
+        $this->assertSame('must be a port number (1-65535), got 99999', ConfigSchema::valueError(ConfigSchema::GLOBAL, 'dashboard_port', 99999));
+        $this->assertSame('must be a whole number of days, at least 1, got 0', ConfigSchema::valueError(ConfigSchema::GLOBAL, 'prune.keep_days', 0));
+        $this->assertSame("'x:1' is not a host name or IP address (no scheme, port or wildcard)", ConfigSchema::valueError(ConfigSchema::GLOBAL, 'dashboard_trusted_hosts', ['x:1']));
+        $this->assertSame('must be a mapping, got 10', ConfigSchema::valueError(ConfigSchema::GLOBAL, 'prune', 10));
+        $this->assertNull(ConfigSchema::valueError(ConfigSchema::GLOBAL, 'prune', ['keep_days' => 0]), 'a mapping: its keys are checked on their own');
+        $this->assertSame("must be one of: rebase, merge, got 'squash'", ConfigSchema::valueError(ConfigSchema::PROJECT, 'sync.strategy', 'squash'));
+    }
+
+    public function testValueErrorRefusesAnUnknownKey(): void
+    {
+        $this->expectException(\LogicException::class);
+        ConfigSchema::valueError(ConfigSchema::GLOBAL, 'prune.keep_dayz', 1);
     }
 
     public function testClosest(): void
