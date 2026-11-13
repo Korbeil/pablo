@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Command\UsesProjects;
 use Pablo\Domain\Task;
 use Pablo\StateMachine\TaskCtx;
 use Pablo\Support\PabloError;
@@ -21,11 +23,19 @@ use Symfony\Component\Console\Input\InputOption;
  *
  * Used by every `task:*` command that acts on an existing task, so they all
  * target the same way (see site/content/cli.html "Choosing the task").
+ * The using command promotes the services declared here and by
+ * UsesProjects, with the same signature: `protected readonly Store $store`,
+ * `protected readonly Config $projectsLoader` and
+ * `protected readonly AgentLauncherInterface $agents`.
  *
  * @phpstan-require-extends Command
  */
 trait TargetsTask
 {
+    use UsesProjects;
+
+    protected readonly AgentLauncherInterface $agents;
+
     /**
      * Shell completion offers the recorded task branches (narrowed by a
      * --project already typed) plus $extraBranches, and the configured
@@ -60,29 +70,33 @@ trait TargetsTask
                 throw new PabloError('--worktree cannot be combined with <branch> or --project: pick one way to name the task');
             }
 
-            return $this->resolveCtx($worktree);
+            return $this->ctxFor($this->store->taskForWorktreePath($worktree));
         }
         if ('' === $branch) {
             if ('' !== $project) {
                 throw new PabloError('--project needs a branch: pablo '.$this->getName().' <branch> --project <name>');
             }
 
-            return $this->resolveCtx();
+            return $this->ctxFor($this->store->taskForCwd((string) getcwd()));
         }
 
-        $task = $this->findTaskByBranch($branch, $project);
+        return $this->ctxFor($this->findTaskByBranch($branch, $project));
+    }
+
+    private function ctxFor(Task $task): TaskCtx
+    {
         $cfg = $this->projects()[$task->project] ?? null;
         if (null === $cfg) {
-            throw new PabloError("task {$task->branch} belongs to project '{$task->project}', which has no config under projects/ anymore");
+            throw $this->projectsLoader->missingTaskProject($task->project, $task->branch);
         }
 
-        return new TaskCtx(task: $task, cfg: $cfg, store: $this->store(), agents: $this->agents());
+        return new TaskCtx(task: $task, cfg: $cfg, store: $this->store, agents: $this->agents);
     }
 
     private function findTaskByBranch(string $branch, string $project): Task
     {
         if ('' !== $project) {
-            $task = $this->store()->get($project, $branch);
+            $task = $this->store->get($project, $branch);
             if (null === $task) {
                 throw new PabloError("no PABLO task '{$branch}' for project '{$project}'");
             }
@@ -90,7 +104,7 @@ trait TargetsTask
             return $task;
         }
         $matches = array_values(array_filter(
-            $this->store()->allTasks(),
+            $this->store->allTasks(),
             static fn (Task $t): bool => $t->branch === $branch,
         ));
         if ([] === $matches) {

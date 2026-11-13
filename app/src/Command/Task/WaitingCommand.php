@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
@@ -22,12 +21,11 @@ final class WaitingCommand extends Command
 
     public function __construct(
         private readonly StateMachine $stateMachine,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+        protected readonly AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -37,7 +35,7 @@ final class WaitingCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $store = $this->store();
+        $store = $this->store;
         $ctx = $this->resolveTargetCtx($input);
         $lock = $store->taskLock($ctx->task->project, $ctx->task->branch);
         try {

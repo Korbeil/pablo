@@ -5,13 +5,9 @@ declare(strict_types=1);
 namespace Pablo\Tests\Command\System;
 
 use Pablo\Command\System\UpdateCommand;
-use Pablo\Config\Config;
-use Pablo\Config\GlobalConfig;
 use Pablo\Dispatch\Dispatch;
 use Pablo\Install\Scheduler\SchedulerFactory;
-use Pablo\Store\Store;
 use Pablo\Support\ProbeResult;
-use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\SandboxedEnv;
 use Pablo\Tests\TempDir;
@@ -420,7 +416,7 @@ final class UpdateCommandTest extends TestCase
 
     private function command(Updater $updater): UpdateCommand
     {
-        $command = new UpdateCommand($updater, new SchedulerFactory($this->runner, 'Linux'), new Store(), new Config(new GlobalConfig()), \Pablo\Tests\Registries::launchers($this->runner, new GlobalConfig()), new FakeAgents());
+        $command = new UpdateCommand($updater, new SchedulerFactory($this->runner, 'Linux'));
         (new Application())->addCommand($command);
 
         return $command;

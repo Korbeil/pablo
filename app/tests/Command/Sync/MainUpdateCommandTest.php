@@ -12,7 +12,7 @@ final class MainUpdateCommandTest extends CommandTestBed
 {
     private function command(): MainUpdateCommand
     {
-        return new MainUpdateCommand($this->git, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        return new MainUpdateCommand($this->git, $this->store, $this->projectsLoader);
     }
 
     public function testUpdatesEveryProject(): void

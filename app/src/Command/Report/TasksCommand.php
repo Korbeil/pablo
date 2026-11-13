@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Report;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
+use Pablo\Command\UsesProjects;
 use Pablo\Completion\Suggestions;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
@@ -25,15 +25,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class TasksCommand extends Command
 {
     use FormatsOutput;
+    use UsesProjects;
 
     public function __construct(
         private readonly Listing $listing,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+        private readonly AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -59,8 +59,8 @@ final class TasksCommand extends Command
         // One gather for both outputs, so the JSON and the table cannot drift.
         $rows = $this->listing->taskRows(
             $projects,
-            $this->store(),
-            $this->agents(),
+            $this->store,
+            $this->agents,
             (bool) $input->getOption('live'),
             (bool) $input->getOption('refresh'),
             $states,

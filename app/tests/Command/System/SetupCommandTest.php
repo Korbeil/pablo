@@ -8,8 +8,6 @@ use Pablo\Command\System\SetupCommand;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\Doctor;
-use Pablo\Store\Store;
-use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
@@ -112,10 +110,7 @@ YAML;
     {
         $command = new SetupCommand(
             $this->doctor(),
-            new Store(),
             new Config(new GlobalConfig()),
-            \Pablo\Tests\Registries::launchers($this->runner, new GlobalConfig()),
-            new FakeAgents(),
         );
         $tester = new CommandTester($command);
         $tester->execute([]);

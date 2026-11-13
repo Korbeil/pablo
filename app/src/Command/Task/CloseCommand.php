@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
@@ -24,12 +23,11 @@ final class CloseCommand extends Command
 
     public function __construct(
         private readonly TaskCloser $closer,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+        protected readonly AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -45,7 +43,7 @@ final class CloseCommand extends Command
         $task = $ctx->task;
         $cfg = $ctx->cfg;
         $yes = (bool) $input->getOption('yes');
-        $sessions = $this->agents()->activeSessions($task->worktreePath);
+        $sessions = $this->agents->activeSessions($task->worktreePath);
         if ([] !== $sessions && !$yes) {
             throw new PabloError(\count($sessions).' agent session(s) still active on this worktree — wait for them or re-run with --yes');
         }

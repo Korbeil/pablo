@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Command\Command;
+use Pablo\Command\UsesProjects;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
 use Pablo\Provider\Gh\GhPrInterface;
@@ -32,15 +31,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'system:repair-merge-flags', description: 'fix historical task_closed events whose merged flag is false although the PR was merged')]
 final class RepairMergeFlagsCommand extends Command
 {
+    use UsesProjects;
+
     public function __construct(
         private readonly GhPrInterface $gh,
         private readonly RepoSlug $repoSlug,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

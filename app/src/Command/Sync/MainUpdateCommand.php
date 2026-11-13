@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Sync;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Command\UsesProjects;
 use Pablo\Config\Config;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Store\Store;
@@ -19,14 +18,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'sync:main', description: "update each project's primary checkout to its remote primary branch")]
 final class MainUpdateCommand extends Command
 {
+    use UsesProjects;
+
     public function __construct(
         private readonly GitRepoInterface $git,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Command\System;
 
 use Pablo\Agents\Ade\AdeRegistry;
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Backup\Backup;
 use Pablo\Backup\Manifest;
 use Pablo\Command\Command;
@@ -33,12 +31,10 @@ final class RestoreCommand extends Command
         private readonly GitRepoInterface $git,
         private readonly ProcessRunnerInterface $runner,
         private readonly AdeRegistry $ades,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        private readonly Store $store,
+        private readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -162,7 +158,7 @@ final class RestoreCommand extends Command
             $cfg = $this->localProject($name);
             $wtRoot = null !== $cfg ? $cfg->repo->worktreesRoot : rtrim($pabloRoot, '/').'/worktrees/'.basename($repoPath);
 
-            $store = $this->store();
+            $store = $this->store;
             foreach ($branches as $branch) {
                 if (!$this->git->remoteBranchExists($repoPath, $branch)) {
                     $output->writeln('  ⚠ '.$branch.': not found on origin (local-only / unpushed) — skipped; push it on the source machine and re-run to recreate');
@@ -198,7 +194,7 @@ final class RestoreCommand extends Command
     private function localProject(string $name): ?ProjectConfig
     {
         try {
-            return $this->projects()[$name] ?? null;
+            return $this->projectsLoader->loadProjects()[$name] ?? null;
         } catch (PabloError) {
             return null;
         }

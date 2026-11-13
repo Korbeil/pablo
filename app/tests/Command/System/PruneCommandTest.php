@@ -30,7 +30,7 @@ final class PruneCommandTest extends CommandTestBed
 
     private function command(): PruneCommand
     {
-        return new PruneCommand(new Pruner(phar: false), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents, new GlobalConfig());
+        return new PruneCommand(new Pruner(phar: false), new GlobalConfig());
     }
 
     public function testDryRunListsWithoutRemoving(): void

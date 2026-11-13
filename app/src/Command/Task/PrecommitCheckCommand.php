@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Config\Config;
 use Pablo\StateMachine\StateMachine;
+use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
@@ -17,6 +20,14 @@ final class PrecommitCheckCommand extends Command
 {
     use TargetsTask;
 
+    public function __construct(
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+        protected readonly AgentLauncherInterface $agents,
+    ) {
+        parent::__construct();
+    }
+
     protected function configure(): void
     {
         $this
@@ -26,7 +37,6 @@ final class PrecommitCheckCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $store = $this->store();
         try {
             $ctx = $this->resolveTargetCtx($input);
         } catch (PabloError $e) {

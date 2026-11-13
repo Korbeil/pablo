@@ -4,13 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Doctor\CheckResult;
 use Pablo\Doctor\Doctor;
-use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -25,17 +22,14 @@ final class SetupCommand extends Command
 {
     public function __construct(
         private readonly Doctor $doctor,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        private readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $clis = array_values(array_intersect($this->doctor->cliOrder(), $this->doctor->requiredClis($this->projects())));
+        $clis = array_values(array_intersect($this->doctor->cliOrder(), $this->doctor->requiredClis($this->projectsLoader->loadProjects())));
         $results = $this->doctor->checkIds($clis);
 
         foreach ($results as $result) {

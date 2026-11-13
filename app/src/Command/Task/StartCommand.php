@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Command\UsesProjects;
 use Pablo\Config\Config;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
@@ -20,16 +19,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'task:start', description: 'start a task (issue URL or --project + prompt)', aliases: ['start'])]
 final class StartCommand extends Command
 {
+    use UsesProjects;
     public const SUMMARY_MAX_WORDS = TaskStarter::SUMMARY_MAX_WORDS;
 
     public function __construct(
         private readonly TaskStarter $starter,
-        Config $projectsLoader,
-        Store $store,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

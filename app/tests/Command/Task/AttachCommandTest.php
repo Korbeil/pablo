@@ -40,8 +40,6 @@ final class AttachCommandTest extends CommandTestBed
             new \Pablo\Task\TaskAttacher($this->git, $this->stateMachine, $this->analytics, $this->store, $this->projectsLoader, $this->agents),
             $this->store,
             $this->projectsLoader,
-            $this->agentLaunchers,
-            $this->agents,
         );
     }
 

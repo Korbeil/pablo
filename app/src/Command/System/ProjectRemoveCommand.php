@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Pablo\Command\System;
 
 use Pablo\Command\Command;
+use Pablo\Command\UsesProjects;
 use Pablo\Config\Config;
+use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -16,6 +18,15 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'project:remove', description: 'remove a project config from ~/.pablo/projects/')]
 final class ProjectRemoveCommand extends Command
 {
+    use UsesProjects;
+
+    public function __construct(
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+    ) {
+        parent::__construct();
+    }
+
     protected function configure(): void
     {
         $this
@@ -36,7 +47,7 @@ final class ProjectRemoveCommand extends Command
 
         // Deleting a managed project mid-task must be an explicit two-step:
         // close the tasks first, then remove the config.
-        $active = $this->store()->allTasks($name);
+        $active = $this->store->allTasks($name);
         if ([] !== $active) {
             $branches = implode(', ', array_map(static fn ($t) => $t->branch, $active));
 

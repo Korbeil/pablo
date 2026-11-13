@@ -11,7 +11,7 @@ final class ProjectsCommandTest extends CommandTestBed
 {
     private function command(): ProjectsCommand
     {
-        return new ProjectsCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        return new ProjectsCommand($this->store, $this->projectsLoader);
     }
 
     public function testListsTheValidProjectsAndWarnsAboutTheBrokenOne(): void

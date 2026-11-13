@@ -32,7 +32,7 @@ final class RebaseLogCommandTest extends CommandTestBed
 
     private function command(): RebaseLogCommand
     {
-        return new RebaseLogCommand($this->sync, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        return new RebaseLogCommand($this->sync, $this->store, $this->projectsLoader);
     }
 
     private function seed(): void

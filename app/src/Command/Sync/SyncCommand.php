@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Sync;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
+use Pablo\Command\UsesProjects;
 use Pablo\Config\Config;
 use Pablo\Dispatch\DispatchHealth;
 use Pablo\Provider\Git\Sync;
@@ -23,16 +23,16 @@ use Symfony\Component\Console\Output\OutputInterface;
 final class SyncCommand extends Command
 {
     use FormatsOutput;
+    use UsesProjects;
 
     public function __construct(
         private readonly Sync $sync,
         private readonly DispatchHealth $health,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+        private readonly AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -51,8 +51,8 @@ final class SyncCommand extends Command
         }
         $json = $this->wantsJson($input);
         $projects = $this->selectedProjects($input, $output);
-        $store = $this->store();
-        $agents = $this->agents();
+        $store = $this->store;
+        $agents = $this->agents;
         // null defers to each project's sync.auto_apply.
         $apply = match (true) {
             (bool) $input->getOption('apply') => true,

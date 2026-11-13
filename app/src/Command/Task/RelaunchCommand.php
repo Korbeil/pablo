@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Command\Task;
 
 use Pablo\Agents\Ade\AdeRegistry;
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
@@ -25,12 +24,11 @@ final class RelaunchCommand extends Command
     public function __construct(
         private readonly StateMachine $stateMachine,
         private readonly AdeRegistry $ades,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+        protected readonly AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -42,7 +40,7 @@ final class RelaunchCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $store = $this->store();
+        $store = $this->store;
         $ctx = $this->resolveTargetCtx($input);
         $onlyRaw = $input->getOption('only') ?: null;
         $only = null !== $onlyRaw ? Agent::tryFrom($onlyRaw) : null;

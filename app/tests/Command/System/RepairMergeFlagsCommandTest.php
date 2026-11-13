@@ -64,7 +64,7 @@ final class RepairMergeFlagsCommandTest extends CommandTestBed
         // Genuinely unmerged PR must stay untouched.
         $this->gh->prStateOverride = static fn (string $slug, int $pr): string => 7 === $pr ? 'MERGED' : 'OPEN';
 
-        $command = new RepairMergeFlagsCommand($this->gh, $this->repoSlug, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        $command = new RepairMergeFlagsCommand($this->gh, $this->repoSlug, $this->store, $this->projectsLoader);
         $tester = $this->runCommand($command);
 
         $tester->assertCommandIsSuccessful();
@@ -87,7 +87,7 @@ final class RepairMergeFlagsCommandTest extends CommandTestBed
         $this->writeEvent('2026-07', ['type' => 'task_closed', 'branch' => 'wk-45', 'merged' => false, 'pr_number' => 7]);
         $this->gh->merged = true;
 
-        $command = new RepairMergeFlagsCommand($this->gh, $this->repoSlug, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        $command = new RepairMergeFlagsCommand($this->gh, $this->repoSlug, $this->store, $this->projectsLoader);
         $tester = $this->runCommand($command, ['--dry-run' => true]);
 
         $tester->assertCommandIsSuccessful();

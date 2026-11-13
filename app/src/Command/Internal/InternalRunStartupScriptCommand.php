@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Command\Internal;
 
 use Pablo\Agents\Ade\AdeRegistry;
+use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Command\Command;
 use Pablo\Domain\Agent;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -15,6 +16,12 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'internal:run-startup-script', hidden: true)]
 final class InternalRunStartupScriptCommand extends Command
 {
+    public function __construct(
+        private readonly AgentLauncherFactory $agentLaunchers,
+    ) {
+        parent::__construct();
+    }
+
     protected function configure(): void
     {
         $this

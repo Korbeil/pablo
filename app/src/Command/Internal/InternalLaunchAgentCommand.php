@@ -6,7 +6,6 @@ namespace Pablo\Command\Internal;
 
 use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\LaunchContext;
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\PromptFingerprint;
@@ -35,12 +34,11 @@ final class InternalLaunchAgentCommand extends Command
         private readonly Time $time,
         private readonly LaunchContext $launchContext,
         private readonly AdeRegistry $ades,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        private readonly Store $store,
+        private readonly Config $projectsLoader,
+        private readonly AgentLauncherFactory $agentLaunchers,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void
@@ -100,7 +98,7 @@ final class InternalLaunchAgentCommand extends Command
             }
             $agentEnum = Agent::tryFrom($agent);
             $cfg = $this->projectsLoader->loadProjects()[$project] ?? null;
-            $task = $this->store()->get($project, $branch);
+            $task = $this->store->get($project, $branch);
             if (null === $agentEnum || null === $cfg || null === $task) {
                 return $prompt;
             }
@@ -125,7 +123,7 @@ final class InternalLaunchAgentCommand extends Command
     private function persistRunId(string $project, string $branch, string $agent, string $runId): void
     {
         try {
-            $store = $this->store();
+            $store = $this->store;
             $lock = $store->taskLock($project, $branch);
             try {
                 $task = $store->get($project, $branch);

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Dispatch\Dispatch;
@@ -19,16 +17,14 @@ final class DispatchCommand extends Command
 {
     public function __construct(
         private readonly Dispatch $dispatch,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        private readonly Store $store,
+        private readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        return $this->dispatch->run($this->projects(), $this->store(), configErrors: $this->projectsLoader->projectErrors());
+        return $this->dispatch->run($this->projectsLoader->loadProjects(), $this->store, configErrors: $this->projectsLoader->projectErrors());
     }
 }

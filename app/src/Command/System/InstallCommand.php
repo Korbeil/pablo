@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Command\System;
 
 use Pablo\Agents\Ade\AdeRegistry;
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
@@ -23,7 +21,6 @@ use Pablo\Install\PathRc;
 use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Install\Scheduler\SchedulerPath;
 use Pablo\Install\ShellCompletion;
-use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -60,13 +57,10 @@ final class InstallCommand extends Command
         private readonly SchedulerFactory $schedulers,
         private readonly AgentRuntimeRegistry $runtimes,
         private readonly AdeRegistry $ades,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        private readonly Config $projectsLoader,
         private readonly Pruner $pruner = new Pruner(),
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

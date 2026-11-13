@@ -4,16 +4,12 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Report;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AnalyticsAggregator;
 use Pablo\Analytics\AnalyticsReader;
 use Pablo\Analytics\JsonlAnalytics;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
-use Pablo\Config\Config;
 use Pablo\Listing\Listing;
-use Pablo\Store\Store;
 use Pablo\Support\Format;
 use Pablo\Support\Numbers;
 use Pablo\Support\PabloError;
@@ -37,12 +33,8 @@ final class TaskHistoryCommand extends Command
         private readonly AnalyticsReader $reader,
         private readonly AnalyticsAggregator $aggregator,
         private readonly Listing $listing,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

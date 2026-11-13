@@ -9,9 +9,7 @@ use Pablo\Config\Config;
 use Pablo\Config\ConfigValidator;
 use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\Doctor;
-use Pablo\Store\Store;
 use Pablo\Tests\Config\ConfigValidatorTest;
-use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
@@ -49,10 +47,6 @@ final class ConfigValidateCommandTest extends TestCase
         $command = new ConfigValidateCommand(
             new ConfigValidator($global, new Config($global)),
             new Doctor($runner, \Pablo\Tests\Registries::runtimes($global), \Pablo\Tests\Registries::ades($global), static fn (string $bin): string => '/usr/bin/'.$bin),
-            new Store($this->tmp.'/state'),
-            new Config($global),
-            \Pablo\Tests\Registries::launchers($runner, $global),
-            new FakeAgents(),
         );
         $tester = new CommandTester($command);
         $tester->execute($input);

@@ -76,10 +76,6 @@ final class TaskHistoryCommandTest extends TestCase
             new AnalyticsReader(),
             new AnalyticsAggregator($graph->time),
             $graph->listing,
-            $graph->store,
-            $graph->config,
-            $graph->agentLaunchers,
-            $graph->agents,
         ));
     }
 

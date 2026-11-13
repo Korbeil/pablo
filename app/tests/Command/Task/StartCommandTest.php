@@ -211,7 +211,6 @@ YAML,
         $registry = $this->currentProviders;
         $gh = new FakeGhPr();
         $sm = new StateMachine($gh, $registry, $repoSlug, $time, \Pablo\Tests\Registries::hooks());
-        $factory = \Pablo\Tests\Registries::launchers(new FakeProcessRunner(), $global);
         $starter = new TaskStarter(
             $this->currentProviders,
             new Naming(),
@@ -225,10 +224,8 @@ YAML,
         );
         $cmd = new \Pablo\Command\Task\StartCommand(
             $starter,
-            $loader,
             $this->store,
-            $factory,
-            $this->agents,
+            $loader,
         );
         $tester = new CommandTester($cmd);
         $tester->execute($input);

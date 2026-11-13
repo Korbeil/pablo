@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
-use Pablo\Agents\AgentLauncherFactory;
-use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
+use Pablo\Command\UsesProjects;
 use Pablo\Completion\Suggestions;
 use Pablo\Config\Config;
 use Pablo\Domain\State;
@@ -27,14 +26,14 @@ use Symfony\Component\Console\Output\OutputInterface;
 #[AsCommand(name: 'task:attach', description: 'attach the current worktree as a task starting at <state>', aliases: ['attach'])]
 final class AttachCommand extends Command
 {
+    use UsesProjects;
+
     public function __construct(
         private readonly TaskAttacher $attacher,
-        Store $store,
-        Config $projectsLoader,
-        AgentLauncherFactory $agentLaunchers,
-        AgentLauncherInterface $agents,
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
     ) {
-        parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
+        parent::__construct();
     }
 
     protected function configure(): void

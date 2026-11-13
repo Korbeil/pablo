@@ -55,7 +55,7 @@ final class TargetsTaskTest extends CommandTestBed
     public function testStateTakesBranchAfterState(): void
     {
         $tester = $this->runCommand(
-            new StateCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents),
+            new StateCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agents),
             ['state' => 'request-changes', 'branch' => 'wk-45', '--project' => 'wallet-kit'],
         );
         $this->assertSame(0, $tester->getStatusCode());
@@ -64,14 +64,14 @@ final class TargetsTaskTest extends CommandTestBed
 
     public function testPrecommitCheckByBranch(): void
     {
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents), ['branch' => 'wk-45']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertTrue(json_decode($tester->getDisplay(), true)['allowed']);
     }
 
     public function testWaitingByBranch(): void
     {
-        $tester = $this->runCommand(new WaitingCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
+        $tester = $this->runCommand(new WaitingCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agents), ['branch' => 'wk-45']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame(State::Waiting, $this->getTask()->state);
     }
@@ -79,7 +79,7 @@ final class TargetsTaskTest extends CommandTestBed
     public function testRelaunchByBranch(): void
     {
         $tester = $this->runCommand(
-            new RelaunchCommand($this->stateMachine, $this->ades, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents),
+            new RelaunchCommand($this->stateMachine, $this->ades, $this->store, $this->projectsLoader, $this->agents),
             ['branch' => 'wk-45', '--only' => 'task-analyst'],
         );
         $this->assertSame(0, $tester->getStatusCode());
@@ -88,7 +88,7 @@ final class TargetsTaskTest extends CommandTestBed
 
     public function testRetriggerCiByBranch(): void
     {
-        $tester = $this->runCommand(new RetriggerCiCommand($this->gh, $this->repoSlug, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
+        $tester = $this->runCommand(new RetriggerCiCommand($this->gh, $this->repoSlug, $this->store, $this->projectsLoader, $this->agents), ['branch' => 'wk-45']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertStringContainsString('wk-45: re-triggered CI', $tester->getDisplay());
     }
@@ -98,7 +98,7 @@ final class TargetsTaskTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::CiRed;
         $this->store->save($task);
-        $tester = $this->runCommand(new SkipCiCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['branch' => 'wk-45']);
+        $tester = $this->runCommand(new SkipCiCommand($this->stateChanger(), $this->store, $this->projectsLoader, $this->agents), ['branch' => 'wk-45']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertNotSame(State::CiRed, $this->getTask()->state);
     }
@@ -143,8 +143,31 @@ final class TargetsTaskTest extends CommandTestBed
         $this->assertSame('wallet-kit', json_decode($tester->getDisplay(), true)['project']);
     }
 
+    /**
+     * Naming the task by branch reports the same missing-project error as the
+     * cwd/--worktree paths, including why its config failed to load.
+     */
+    public function testByBranchReportsTheTaskProjectsInvalidConfig(): void
+    {
+        file_put_contents($this->projectsDir.'/wallet-kit.yaml', "name: wallet-kit\ntype: work\n");
+
+        $tester = $this->runCommand($this->info(), ['branch' => 'wk-45'], ['capture_stderr_separately' => true]);
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("pablo: task wk-45 belongs to project 'wallet-kit', whose config is invalid: ", $tester->getErrorOutput());
+        $this->assertStringContainsString("missing required key 'repo.path'", $tester->getErrorOutput());
+    }
+
+    public function testByBranchReportsTheTaskProjectsMissingConfig(): void
+    {
+        unlink($this->projectsDir.'/wallet-kit.yaml');
+
+        $tester = $this->runCommand($this->info(), ['branch' => 'wk-45'], ['capture_stderr_separately' => true]);
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString("pablo: task wk-45 belongs to project 'wallet-kit', which has no config under projects/ anymore", $tester->getErrorOutput());
+    }
+
     private function info(): Command
     {
-        return new TaskCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        return new TaskCommand($this->store, $this->projectsLoader, $this->agents);
     }
 }

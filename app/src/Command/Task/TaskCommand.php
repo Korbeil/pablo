@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
+use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Command\FormatsOutput;
+use Pablo\Config\Config;
+use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -18,6 +21,14 @@ final class TaskCommand extends Command
     use TargetsTask;
 
     public const CURRENT_ALIAS = 'current';
+
+    public function __construct(
+        protected readonly Store $store,
+        protected readonly Config $projectsLoader,
+        protected readonly AgentLauncherInterface $agents,
+    ) {
+        parent::__construct();
+    }
 
     protected function configure(): void
     {
