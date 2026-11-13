@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Command\System\WebCommand;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
@@ -198,7 +197,7 @@ final class WebCommandTest extends TestCase
 
     private function command(): WebCommand
     {
-        $command = new WebCommand(new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new \Pablo\Tests\FakeProcessRunner()), new FakeAgents());
+        $command = new WebCommand(new Store(), new Config(new GlobalConfig()), \Pablo\Tests\Registries::launchers(new \Pablo\Tests\FakeProcessRunner(), new GlobalConfig()), new FakeAgents());
         (new Application())->addCommand($command);
 
         return $command;

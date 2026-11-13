@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Pablo\Doctor;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\Ade\Detached;
-use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Config\ProjectConfig;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
@@ -32,7 +33,8 @@ final class Doctor
 
     public function __construct(
         private readonly ProcessRunnerInterface $runner,
-        private readonly AgentLauncherFactory $agentLaunchers,
+        private readonly AgentRuntimeRegistry $runtimes,
+        private readonly AdeRegistry $ades,
         ?callable $which = null,
     ) {
         $this->which = $which;
@@ -62,11 +64,11 @@ final class Doctor
         }
         // Only the selected ADE and runtime are required: nobody needs the CLI
         // of an ADE or a runtime they do not use.
-        $adeProbe = $this->agentLaunchers->ades()->resolveOrDefault()->probe();
+        $adeProbe = $this->ades->resolveOrDefault()->probe();
         if (null !== $adeProbe) {
             $required[$adeProbe->cli] = true;
         }
-        $required[$this->agentLaunchers->runtimes()->resolveOrDefault()->probe()->cli] = true;
+        $required[$this->runtimes->resolveOrDefault()->probe()->cli] = true;
         $list = array_keys($required);
         sort($list);
 
@@ -84,8 +86,8 @@ final class Doctor
     public function configErrors(): array
     {
         try {
-            $runtime = $this->agentLaunchers->runtime();
-            $ade = $this->agentLaunchers->ade();
+            $runtime = $this->runtimes->resolve();
+            $ade = $this->ades->resolve();
         } catch (PabloError $e) {
             return [$e->getMessage()];
         }
@@ -163,13 +165,13 @@ final class Doctor
             ['Darwin' => 'brew install gh', 'Linux' => 'sudo apt-get install gh'],
             'https://cli.github.com',
         )];
-        foreach ($this->agentLaunchers->ades()->all() as $ade) {
+        foreach ($this->ades->all() as $ade) {
             $probe = $ade->probe();
             if (null !== $probe) {
                 $probes[$probe->cli] = $probe;
             }
         }
-        foreach ($this->agentLaunchers->runtimes()->all() as $runtime) {
+        foreach ($this->runtimes->all() as $runtime) {
             $probe = $runtime->probe();
             $probes[$probe->cli] = $probe;
         }

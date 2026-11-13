@@ -17,8 +17,8 @@ final class AgentUsage implements UsageHarvesterInterface
 {
     public function __construct(
         private readonly ProcessRunnerInterface $runner,
-        private readonly AgentRuntimeRegistry $runtimes = new AgentRuntimeRegistry(),
-        private readonly AdeRegistry $ades = new AdeRegistry(),
+        private readonly AgentRuntimeRegistry $runtimes,
+        private readonly AdeRegistry $ades,
     ) {
     }
 

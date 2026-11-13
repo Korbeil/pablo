@@ -61,7 +61,7 @@ final class RuntimeContractTest extends TestCase
 
     private function runtime(string $name): AgentRuntimeInterface
     {
-        return (new AgentRuntimeRegistry(new GlobalConfig()))->resolve($name);
+        return \Pablo\Tests\Registries::runtimes(new GlobalConfig())->resolve($name);
     }
 
     #[DataProvider('runtimes')]

@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Tests;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Agents\Runtime\OpenCode\OpenCodeUsage;
 use Pablo\Backup\Backup;
 use Pablo\Config\Config;
@@ -13,6 +16,7 @@ use Pablo\Dispatch\Dispatch;
 use Pablo\Dispatch\Stamps;
 use Pablo\Doctor\Doctor;
 use Pablo\Domain\Time;
+use Pablo\Hooks\Hooks;
 use Pablo\Listing\Listing;
 use Pablo\Poller\Poller;
 use Pablo\Provider\Git\Sync;
@@ -22,7 +26,7 @@ use Pablo\Support\RepoSlug;
 
 /**
  * The engine service graph wired over fakes (FakeAgents, FakeGit, FakeGhPr,
- * FakeProcessRunner, StubProviders, FakeAnalytics), its store in a temp dir:
+ * FakeProcessRunner, StubProviders, FakeAnalytics, FakeHookRunner), its store in a temp dir:
  * the one place tests build it. CommandTestBed holds one; tests that need
  * the services without the command bed's project and task build their own.
  */
@@ -36,7 +40,12 @@ final class EngineGraph
     public Time $time;
     public GlobalConfig $global;
     public Config $config;
+    public AgentTemplates $templates;
+    public AgentRuntimeRegistry $runtimes;
+    public AdeRegistry $ades;
     public AgentLauncherFactory $agentLaunchers;
+    public FakeHookRunner $hookRunner;
+    public Hooks $hooks;
     public StubProviders $providers;
     public RepoSlug $repoSlug;
     public StateMachine $stateMachine;
@@ -62,14 +71,19 @@ final class EngineGraph
         // Launchers built by the factory share the fake runner: a real one
         // would call the real ADE CLI and, when it refuses, fall back to a
         // real headless `opencode run`.
-        $this->agentLaunchers = new AgentLauncherFactory($this->global, $this->runner);
+        $this->templates = new AgentTemplates($this->config);
+        $this->runtimes = new AgentRuntimeRegistry($this->global, $this->templates);
+        $this->ades = new AdeRegistry($this->global);
+        $this->agentLaunchers = new AgentLauncherFactory($this->runner, $this->runtimes, $this->ades, $this->time);
         $this->providers = new StubProviders();
         $this->repoSlug = new RepoSlug($this->git);
         $this->analytics = new FakeAnalytics();
-        $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time, $this->analytics);
+        $this->hookRunner = new FakeHookRunner();
+        $this->hooks = new Hooks($this->hookRunner, $this->repoSlug);
+        $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time, $this->hooks, $this->analytics);
         $this->stamps = new Stamps();
-        $this->doctor = new Doctor($this->runner, $this->agentLaunchers);
-        $this->sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time);
+        $this->doctor = new Doctor($this->runner, $this->runtimes, $this->ades);
+        $this->sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time, $this->runtimes);
         $this->poller = new Poller(
             $this->gh,
             $this->git,
@@ -78,10 +92,11 @@ final class EngineGraph
             $this->stateMachine,
             $this->time,
             new OpenCodeUsage($this->runner),
+            $this->hooks,
             $this->analytics,
         );
         $this->listing = new Listing($this->stamps, $this->gh, $this->providers, $this->repoSlug, $this->time);
         $this->dispatch = new Dispatch($this->doctor, $this->sync, $this->poller, $this->agentLaunchers, $this->stamps, $this->git);
-        $this->backup = new Backup($this->git, $this->runner, $this->time);
+        $this->backup = new Backup($this->git, $this->runner, $this->time, $this->ades);
     }
 }

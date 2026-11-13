@@ -125,7 +125,7 @@ final class ClaudeCodeAgentFilesTest extends TestCase
         putenv('PABLO_CLAUDE_DIR='.$this->tmp.'/pablo-claude');
         putenv('CLAUDE_CONFIG_DIR='.$this->tmp.'/claude');
         try {
-            $results = (new AgentStaleness($this->templates))->check();
+            $results = (new AgentStaleness($this->templates, \Pablo\Tests\Registries::runtimes()))->check();
         } finally {
             putenv('PABLO_CLAUDE_DIR');
             putenv('CLAUDE_CONFIG_DIR');
@@ -140,7 +140,7 @@ final class ClaudeCodeAgentFilesTest extends TestCase
         $this->assertSame(AgentFileState::Missing, $states['pablo-task-analyst']);
         $this->assertSame(AgentFileState::Missing, $states['/pablo-commit-and-pr']);
         $this->assertSame(AgentFileState::Missing, $states['skill pablo-task']);
-        $staleness = new AgentStaleness($this->templates);
+        $staleness = new AgentStaleness($this->templates, \Pablo\Tests\Registries::runtimes());
         $this->assertTrue($staleness->hasHardFailure($this->staleness()));
     }
 

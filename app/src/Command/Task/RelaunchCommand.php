@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Command\Task;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
@@ -23,6 +24,7 @@ final class RelaunchCommand extends Command
 
     public function __construct(
         private readonly StateMachine $stateMachine,
+        private readonly AdeRegistry $ades,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -63,7 +65,7 @@ final class RelaunchCommand extends Command
 
             return self::SUCCESS;
         }
-        $output->writeln("{$ctx->task->branch}: re-launched ".implode(', ', $fired).' — '.$this->agentLaunchers->ades()->resolveOrDefault()->followHint());
+        $output->writeln("{$ctx->task->branch}: re-launched ".implode(', ', $fired).' — '.$this->ades->resolveOrDefault()->followHint());
 
         return self::SUCCESS;
     }

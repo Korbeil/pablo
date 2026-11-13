@@ -11,8 +11,6 @@ use Pablo\Agents\Runtime\RuntimeOneShotInterface;
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
 use Pablo\Agents\Runtime\RuntimeSupport;
 use Pablo\Analytics\UsageHarvesterInterface;
-use Pablo\Config\Config;
-use Pablo\Config\GlobalConfig;
 use Pablo\Doctor\CliProbe;
 use Pablo\Support\ProcessRunnerInterface;
 
@@ -32,8 +30,7 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
 
     private ?OpenCodeAgentFiles $agentFiles = null;
 
-    /** @param AgentTemplates|null $templates null builds one from the global config on first use */
-    public function __construct(private readonly ?AgentTemplates $templates = null)
+    public function __construct(private readonly AgentTemplates $templates)
     {
     }
 
@@ -114,7 +111,7 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
 
     public function agentFiles(): RuntimeAgentFilesInterface
     {
-        return $this->agentFiles ??= new OpenCodeAgentFiles($this->templates ?? new AgentTemplates(new Config(new GlobalConfig())));
+        return $this->agentFiles ??= new OpenCodeAgentFiles($this->templates);
     }
 
     public function usage(ProcessRunnerInterface $runner): UsageHarvesterInterface

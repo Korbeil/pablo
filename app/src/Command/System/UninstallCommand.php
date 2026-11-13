@@ -7,6 +7,7 @@ namespace Pablo\Command\System;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\App\Kernel;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
@@ -38,6 +39,7 @@ final class UninstallCommand extends Command
     public function __construct(
         private readonly SchedulerFactory $schedulers,
         private readonly AgentTemplates $agentTemplates,
+        private readonly AgentRuntimeRegistry $runtimes,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -61,7 +63,7 @@ final class UninstallCommand extends Command
             }
         }
 
-        foreach ($this->agentLaunchers->runtimes()->all() as $runtime) {
+        foreach ($this->runtimes->all() as $runtime) {
             array_map($info, $runtime->agentFiles()->cleanupLegacy());
         }
         foreach ([PabloPaths::runtimeDir(), Kernel::binaryCacheRoot()] as $generated) {
@@ -102,7 +104,7 @@ final class UninstallCommand extends Command
     {
         $sources = $this->agentTemplates->templatesDir();
         $paths = [];
-        foreach ($this->agentLaunchers->runtimes()->all() as $runtime) {
+        foreach ($this->runtimes->all() as $runtime) {
             $paths = [...$paths, ...$runtime->agentFiles()->installedPaths($sources)];
         }
 

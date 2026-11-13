@@ -19,12 +19,12 @@ final class HeadlessLauncher extends AbstractAgentLauncher
 {
     public function __construct(
         ProcessRunnerInterface $runner,
+        AgentRuntimeInterface $runtime,
         Time $time = new Time(),
         ?Store $store = null,
         ?string $shimPath = null,
-        ?AgentRuntimeInterface $runtime = null,
     ) {
-        parent::__construct(HeadlessAde::NAME, $runner, $time, $store, $shimPath, $runtime);
+        parent::__construct(HeadlessAde::NAME, $runner, $runtime, $time, $store, $shimPath);
     }
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string

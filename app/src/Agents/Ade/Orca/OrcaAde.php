@@ -35,7 +35,7 @@ final class OrcaAde extends AbstractAde
 
     public function launcher(AgentRuntimeInterface $runtime, ProcessRunnerInterface $runner, Time $time): AgentLauncherInterface
     {
-        return new OrcaLauncher($runner, $time, runtime: $runtime);
+        return new OrcaLauncher($runner, $runtime, $time);
     }
 
     public function probe(): CliProbe

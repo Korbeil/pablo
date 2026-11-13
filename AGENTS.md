@@ -366,9 +366,11 @@ a constructor-injected service behind an interface where tests need fakes
 (`GhPrInterface`, `GitRepoInterface`, `ProcessRunnerInterface`,
 `ProviderRegistryInterface`, `AnalyticsInterface`). Test doubles live beside
 `tests/FakeAgents.php` (`FakeGit`, `FakeGhPr`, `FakeProcessRunner`,
-`StubProviders`, `FakeAnalytics`). `tests/EngineGraph.php` is the one place
+`StubProviders`, `FakeAnalytics`, `FakeHookRunner`). `tests/EngineGraph.php` is the one place
 that fake service graph is wired (store in a temp dir, launchers over the
-fake runner); `tests/Command/CommandTestBed.php`, the abstract bed for
+fake runner, hooks over the fake hook runner); a test building one service
+by hand gets the ADE/runtime registries, the launcher factory and `Hooks`
+from `tests/Registries.php`; `tests/Command/CommandTestBed.php`, the abstract bed for
 command tests, builds one in `setUp` (plus a `wallet-kit` project and task,
 its own cwd and env) and exposes its services as protected fields; the
 tests needing the services without that bed (`StatsCommandTest`,
@@ -383,7 +385,7 @@ collides between suites running in parallel on a loaded machine.
 `systemctl`/`journalctl`/`/etc/`/`/proc/`/`/opt/` to keep the engine
 Linux+macOS portable. `tests/RequiredCollaboratorsTest.php` fails when an
 outside-world collaborator (`ProcessRunnerInterface`,
-`UsageHarvesterInterface`, `AgentLauncherInterface`) gets a default instead
+`UsageHarvesterInterface`, `AgentLauncherInterface`, `HookRunnerInterface`) gets a default instead
 of being a required constructor argument — so a forgotten fake can never
 silently become a real CLI. `tests/GitConfigTripwireTest.php` forbids
 setting a git identity anywhere.

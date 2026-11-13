@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\Internal;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\LaunchContext;
 use Pablo\Command\Internal\InternalLaunchAgentCommand;
 use Pablo\Tests\Command\CommandTestBed;
@@ -42,9 +41,9 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
         };
         // The factory the command uses must build its launcher on the same fake
         // runner — the bed's default factory carries a real ProcessRunner.
-        $factory = new AgentLauncherFactory($this->globalConfig, $this->runner);
+        $factory = \Pablo\Tests\Registries::launchers($this->runner, $this->globalConfig);
 
-        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->store, $this->projectsLoader, $factory, $this->agents);
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory, $this->agents);
         $tester = new CommandTester($command);
         $tester->execute([
             '--backend' => 'openchamber',
@@ -78,9 +77,9 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
 
             return (string) json_encode(['status' => 'ok']);
         };
-        $factory = new AgentLauncherFactory($this->globalConfig, $this->runner);
+        $factory = \Pablo\Tests\Registries::launchers($this->runner, $this->globalConfig);
 
-        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->store, $this->projectsLoader, $factory, $this->agents);
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory, $this->agents);
         (new CommandTester($command))->execute([
             '--backend' => 'openchamber',
             '--worktree' => $this->wt,
@@ -106,9 +105,9 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
 
             return (string) json_encode(['ok' => true, 'result' => []]);
         };
-        $factory = new AgentLauncherFactory($this->globalConfig, $this->runner);
+        $factory = \Pablo\Tests\Registries::launchers($this->runner, $this->globalConfig);
 
-        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->store, $this->projectsLoader, $factory, $this->agents);
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory, $this->agents);
         $tester = new CommandTester($command);
         $tester->execute([
             '--backend' => 'openchamber',

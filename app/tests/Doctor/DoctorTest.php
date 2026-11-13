@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Tests;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Command\System\DoctorCommand;
 use Pablo\Config\Config;
@@ -75,7 +74,7 @@ YAML;
         /** @var callable|null */
         $which = $this->onWhich;
 
-        return new Doctor($this->runner(), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), $which);
+        return new Doctor($this->runner(), Registries::runtimes(new GlobalConfig()), Registries::ades(new GlobalConfig()), $which);
     }
 
     protected function setUp(): void
@@ -388,7 +387,7 @@ YAML;
 
     private function staleness(): AgentStaleness
     {
-        return new AgentStaleness(new AgentTemplates(new Config(new GlobalConfig())), $this->allAgentsOk(...));
+        return new AgentStaleness(new AgentTemplates(new Config(new GlobalConfig())), Registries::runtimes(), $this->allAgentsOk(...));
     }
 
     public function testDoctorExitCodes(): void
@@ -396,12 +395,12 @@ YAML;
         $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(0, 'ok');
         $staleness = $this->staleness();
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents(), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $staleness, new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), Registries::launchers(new FakeProcessRunner(), new GlobalConfig()), new FakeAgents(), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::SUCCESS, $tester->getStatusCode());
 
         $this->runner()->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(1, 'login please');
-        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner()), new FakeAgents(), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
+        $tester = new CommandTester(new DoctorCommand($this->doctor(), $this->staleness(), new \Pablo\Doctor\SchedulerHealth(new \Pablo\Install\Scheduler\SchedulerFactory($this->runner(), 'Unsupported'), new \Pablo\Dispatch\DispatchHealth()), new Store(), new Config(new GlobalConfig()), Registries::launchers(new FakeProcessRunner(), new GlobalConfig()), new FakeAgents(), new \Pablo\Config\ConfigValidator(new GlobalConfig(), new Config(new GlobalConfig()))));
         $tester->execute([]);
         $this->assertSame(SymfonyCommand::FAILURE, $tester->getStatusCode());
     }

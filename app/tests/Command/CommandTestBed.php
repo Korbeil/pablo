@@ -4,13 +4,16 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
+use Pablo\Hooks\Hooks;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
@@ -21,6 +24,7 @@ use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeAnalytics;
 use Pablo\Tests\FakeGhPr;
 use Pablo\Tests\FakeGit;
+use Pablo\Tests\FakeHookRunner;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\SandboxedEnv;
 use Pablo\Tests\StubProviders;
@@ -47,6 +51,10 @@ abstract class CommandTestBed extends TestCase
     protected Config $projectsLoader;
     protected GlobalConfig $globalConfig;
     protected AgentLauncherFactory $agentLaunchers;
+    protected AgentRuntimeRegistry $runtimes;
+    protected AdeRegistry $ades;
+    protected FakeHookRunner $hookRunner;
+    protected Hooks $hooks;
     protected StubProviders $providers;
     protected RepoSlug $repoSlug;
     protected StateMachine $stateMachine;
@@ -78,6 +86,10 @@ abstract class CommandTestBed extends TestCase
         $this->globalConfig = $this->graph->global;
         $this->projectsLoader = $this->graph->config;
         $this->agentLaunchers = $this->graph->agentLaunchers;
+        $this->runtimes = $this->graph->runtimes;
+        $this->ades = $this->graph->ades;
+        $this->hookRunner = $this->graph->hookRunner;
+        $this->hooks = $this->graph->hooks;
         $this->repoSlug = $this->graph->repoSlug;
         $this->analytics = $this->graph->analytics;
         $this->stateMachine = $this->graph->stateMachine;

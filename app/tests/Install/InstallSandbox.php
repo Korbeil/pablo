@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Install;
 
+use Pablo\Agents\Ade\AdeRegistry;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Command\System\GenerateAgentsCommand;
 use Pablo\Command\System\InstallCommand;
 use Pablo\Command\System\UninstallCommand;
@@ -111,13 +113,15 @@ trait InstallSandbox
         $global = new GlobalConfig();
         $config = new Config($global);
         $store = new Store();
-        $launchers = new AgentLauncherFactory($global, $this->runner);
         $templates = new AgentTemplates($config);
+        $runtimes = new AgentRuntimeRegistry($global, $templates);
+        $ades = new AdeRegistry($global);
+        $launchers = new AgentLauncherFactory($this->runner, $runtimes, $ades);
         $schedulers = new SchedulerFactory($this->runner, $os);
 
         $application = new Application();
         $application->setAutoExit(false);
-        $application->addCommand(new GenerateAgentsCommand($templates, $store, $config, $launchers, new FakeAgents()));
+        $application->addCommand(new GenerateAgentsCommand($templates, $runtimes, $store, $config, $launchers, new FakeAgents()));
         $application->addCommand(new class extends Command {
             public function __construct()
             {
@@ -131,8 +135,8 @@ trait InstallSandbox
                 return self::SUCCESS;
             }
         });
-        $application->addCommand(new InstallCommand($global, $schedulers, $store, $config, $launchers, new FakeAgents()));
-        $application->addCommand(new UninstallCommand($schedulers, $templates, $store, $config, $launchers, new FakeAgents()));
+        $application->addCommand(new InstallCommand($global, $schedulers, $runtimes, $ades, $store, $config, $launchers, new FakeAgents()));
+        $application->addCommand(new UninstallCommand($schedulers, $templates, $runtimes, $store, $config, $launchers, new FakeAgents()));
 
         $tester = new CommandTester($application->find($name));
         $tester->execute($input, ['interactive' => false]);

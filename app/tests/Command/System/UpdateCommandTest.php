@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\System;
 
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Command\System\UpdateCommand;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
@@ -421,7 +420,7 @@ final class UpdateCommandTest extends TestCase
 
     private function command(Updater $updater): UpdateCommand
     {
-        $command = new UpdateCommand($updater, new SchedulerFactory($this->runner, 'Linux'), new Store(), new Config(new GlobalConfig()), new AgentLauncherFactory(new GlobalConfig(), $this->runner), new FakeAgents());
+        $command = new UpdateCommand($updater, new SchedulerFactory($this->runner, 'Linux'), new Store(), new Config(new GlobalConfig()), \Pablo\Tests\Registries::launchers($this->runner, new GlobalConfig()), new FakeAgents());
         (new Application())->addCommand($command);
 
         return $command;

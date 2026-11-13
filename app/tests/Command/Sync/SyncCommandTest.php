@@ -30,7 +30,7 @@ final class SyncCommandTest extends CommandTestBed
 
     private function command(): SyncCommand
     {
-        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time);
+        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time, $this->runtimes);
 
         return new SyncCommand($sync, new \Pablo\Dispatch\DispatchHealth(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
     }

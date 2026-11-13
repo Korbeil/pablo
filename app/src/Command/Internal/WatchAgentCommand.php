@@ -34,8 +34,8 @@ final class WatchAgentCommand extends Command
         AgentLauncherFactory $agentLaunchers,
         AgentLauncherInterface $agents,
         private readonly UsageHarvesterInterface $usage,
+        private readonly Hooks $hooks,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
-        private readonly Hooks $hooks = new Hooks(),
     ) {
         parent::__construct($store, $projectsLoader, $agentLaunchers, $agents);
     }

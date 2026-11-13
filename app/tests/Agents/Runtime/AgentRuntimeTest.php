@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Pablo\Tests\Agents\Runtime;
 
 use Pablo\Agents\Ade\Orca\OrcaLauncher;
-use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeAgents;
 use Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeRuntime;
 use Pablo\Agents\Runtime\OpenCode\OpenCodeRuntime;
@@ -72,7 +70,7 @@ final class AgentRuntimeTest extends TestCase
 
     public function testOpenCodeCommandIsUnchanged(): void
     {
-        $runtime = new OpenCodeRuntime();
+        $runtime = new OpenCodeRuntime(\Pablo\Tests\Registries::templates());
         $this->assertSame("opencode run --model 'a/b' --agent task-analyst 'Analyze #1'", $runtime->launchCommand('task-analyst', 'Analyze #1', 'a/b'));
         $this->assertSame("opencode run --agent task-analyst 'x'", $runtime->launchCommand('task-analyst', 'x', null));
         $this->assertSame('opencode -s ses_1', $runtime->sessions()->resumeCommand('ses_1'));
@@ -81,7 +79,7 @@ final class AgentRuntimeTest extends TestCase
 
     public function testOpenCodeRunsUnderAPabloAssignedSession(): void
     {
-        $runtime = new OpenCodeRuntime();
+        $runtime = new OpenCodeRuntime(\Pablo\Tests\Registries::templates());
         $sid = $runtime->newSessionId();
         $this->assertMatchesRegularExpression('/^ses_pablo[0-9a-f]{20}$/', $sid);
         $this->assertNotSame($sid, $runtime->newSessionId(), 'every launch gets its own session');
@@ -221,7 +219,7 @@ final class AgentRuntimeTest extends TestCase
 
     public function testResolverOrder(): void
     {
-        $resolver = new AgentRuntimeRegistry(new GlobalConfig());
+        $resolver = \Pablo\Tests\Registries::runtimes(new GlobalConfig());
         $this->writeGlobalConfig("{}\n");
         $this->assertSame('opencode', $resolver->resolveName());
         $this->assertInstanceOf(OpenCodeRuntime::class, $resolver->resolve());
@@ -239,13 +237,13 @@ final class AgentRuntimeTest extends TestCase
         $this->writeGlobalConfig("agent_runtime: codex\n");
         $this->expectException(PabloError::class);
         $this->expectExceptionMessage("unknown agent_runtime 'codex'");
-        (new AgentRuntimeRegistry(new GlobalConfig()))->resolveName();
+        \Pablo\Tests\Registries::runtimes(new GlobalConfig())->resolveName();
     }
 
     public function testFactoryRefusesOpenChamberWithClaudeCode(): void
     {
         $this->writeGlobalConfig("agent_runtime: claude-code\nagent_backend: openchamber\n");
-        $factory = new AgentLauncherFactory(new GlobalConfig(), new FakeProcessRunner());
+        $factory = \Pablo\Tests\Registries::launchers(new FakeProcessRunner(), new GlobalConfig());
         try {
             $factory->create();
             $this->fail('OpenChamber + Claude Code must be refused');
@@ -267,7 +265,7 @@ final class AgentRuntimeTest extends TestCase
 
             return json_encode(['id' => 'x', 'ok' => true, 'result' => ['handle' => 'term_9']], \JSON_THROW_ON_ERROR);
         };
-        $agents = new OrcaLauncher($runner, new \Pablo\Domain\Time(), null, '/x/pablo', $this->claude());
+        $agents = new OrcaLauncher($runner, $this->claude(), new \Pablo\Domain\Time(), null, '/x/pablo');
 
         $this->assertSame('term_9', $agents->doLaunchAgent($this->tmp, 'ci-analyst', 'Why is CI red?', 'haiku'));
         $key = array_search('--command', $calls[1], true);
@@ -327,22 +325,22 @@ final class AgentRuntimeTest extends TestCase
 
             public function agentFiles(): \Pablo\Agents\Runtime\RuntimeAgentFilesInterface
             {
-                return (new OpenCodeRuntime())->agentFiles();
+                return (new OpenCodeRuntime(\Pablo\Tests\Registries::templates()))->agentFiles();
             }
 
             public function usage(\Pablo\Support\ProcessRunnerInterface $runner): \Pablo\Analytics\UsageHarvesterInterface
             {
-                return (new OpenCodeRuntime())->usage($runner);
+                return (new OpenCodeRuntime(\Pablo\Tests\Registries::templates()))->usage($runner);
             }
 
             public function oneShot(): \Pablo\Agents\Runtime\RuntimeOneShotInterface
             {
-                return (new OpenCodeRuntime())->oneShot();
+                return (new OpenCodeRuntime(\Pablo\Tests\Registries::templates()))->oneShot();
             }
 
             public function probe(): \Pablo\Doctor\CliProbe
             {
-                return (new OpenCodeRuntime())->probe();
+                return (new OpenCodeRuntime(\Pablo\Tests\Registries::templates()))->probe();
             }
 
             public function modelError(string $model): ?string
@@ -351,7 +349,7 @@ final class AgentRuntimeTest extends TestCase
             }
         };
         mkdir($this->tmp.'/agents', 0o777, true);
-        $agents = new OrcaLauncher(new FakeProcessRunner(), new \Pablo\Domain\Time(), null, '/x/pablo', $runtime);
+        $agents = new OrcaLauncher(new FakeProcessRunner(), $runtime, new \Pablo\Domain\Time(), null, '/x/pablo');
 
         $handle = $agents->launchHeadless($this->tmp, 'task-analyst', 'p', 'sonnet');
         $this->assertStringStartsWith('pid:', $handle);

@@ -68,7 +68,7 @@ final class CompletionTest extends CommandTestBed
         $expected = ['api', 'wallet-kit'];
         $this->assertSame($expected, (new CommandCompletionTester($this->closeCommand()))->complete(['--project', '']));
 
-        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time);
+        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time, $this->runtimes);
         $this->assertSame($expected, (new CommandCompletionTester(new SyncCommand($sync, new \Pablo\Dispatch\DispatchHealth(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['']));
         $this->assertSame($expected, (new CommandCompletionTester(new RebaseLogCommand($sync, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['']));
         $this->assertSame($expected, (new CommandCompletionTester(new ProjectRemoveCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['']));
@@ -76,7 +76,7 @@ final class CompletionTest extends CommandTestBed
 
     public function testFormatOptionsSuggestTheirFormats(): void
     {
-        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time);
+        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time, $this->runtimes);
         $this->assertSame(['table', 'json'], (new CommandCompletionTester(new SyncCommand($sync, new \Pablo\Dispatch\DispatchHealth(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['--format', '']));
         $this->assertSame(['table', 'json'], (new CommandCompletionTester(new RebaseLogCommand($sync, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['--format', '']));
     }
@@ -104,7 +104,7 @@ final class CompletionTest extends CommandTestBed
     {
         yield 'task:waiting' => [static fn (self $t): Command => new WaitingCommand($t->stateMachine, $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
         yield 'task:state' => [static fn (self $t): Command => new StateCommand($t->stateChanger(), $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), ['draft']];
-        yield 'task:relaunch' => [static fn (self $t): Command => new RelaunchCommand($t->stateMachine, $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
+        yield 'task:relaunch' => [static fn (self $t): Command => new RelaunchCommand($t->stateMachine, $t->ades, $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
         yield 'task:retrigger-ci' => [static fn (self $t): Command => new RetriggerCiCommand($t->gh, $t->repoSlug, $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
         yield 'task:skip-ci' => [static fn (self $t): Command => new SkipCiCommand($t->stateChanger(), $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
         yield 'task:close' => [static fn (self $t): Command => $t->closeCommand(), []];
@@ -147,13 +147,13 @@ final class CompletionTest extends CommandTestBed
 
     public function testInstallSuggestsRuntimesAndAdes(): void
     {
-        $install = new InstallCommand($this->globalConfig, new SchedulerFactory($this->runner), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        $install = new InstallCommand($this->globalConfig, new SchedulerFactory($this->runner), $this->runtimes, $this->ades, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
         $tester = new CommandCompletionTester($install);
 
         $this->assertSame(['opencode', 'claude-code', 'copilot'], $tester->complete(['--runtime', '']));
         $this->assertSame(['orca', 'openchamber', 'headless'], $tester->complete(['--backend', '']));
 
-        $generate = new GenerateAgentsCommand(new AgentTemplates($this->projectsLoader), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
+        $generate = new GenerateAgentsCommand(new AgentTemplates($this->projectsLoader), $this->runtimes, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents);
         $this->assertSame(['opencode', 'claude-code', 'copilot'], (new CommandCompletionTester($generate))->complete(['--runtime', '']));
     }
 

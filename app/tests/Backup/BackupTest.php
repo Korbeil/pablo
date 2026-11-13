@@ -26,7 +26,7 @@ final class BackupTest extends TestCase
         $git = new \Pablo\Tests\FakeGit();
         $git->originUrl = 'git@example.com:acme/acme.git';
 
-        return $this->backupSvc ??= new Backup($git, $this->runner, new \Pablo\Domain\Time());
+        return $this->backupSvc ??= new Backup($git, $this->runner, new \Pablo\Domain\Time(), \Pablo\Tests\Registries::ades());
     }
 
     private string $tmp;

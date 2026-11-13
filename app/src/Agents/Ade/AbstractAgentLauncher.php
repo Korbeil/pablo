@@ -7,7 +7,6 @@ namespace Pablo\Agents\Ade;
 use Pablo\Agents\Ade\Headless\HeadlessRunner;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Domain\Agent;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Time;
@@ -59,8 +58,9 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
 
     /**
      * The process runner is required: a default real one would let a test that
-     * forgets it reach real CLIs. Side-effect-free collaborators (Time) keep
-     * a default; the ADE always passes its own injected ones through.
+     * forgets it reach real CLIs. So is the runtime: the ADE passes the
+     * selected one. Side-effect-free collaborators (Time) keep a default; the
+     * ADE always passes its own injected ones through.
      *
      * @param string      $ade      the `agent_backend` the detached subprocesses re-resolve
      * @param string|null $shimPath absolute path used for detached self-reinvocation
@@ -68,12 +68,12 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     public function __construct(
         private readonly string $ade,
         protected readonly ProcessRunnerInterface $runner,
+        AgentRuntimeInterface $runtime,
         protected readonly Time $time = new Time(),
         ?Store $store = null,
         ?string $shimPath = null,
-        ?AgentRuntimeInterface $runtime = null,
     ) {
-        $this->runtime = $runtime ?? (new AgentRuntimeRegistry())->resolve(AgentRuntimeRegistry::DEFAULT);
+        $this->runtime = $runtime;
         $this->store = $store ?? new Store();
         $this->shimPath = $shimPath ?? self::defaultShimPath();
         $this->headless = new HeadlessRunner($this->time, $this->runtime);
