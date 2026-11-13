@@ -128,8 +128,7 @@ final class ListingTest extends TestCase
         $slugGit->originUrl = 'git@github.com:acme/wallet-kit.git';
         $repoSlug = new RepoSlug($slugGit);
         $time = new Time();
-        $sm = new \Pablo\StateMachine\StateMachine($this->gh, $providers, $repoSlug, $time);
-        $this->listing = new Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $providers, $repoSlug, $sm, $time);
+        $this->listing = new Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $providers, $repoSlug, $time);
     }
 
     protected function tearDown(): void

@@ -445,7 +445,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, 'x', 3);
         $this->store->save($task);
 
-        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
+        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame(['task-analyst'], $this->agents->launch);
         $this->assertSame(['/setup.sh'], $this->agents->startupScript);
@@ -460,7 +460,7 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testRelaunchOnlyStartupSkipsAnalyst(): void
     {
         $this->writeProjects('/setup.sh');
-        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--only' => 'startup-script']);
+        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--only' => 'startup-script']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame([], $this->agents->launch);
         $this->assertSame(['/setup.sh'], $this->agents->startupScript);
@@ -469,7 +469,7 @@ final class TaskLifecycleTest extends CommandTestBed
 
     public function testRelaunchOnlyAnalystSkipsStartup(): void
     {
-        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--only' => 'task-analyst']);
+        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--only' => 'task-analyst']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertSame(['task-analyst'], $this->agents->launch);
         $this->assertSame([], $this->agents->startupScript);
@@ -480,7 +480,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::CiRed;
         $this->store->save($task);
-        $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
+        $this->runCommand(new RelaunchCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(['ci-analyst'], $this->agents->launch);
         $this->assertSame(1, $this->getTask()->agentLaunches['ci-analyst']->attempts);
     }
@@ -490,13 +490,13 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::RequestChanges;
         $this->store->save($task);
-        $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
+        $this->runCommand(new RelaunchCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
         $this->assertSame(['pr-feedback'], $this->agents->launch);
     }
 
     public function testRelaunchUnknownLabelPrintsNothing(): void
     {
-        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--only' => 'ci-analyst']);
+        $tester = $this->runCommand(new RelaunchCommand($this->stateMachine, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents), ['--only' => 'ci-analyst']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertStringContainsString('nothing to relaunch', $tester->getDisplay());
     }

@@ -42,6 +42,28 @@ enum State: string
         self::Closed,
     ];
 
+    public function emoji(): string
+    {
+        return match ($this) {
+            self::InProgress => '🔨',
+            self::Waiting => '🥱',
+            self::Draft => '📝',
+            self::CiRed => '🔴',
+            self::ReadyToReview, self::WaitingReview => '👀',
+            self::Approved => '✅',
+            self::NeedsTesting => '🧪',
+            self::RequestChanges => '🔁',
+            self::TestingFailed => '🚨',
+            self::Closed => '🚫',
+        };
+    }
+
+    /** The displayed name: ready-to-review is a momentary pass-through, shown as waiting-review if ever seen. */
+    public function label(): string
+    {
+        return self::ReadyToReview === $this ? self::WaitingReview->value : $this->value;
+    }
+
     public function displayRank(): int
     {
         $i = array_search($this, self::DISPLAY_ORDER, true);

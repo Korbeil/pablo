@@ -20,9 +20,10 @@ use Pablo\Support\RepoSlug;
 /**
  * The task state machine — data-driven, one central table.
  *
- * Every state's on-enter action and display legend live here via the
- * states() table; enterState() is the single shared on-enter handler used
- * by the poller, the commands, and the manual /pablo-state override.
+ * Every state's on-enter action lives in onEnter() and the agents each
+ * state launches in AGENTS_BY_STATE; enterState() is the single shared
+ * on-enter handler used by the poller, the commands, and the manual
+ * /pablo-state override.
  */
 final class StateMachine
 {
@@ -36,13 +37,19 @@ final class StateMachine
         State::Approved,
     ];
 
-    public const WAITING_FORBIDDEN_FROM = [State::RequestChanges, State::TestingFailed];
+    private const WAITING_FORBIDDEN_FROM = [State::RequestChanges, State::TestingFailed];
 
-    public const AGENT_LAUNCH_STATES = [
-        State::InProgress,
-        State::CiRed,
-        State::RequestChanges,
-        State::TestingFailed,
+    /**
+     * The agents each state launches on enter (and that task:relaunch and the
+     * poller's self-heal re-fire), in launch order. task-analyst and the
+     * startup script run once per task; the startup script only when the
+     * project configures one.
+     */
+    private const AGENTS_BY_STATE = [
+        State::InProgress->value => [Agent::TaskAnalyst, Agent::StartupScript],
+        State::CiRed->value => [Agent::CiAnalyst],
+        State::RequestChanges->value => [Agent::PrFeedback],
+        State::TestingFailed->value => [Agent::TaskFeedback],
     ];
 
     public function __construct(
@@ -61,110 +68,105 @@ final class StateMachine
     /** @var list<State> states entered by the current outermost enterState() */
     private array $entered = [];
 
-    /**
-     * state => ['emoji','label','onEnter'=>?callable,'polled'=>bool].
-     *
-     * @return array<State, array{emoji: string, label: string, onEnter: ?callable, polled: bool}>
-     */
-    public function states(): array
+    private function onEnter(State $state): ?callable
     {
-        return [
-            State::InProgress->value => ['emoji' => '🔨', 'label' => 'in-progress', 'onEnter' => $this->enterInProgress(...), 'polled' => false],
-            State::Waiting->value => ['emoji' => '🥱', 'label' => 'waiting', 'onEnter' => $this->enterWaiting(...), 'polled' => false],
-            State::Draft->value => ['emoji' => '📝', 'label' => 'draft', 'onEnter' => $this->enterDraft(...), 'polled' => true],
-            State::CiRed->value => ['emoji' => '🔴', 'label' => 'ci-red', 'onEnter' => $this->enterCiRed(...), 'polled' => true],
-            // Momentary pass-through: displayed as waiting-review if ever seen.
-            State::ReadyToReview->value => ['emoji' => '👀', 'label' => 'waiting-review', 'onEnter' => $this->enterReadyToReview(...), 'polled' => true],
-            State::WaitingReview->value => ['emoji' => '👀', 'label' => 'waiting-review', 'onEnter' => null, 'polled' => true],
+        return match ($state) {
+            State::InProgress, State::CiRed => $this->launchStateAgents(...),
+            State::Waiting => $this->enterWaiting(...),
+            State::Draft => $this->enterDraft(...),
+            // Momentary pass-through: settles into waiting-review.
+            State::ReadyToReview => $this->enterReadyToReview(...),
             // Momentary pass-through when testing is enabled (chains to
             // needs-testing); terminal when testing.enabled: false — the
             // task sits there until merge auto-closes it.
-            State::Approved->value => ['emoji' => '✅', 'label' => 'approved', 'onEnter' => $this->enterApproved(...), 'polled' => true],
-            State::NeedsTesting->value => ['emoji' => '🧪', 'label' => 'needs-testing', 'onEnter' => $this->enterNeedsTesting(...), 'polled' => true],
-            State::RequestChanges->value => ['emoji' => '🔁', 'label' => 'request-changes', 'onEnter' => $this->enterRequestChanges(...), 'polled' => false],
-            State::TestingFailed->value => ['emoji' => '🚨', 'label' => 'testing-failed', 'onEnter' => $this->enterTestingFailed(...), 'polled' => false],
-            // The PR was closed without being merged. Nothing is removed: the
-            // worktree stays until the user closes the task (task:close or the
-            // dashboard). Polled only to notice a reopen (back to draft).
-            State::Closed->value => ['emoji' => '🚫', 'label' => 'closed', 'onEnter' => null, 'polled' => true],
-        ];
+            State::Approved => $this->enterApproved(...),
+            State::NeedsTesting => $this->enterNeedsTesting(...),
+            State::RequestChanges, State::TestingFailed => $this->markDraftThenLaunchStateAgents(...),
+            // closed: the PR was closed without being merged. Nothing is
+            // removed: the worktree stays until the user closes the task
+            // (task:close or the dashboard).
+            State::WaitingReview, State::Closed => null,
+        };
     }
 
-    // ------------------------------------------------------------- prompts ---
+    // ------------------------------------------------------------ launches ---
 
-    public function analystPrompt(Task $task): string
+    /** @return list<Agent> the agents $state launches, in launch order */
+    public function agentsFor(State $state): array
     {
-        if (null !== $task->issue) {
-            return "Analyze issue {$task->issue->key} ({$task->issue->url}) for this worktree and produce your summary and action plan.";
-        }
-
-        return 'No linked issue for this task. Apply your analysis methodology '
-            .'directly to this task prompt instead: '.($task->prompt ?? $task->summary ?? '');
-    }
-
-    public function ciAnalystPrompt(Task $task): string
-    {
-        return "CI is failing on PR #{$task->prNumber}. Analyze the failing checks and produce a fix plan.";
-    }
-
-    public function prFeedbackPrompt(Task $task): string
-    {
-        return "Review feedback was left on PR #{$task->prNumber}. Read the unresolved review comments and produce your fix plan.";
-    }
-
-    public function taskFeedbackPrompt(Task $task): string
-    {
-        $issueRef = null !== $task->issue ? $task->issue->key : 'the task';
-
-        return "Manual testing failed for {$issueRef} (PR #{$task->prNumber}). Gather the testing feedback and produce your fix plan.";
+        return self::AGENTS_BY_STATE[$state->value] ?? [];
     }
 
     /**
-     * @param list<mixed> $args
+     * Fire $agent on the task and record the launch (attempt $attempt).
+     * False when there is nothing to fire: a startup script the project
+     * does not configure.
      */
-    private function launchTracked(TaskCtx $ctx, Agent $agent, callable $fn, array $args): void
+    public function launch(TaskCtx $ctx, Agent $agent, int $attempt = 1): bool
     {
-        $fn(...$args);
-        $ctx->task->agentLaunches[$agent->value] = new AgentLaunch($agent, $this->time->utcnow(), 1);
+        $task = $ctx->task;
+        if (Agent::StartupScript === $agent) {
+            if (null === $ctx->cfg->repo->startupScript) {
+                return false;
+            }
+            $ctx->agents->runStartupScript($task->worktreePath, $ctx->cfg->repo->startupScript, $task->project, $task->branch);
+        } else {
+            $ctx->agents->launch($task->worktreePath, $agent, $this->prompt($agent, $task), $task->project, $task->branch);
+        }
+        $task->agentLaunches[$agent->value] = new AgentLaunch($agent, $this->time->utcnow(), $attempt);
+
+        return true;
+    }
+
+    private function prompt(Agent $agent, Task $task): string
+    {
+        return match ($agent) {
+            Agent::TaskAnalyst => null !== $task->issue
+                ? "Analyze issue {$task->issue->key} ({$task->issue->url}) for this worktree and produce your summary and action plan."
+                : 'No linked issue for this task. Apply your analysis methodology '
+                    .'directly to this task prompt instead: '.($task->prompt ?? $task->summary ?? ''),
+            Agent::CiAnalyst => "CI is failing on PR #{$task->prNumber}. Analyze the failing checks and produce a fix plan.",
+            Agent::PrFeedback => "Review feedback was left on PR #{$task->prNumber}. Read the unresolved review comments and produce your fix plan.",
+            Agent::TaskFeedback => 'Manual testing failed for '.(null !== $task->issue ? $task->issue->key : 'the task')." (PR #{$task->prNumber}). Gather the testing feedback and produce your fix plan.",
+            Agent::StartupScript, Agent::RebaseConflictResolver => throw new PabloError("{$agent->value} is not launched with a state prompt"),
+        };
+    }
+
+    /** Launch the current state's agents; the run-once ones never fire twice (e.g. on resume). */
+    private function launchStateAgents(TaskCtx $ctx): void
+    {
+        $task = $ctx->task;
+        foreach ($this->agentsFor($task->state) as $agent) {
+            match ($agent) {
+                Agent::TaskAnalyst => $task->taskAnalystRan = $task->taskAnalystRan || $this->launch($ctx, $agent),
+                Agent::StartupScript => $task->startupScriptRan = $task->startupScriptRan || $this->launch($ctx, $agent),
+                default => $this->launch($ctx, $agent),
+            };
+        }
+    }
+
+    private function markDraftThenLaunchStateAgents(TaskCtx $ctx): void
+    {
+        if (null !== $ctx->task->prNumber) {
+            $this->gh->markDraft($this->repoSlug->for($ctx->cfg), $ctx->task->prNumber);
+        }
+        $this->launchStateAgents($ctx);
     }
 
     // ------------------------------------------------------- on-enter defs ---
 
-    public function enterInProgress(TaskCtx $ctx): void
-    {
-        if (!$ctx->task->taskAnalystRan) {
-            $this->launchTracked($ctx, Agent::TaskAnalyst, $ctx->agents->launch(...), [
-                $ctx->task->worktreePath,
-                Agent::TaskAnalyst,
-                $this->analystPrompt($ctx->task),
-                $ctx->task->project,
-                $ctx->task->branch,
-            ]);
-            $ctx->task->taskAnalystRan = true;
-        }
-        if (null !== $ctx->cfg->repo->startupScript && !$ctx->task->startupScriptRan) {
-            $this->launchTracked($ctx, Agent::StartupScript, $ctx->agents->runStartupScript(...), [
-                $ctx->task->worktreePath,
-                $ctx->cfg->repo->startupScript,
-                $ctx->task->project,
-                $ctx->task->branch,
-            ]);
-            $ctx->task->startupScriptRan = true;
-        }
-    }
-
-    public function enterWaiting(TaskCtx $ctx): void
+    private function enterWaiting(TaskCtx $ctx): void
     {
         $ctx->task->stateBeforeWaiting = $ctx->previousState;
     }
 
-    public function enterDraft(TaskCtx $ctx): void
+    private function enterDraft(TaskCtx $ctx): void
     {
         $ctx->task->ciIgnored = false;
         $ctx->agents->refreshAgentDisplayCache($ctx->task->project, $ctx->task->branch, $ctx->task->worktreePath);
     }
 
-    public function enterReadyToReview(TaskCtx $ctx): void
+    private function enterReadyToReview(TaskCtx $ctx): void
     {
         if (null !== $ctx->task->prNumber) {
             $this->gh->markReady($this->repoSlug->for($ctx->cfg), $ctx->task->prNumber);
@@ -173,7 +175,7 @@ final class StateMachine
         $this->enterState($ctx, State::WaitingReview);
     }
 
-    public function enterApproved(TaskCtx $ctx): void
+    private function enterApproved(TaskCtx $ctx): void
     {
         if (!$ctx->cfg->testing->enabled) {
             return; // terminal: the task waits here until merge auto-closes it
@@ -199,7 +201,7 @@ final class StateMachine
         }
     }
 
-    public function enterNeedsTesting(TaskCtx $ctx): void
+    private function enterNeedsTesting(TaskCtx $ctx): void
     {
         // The entry timestamp is the failure-signal baseline; restoring from a
         // pause must NOT move it (signals applied during the pause are deferred).
@@ -210,121 +212,10 @@ final class StateMachine
         $ctx->task->lastSeenIssueStatus = $this->currentIssueStatus($ctx);
     }
 
-    private function markDraftThenRunAgent(TaskCtx $ctx, Agent $agent, string $prompt): void
-    {
-        if (null !== $ctx->task->prNumber) {
-            $this->gh->markDraft($this->repoSlug->for($ctx->cfg), $ctx->task->prNumber);
-        }
-        $this->launchTracked($ctx, $agent, $ctx->agents->launch(...), [
-            $ctx->task->worktreePath,
-            $agent,
-            $prompt,
-            $ctx->task->project,
-            $ctx->task->branch,
-        ]);
-    }
-
-    public function enterRequestChanges(TaskCtx $ctx): void
-    {
-        $this->markDraftThenRunAgent($ctx, Agent::PrFeedback, $this->prFeedbackPrompt($ctx->task));
-    }
-
-    public function enterCiRed(TaskCtx $ctx): void
-    {
-        $this->launchTracked($ctx, Agent::CiAnalyst, $ctx->agents->launch(...), [
-            $ctx->task->worktreePath,
-            Agent::CiAnalyst,
-            $this->ciAnalystPrompt($ctx->task),
-            $ctx->task->project,
-            $ctx->task->branch,
-        ]);
-    }
-
-    public function enterTestingFailed(TaskCtx $ctx): void
-    {
-        $this->markDraftThenRunAgent($ctx, Agent::TaskFeedback, $this->taskFeedbackPrompt($ctx->task));
-    }
-
-    // -------------------------------------------------------- launch specs ---
-
-    /**
-     * @return array<string, callable(TaskCtx): array{0: callable, 1: array<int, mixed>}>
-     */
-    public function launchSpecs(): array
-    {
-        return [
-            Agent::TaskAnalyst->value => fn (TaskCtx $c) => [$c->agents->launch(...), [
-                $c->task->worktreePath,
-                Agent::TaskAnalyst,
-                $this->analystPrompt($c->task),
-                $c->task->project,
-                $c->task->branch,
-            ]],
-            Agent::StartupScript->value => static fn (TaskCtx $c) => [$c->agents->runStartupScript(...), [
-                $c->task->worktreePath,
-                $c->cfg->repo->startupScript,
-                $c->task->project,
-                $c->task->branch,
-            ]],
-            Agent::CiAnalyst->value => fn (TaskCtx $c) => [$c->agents->launch(...), [
-                $c->task->worktreePath,
-                Agent::CiAnalyst,
-                $this->ciAnalystPrompt($c->task),
-                $c->task->project,
-                $c->task->branch,
-            ]],
-            Agent::PrFeedback->value => fn (TaskCtx $c) => [$c->agents->launch(...), [
-                $c->task->worktreePath,
-                Agent::PrFeedback,
-                $this->prFeedbackPrompt($c->task),
-                $c->task->project,
-                $c->task->branch,
-            ]],
-            Agent::TaskFeedback->value => fn (TaskCtx $c) => [$c->agents->launch(...), [
-                $c->task->worktreePath,
-                Agent::TaskFeedback,
-                $this->taskFeedbackPrompt($c->task),
-                $c->task->project,
-                $c->task->branch,
-            ]],
-        ];
-    }
-
-    /**
-     * The active launch specs for $state under $ctx (startup-script only when
-     * the project configures one; task-analyst only for in-progress).
-     *
-     * @return array<int, array{label: Agent, build: callable}>
-     */
-    public function specsFor(TaskCtx $ctx, State $state): array
-    {
-        $byState = [
-            State::InProgress->value => [Agent::TaskAnalyst, Agent::StartupScript],
-            State::CiRed->value => [Agent::CiAnalyst],
-            State::RequestChanges->value => [Agent::PrFeedback],
-            State::TestingFailed->value => [Agent::TaskFeedback],
-        ];
-        $specs = [];
-        $all = $this->launchSpecs();
-        foreach ($byState[$state->value] ?? [] as $agent) {
-            if (Agent::StartupScript === $agent && null === $ctx->cfg->repo->startupScript) {
-                continue;
-            }
-            $specs[] = ['label' => $agent, 'build' => $all[$agent->value]];
-        }
-
-        return $specs;
-    }
-
     // -------------------------------------------------------- transitions ---
 
     public function enterState(TaskCtx $ctx, State $target, bool $trigger = true): void
     {
-        $states = $this->states();
-        $stateDef = $states[$target->value] ?? null;
-        if (null === $stateDef) {
-            throw new PabloError('unknown state '.var_export($target->value, true));
-        }
         if (State::Waiting === $target && \in_array($ctx->task->state, self::WAITING_FORBIDDEN_FROM, true)) {
             throw new PabloError("going from {$ctx->task->state->value} to waiting is impossible — address ".'the feedback and use /pablo-commit-and-pr instead');
         }
@@ -345,8 +236,9 @@ final class StateMachine
             $ctx->task->state = $target;
             $ctx->task->stateEnteredAt = $this->time->utcnow();
             $this->entered[] = $target;
-            if (null !== $stateDef['onEnter'] && ($trigger || State::Waiting === $target)) {
-                ($stateDef['onEnter'])($ctx);
+            $onEnter = $this->onEnter($target);
+            if (null !== $onEnter && ($trigger || State::Waiting === $target)) {
+                $onEnter($ctx);
             }
             $ctx->store->save($ctx->task);
             // Only after a successful save: a transition that failed to persist

@@ -39,14 +39,12 @@ final class DashboardTest extends TestCase
         $stamps = new \Pablo\Dispatch\Stamps();
         $gh = new \Pablo\Tests\FakeGhPr();
         $providers = new \Pablo\Tests\StubProviders();
-        $stateMachine = new \Pablo\StateMachine\StateMachine($gh, $providers, $repoSlug, $time);
         $this->dashboard = new Dashboard(
             $this->store,
             new PollSchedule($stamps),
             new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()),
-            new \Pablo\Listing\Listing($stamps, $gh, $providers, $repoSlug, $stateMachine, $time),
+            new \Pablo\Listing\Listing($stamps, $gh, $providers, $repoSlug, $time),
             $repoSlug,
-            $stateMachine,
         );
     }
 

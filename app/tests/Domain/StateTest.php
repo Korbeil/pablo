@@ -5,34 +5,23 @@ declare(strict_types=1);
 namespace Pablo\Tests\Domain;
 
 use Pablo\Domain\State;
-use Pablo\StateMachine\StateMachine;
 use PHPUnit\Framework\TestCase;
 
 final class StateTest extends TestCase
 {
-    public function testAllStatesMatchStateMachineTable(): void
+    public function testEveryStateHasItsOwnLabelAndAnEmoji(): void
     {
-        $states = array_map(static fn (State $s) => $s->value, State::cases());
-        $sm = new StateMachine(
-            new \Pablo\Tests\FakeGhPr(),
-            new class implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
-                public function get(string $name): \Pablo\Provider\Tracker\Provider
-                {
-                    throw new \LogicException('not used');
-                }
-            },
-            new \Pablo\Support\RepoSlug(new \Pablo\Tests\FakeGit()),
-            new \Pablo\Domain\Time(),
-        );
-        $table = array_keys($sm->states());
+        foreach (State::cases() as $state) {
+            $this->assertNotSame('', $state->emoji(), $state->value);
+            if (State::ReadyToReview !== $state) {
+                $this->assertSame($state->value, $state->label());
+            }
+        }
+    }
 
-        sort($states);
-        sort($table);
-
-        $this->assertSame(
-            $states,
-            $table,
-            'State::cases() and the StateMachine states() table must stay in sync',
-        );
+    public function testReadyToReviewIsDisplayedAsWaitingReview(): void
+    {
+        $this->assertSame('waiting-review', State::ReadyToReview->label());
+        $this->assertSame(State::WaitingReview->emoji(), State::ReadyToReview->emoji());
     }
 }

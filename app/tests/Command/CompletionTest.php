@@ -104,7 +104,7 @@ final class CompletionTest extends CommandTestBed
     {
         yield 'task:waiting' => [static fn (self $t): Command => new WaitingCommand($t->stateMachine, $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
         yield 'task:state' => [static fn (self $t): Command => new StateCommand($t->stateChanger(), $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), ['draft']];
-        yield 'task:relaunch' => [static fn (self $t): Command => new RelaunchCommand($t->stateMachine, $t->time, $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
+        yield 'task:relaunch' => [static fn (self $t): Command => new RelaunchCommand($t->stateMachine, $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
         yield 'task:retrigger-ci' => [static fn (self $t): Command => new RetriggerCiCommand($t->gh, $t->repoSlug, $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
         yield 'task:skip-ci' => [static fn (self $t): Command => new SkipCiCommand($t->stateChanger(), $t->store, $t->projectsLoader, $t->agentLaunchers, $t->agents), []];
         yield 'task:close' => [static fn (self $t): Command => $t->closeCommand(), []];
@@ -136,7 +136,7 @@ final class CompletionTest extends CommandTestBed
 
     public function testTaskListSuggestsProjectsStatesAndTypes(): void
     {
-        $listing = new \Pablo\Listing\Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $this->providers, $this->repoSlug, $this->stateMachine, $this->time);
+        $listing = new \Pablo\Listing\Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $this->providers, $this->repoSlug, $this->time);
         $tester = new CommandCompletionTester(new TasksCommand($listing, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents));
 
         $this->assertSame(['api', 'wallet-kit'], $tester->complete(['--project', '']));
@@ -183,7 +183,7 @@ final class CompletionTest extends CommandTestBed
         $stats = new StatsCommand(
             new \Pablo\Analytics\AnalyticsReader(),
             new \Pablo\Analytics\AnalyticsAggregator(),
-            new \Pablo\Listing\Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $this->providers, $this->repoSlug, $this->stateMachine, $this->time),
+            new \Pablo\Listing\Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $this->providers, $this->repoSlug, $this->time),
             $this->time,
             $this->store,
             $this->projectsLoader,

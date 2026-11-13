@@ -9,8 +9,6 @@ use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Domain\Agent;
-use Pablo\Domain\AgentLaunch;
-use Pablo\Domain\Time;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -25,7 +23,6 @@ final class RelaunchCommand extends Command
 
     public function __construct(
         private readonly StateMachine $stateMachine,
-        private readonly Time $time,
         Store $store,
         Config $projectsLoader,
         AgentLauncherFactory $agentLaunchers,
@@ -51,14 +48,10 @@ final class RelaunchCommand extends Command
         $lock = $store->taskLock($ctx->task->project, $ctx->task->branch);
         try {
             $task = $ctx->task;
-            foreach ($this->stateMachine->specsFor($ctx, $task->state) as $spec) {
-                if (null !== $only && $spec['label'] !== $only) {
-                    continue;
+            foreach ($this->stateMachine->agentsFor($task->state) as $agent) {
+                if ((null === $only || $agent === $only) && $this->stateMachine->launch($ctx, $agent)) {
+                    $fired[] = $agent->value;
                 }
-                [$fn, $args] = $spec['build']($ctx);
-                $fn(...$args);
-                $task->agentLaunches[$spec['label']->value] = new AgentLaunch($spec['label'], $this->time->utcnow(), 1);
-                $fired[] = $spec['label']->value;
             }
             $store->save($task);
         } finally {
