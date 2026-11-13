@@ -234,15 +234,15 @@ final class Listing
 
     public function issuesTable(ProjectConfig $cfg, Store $store): string
     {
-        $provider = $this->providers->get($cfg->provider);
+        $provider = $this->providers->get($cfg->tracker->provider);
         $issues = $provider->listAssigned($cfg);
-        $names = $this->git->allBranchNames($cfg->repoPath);
+        $names = $this->git->allBranchNames($cfg->repo->path);
         $slug = $this->repoSlug->for($cfg);
 
         $rows = [];
         foreach ($issues as $issue) {
-            $base = 'github' === $cfg->provider
-                ? strtolower($cfg->projectKey).'-'.strtolower($issue->key)
+            $base = 'github' === $cfg->tracker->provider
+                ? strtolower($cfg->tracker->projectKey).'-'.strtolower($issue->key)
                 : strtolower($issue->key);
             $branches = $this->branchCandidates($base, $names);
 
@@ -307,7 +307,7 @@ final class Listing
             return $prefetched[$task->issue->key];
         }
         try {
-            return $this->providers->get($cfg->provider)->issueStatus($task->issue->key, $cfg);
+            return $this->providers->get($cfg->tracker->provider)->issueStatus($task->issue->key, $cfg);
         } catch (PabloError) {
             return '?';
         }
@@ -519,7 +519,7 @@ final class Listing
                 continue;
             }
             $cfg = $projects[$task->project];
-            $byProvider[$cfg->provider][$issue->key] = $cfg;
+            $byProvider[$cfg->tracker->provider][$issue->key] = $cfg;
         }
 
         $statuses = [];
@@ -563,7 +563,7 @@ final class Listing
 
     private function taskRow(Task $task, ProjectConfig $cfg, AgentLauncherInterface $agents, TaskPrefetch $prefetch, bool $fetchLive): TaskRow
     {
-        $tracker = $this->remoteStatusCell($task, $cfg, $fetchLive, $prefetch->trackerStatusesFor($cfg->provider));
+        $tracker = $this->remoteStatusCell($task, $cfg, $fetchLive, $prefetch->trackerStatusesFor($cfg->tracker->provider));
         $slug = $this->repoSlug->for($cfg);
         $pr = $this->prCell($task, $cfg, $fetchLive, $prefetch->prsFor($slug));
         $cell = $this->agentCells($task, $fetchLive, $agents, $prefetch->sessionsFor($task));

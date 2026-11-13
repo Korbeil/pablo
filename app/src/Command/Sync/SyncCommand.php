@@ -75,8 +75,8 @@ final class SyncCommand extends Command
             if ($json) {
                 $results[] = [
                     'project' => $name,
-                    'strategy' => $cfg->syncStrategy,
-                    'applied' => $apply ?? $cfg->syncAutoApply,
+                    'strategy' => $cfg->sync->strategy,
+                    'applied' => $apply ?? $cfg->sync->autoApply,
                     'reports' => array_map(static fn (SyncReport $r): array => $r->toArray(), $reports),
                 ];
                 continue;

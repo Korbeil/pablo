@@ -6,6 +6,10 @@ namespace Pablo\Tests\Listing;
 
 use Pablo\Agents\SessionInfo;
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\Issue;
@@ -104,19 +108,22 @@ final class ListingTest extends TestCase
         $this->cfg = new ProjectConfig(
             name: 'wallet-kit',
             type: 'open-source',
-            repoPath: $this->tmp.'/repo',
-            primaryBranch: 'main',
-            worktreesRoot: $this->tmp.'/wt',
-            provider: 'github',
-            identity: 'octocat',
-            projectKey: 'WK',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $this->tmp.'/repo',
+                primaryBranch: 'main',
+                worktreesRoot: $this->tmp.'/wt',
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'WK',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
         );

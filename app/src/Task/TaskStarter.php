@@ -87,9 +87,9 @@ final class TaskStarter
         // The AI summary feeds the branch/worktree name (Naming::slugBranch
         // keeps the slug convention), falling back to the raw prompt when the
         // summarizer fails.
-        $summary = $this->summarizer->summarize($cfg->repoPath, $text);
-        $base = $this->prefixed($cfg, $this->naming->slugBranch($cfg->projectKey, $summary ?? $text));
-        $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repoPath));
+        $summary = $this->summarizer->summarize($cfg->repo->path, $text);
+        $base = $this->prefixed($cfg, $this->naming->slugBranch($cfg->tracker->projectKey, $summary ?? $text));
+        $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repo->path));
         $task = $this->createTask($cfg, $branch, null, $text, $summary);
         $this->agents->setWorktreeDisplayName($task->worktreePath, $branch);
 
@@ -103,7 +103,7 @@ final class TaskStarter
     {
         $candidates = null !== $project && isset($projects[$project]) ? [$projects[$project]] : array_values($projects);
         foreach ($candidates as $cfg) {
-            $provider = $this->providers->get($cfg->provider);
+            $provider = $this->providers->get($cfg->tracker->provider);
             $ref = $provider->matchUrl($url, $cfg);
             if (null !== $ref) {
                 return new IssueMatch($cfg, $provider, $ref);
@@ -125,11 +125,11 @@ final class TaskStarter
         foreach ($matches as $m) {
             $prefix = strtoupper($m[1]);
             foreach ($candidates as $cfg) {
-                if (!\in_array($cfg->provider, ['jira', 'linear'], true)) {
+                if (!\in_array($cfg->tracker->provider, ['jira', 'linear'], true)) {
                     continue;
                 }
-                if (strtoupper($cfg->projectKey) === $prefix) {
-                    return new IssueMatch($cfg, $this->providers->get($cfg->provider), strtoupper($m[0]));
+                if (strtoupper($cfg->tracker->projectKey) === $prefix) {
+                    return new IssueMatch($cfg, $this->providers->get($cfg->tracker->provider), strtoupper($m[0]));
                 }
             }
         }
@@ -139,8 +139,8 @@ final class TaskStarter
 
     private function branchBase(ProjectConfig $cfg, Issue $issue): string
     {
-        $base = 'github' === $cfg->provider
-            ? $this->naming->branchName($cfg->projectKey, $issue->key)
+        $base = 'github' === $cfg->tracker->provider
+            ? $this->naming->branchName($cfg->tracker->projectKey, $issue->key)
             : strtolower($issue->key);
 
         return $this->prefixed($cfg, $base);
@@ -162,7 +162,7 @@ final class TaskStarter
     {
         $lock = $this->store->taskLock($cfg->name, $branch);
         try {
-            $worktree = $this->git->createWorktree($cfg->repoPath, $cfg->worktreesRoot, $branch, $cfg->primaryBranch, $cfg->primaryRemote);
+            $worktree = $this->git->createWorktree($cfg->repo->path, $cfg->repo->worktreesRoot, $branch, $cfg->repo->primaryBranch, $cfg->repo->primaryRemote);
             $task = new Task(project: $cfg->name, branch: $branch, worktreePath: $worktree, state: State::InProgress);
             $task->issue = $issue;
             $task->prompt = $prompt;
@@ -198,9 +198,9 @@ final class TaskStarter
             }
         }
         $base = $this->branchBase($cfg, $issue);
-        $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repoPath));
+        $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repo->path));
         $task = $this->createTask($cfg, $branch, $issue, null, null);
-        $ghIssue = 'github' === $cfg->provider ? $issue->key : null;
+        $ghIssue = 'github' === $cfg->tracker->provider ? $issue->key : null;
         $this->agents->setWorktreeDisplayName($task->worktreePath, $issue->key, $ghIssue);
 
         return new StartResult(

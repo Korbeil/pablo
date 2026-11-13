@@ -84,10 +84,10 @@ final class Backup
             sort($branches, \SORT_STRING);
             $projectList[] = new ManifestProject(
                 name: $cfg->name,
-                sourceRepoPath: $cfg->repoPath,
-                originUrl: $this->git->originUrl($cfg->repoPath),
-                worktreesRoot: $cfg->worktreesRoot,
-                primaryBranch: $cfg->primaryBranch,
+                sourceRepoPath: $cfg->repo->path,
+                originUrl: $this->git->originUrl($cfg->repo->path),
+                worktreesRoot: $cfg->repo->worktreesRoot,
+                primaryBranch: $cfg->repo->primaryBranch,
                 branches: $branches,
             );
         }

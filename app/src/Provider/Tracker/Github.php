@@ -73,7 +73,7 @@ final class Github implements Provider
             key: (string) $data['number'],
             url: (string) $data['url'],
             title: (string) $data['title'],
-            projectKey: $cfg->projectKey,
+            projectKey: $cfg->tracker->projectKey,
             status: self::STATUS[$data['state']] ?? $data['state'],
         );
     }
@@ -82,7 +82,7 @@ final class Github implements Provider
     {
         $out = $this->runner->run([
             'gh', 'issue', 'list', '--repo', $this->repoSlug->for($cfg),
-            '--assignee', $cfg->identity, '--state', 'all',
+            '--assignee', $cfg->tracker->identity, '--state', 'all',
             '--json', 'number,title,state,url', '--limit', '100',
         ], timeout: self::GH_CALL_TIMEOUT_S);
         $issues = [];
@@ -93,7 +93,7 @@ final class Github implements Provider
                 key: (string) $item['number'],
                 url: (string) $item['url'],
                 title: (string) $item['title'],
-                projectKey: $cfg->projectKey,
+                projectKey: $cfg->tracker->projectKey,
                 status: self::STATUS[$item['state']] ?? $item['state'],
             );
         }
@@ -135,7 +135,7 @@ final class Github implements Provider
 
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
     {
-        if (null === $task->prNumber || null === $cfg->failureSignal) {
+        if (null === $task->prNumber || null === $cfg->testing->failureSignal) {
             return [];
         }
         $out = $this->runner->run([
@@ -146,7 +146,7 @@ final class Github implements Provider
         $events = Json::decodeList($out, 'gh api issue events output');
         foreach ($events as $event) {
             if (($event['event'] ?? null) === 'labeled'
-                && ($event['label']['name'] ?? null) === $cfg->failureSignal) {
+                && ($event['label']['name'] ?? null) === $cfg->testing->failureSignal) {
                 $stamps[] = $this->time->parseTs((string) $event['created_at']);
             }
         }

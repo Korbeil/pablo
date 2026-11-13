@@ -160,7 +160,7 @@ final class RestoreCommand extends Command
             $repoPaths[] = $repoPath;
 
             $cfg = $this->localProject($name);
-            $wtRoot = null !== $cfg ? $cfg->worktreesRoot : rtrim($pabloRoot, '/').'/worktrees/'.basename($repoPath);
+            $wtRoot = null !== $cfg ? $cfg->repo->worktreesRoot : rtrim($pabloRoot, '/').'/worktrees/'.basename($repoPath);
 
             $store = $this->store();
             foreach ($branches as $branch) {
@@ -185,7 +185,7 @@ final class RestoreCommand extends Command
     private function askRepoPath(QuestionHelper $helper, InputInterface $input, OutputInterface $output, string $name, ?string $origin): string
     {
         $local = $this->localProject($name);
-        $suggested = null !== $local ? $local->repoPath : '';
+        $suggested = null !== $local ? $local->repo->path : '';
         $prompt = \sprintf('Where should the repository for \'%s\' be created?', $name);
         if (null !== $origin && '' !== $origin) {
             $prompt .= ' (origin '.$origin.')';

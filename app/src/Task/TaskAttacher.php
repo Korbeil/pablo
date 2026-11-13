@@ -130,7 +130,7 @@ final class TaskAttacher
         }
 
         foreach ($projects as $cfg) {
-            if ($mainRepo === (string) realpath($cfg->repoPath)) {
+            if ($mainRepo === (string) realpath($cfg->repo->path)) {
                 return $cfg;
             }
         }
@@ -144,7 +144,7 @@ final class TaskAttacher
         if ('' === $branch || 'HEAD' === $branch) {
             throw new PabloError("{$toplevel} is in detached-HEAD state — checkout a branch before attaching it");
         }
-        if ($branch === $cfg->primaryBranch) {
+        if ($branch === $cfg->repo->primaryBranch) {
             throw new PabloError("branch {$branch} is the project's primary branch — PABLO tasks never run on it");
         }
 

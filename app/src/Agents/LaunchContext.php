@@ -217,7 +217,7 @@ final class LaunchContext
         $failing = [];
         foreach (self::listOf($checks) as $c) {
             $name = self::str($c['name'] ?? null);
-            if (\in_array(self::str($c['bucket'] ?? null), ['fail', 'cancel'], true) && !\in_array($name, $cfg->ciIgnoreChecks, true)) {
+            if (\in_array(self::str($c['bucket'] ?? null), ['fail', 'cancel'], true) && !\in_array($name, $cfg->ci->ignoreChecks, true)) {
                 $failing[] = $c;
             }
         }

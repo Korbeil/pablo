@@ -45,7 +45,7 @@ final class Linear implements Provider
             return null;
         }
         $key = $m[1];
-        if (explode('-', $key)[0] !== $cfg->projectKey) {
+        if (explode('-', $key)[0] !== $cfg->tracker->projectKey) {
             return null;
         }
 
@@ -70,7 +70,7 @@ final class Linear implements Provider
             key: (string) $data['identifier'],
             url: (string) ($data['url'] ?? ''),
             title: (string) $data['title'],
-            projectKey: $cfg->projectKey,
+            projectKey: $cfg->tracker->projectKey,
             status: $data['state']['name'] ?? null,
         );
     }
@@ -82,7 +82,7 @@ final class Linear implements Provider
 
     public function listAssigned(ProjectConfig $cfg): array
     {
-        $out = $this->runner->run(['linear', 'issue', 'list', '--assignee', $cfg->identity, '--json'], timeout: self::LINEAR_CALL_TIMEOUT_S);
+        $out = $this->runner->run(['linear', 'issue', 'list', '--assignee', $cfg->tracker->identity, '--json'], timeout: self::LINEAR_CALL_TIMEOUT_S);
         $issues = [];
         $items = Json::decodeList($out, 'linear issue list output');
         foreach ($items as $item) {
@@ -122,13 +122,13 @@ final class Linear implements Provider
 
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
     {
-        if (null === $task->issue || null === $cfg->failureSignal) {
+        if (null === $task->issue || null === $cfg->testing->failureSignal) {
             return [];
         }
         $data = $this->view($task->issue->key);
         $stamps = [];
         foreach ($data['history'] ?? [] as $entry) {
-            if (($entry['toState']['name'] ?? null) === $cfg->failureSignal) {
+            if (($entry['toState']['name'] ?? null) === $cfg->testing->failureSignal) {
                 $stamps[] = $this->time->parseTs((string) $entry['createdAt']);
             }
         }

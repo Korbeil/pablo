@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Pablo\Tests\Doctor;
 
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Dispatch\DispatchHealth;
 use Pablo\Doctor\SchedulerHealth;
 use Pablo\Install\Scheduler\SchedulerFactory;
@@ -47,13 +51,26 @@ final class SchedulerHealthTest extends TestCase
     private function cfg(string $name): ProjectConfig
     {
         return new ProjectConfig(
-            name: $name, type: 'work', repoPath: $this->tmp.'/'.$name,
-            primaryBranch: 'main', worktreesRoot: $this->tmp.'/wt/'.$name,
-            provider: 'github', identity: 'octocat', projectKey: 'PR',
-            syncStrategy: 'rebase', syncAutoApply: false,
-            syncInterval: 720, pollInterval: 10,
-            failureSignal: null, botWhitelist: [], ciIgnoreChecks: [],
-            defaultModel: 'openrouter/test/model', prDescriptionLocale: 'en',
+            name: $name,
+            type: 'work',
+            repo: new RepoConfig(
+                path: $this->tmp.'/'.$name,
+                primaryBranch: 'main',
+                worktreesRoot: $this->tmp.'/wt/'.$name,
+            ),
+            tracker: new TrackerConfig(
+                provider: 'github',
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 720,
+            ),
+            statePolling: new StatePollingConfig(10),
+            defaultModel: 'openrouter/test/model',
+            prDescriptionLocale: 'en',
         );
     }
 

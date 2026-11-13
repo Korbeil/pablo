@@ -157,7 +157,7 @@ final class Dispatch
 
     public function runMainUpdate(ProjectConfig $cfg, Store $store): void
     {
-        $report = $this->git->updatePrimary($cfg->repoPath, $cfg->primaryBranch, $cfg->primaryRemote);
+        $report = $this->git->updatePrimary($cfg->repo->path, $cfg->repo->primaryBranch, $cfg->repo->primaryRemote);
         echo "[{$cfg->name}] main: {$report->render()}\n";
     }
 
@@ -175,15 +175,15 @@ final class Dispatch
     public static function jobIntervals(): array
     {
         return [
-            'sync' => static fn (ProjectConfig $cfg) => $cfg->syncInterval,
-            'poll' => static fn (ProjectConfig $cfg) => $cfg->pollInterval,
-            'main' => static fn (ProjectConfig $cfg) => $cfg->mainUpdateInterval,
+            'sync' => static fn (ProjectConfig $cfg) => $cfg->sync->intervalMinutes,
+            'poll' => static fn (ProjectConfig $cfg) => $cfg->statePolling->intervalMinutes,
+            'main' => static fn (ProjectConfig $cfg) => $cfg->mainUpdate->intervalMinutes,
         ];
     }
 
     private function isDue(ProjectConfig $cfg, string $job, float $now): bool
     {
-        if ('main' === $job && !$cfg->mainUpdateEnabled) {
+        if ('main' === $job && !$cfg->mainUpdate->enabled) {
             return false;
         }
         $last = $this->stamps->readStamp($cfg->name, $job);

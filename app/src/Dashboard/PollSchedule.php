@@ -48,14 +48,14 @@ final class PollSchedule
         // No stamp means the dispatcher has never polled this project, so it is
         // already due: the next tick will pick it up.
         $earliest = null !== $lastRunAt
-            ? $lastRunAt->getTimestamp() + $cfg->pollInterval * 60
+            ? $lastRunAt->getTimestamp() + $cfg->statePolling->intervalMinutes * 60
             : $now->getTimestamp();
 
         return new PollWindow(
             project: $cfg->name,
             lastRunAt: $lastRunAt,
             lastRunDurationS: $lastRunDurationS,
-            intervalMinutes: $cfg->pollInterval,
+            intervalMinutes: $cfg->statePolling->intervalMinutes,
             nextRunAt: $this->nextTickAtOrAfter($earliest, $now),
             now: $now,
         );

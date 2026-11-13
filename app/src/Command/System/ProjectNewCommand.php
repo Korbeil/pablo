@@ -161,7 +161,7 @@ final class ProjectNewCommand extends Command
     {
         $providers = [];
         foreach ($this->projectsLoader->loadProjects($dir) as $cfg) {
-            $providers[] = $cfg->provider;
+            $providers[] = $cfg->tracker->provider;
         }
 
         $unique = array_unique($providers);

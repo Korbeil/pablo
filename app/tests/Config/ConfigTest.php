@@ -206,12 +206,12 @@ YAML;
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT."sync:\n  interval_minutes: 5\n");
         $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
-        $this->assertSame(5, $cfg->syncInterval);
-        $this->assertSame('rebase', $cfg->syncStrategy);
-        $this->assertFalse($cfg->syncAutoApply);
-        $this->assertSame(10, $cfg->pollInterval);
-        $this->assertSame([], $cfg->botWhitelist);
-        $this->assertSame([], $cfg->ciIgnoreChecks);
+        $this->assertSame(5, $cfg->sync->intervalMinutes);
+        $this->assertSame('rebase', $cfg->sync->strategy);
+        $this->assertFalse($cfg->sync->autoApply);
+        $this->assertSame(10, $cfg->statePolling->intervalMinutes);
+        $this->assertSame([], $cfg->review->botWhitelist);
+        $this->assertSame([], $cfg->ci->ignoreChecks);
         $this->assertSame('opencode-go/glm-5.3-flash', $cfg->defaultModel);
         $this->assertSame('en', $cfg->prDescriptionLocale);
     }
@@ -220,24 +220,24 @@ YAML;
     {
         $this->write('wallet-kit.yaml', self::FULL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
-        $this->assertSame('merge', $cfg->syncStrategy);
-        $this->assertTrue($cfg->syncAutoApply);
-        $this->assertSame(5, $cfg->syncInterval);
-        $this->assertSame(2, $cfg->pollInterval);
-        $this->assertSame(['copilot-pull-request-reviewer[bot]'], $cfg->botWhitelist);
-        $this->assertSame(['approval'], $cfg->ciIgnoreChecks);
-        $this->assertSame('qa-failed', $cfg->failureSignal);
-        $this->assertSame(getenv('HOME').'/dev/wallet-kit-worktrees', $cfg->worktreesRoot);
-        $this->assertSame(getenv('HOME').'/dev/wallet-kit', $cfg->repoPath);
+        $this->assertSame('merge', $cfg->sync->strategy);
+        $this->assertTrue($cfg->sync->autoApply);
+        $this->assertSame(5, $cfg->sync->intervalMinutes);
+        $this->assertSame(2, $cfg->statePolling->intervalMinutes);
+        $this->assertSame(['copilot-pull-request-reviewer[bot]'], $cfg->review->botWhitelist);
+        $this->assertSame(['approval'], $cfg->ci->ignoreChecks);
+        $this->assertSame('qa-failed', $cfg->testing->failureSignal);
+        $this->assertSame(getenv('HOME').'/dev/wallet-kit-worktrees', $cfg->repo->worktreesRoot);
+        $this->assertSame(getenv('HOME').'/dev/wallet-kit', $cfg->repo->path);
     }
 
     public function testHooksOffByDefault(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
-        $this->assertNull($cfg->hookCommand);
-        $this->assertNull($cfg->hookStates);
-        $this->assertTrue($cfg->hookAgentFinished);
+        $this->assertNull($cfg->hooks->command);
+        $this->assertNull($cfg->hooks->states);
+        $this->assertTrue($cfg->hooks->agentFinished);
     }
 
     public function testHooksComeFromGlobalConfigPerKey(): void
@@ -248,13 +248,13 @@ YAML;
         $projects = $this->loader()->loadProjects($this->projectsDir);
 
         $mini = $projects['mini'];
-        $this->assertSame('notify-send PABLO', $mini->hookCommand);
-        $this->assertSame([State::Closed], $mini->hookStates);
-        $this->assertFalse($mini->hookAgentFinished);
+        $this->assertSame('notify-send PABLO', $mini->hooks->command);
+        $this->assertSame([State::Closed], $mini->hooks->states);
+        $this->assertFalse($mini->hooks->agentFinished);
         $this->assertSame(['command' => 'notify-send PABLO', 'states' => ['closed'], 'agent_finished' => false], $mini->toArray()['hooks']);
 
         // A project setting command to null turns the hook off for itself.
-        $this->assertNull($projects['other']->hookCommand);
+        $this->assertNull($projects['other']->hooks->command);
     }
 
     public function testAnInvalidIntervalSkipsTheProject(): void
@@ -274,7 +274,7 @@ YAML;
         // Ignored (validate and the doctor report it): the global value applies.
         $this->write('mini.yaml', self::MINIMAL_PROJECT."sync:\n  intervall_minutes: 5\nfuture_key: true\n");
         $loader = $this->loader();
-        $this->assertSame(30, $loader->loadProjects($this->projectsDir)['mini']->syncInterval);
+        $this->assertSame(30, $loader->loadProjects($this->projectsDir)['mini']->sync->intervalMinutes);
         $this->assertSame([], $loader->projectErrors($this->projectsDir));
     }
 
@@ -314,7 +314,7 @@ YAML;
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
-        $this->assertSame(getenv('HOME').'/.pablo/worktrees/mini', $cfg->worktreesRoot);
+        $this->assertSame(getenv('HOME').'/.pablo/worktrees/mini', $cfg->repo->worktreesRoot);
     }
 
     public function testBranchPrefixOptional(): void
@@ -347,13 +347,13 @@ YAML;
     public function testSiteOptional(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->site);
+        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->tracker->site);
         $this->write('mini.yaml', str_replace(
             '  project_key: MI'."\n",
             "  project_key: MI\n  site: acme.atlassian.net\n",
             self::MINIMAL_PROJECT,
         ));
-        $this->assertSame('acme.atlassian.net', $this->loader()->loadProjects($this->projectsDir)['mini']->site);
+        $this->assertSame('acme.atlassian.net', $this->loader()->loadProjects($this->projectsDir)['mini']->tracker->site);
     }
 
     public function testConfluenceSpaceOptional(): void
@@ -367,53 +367,53 @@ YAML;
     public function testIssueRepoOptional(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->issueRepo);
+        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->tracker->repo);
         $this->write('mini.yaml', str_replace(
             '  project_key: MI'."\n",
             "  project_key: MI\n  repo: acme/upstream\n",
             self::MINIMAL_PROJECT,
         ));
-        $this->assertSame('acme/upstream', $this->loader()->loadProjects($this->projectsDir)['mini']->issueRepo);
+        $this->assertSame('acme/upstream', $this->loader()->loadProjects($this->projectsDir)['mini']->tracker->repo);
     }
 
     public function testStartupScriptOptional(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->startupScript);
+        $this->assertNull($this->loader()->loadProjects($this->projectsDir)['mini']->repo->startupScript);
     }
 
     public function testStartupScriptParsed(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT."startup_script: ~/scripts/pablo-setup.sh\n");
         $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
-        $this->assertSame(getenv('HOME').'/scripts/pablo-setup.sh', $cfg->startupScript);
+        $this->assertSame(getenv('HOME').'/scripts/pablo-setup.sh', $cfg->repo->startupScript);
     }
 
     public function testTestingModuleEnabledDefault(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $this->assertTrue($this->loader()->loadProjects($this->projectsDir)['mini']->testingEnabled);
+        $this->assertTrue($this->loader()->loadProjects($this->projectsDir)['mini']->testing->enabled);
     }
 
     public function testTestingModuleDisabled(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT."testing:\n  enabled: false\n");
-        $this->assertFalse($this->loader()->loadProjects($this->projectsDir)['mini']->testingEnabled);
+        $this->assertFalse($this->loader()->loadProjects($this->projectsDir)['mini']->testing->enabled);
     }
 
     public function testTestingModuleDisabledFallsBackToGlobalDefault(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         $this->writeGlobalConfig(self::DEFAULTS."\ntesting:\n  enabled: false\n");
-        $this->assertFalse($this->loader()->loadProjects($this->projectsDir)['mini']->testingEnabled);
+        $this->assertFalse($this->loader()->loadProjects($this->projectsDir)['mini']->testing->enabled);
     }
 
     public function testMainUpdateDefaults(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
-        $this->assertTrue($cfg->mainUpdateEnabled);
-        $this->assertSame(60, $cfg->mainUpdateInterval);
+        $this->assertTrue($cfg->mainUpdate->enabled);
+        $this->assertSame(60, $cfg->mainUpdate->intervalMinutes);
     }
 
     public function testMainUpdateFallsBackToGlobalThenProjectWins(): void
@@ -421,8 +421,8 @@ YAML;
         $this->write('mini.yaml', self::MINIMAL_PROJECT."main_update:\n  interval_minutes: 15\n");
         $this->writeGlobalConfig(self::DEFAULTS."\nmain_update:\n  enabled: false\n  interval_minutes: 120\n");
         $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
-        $this->assertFalse($cfg->mainUpdateEnabled);
-        $this->assertSame(15, $cfg->mainUpdateInterval);
+        $this->assertFalse($cfg->mainUpdate->enabled);
+        $this->assertSame(15, $cfg->mainUpdate->intervalMinutes);
     }
 
     public function testDisabledTestingWithFailureSignalParsesFine(): void
@@ -430,8 +430,8 @@ YAML;
         // The signal is simply unreachable; no config error — forces nothing.
         $this->write('mini.yaml', self::MINIMAL_PROJECT."testing:\n  enabled: false\n  failure_signal: qa-failed\n");
         $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
-        $this->assertFalse($cfg->testingEnabled);
-        $this->assertSame('qa-failed', $cfg->failureSignal);
+        $this->assertFalse($cfg->testing->enabled);
+        $this->assertSame('qa-failed', $cfg->testing->failureSignal);
     }
 
     public function testMissingRequiredKeyNamesFileAndKey(): void
@@ -467,11 +467,11 @@ YAML;
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
-        $this->assertSame('rebase', $cfg->syncStrategy);
-        $this->assertSame(30, $cfg->syncInterval);
-        $this->assertSame(10, $cfg->pollInterval);
-        $this->assertSame([], $cfg->botWhitelist);
-        $this->assertSame([], $cfg->ciIgnoreChecks);
+        $this->assertSame('rebase', $cfg->sync->strategy);
+        $this->assertSame(30, $cfg->sync->intervalMinutes);
+        $this->assertSame(10, $cfg->statePolling->intervalMinutes);
+        $this->assertSame([], $cfg->review->botWhitelist);
+        $this->assertSame([], $cfg->ci->ignoreChecks);
         $this->assertSame('opencode-go/glm-5.3-flash', $cfg->defaultModel);
         $this->assertSame('en', $cfg->prDescriptionLocale);
     }
@@ -480,9 +480,9 @@ YAML;
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT."sync:\n  strategy: merge\n  interval_minutes: 5\n");
         $cfg = $this->loader()->loadProjects($this->projectsDir)['mini'];
-        $this->assertSame('merge', $cfg->syncStrategy);
-        $this->assertSame(5, $cfg->syncInterval);
-        $this->assertSame(10, $cfg->pollInterval);
+        $this->assertSame('merge', $cfg->sync->strategy);
+        $this->assertSame(5, $cfg->sync->intervalMinutes);
+        $this->assertSame(10, $cfg->statePolling->intervalMinutes);
     }
 
     public function testProjectDefaultModelLocaleWinsOverGlobal(): void
@@ -573,7 +573,7 @@ YAML);
     public function testMissingDefaultModelAndLocaleThrows(): void
     {
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
-        $this->writeGlobalConfig("sync:\n  strategy: rebase\n  interval_minutes: 30\nstate_polling:\n  interval_minutes: 10\nreview:\n  bot_whitelist: []\nci:\n  ignore_checks: []\n");
+        $this->writeGlobalConfig("sync:\n  strategy: rebase\n  auto_apply: false\n  interval_minutes: 30\nstate_polling:\n  interval_minutes: 10\nreview:\n  bot_whitelist: []\nci:\n  ignore_checks: []\n");
         $message = $this->onlyProjectError();
         $this->assertStringContainsString('default_model', $message);
     }

@@ -41,12 +41,12 @@ final class Hooks
      */
     public function transition(ProjectConfig $cfg, Task $task, ?State $from, array $entered): void
     {
-        if (null === $cfg->hookCommand || $from === $task->state) {
+        if (null === $cfg->hooks->command || $from === $task->state) {
             return;
         }
-        if (null !== $cfg->hookStates && [] === array_intersect(
+        if (null !== $cfg->hooks->states && [] === array_intersect(
             array_map(static fn (State $s): string => $s->value, $entered),
-            array_map(static fn (State $s): string => $s->value, $cfg->hookStates),
+            array_map(static fn (State $s): string => $s->value, $cfg->hooks->states),
         )) {
             return;
         }
@@ -59,7 +59,7 @@ final class Hooks
     /** An auto-launched agent's run was stamped finished: the user's move. */
     public function agentFinished(ProjectConfig $cfg, Task $task, Agent $agent): void
     {
-        if (null === $cfg->hookCommand || !$cfg->hookAgentFinished || Agent::StartupScript === $agent) {
+        if (null === $cfg->hooks->command || !$cfg->hooks->agentFinished || Agent::StartupScript === $agent) {
             return; // the startup script is setup, not an analysis to read
         }
         $this->fire($cfg, $task, self::EVENT_AGENT_FINISHED, ['PABLO_AGENT' => $agent->value]);
@@ -92,7 +92,7 @@ final class Hooks
     private function fire(ProjectConfig $cfg, Task $task, string $event, array $extra): void
     {
         try {
-            $this->runner->run((string) $cfg->hookCommand, $this->environment($cfg, $task, $event, $extra), $task->worktreePath);
+            $this->runner->run((string) $cfg->hooks->command, $this->environment($cfg, $task, $event, $extra), $task->worktreePath);
         } catch (\Throwable) {
             // a hook must never fail what fired it
         }

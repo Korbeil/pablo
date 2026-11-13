@@ -69,7 +69,7 @@ final class Poller
         if ($ctx->task->ciIgnored || null === $prNumber) {
             return null;
         }
-        if ('red' === $this->gh->ciStatus($slug, $prNumber, $ctx->cfg->ciIgnoreChecks)) {
+        if ('red' === $this->gh->ciStatus($slug, $prNumber, $ctx->cfg->ci->ignoreChecks)) {
             return State::CiRed;
         }
 
@@ -83,7 +83,7 @@ final class Poller
         if (null === $prNumber) {
             return null;
         }
-        if ('green' === $this->gh->ciStatus($slug, $prNumber, $ctx->cfg->ciIgnoreChecks)) {
+        if ('green' === $this->gh->ciStatus($slug, $prNumber, $ctx->cfg->ci->ignoreChecks)) {
             return State::ReadyToReview;
         }
 
@@ -99,7 +99,7 @@ final class Poller
         }
         $anchor = $this->gh->readyAnchor($slug, $prNumber);
         $prReviews = $this->gh->fetchReviews($slug, $prNumber);
-        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $ctx->cfg->botWhitelist);
+        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $ctx->cfg->review->botWhitelist);
         if ('approved' === $verdict) {
             return State::Approved;
         }
@@ -132,7 +132,7 @@ final class Poller
         }
         $anchor = $this->gh->readyAnchor($slug, $prNumber);
         $prReviews = $this->gh->fetchReviews($slug, $prNumber);
-        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $ctx->cfg->botWhitelist);
+        $verdict = $this->gh->evaluateReviews($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $ctx->cfg->review->botWhitelist);
         if ('changes' === $verdict) {
             return null; // an unresolved signal still stands
         }
@@ -144,14 +144,14 @@ final class Poller
     public function checkFailureSignal(TaskCtx $ctx, string $slug, ?array $trackerStatuses = null): ?State
     {
         $task = $ctx->task;
-        if (null === $ctx->cfg->failureSignal || null === $task->needsTestingEnteredAt) {
+        if (null === $ctx->cfg->testing->failureSignal || null === $task->needsTestingEnteredAt) {
             return null;
         }
         $baseline = new \DateTimeImmutable($task->needsTestingEnteredAt);
         $lastHandled = null !== $task->lastHandledSignalAt
             ? new \DateTimeImmutable($task->lastHandledSignalAt)
             : new \DateTimeImmutable('@0');
-        $provider = $this->providers->get($ctx->cfg->provider);
+        $provider = $this->providers->get($ctx->cfg->tracker->provider);
         $events = array_values(array_filter(
             $provider->failureSignalEvents($task, $ctx->cfg),
             static fn (\DateTimeImmutable $stamp) => $stamp > $baseline && $stamp > $lastHandled,
@@ -172,7 +172,7 @@ final class Poller
             $previous = $task->lastSeenIssueStatus;
             $task->lastSeenIssueStatus = $current;
             $ctx->store->save($task);
-            if ($current === $ctx->cfg->failureSignal && $previous !== $ctx->cfg->failureSignal) {
+            if ($current === $ctx->cfg->testing->failureSignal && $previous !== $ctx->cfg->testing->failureSignal) {
                 $task->lastHandledSignalAt = $this->time->utcnow();
 
                 return State::TestingFailed;
@@ -188,7 +188,7 @@ final class Poller
     private function close(TaskCtx $ctx, array &$events): void
     {
         try {
-            $this->git->removeWorktree($ctx->cfg->repoPath, $ctx->task->worktreePath, $ctx->task->branch);
+            $this->git->removeWorktree($ctx->cfg->repo->path, $ctx->task->worktreePath, $ctx->task->branch);
             $events[] = "{$ctx->task->branch}: PR merged → task closed, worktree removed";
         } catch (PabloError $e) {
             $events[] = "{$ctx->task->branch}: PR merged → task closed (worktree already gone: {$e->getMessage()})";
@@ -288,7 +288,7 @@ final class Poller
             return;
         }
         if (null !== $task->issue) {
-            $ghIssue = 'github' === $ctx->cfg->provider ? $task->issue->key : null;
+            $ghIssue = 'github' === $ctx->cfg->tracker->provider ? $task->issue->key : null;
             $ctx->agents->setWorktreeDisplayName($task->worktreePath, $task->issue->key, $ghIssue);
         }
         $healed = false;
@@ -435,7 +435,7 @@ final class Poller
             try {
                 $trackerStatus = null !== $trackerStatuses && isset($trackerStatuses[$task->issue->key])
                     ? $trackerStatuses[$task->issue->key]
-                    : $this->providers->get($cfg->provider)->issueStatus($task->issue->key, $cfg);
+                    : $this->providers->get($cfg->tracker->provider)->issueStatus($task->issue->key, $cfg);
             } catch (PabloError) {
                 // keep the last known value rather than blanking it
             }
@@ -504,7 +504,7 @@ final class Poller
             return [];
         }
         try {
-            return $this->providers->get($cfg->provider)->batchIssueStatus($issues);
+            return $this->providers->get($cfg->tracker->provider)->batchIssueStatus($issues);
         } catch (\Throwable) {
             return [];
         }

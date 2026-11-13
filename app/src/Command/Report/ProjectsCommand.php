@@ -32,11 +32,11 @@ final class ProjectsCommand extends Command
                 $list[] = [
                     'name' => $name,
                     'type' => $cfg->type,
-                    'provider' => $cfg->provider,
-                    'project_key' => $cfg->projectKey,
-                    'repo_path' => $cfg->repoPath,
-                    'primary_branch' => $cfg->primaryBranch,
-                    'worktrees_root' => $cfg->worktreesRoot,
+                    'provider' => $cfg->tracker->provider,
+                    'project_key' => $cfg->tracker->projectKey,
+                    'repo_path' => $cfg->repo->path,
+                    'primary_branch' => $cfg->repo->primaryBranch,
+                    'worktrees_root' => $cfg->repo->worktreesRoot,
                 ];
             }
             $this->writeJson($output, ['projects' => $list]);
@@ -44,7 +44,7 @@ final class ProjectsCommand extends Command
             return self::SUCCESS;
         }
         foreach ($projects as $name => $cfg) {
-            $output->writeln("{$name}\t{$cfg->type}\t{$cfg->provider}\t{$cfg->repoPath}");
+            $output->writeln("{$name}\t{$cfg->type}\t{$cfg->tracker->provider}\t{$cfg->repo->path}");
         }
 
         return self::SUCCESS;

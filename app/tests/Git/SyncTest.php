@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Pablo\Tests\Git;
 
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Provider\Gh\PrInfo;
@@ -61,7 +65,7 @@ final class SyncTest extends TestCase
 
         $this->cfg = $this->makeConfig(false);
         $this->store = new Store($this->tmp.'/state');
-        $this->wt = $this->realGit()->createWorktree($this->clone, $this->cfg->worktreesRoot, 'pr-1', 'main');
+        $this->wt = $this->realGit()->createWorktree($this->clone, $this->cfg->repo->worktreesRoot, 'pr-1', 'main');
         $this->store->save(new Task('proj', 'pr-1', $this->wt, State::Draft));
 
         RepoHelper::commitFile($this->other, 'new.txt', "x\n", 'advance main');
@@ -80,19 +84,22 @@ final class SyncTest extends TestCase
         return new ProjectConfig(
             name: 'proj',
             type: 'personal',
-            repoPath: $this->clone,
-            primaryBranch: 'main',
-            worktreesRoot: $this->tmp.'/wtroot',
-            provider: $provider,
-            identity: 'octocat',
-            projectKey: 'PR',
-            syncStrategy: 'rebase',
-            syncAutoApply: $autoApply,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: $this->clone,
+                primaryBranch: 'main',
+                worktreesRoot: $this->tmp.'/wtroot',
+            ),
+            tracker: new TrackerConfig(
+                provider: $provider,
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: $autoApply,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
         );
@@ -174,7 +181,7 @@ final class SyncTest extends TestCase
     {
         // A task worktree deleted by hand stays listed by git, so every git
         // call in it fails; the other tasks must still sync and be logged.
-        $broken = $this->realGit()->createWorktree($this->clone, $this->cfg->worktreesRoot, 'pr-2', 'main');
+        $broken = $this->realGit()->createWorktree($this->clone, $this->cfg->repo->worktreesRoot, 'pr-2', 'main');
         $this->store->save(new Task('proj', 'pr-2', $broken, State::Draft));
         (new \Symfony\Component\Filesystem\Filesystem())->remove($broken);
 
@@ -217,7 +224,7 @@ final class SyncTest extends TestCase
 
     public function testUntrackedWorktreeIsSkipped(): void
     {
-        $wt2 = $this->realGit()->createWorktree($this->clone, $this->cfg->worktreesRoot, 'pr-x', 'main');
+        $wt2 = $this->realGit()->createWorktree($this->clone, $this->cfg->repo->worktreesRoot, 'pr-x', 'main');
         RepoHelper::commitFile($this->other, 'new2.txt', "y\n", 'advance main again');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
         $reports = $this->sync()->syncProject($this->cfg, $this->store, true);

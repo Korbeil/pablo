@@ -9,7 +9,12 @@ use Pablo\Agents\AgentTemplates;
 use Pablo\Command\System\DoctorCommand;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
+use Pablo\Config\HooksConfig;
 use Pablo\Config\ProjectConfig;
+use Pablo\Config\RepoConfig;
+use Pablo\Config\StatePollingConfig;
+use Pablo\Config\SyncConfig;
+use Pablo\Config\TrackerConfig;
 use Pablo\Doctor\AgentFileState;
 use Pablo\Doctor\AgentFileStatus;
 use Pablo\Doctor\AgentStaleness;
@@ -97,22 +102,27 @@ YAML;
         return new ProjectConfig(
             name: $name,
             type: 'work',
-            repoPath: self::TMP.'/'.$name,
-            primaryBranch: 'main',
-            worktreesRoot: self::TMP.'/wt/'.$name,
-            provider: $provider,
-            identity: 'octocat',
-            projectKey: 'PR',
-            syncStrategy: 'rebase',
-            syncAutoApply: false,
-            syncInterval: 30,
-            pollInterval: 10,
-            failureSignal: null,
-            botWhitelist: [],
-            ciIgnoreChecks: [],
+            repo: new RepoConfig(
+                path: self::TMP.'/'.$name,
+                primaryBranch: 'main',
+                worktreesRoot: self::TMP.'/wt/'.$name,
+            ),
+            tracker: new TrackerConfig(
+                provider: $provider,
+                identity: 'octocat',
+                projectKey: 'PR',
+            ),
+            sync: new SyncConfig(
+                strategy: 'rebase',
+                autoApply: false,
+                intervalMinutes: 30,
+            ),
+            statePolling: new StatePollingConfig(10),
             defaultModel: 'openrouter/test/model',
             prDescriptionLocale: 'en',
-            hookCommand: $hookCommand,
+            hooks: new HooksConfig(
+                command: $hookCommand,
+            ),
             confluenceSpace: $confluenceSpace,
         );
     }

@@ -90,12 +90,12 @@ final class Doctor
         $required = array_fill_keys(self::ALWAYS_REQUIRED, true);
         $needsConfluence = false;
         foreach ($projects as $cfg) {
-            if ('jira' === $cfg->provider) {
+            if ('jira' === $cfg->tracker->provider) {
                 $required['acli'] = true;
                 if (null !== $cfg->confluenceSpace) {
                     $needsConfluence = true;
                 }
-            } elseif ('linear' === $cfg->provider) {
+            } elseif ('linear' === $cfg->tracker->provider) {
                 $required['linear'] = true;
             }
         }
@@ -305,8 +305,8 @@ final class Doctor
     {
         $byCommand = [];
         foreach ($projects as $cfg) {
-            if (null !== $cfg->hookCommand) {
-                $byCommand[$cfg->hookCommand][] = $cfg->name;
+            if (null !== $cfg->hooks->command) {
+                $byCommand[$cfg->hooks->command][] = $cfg->name;
             }
         }
         $warnings = [];

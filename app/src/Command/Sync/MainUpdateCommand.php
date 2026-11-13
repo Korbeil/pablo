@@ -48,7 +48,7 @@ final class MainUpdateCommand extends Command
             $projects = [$project => $projects[$project]];
         } else {
             $this->warnProjectErrors($output);
-            $projects = array_filter($projects, static fn ($cfg) => $cfg->mainUpdateEnabled);
+            $projects = array_filter($projects, static fn ($cfg) => $cfg->mainUpdate->enabled);
         }
 
         $dryRun = (bool) $input->getOption('dry-run');
@@ -59,7 +59,7 @@ final class MainUpdateCommand extends Command
         $failed = false;
         foreach ($projects as $name => $cfg) {
             try {
-                $line = $this->git->updatePrimary($cfg->repoPath, $cfg->primaryBranch, $cfg->primaryRemote, $dryRun)->render();
+                $line = $this->git->updatePrimary($cfg->repo->path, $cfg->repo->primaryBranch, $cfg->repo->primaryRemote, $dryRun)->render();
             } catch (PabloError $e) {
                 $failed = true;
                 $line = "❌ {$e->getMessage()}";

@@ -65,9 +65,9 @@ final class CloseCommand extends Command
             }
         }
         // Out of the worktree first: it is about to be deleted.
-        chdir($cfg->repoPath);
+        chdir($cfg->repo->path);
         $cleanup = $this->closer->close($task->project, $task->branch, force: true);
-        $output->writeln("closed {$task->branch} ({$task->project}): {$cleanup}, state cleared. The PR itself is untouched. You are now in {$cfg->repoPath}.");
+        $output->writeln("closed {$task->branch} ({$task->project}): {$cleanup}, state cleared. The PR itself is untouched. You are now in {$cfg->repo->path}.");
 
         return self::SUCCESS;
     }
