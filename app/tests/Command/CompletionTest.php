@@ -68,7 +68,7 @@ final class CompletionTest extends CommandTestBed
         $expected = ['api', 'wallet-kit'];
         $this->assertSame($expected, (new CommandCompletionTester($this->closeCommand()))->complete(['--project', '']));
 
-        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->runner, $this->time);
+        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time);
         $this->assertSame($expected, (new CommandCompletionTester(new SyncCommand($sync, new \Pablo\Dispatch\DispatchHealth(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['']));
         $this->assertSame($expected, (new CommandCompletionTester(new RebaseLogCommand($sync, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['']));
         $this->assertSame($expected, (new CommandCompletionTester(new ProjectRemoveCommand($this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['']));
@@ -76,7 +76,7 @@ final class CompletionTest extends CommandTestBed
 
     public function testFormatOptionsSuggestTheirFormats(): void
     {
-        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->runner, $this->time);
+        $sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time);
         $this->assertSame(['table', 'json'], (new CommandCompletionTester(new SyncCommand($sync, new \Pablo\Dispatch\DispatchHealth(), $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['--format', '']));
         $this->assertSame(['table', 'json'], (new CommandCompletionTester(new RebaseLogCommand($sync, $this->store, $this->projectsLoader, $this->agentLaunchers, $this->agents)))->complete(['--format', '']));
     }

@@ -63,7 +63,7 @@ final class EngineGraph
         $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time, $this->analytics);
         $this->stamps = new Stamps();
         $this->doctor = new Doctor($this->runner, $this->agentLaunchers);
-        $this->sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->runner, $this->time);
+        $this->sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time);
         $this->poller = new Poller(
             $this->gh,
             $this->git,

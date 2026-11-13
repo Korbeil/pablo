@@ -34,7 +34,6 @@ final class SyncTest extends TestCase
             new \Pablo\Provider\Git\GitRepo(),
             $this->gh,
             new RepoSlug($slugGit),
-            new \Pablo\Support\ProcessRunner(),
             new \Pablo\Domain\Time(),
             // Short lock timeout: testLockedTaskSkippedCleanly waits it out.
             lockTimeoutS: 0.2,
@@ -369,6 +368,27 @@ final class SyncTest extends TestCase
         $this->assertTrue((new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeSessions())->owns($session));
         $this->assertSame($session, $report->agentHandle);
         $this->assertStringContainsString('fix agent running — claude --resume '.$session, Sync::renderReports([$report]));
+    }
+
+    public function testOpenCodeResolverGetsAPabloAssignedSession(): void
+    {
+        RepoHelper::commitFile($this->wt, 'feature.txt', "branch side\n", 'branch work');
+        RepoHelper::commitFile($this->other, 'feature.txt', "main side\n", 'clash');
+        RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
+        $agents = new \Pablo\Tests\FakeAgents();
+
+        putenv('PABLO_AGENT_RUNTIME=opencode');
+        try {
+            $report = $this->byBranch($this->sync()->syncProject($this->cfg, $this->store, true, $agents))['pr-1'];
+        } finally {
+            putenv('PABLO_AGENT_RUNTIME');
+        }
+
+        // Known up front: no lookup of the worktree's newest session afterwards.
+        $session = (string) $agents->headless[0]['session'];
+        $this->assertStringStartsWith('ses_pablo', $session);
+        $this->assertSame($session, $report->agentHandle);
+        $this->assertStringContainsString('fix agent running — opencode -s '.$session, Sync::renderReports([$report]));
     }
 
     public function testCopilotResolverHandleIsPrefixed(): void

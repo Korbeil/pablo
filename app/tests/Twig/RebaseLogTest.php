@@ -33,7 +33,6 @@ final class RebaseLogTest extends WebTestCase
             new \Pablo\Provider\Git\GitRepo(),
             new \Pablo\Tests\FakeGhPr(),
             new \Pablo\Support\RepoSlug($slugGit),
-            new \Pablo\Support\ProcessRunner(),
             new \Pablo\Domain\Time(),
         );
     }
