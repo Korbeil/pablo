@@ -50,24 +50,11 @@ final class JiraTest extends TestCase
     /** @var array<string, mixed> view payload */
     private array $view = self::ISSUE_JSON;
 
-    /** @var list<array<string, mixed>>|null */
-    private ?array $search = null;
-
-    /** @var list<array<int, string>> */
-    private array $calls = [];
-
-    /** @param array<string, mixed>|null $view
-     * @param list<array<string, mixed>>|null $search
-     */
-    private function configure(?array $view = null, ?array $search = null): void
+    /** @param array<string, mixed>|null $view */
+    private function configure(?array $view = null): void
     {
         $this->view = $view ?? self::ISSUE_JSON;
-        $this->search = $search;
         $this->startRunner(function (array $argv, bool $check = true, ?float $timeout = null): string {
-            $this->calls[] = $argv;
-            if (\in_array('search', $argv, true)) {
-                return json_encode($this->search ?? [$this->view], \JSON_THROW_ON_ERROR);
-            }
             if (\in_array('view', $argv, true)) {
                 return json_encode($this->view, \JSON_THROW_ON_ERROR);
             }
@@ -125,19 +112,6 @@ final class JiraTest extends TestCase
         $this->assertStringContainsString('browse/XXX-123', $issue->url);
     }
 
-    public function testListAssignedUsesJqlCurrentUser(): void
-    {
-        $this->configure(null, [self::ISSUE_JSON]);
-        $issues = $this->svc()->listAssigned($this->cfg());
-        $this->assertSame(['XXX-123'], array_map(static fn ($i) => $i->key, $issues));
-        $argv = $this->calls[\count($this->calls) - 1];
-        $this->assertContains('search', $argv);
-        $jql = $argv[array_search('--jql', $argv, true) + 1];
-        $this->assertStringContainsString('project = XXX', $jql);
-        $this->assertStringContainsString('assignee = currentUser()', $jql);
-        $this->assertSame('50', $argv[array_search('--limit', $argv, true) + 1]);
-    }
-
     public function testIssueStatus(): void
     {
         $this->configure();
@@ -169,15 +143,6 @@ final class JiraTest extends TestCase
         $this->svc()->getIssue('XXX-123', $this->cfg());
     }
 
-    public function testListAssignedNonListReplyIsAClearPabloError(): void
-    {
-        $this->startRunner(static fn (): string => '{"errorMessages":["Unauthorized"]}');
-
-        $this->expectException(\Pablo\Support\PabloError::class);
-        $this->expectExceptionMessage('cannot parse acli jira workitem search output: expected a JSON array');
-        $this->svc()->listAssigned($this->cfg());
-    }
-
     public function testIssueStatusUnreadableReplyIsQuestionMark(): void
     {
         $this->startRunner(static fn (): string => '<html>');
@@ -187,16 +152,6 @@ final class JiraTest extends TestCase
     public function testSignalViaStatusFlag(): void
     {
         $this->assertTrue($this->svc()->supportsSignalViaStatus());
-    }
-
-    public function testCliNameIsAcli(): void
-    {
-        $this->assertSame('acli', $this->svc()->cliName());
-    }
-
-    public function testAuthCheckCmd(): void
-    {
-        $this->assertSame(['acli', 'jira', 'auth', 'status'], $this->svc()->authCheckCmd());
     }
 
     private function svc(): Jira

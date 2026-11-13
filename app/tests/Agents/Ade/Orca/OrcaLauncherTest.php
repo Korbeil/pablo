@@ -233,7 +233,7 @@ final class OrcaLauncherTest extends TestCase
         $this->assertSame([['b1', 'running']], array_map(static fn ($s) => [$s->handle, $s->status], $result[$wtB]));
     }
 
-    public function testBulkActiveSessionsOneOrcaCallForManyWorktrees(): void
+    public function testBulkDisplaySessionsOneOrcaCallForManyWorktrees(): void
     {
         $wtA = $this->tmp.'/a';
         $wtB = $this->tmp.'/b';
@@ -252,7 +252,7 @@ final class OrcaLauncherTest extends TestCase
 
             return $this->orcaOk($ps);
         });
-        $result = $this->agents->bulkActiveSessions([$wtA, $wtB]);
+        $result = $this->agents->bulkDisplaySessions([$wtA, $wtB]);
         $this->assertCount(1, $calls);
         $this->assertSame([['a1', 'running']], array_map(static fn ($s) => [$s->handle, $s->status], $result[$wtA]));
         $this->assertSame([['b1', 'waiting']], array_map(static fn ($s) => [$s->handle, $s->status], $result[$wtB]));

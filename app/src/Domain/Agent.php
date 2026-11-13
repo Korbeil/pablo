@@ -15,9 +15,4 @@ enum Agent: string
     case PrFeedback = 'pr-feedback';
     case TaskFeedback = 'task-feedback';
     case RebaseConflictResolver = 'rebase-conflict-resolver';
-
-    public static function tryByName(string $name): ?self
-    {
-        return self::tryFrom($name);
-    }
 }

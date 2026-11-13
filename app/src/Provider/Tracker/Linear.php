@@ -80,18 +80,6 @@ final class Linear implements Provider
         return $this->issueFromJson($this->view($ref), $cfg);
     }
 
-    public function listAssigned(ProjectConfig $cfg): array
-    {
-        $out = $this->runner->run(['linear', 'issue', 'list', '--assignee', $cfg->tracker->identity, '--json'], timeout: self::LINEAR_CALL_TIMEOUT_S);
-        $issues = [];
-        $items = Json::decodeList($out, 'linear issue list output');
-        foreach ($items as $item) {
-            $issues[] = $this->issueFromJson($item, $cfg);
-        }
-
-        return $issues;
-    }
-
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
         return self::statusOf($this->view($key));
@@ -135,15 +123,5 @@ final class Linear implements Provider
         sort($stamps);
 
         return $stamps;
-    }
-
-    public function cliName(): string
-    {
-        return 'linear';
-    }
-
-    public function authCheckCmd(): array
-    {
-        return ['linear', 'auth', 'status'];
     }
 }

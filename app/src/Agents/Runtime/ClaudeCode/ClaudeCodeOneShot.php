@@ -16,11 +16,6 @@ final class ClaudeCodeOneShot implements RuntimeOneShotInterface
 {
     public const MODEL = 'haiku';
 
-    public function model(): string
-    {
-        return self::MODEL;
-    }
-
     /** @return list<string> */
     public static function argv(string $instruction): array
     {

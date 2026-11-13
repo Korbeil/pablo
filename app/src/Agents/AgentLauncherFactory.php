@@ -70,10 +70,4 @@ final class AgentLauncherFactory
     {
         return $this->ades ??= new AdeRegistry($this->globalConfig);
     }
-
-    /** The configured agent_backend, unchecked. */
-    public function resolveBackend(): string
-    {
-        return $this->ades()->resolveName();
-    }
 }

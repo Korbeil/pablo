@@ -9,7 +9,7 @@
 <table>
   <thead><tr><th>Used for</th><th>Command</th></tr></thead>
   <tbody>
-    <tr><td>Issues</td><td><code>gh issue view/list --json</code>, matched against the repository's remote</td></tr>
+    <tr><td>Issues</td><td><code>gh issue view --json</code>, matched against the repository's remote</td></tr>
     <tr><td>Finding the pull request</td><td><code>gh pr list --head &lt;branch&gt; --json number,title,state,isDraft,mergedAt,url</code></td></tr>
     <tr><td>CI status</td><td><code>gh pr view &lt;n&gt; --json statusCheckRollup</code></td></tr>
     <tr><td>Reviews and the “ready for review” time</td><td><code>gh api graphql</code> (reviews, and <code>READY_FOR_REVIEW_EVENT</code> timeline items)</td></tr>
@@ -28,7 +28,6 @@
   <thead><tr><th>Used for</th><th>Command</th></tr></thead>
   <tbody>
     <tr><td>An issue</td><td><code>acli jira workitem view &lt;KEY&gt; --json --fields 'summary,status'</code></td></tr>
-    <tr><td>Your issues</td><td><code>acli jira workitem search --jql "project = &lt;KEY&gt; AND assignee = currentUser() ORDER BY updated DESC" --json --limit 50</code></td></tr>
     <tr><td>Comments (QA feedback)</td><td><code>acli jira workitem comment list --key &lt;KEY&gt; --json</code></td></tr>
     <tr><td>Login check</td><td><code>acli jira auth status</code></td></tr>
   </tbody>
@@ -51,7 +50,7 @@
 
 <h2 id="linear">Linear: <code>linear</code> <span class="exp">experimental</span></h2>
 
-<p>Using <a href="https://github.com/schpet/linear-cli">schpet/linear-cli</a>: <code>linear issue view &lt;KEY&gt; --json</code>, <code>linear issue list --assignee &lt;id&gt; --json</code>; the QA signal is a transition into your <code>testing.failure_signal</code> status in the issue's history; login check: <code>linear auth status</code>. Every call has a 30-second timeout.</p>
+<p>Using <a href="https://github.com/schpet/linear-cli">schpet/linear-cli</a>: <code>linear issue view &lt;KEY&gt; --json</code>; the QA signal is a transition into your <code>testing.failure_signal</code> status in the issue's history; login check: <code>linear auth status</code>. Every call has a 30-second timeout.</p>
 
 <aside class="callout warning"><p>The Linear provider hasn't been tested end to end yet. If a command fails, compare with <code>linear --help</code> and adjust <a href="repo:app/src/Provider/Tracker/Linear.php"><code>Linear.php</code></a>.</p></aside>
 

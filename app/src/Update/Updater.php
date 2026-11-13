@@ -106,26 +106,6 @@ final class Updater
     }
 
     /**
-     * Whether $latest should replace $current. Releases are named after the
-     * first 7 characters of their commit SHA (`castor release:create`), which carries no
-     * order: any other name than the running one is installed, so moving the
-     * "latest" flag back to an older release rolls everyone back. Only
-     * semver-looking names (vX.Y.Z) are compared, never to downgrade.
-     */
-    public static function isNewer(string $latest, string $current): bool
-    {
-        if ($latest === $current) {
-            return false;
-        }
-        $semver = '/^v?\d+\.\d+\.\d+([-+].*)?$/';
-        if (1 === preg_match($semver, $latest) && 1 === preg_match($semver, $current)) {
-            return version_compare(ltrim($latest, 'v'), ltrim($current, 'v'), '>');
-        }
-
-        return true;
-    }
-
-    /**
      * Download, verify and swap in release $version.
      *
      * @param \Closure(string): void $info

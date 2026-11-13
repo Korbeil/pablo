@@ -251,7 +251,6 @@ YAML;
         $this->assertSame('notify-send PABLO', $mini->hooks->command);
         $this->assertSame([State::Closed], $mini->hooks->states);
         $this->assertFalse($mini->hooks->agentFinished);
-        $this->assertSame(['command' => 'notify-send PABLO', 'states' => ['closed'], 'agent_finished' => false], $mini->toArray()['hooks']);
 
         // A project setting command to null turns the hook off for itself.
         $this->assertNull($projects['other']->hooks->command);

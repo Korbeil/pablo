@@ -33,11 +33,6 @@ interface AgentLauncherInterface
     /** @return array<int, SessionInfo> */
     public function activeSessions(string $worktree): array;
 
-    /** @param list<string> $worktrees
-     * @return array<string, list<SessionInfo>>
-     */
-    public function bulkActiveSessions(array $worktrees): array;
-
     /**
      * Sessions for display/rendering, counting a finished analyst as waiting
      * so the "💭 Waiting for feedback" split surfaces it.

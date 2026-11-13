@@ -44,11 +44,11 @@ final class OrcaLauncher extends AbstractAgentLauncher
     /**
      * @param list<string> $argv
      */
-    private function orca(array $argv, float $perCallTimeout = self::ORCA_CALL_TIMEOUT_S): OrcaCall
+    private function orca(array $argv): OrcaCall
     {
         $out = '';
         try {
-            $out = $this->runner->run([OrcaCli::command(), ...$argv, '--json'], check: false, timeout: $perCallTimeout);
+            $out = $this->runner->run([OrcaCli::command(), ...$argv, '--json'], check: false, timeout: self::ORCA_CALL_TIMEOUT_S);
             $data = Json::tryDecodeArray($out);
         } catch (\Throwable $e) {
             return new OrcaCall(null, $e::class.': '.$e->getMessage().'; raw_stdout='.var_export($out, true));
@@ -176,7 +176,7 @@ final class OrcaLauncher extends AbstractAgentLauncher
             '--worktree', 'path:'.$worktree,
             '--display-name', $name,
             '--issue', $issueNumber ?? 'null',
-        ], perCallTimeout: self::ORCA_CALL_TIMEOUT_S);
+        ]);
     }
 
     /**
@@ -215,16 +215,6 @@ final class OrcaLauncher extends AbstractAgentLauncher
     public function activeSessions(string $worktree): array
     {
         return $this->sessionsForWorktree($worktree, false);
-    }
-
-    /**
-     * @param list<string> $worktrees
-     *
-     * @return array<string, list<SessionInfo>>
-     */
-    public function bulkActiveSessions(array $worktrees): array
-    {
-        return $this->bulkSessionsForWorktrees($worktrees, false);
     }
 
     /**

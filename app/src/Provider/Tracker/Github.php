@@ -38,11 +38,6 @@ final class Github implements Provider
         return false;
     }
 
-    public function repoSlug(ProjectConfig $cfg): string
-    {
-        return $this->repoSlug->for($cfg);
-    }
-
     public function matchUrl(string $url, ProjectConfig $cfg): ?string
     {
         if (1 !== preg_match('#https?://github\.com/([^/]+)/([^/]+)/issues/(\d+)#', $url, $m)) {
@@ -76,29 +71,6 @@ final class Github implements Provider
             projectKey: $cfg->tracker->projectKey,
             status: self::STATUS[$data['state']] ?? $data['state'],
         );
-    }
-
-    public function listAssigned(ProjectConfig $cfg): array
-    {
-        $out = $this->runner->run([
-            'gh', 'issue', 'list', '--repo', $this->repoSlug->for($cfg),
-            '--assignee', $cfg->tracker->identity, '--state', 'all',
-            '--json', 'number,title,state,url', '--limit', '100',
-        ], timeout: self::GH_CALL_TIMEOUT_S);
-        $issues = [];
-        $items = Json::decodeList($out, 'gh issue list output');
-        foreach ($items as $item) {
-            $issues[] = new Issue(
-                provider: $this->name(),
-                key: (string) $item['number'],
-                url: (string) $item['url'],
-                title: (string) $item['title'],
-                projectKey: $cfg->tracker->projectKey,
-                status: self::STATUS[$item['state']] ?? $item['state'],
-            );
-        }
-
-        return $issues;
     }
 
     public function issueStatus(string $key, ProjectConfig $cfg): string
@@ -153,15 +125,5 @@ final class Github implements Provider
         sort($stamps);
 
         return $stamps;
-    }
-
-    public function cliName(): string
-    {
-        return 'gh';
-    }
-
-    public function authCheckCmd(): array
-    {
-        return ['gh', 'auth', 'status'];
     }
 }

@@ -42,17 +42,6 @@ final class HeadlessLauncher extends AbstractAgentLauncher
         return $this->headless->sessionsByWorktree()[$worktree] ?? [];
     }
 
-    public function bulkActiveSessions(array $worktrees): array
-    {
-        $grouped = $this->headless->sessionsByWorktree();
-        $out = [];
-        foreach ($worktrees as $worktree) {
-            $out[$worktree] = $grouped[$worktree] ?? [];
-        }
-
-        return $out;
-    }
-
     /** A headless run has no idle state: display = active. */
     public function displaySessions(string $worktree): array
     {
@@ -61,7 +50,13 @@ final class HeadlessLauncher extends AbstractAgentLauncher
 
     public function bulkDisplaySessions(array $worktrees): array
     {
-        return $this->bulkActiveSessions($worktrees);
+        $grouped = $this->headless->sessionsByWorktree();
+        $out = [];
+        foreach ($worktrees as $worktree) {
+            $out[$worktree] = $grouped[$worktree] ?? [];
+        }
+
+        return $out;
     }
 
     public function setWorktreeDisplayName(string $worktree, string $name, ?string $issueNumber = null): void

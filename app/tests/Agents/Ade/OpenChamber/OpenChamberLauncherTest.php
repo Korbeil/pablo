@@ -281,7 +281,7 @@ MD);
         );
     }
 
-    public function testBulkActiveSessionsOneListCallPerWorktree(): void
+    public function testBulkDisplaySessionsOneListCallPerWorktree(): void
     {
         $wtA = $this->tmp.'/a';
         $wtB = $this->tmp.'/b';
@@ -298,7 +298,7 @@ MD);
             ]);
         });
 
-        $result = $this->agents->bulkActiveSessions([$wtA, $wtB]);
+        $result = $this->agents->bulkDisplaySessions([$wtA, $wtB]);
         $this->assertSame([['ses_a', 'running']], array_map(static fn ($s) => [$s->handle, $s->status], $result[$wtA]));
         $this->assertSame([['ses_b', 'running']], array_map(static fn ($s) => [$s->handle, $s->status], $result[$wtB]));
     }

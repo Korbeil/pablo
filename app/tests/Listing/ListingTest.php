@@ -29,15 +29,7 @@ use PHPUnit\Framework\TestCase;
 
 final class FakeProvider implements Provider
 {
-    /** @var list<Issue> */
-    public array $issues = [];
-
     public string $status = 'In Progress';
-
-    public function listAssigned(ProjectConfig $cfg): array
-    {
-        return $this->issues;
-    }
 
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
@@ -78,16 +70,6 @@ final class FakeProvider implements Provider
     {
         return [];
     }
-
-    public function cliName(): string
-    {
-        return 'gh';
-    }
-
-    public function authCheckCmd(): array
-    {
-        return ['gh', 'auth', 'status'];
-    }
 }
 
 final class ListingTest extends TestCase
@@ -97,7 +79,6 @@ final class ListingTest extends TestCase
     private Store $store;
     private FakeAgents $agents;
     private \Pablo\Tests\FakeGhPr $gh;
-    private \Pablo\Tests\FakeGit $git;
     private Listing $listing;
     private FakeProvider $provider;
 
@@ -130,15 +111,9 @@ final class ListingTest extends TestCase
         $this->store = new Store($this->tmp.'/state');
         $this->agents = new FakeAgents();
         $this->provider = new FakeProvider();
-        $this->provider->issues = [
-            new Issue('github', '45', 'u45', 'Fix callbacks', 'WK', 'To Do'),
-            new Issue('github', '46', 'u46', 'Add exports', 'WK', 'Done'),
-        ];
         $this->provider->status = 'In Progress';
 
         $this->gh = new \Pablo\Tests\FakeGhPr();
-        $this->git = new \Pablo\Tests\FakeGit();
-        $this->git->allBranchNames = ['wk-45', 'main'];
         $providers = new class($this->provider) implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
             public function __construct(private readonly Provider $provider)
             {
@@ -154,7 +129,7 @@ final class ListingTest extends TestCase
         $repoSlug = new RepoSlug($slugGit);
         $time = new Time();
         $sm = new \Pablo\StateMachine\StateMachine($this->gh, $providers, $repoSlug, $time);
-        $this->listing = new Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $this->git, $providers, $repoSlug, $sm, $time);
+        $this->listing = new Listing(new \Pablo\Dispatch\Stamps(), $this->gh, $providers, $repoSlug, $sm, $time);
     }
 
     protected function tearDown(): void
@@ -202,32 +177,6 @@ final class ListingTest extends TestCase
     private function projects(): array
     {
         return ['wallet-kit' => $this->cfg];
-    }
-
-    public function testIssuesTableShowsBranchAndBlankCells(): void
-    {
-        $this->gh->onPrForBranch = static function (string $slug, string $branch): ?PrInfo {
-            return 'wk-45' === $branch ? new PrInfo(7, 'PR', 'OPEN', false, 'u', null) : null;
-        };
-        $table = $this->listing->issuesTable($this->cfg, $this->store);
-        $lines = explode("\n", $table);
-        $row45 = null;
-        foreach ($lines as $line) {
-            if (str_contains($line, '45') && str_contains($line, 'Fix callbacks')) {
-                $row45 = $line;
-            }
-        }
-        $this->assertNotNull($row45);
-        $this->assertStringContainsString('wk-45', $row45);
-        $this->assertStringContainsString('#7', $row45);
-        $row46 = null;
-        foreach ($lines as $line) {
-            if (str_contains($line, 'Add exports')) {
-                $row46 = $line;
-            }
-        }
-        $this->assertNotNull($row46);
-        $this->assertStringContainsString('-', $row46);
     }
 
     public function testTasksRowForIssueTask(): void
@@ -487,8 +436,8 @@ final class ListingTest extends TestCase
 
     public function testApprovedRanksBetweenNeedsTestingAndRequestChanges(): void
     {
-        $this->assertGreaterThan($this->listing->stateRank(State::NeedsTesting), $this->listing->stateRank(State::Approved));
-        $this->assertLessThan($this->listing->stateRank(State::RequestChanges), $this->listing->stateRank(State::Approved));
+        $this->assertGreaterThan(State::NeedsTesting->displayRank(), State::Approved->displayRank());
+        $this->assertLessThan(State::RequestChanges->displayRank(), State::Approved->displayRank());
     }
 
     public function testRenderSlackEmptyRowsUnknownStateFallsBack(): void

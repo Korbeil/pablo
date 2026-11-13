@@ -411,7 +411,6 @@ final class StateMachineTest extends TestCase
         $git->originUrl = 'git@github.com:acme/wallet-kit.git';
         $repoSlug = new RepoSlug($git);
         $this->sm = new StateMachine($this->gh, new StubProviders(), $repoSlug, new Time(), new FakeAnalytics(), new Hooks($runner, $repoSlug));
-        $args = $this->cfg->toArray();
         $this->ctx = new TaskCtx(task: $this->task, cfg: new ProjectConfig(
             name: $this->cfg->name,
             type: $this->cfg->type,
@@ -419,7 +418,7 @@ final class StateMachineTest extends TestCase
             tracker: $this->cfg->tracker,
             sync: $this->cfg->sync,
             statePolling: new StatePollingConfig($this->cfg->statePolling->intervalMinutes),
-            defaultModel: (string) $args['default_model'],
+            defaultModel: $this->cfg->defaultModel,
             prDescriptionLocale: 'en',
             hooks: new HooksConfig(
                 command: 'notify',
@@ -535,11 +534,6 @@ final class FakeStatusProvider implements \Pablo\Provider\Tracker\Provider
         throw new \LogicException();
     }
 
-    public function listAssigned(ProjectConfig $cfg): array
-    {
-        return [];
-    }
-
     public function issueStatus(string $key, ProjectConfig $cfg): string
     {
         return $this->status;
@@ -556,16 +550,6 @@ final class FakeStatusProvider implements \Pablo\Provider\Tracker\Provider
     }
 
     public function failureSignalEvents(Task $task, ProjectConfig $cfg): array
-    {
-        return [];
-    }
-
-    public function cliName(): string
-    {
-        return 'gh';
-    }
-
-    public function authCheckCmd(): array
     {
         return [];
     }

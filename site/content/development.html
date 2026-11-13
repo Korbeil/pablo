@@ -38,7 +38,7 @@
     <tr><td><code>StateMachine/</code></td><td>the data-driven state machine and its single entry handler</td></tr>
     <tr><td><code>Store/</code></td><td>the state store and per-task locks</td></tr>
     <tr><td><code>Poller/</code></td><td>state polling and merge auto-close</td></tr>
-    <tr><td><code>Provider/</code></td><td>external tools: <code>Gh/</code> (pull requests, CI, reviews), <code>Git/</code> (worktrees, sync), <code>Confluence/</code>, <code>Tracker/</code> (GitHub, Jira, Linear)</td></tr>
+    <tr><td><code>Provider/</code></td><td>external tools: <code>Gh/</code> (pull requests, CI, reviews), <code>Git/</code> (worktrees, sync), <code>Tracker/</code> (GitHub, Jira, Linear)</td></tr>
     <tr><td><code>Agents/</code></td><td>the agent environments (ADEs) in <code>Ade/</code> (Orca, OpenChamber, headless: one folder each, chosen by <code>agent_backend</code>) and the agent runtimes in <code>Runtime/</code> (chosen by <code>agent_runtime</code>), each behind its own interfaces</td></tr>
     <tr><td><code>Analytics/</code></td><td>the JSONL event log, reader and aggregator</td></tr>
     <tr><td><code>Listing/</code></td><td>the terminal tables</td></tr>
@@ -60,7 +60,7 @@
   <li><b><code>pablo --help</code> lists PABLO commands only</b>: the console application collects the <code>pablo.command</code> tag, not <code>console.command</code>.</li>
   <li><b>Add a state</b>: a case in <code>Domain/State.php</code> and a row in <code>StateMachine::states()</code>. Always change state through <code>StateMachine::enterState()</code>, never by setting the field.</li>
   <li><b>Add an issue tracker</b>: implement <code>ProviderInterface</code> and register it in <code>ProviderRegistry</code>.</li>
-  <li><b>Terminal and dashboard can't drift</b>: both render the same value objects (<code>PrBadge</code>, <code>AgentActivity</code>) and use the same rules (<code>Listing::isWaitingForFeedback()</code>, <code>Listing::stateRank()</code>).</li>
+  <li><b>Terminal and dashboard can't drift</b>: both render the same value objects (<code>PrBadge</code>, <code>AgentActivity</code>) and use the same rules (<code>Listing::isWaitingForFeedback()</code>, <code>State::displayRank()</code>).</li>
   <li><b>The dashboard never calls external tools while rendering</b>: it reads the poller's <code>DisplayCache</code>. Analytics come from <code>AnalyticsAggregator</code>, shared with <code>pablo stats</code>.</li>
   <li><b>Portability</b>: the engine runs on Linux and macOS. <code>tests/PortabilityTest.php</code> fails if <code>src/</code> mentions <code>systemctl</code>, <code>journalctl</code>, <code>/etc/</code>, <code>/proc/</code> or <code>/opt/</code>, except in <code>Install/Scheduler/SystemdScheduler.php</code>, which only ever runs on Linux.</li>
 </ul>

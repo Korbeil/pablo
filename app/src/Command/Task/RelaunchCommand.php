@@ -46,7 +46,7 @@ final class RelaunchCommand extends Command
         $store = $this->store();
         $ctx = $this->resolveTargetCtx($input);
         $onlyRaw = $input->getOption('only') ?: null;
-        $only = null !== $onlyRaw ? Agent::tryByName($onlyRaw) : null;
+        $only = null !== $onlyRaw ? Agent::tryFrom($onlyRaw) : null;
         $fired = [];
         $lock = $store->taskLock($ctx->task->project, $ctx->task->branch);
         try {

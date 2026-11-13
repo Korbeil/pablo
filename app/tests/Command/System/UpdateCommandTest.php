@@ -353,6 +353,18 @@ final class UpdateCommandTest extends TestCase
         $this->assertFalse($payload['update_available']);
     }
 
+    public function testALatestReleaseOtherThanTheRunningOneIsAnUpdateWhateverItsName(): void
+    {
+        // Release names (commit SHAs) carry no order: only equality matters.
+        $this->latest = 'v0.9.0';
+
+        $tester = $this->runUpdate(['--check' => true, '--format' => 'json']);
+
+        $payload = json_decode($tester->getDisplay(), true, 512, \JSON_THROW_ON_ERROR);
+        $this->assertIsArray($payload);
+        $this->assertTrue($payload['update_available']);
+    }
+
     public function testJsonNeedsCheck(): void
     {
         $tester = $this->runUpdate(['--format' => 'json']);

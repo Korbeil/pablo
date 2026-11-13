@@ -148,7 +148,6 @@ timeout by kind, `GitRepo::TIMEOUT_*`, and a timeout surfaces as a
 branch's `error` action, never aborting the others — skips `closed` tasks as
 `skipped`; `sync:run --dry-run` reports only even with `sync.auto_apply`,
 `sync:main --dry-run` runs the primary-checkout checks without touching it),
-`Confluence/` (`acli`),
 `Tracker/` (the `Provider` interface + `Github`/`Jira`/`Linear`, sharing
 `IssueStatuses`) ·
 `src/Agents/` (`AgentLauncherInterface` + the `AgentLauncherFactory`;

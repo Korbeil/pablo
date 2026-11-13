@@ -19,11 +19,6 @@ final class OpenCodeOneShot implements RuntimeOneShotInterface
 
     private const DELETE_TIMEOUT_S = 15.0;
 
-    public function model(): string
-    {
-        return self::MODEL;
-    }
-
     /** @return list<string> */
     public static function argv(string $instruction): array
     {

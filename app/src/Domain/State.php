@@ -21,12 +21,6 @@ enum State: string
     case TestingFailed = 'testing-failed';
     case Closed = 'closed';
 
-    /** @return list<State> */
-    public static function all(): array
-    {
-        return self::cases();
-    }
-
     /**
      * Display priority for listings and the dashboard: lower ranks first.
      * The single source of truth shared by the terminal listing and TaskView,

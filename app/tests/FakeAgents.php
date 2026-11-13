@@ -72,21 +72,6 @@ final class FakeAgents implements AgentLauncherInterface
         return $this->active;
     }
 
-    /**
-     * @param list<string> $worktrees
-     *
-     * @return array<string, array<int, SessionInfo>>
-     */
-    public function bulkActiveSessions(array $worktrees): array
-    {
-        $byWorktree = [];
-        foreach ($worktrees as $wt) {
-            $byWorktree[$wt] = $this->bulk[$wt] ?? [];
-        }
-
-        return $byWorktree;
-    }
-
     /** @return array<int, SessionInfo> */
     public function displaySessions(string $worktree): array
     {
@@ -100,7 +85,12 @@ final class FakeAgents implements AgentLauncherInterface
      */
     public function bulkDisplaySessions(array $worktrees): array
     {
-        return $this->bulkActiveSessions($worktrees);
+        $byWorktree = [];
+        foreach ($worktrees as $wt) {
+            $byWorktree[$wt] = $this->bulk[$wt] ?? [];
+        }
+
+        return $byWorktree;
     }
 
     public function waitForHandle(string $handle, int $timeoutS = 0): void

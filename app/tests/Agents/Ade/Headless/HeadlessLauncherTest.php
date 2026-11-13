@@ -49,7 +49,7 @@ final class HeadlessLauncherTest extends TestCase
         $map = static fn (array $sessions): array => array_map(static fn ($s) => [$s->handle, $s->status], $sessions);
         $this->assertSame($expected, $map($this->agents->activeSessions($this->tmp)));
         $this->assertSame($expected, $map($this->agents->displaySessions($this->tmp)));
-        $this->assertSame($expected, $map($this->agents->bulkActiveSessions([$this->tmp, '/other'])[$this->tmp]));
+        $this->assertSame($expected, $map($this->agents->bulkDisplaySessions([$this->tmp, '/other'])[$this->tmp]));
         $this->assertSame([], $this->agents->bulkDisplaySessions([$this->tmp, '/other'])['/other']);
         $this->assertTrue($this->agents->hasAnyAgent($this->tmp));
         $this->assertFalse($this->agents->hasAnyAgent('/other'));
