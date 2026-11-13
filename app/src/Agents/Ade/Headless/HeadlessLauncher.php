@@ -5,10 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Agents\Ade\Headless;
 
 use Pablo\Agents\Ade\AbstractAgentLauncher;
-use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Domain\Time;
-use Pablo\Store\Store;
-use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * No ADE at all: every agent runs headless in the background (see
@@ -17,14 +13,9 @@ use Pablo\Support\ProcessRunnerInterface;
  */
 final class HeadlessLauncher extends AbstractAgentLauncher
 {
-    public function __construct(
-        ProcessRunnerInterface $runner,
-        AgentRuntimeInterface $runtime,
-        Time $time = new Time(),
-        ?Store $store = null,
-        ?string $shimPath = null,
-    ) {
-        parent::__construct(HeadlessAde::NAME, $runner, $runtime, $time, $store, $shimPath);
+    protected function adeName(): string
+    {
+        return HeadlessAde::NAME;
     }
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
@@ -37,26 +28,10 @@ final class HeadlessLauncher extends AbstractAgentLauncher
         return $this->headless->launchCommand($worktree, 'startup-script', 'bash '.escapeshellarg($script));
     }
 
-    public function activeSessions(string $worktree): array
-    {
-        return $this->headless->sessionsByWorktree()[$worktree] ?? [];
-    }
-
     /** A headless run has no idle state: display = active. */
-    public function displaySessions(string $worktree): array
+    protected function sessionsFor(array $worktrees, bool $display): array
     {
-        return $this->activeSessions($worktree);
-    }
-
-    public function bulkDisplaySessions(array $worktrees): array
-    {
-        $grouped = $this->headless->sessionsByWorktree();
-        $out = [];
-        foreach ($worktrees as $worktree) {
-            $out[$worktree] = $grouped[$worktree] ?? [];
-        }
-
-        return $out;
+        return $this->headless->sessionsByWorktree();
     }
 
     public function setWorktreeDisplayName(string $worktree, string $name, ?string $issueNumber = null): void

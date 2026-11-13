@@ -35,7 +35,7 @@ final class OrcaLauncherTest extends TestCase
         $this->agentsDir = $this->tmp.'/agents';
         putenv('PABLO_AGENTS_DIR='.$this->agentsDir);
         $this->runner = new FakeProcessRunner();
-        $this->agents = new OrcaLauncher($this->runner, \Pablo\Tests\Registries::defaultRuntime(), new \Pablo\Domain\Time(), null, '/x/pablo');
+        $this->agents = new OrcaLauncher($this->runner, new \Pablo\Domain\Time(), \Pablo\Tests\Registries::defaultRuntime());
     }
 
     protected function tearDown(): void
@@ -96,6 +96,44 @@ final class OrcaLauncherTest extends TestCase
         $this->assertStringNotContainsString('--prompt', $command);
         $this->assertStringContainsString('Analyze issue #45', $command);
         $this->assertStringNotContainsString('--model', $command);
+    }
+
+    /** @return iterable<string, array{array<string, mixed>}> */
+    public static function terminalCreateReplies(): iterable
+    {
+        yield 'handle' => [['handle' => 'term_1']];
+        yield 'agentTerminalHandle' => [['agentTerminalHandle' => 'term_1']];
+        yield 'startupTerminal' => [['startupTerminal' => ['handle' => 'term_1']]];
+        yield 'terminal' => [['terminal' => ['handle' => 'term_1']]];
+    }
+
+    /** @param array<string, mixed> $reply */
+    #[\PHPUnit\Framework\Attributes\DataProvider('terminalCreateReplies')]
+    public function testStartupScriptTakesTheTerminalHandleOfEveryReplyShape(array $reply): void
+    {
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls, $reply): string {
+            $calls[] = $argv;
+
+            return $this->orcaOk(\in_array('create', $argv, true) ? $reply : []);
+        });
+
+        $this->assertSame('term_1', $this->agents->doRunStartupScript($this->tmp, $this->tmp.'/startup.sh'));
+        $this->assertContains('pablo:startup-script', $calls[1]);
+    }
+
+    public function testStartupScriptFallsBackHeadlessAndLogsWhyWhenOrcaRefuses(): void
+    {
+        $script = $this->tmp.'/startup.sh';
+        file_put_contents($script, "true\n");
+        $this->startRunner(fn (array $argv): string => \in_array('create', $argv, true) ? $this->orcaErr('terminal_failed') : $this->orcaOk([]));
+
+        $handle = $this->agents->doRunStartupScript($this->tmp, $script);
+
+        $this->assertMatchesRegularExpression('/^pid:\d+$/', $handle);
+        $log = (string) file_get_contents($this->agentsDir.'/logs/orca-fallback.log');
+        $this->assertStringContainsString('worktree='.$this->tmp.' label=startup-script reason=ok:false response:', $log);
+        $this->assertStringContainsString('terminal_failed', $log);
     }
 
     public function testOrcaLaunchPassesModelToCommand(): void

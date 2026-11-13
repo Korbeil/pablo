@@ -31,7 +31,7 @@ final class HeadlessAde extends AbstractAde
 
     public function launcher(AgentRuntimeInterface $runtime, ProcessRunnerInterface $runner, Time $time): AgentLauncherInterface
     {
-        return new HeadlessLauncher($runner, $runtime, $time);
+        return new HeadlessLauncher($runner, $time, $runtime);
     }
 
     public function followHint(): string

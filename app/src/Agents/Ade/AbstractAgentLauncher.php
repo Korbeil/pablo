@@ -7,6 +7,7 @@ namespace Pablo\Agents\Ade;
 use Pablo\Agents\Ade\Headless\HeadlessRunner;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Agent;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\Time;
@@ -34,19 +35,70 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
 {
     public const WAIT_TIMEOUT_S = 3_600;
 
-    private readonly Store $store;
-
-    private readonly string $shimPath;
-
-    protected readonly AgentRuntimeInterface $runtime;
-
     protected readonly HeadlessRunner $headless;
 
     /**
-     * Mirrors Store::defaultRoot(): resolved per process, never at container
-     * compile time (the compiled container is cached under app/var/cache).
+     * The process runner is required: a default real one would let a test that
+     * forgets it reach real CLIs. The ADE passes its own injected ones through.
      */
-    private static function defaultShimPath(): string
+    public function __construct(
+        protected readonly ProcessRunnerInterface $runner,
+        protected readonly Time $time,
+        protected readonly AgentRuntimeInterface $runtime,
+    ) {
+        $this->headless = new HeadlessRunner($this->time, $this->runtime);
+    }
+
+    /** The `agent_backend` the detached subprocesses re-resolve. */
+    abstract protected function adeName(): string;
+
+    /**
+     * Sessions of each queried worktree (a worktree with none may be missing).
+     * $display counts a finished/idle agent as waiting — parked awaiting the
+     * user (review the plan, /pablo-commit-and-pr) — so the "💭 Waiting for
+     * feedback" split surfaces it; without it only live agents count, so a
+     * finished one never blocks closure or relaunch.
+     *
+     * @param list<string> $worktrees
+     *
+     * @return array<string, list<SessionInfo>>
+     */
+    abstract protected function sessionsFor(array $worktrees, bool $display): array;
+
+    /** @return array<int, SessionInfo> */
+    public function activeSessions(string $worktree): array
+    {
+        return $this->sessionsFor([$worktree], false)[$worktree] ?? [];
+    }
+
+    /** @return array<int, SessionInfo> */
+    public function displaySessions(string $worktree): array
+    {
+        return $this->sessionsFor([$worktree], true)[$worktree] ?? [];
+    }
+
+    /**
+     * @param list<string> $worktrees
+     *
+     * @return array<string, list<SessionInfo>>
+     */
+    public function bulkDisplaySessions(array $worktrees): array
+    {
+        $grouped = $this->sessionsFor($worktrees, true);
+        $out = [];
+        foreach ($worktrees as $worktree) {
+            $out[$worktree] = $grouped[$worktree] ?? [];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Absolute path used for detached self-reinvocation: PABLO_SHIM, else
+     * ~/.local/bin/pablo. Resolved per call, never at container compile time
+     * (the compiled container is cached under app/var/cache).
+     */
+    private static function shimPath(): string
     {
         $override = getenv('PABLO_SHIM');
         if (false !== $override && '' !== $override) {
@@ -54,29 +106,6 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         }
 
         return PabloPaths::home().'/.local/bin/pablo';
-    }
-
-    /**
-     * The process runner is required: a default real one would let a test that
-     * forgets it reach real CLIs. So is the runtime: the ADE passes the
-     * selected one. Side-effect-free collaborators (Time) keep a default; the
-     * ADE always passes its own injected ones through.
-     *
-     * @param string      $ade      the `agent_backend` the detached subprocesses re-resolve
-     * @param string|null $shimPath absolute path used for detached self-reinvocation
-     */
-    public function __construct(
-        private readonly string $ade,
-        protected readonly ProcessRunnerInterface $runner,
-        AgentRuntimeInterface $runtime,
-        protected readonly Time $time = new Time(),
-        ?Store $store = null,
-        ?string $shimPath = null,
-    ) {
-        $this->runtime = $runtime;
-        $this->store = $store ?? new Store();
-        $this->shimPath = $shimPath ?? self::defaultShimPath();
-        $this->headless = new HeadlessRunner($this->time, $this->runtime);
     }
 
     public function agentsDir(): string
@@ -99,7 +128,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         // best-effort: a fallback log must never stop the launch.
         Files::tryEnsureDir($logs);
         file_put_contents(
-            $logs.'/'.$this->ade.'-fallback.log',
+            $logs.'/'.$this->adeName().'-fallback.log',
             $this->time->utcnow()." worktree={$worktree} label={$label} reason={$reason}\n",
             \FILE_APPEND,
         );
@@ -108,8 +137,8 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     public function launch(string $worktree, Agent $agent, string $prompt, string $project, string $branch): string
     {
         $pid = Detached::spawn([
-            $this->shimPath, 'internal:launch-agent',
-            '--backend', $this->ade,
+            self::shimPath(), 'internal:launch-agent',
+            '--backend', $this->adeName(),
             '--worktree', $worktree,
             '--agent', $agent->value,
             '--prompt', $prompt,
@@ -123,8 +152,8 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     public function runStartupScript(string $worktree, string $script, string $project, string $branch): string
     {
         $pid = Detached::spawn([
-            $this->shimPath, 'internal:run-startup-script',
-            '--backend', $this->ade,
+            self::shimPath(), 'internal:run-startup-script',
+            '--backend', $this->adeName(),
             '--worktree', $worktree,
             '--script', $script,
             '--project', $project,
@@ -137,8 +166,8 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
     public function spawnWatcher(string $project, string $branch, string $handle, string $agent, ?string $runId = null, ?string $promptFingerprint = null): void
     {
         $argv = [
-            $this->shimPath, 'internal:watch-agent',
-            '--backend', $this->ade,
+            self::shimPath(), 'internal:watch-agent',
+            '--backend', $this->adeName(),
             '--project', $project, '--branch', $branch,
             '--handle', $handle, '--agent', $agent,
         ];
@@ -168,9 +197,11 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
             }
             $activity = [] !== $parts ? implode(' · ', $parts) : '-';
 
-            $lock = $this->store->taskLock($project, $branch, timeoutS: 2);
+            // Resolved per call (Store reads PABLO_STATE_DIR at runtime).
+            $store = new Store(time: $this->time);
+            $lock = $store->taskLock($project, $branch, timeoutS: 2);
             try {
-                $task = $this->store->get($project, $branch);
+                $task = $store->get($project, $branch);
                 if (null === $task) {
                     return;
                 }
@@ -181,7 +212,7 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
                     agentActivity: $activity,
                     at: $this->time->utcnow(),
                 );
-                $this->store->save($task);
+                $store->save($task);
             } finally {
                 $lock->release();
             }

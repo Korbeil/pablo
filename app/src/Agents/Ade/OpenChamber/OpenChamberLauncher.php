@@ -5,14 +5,11 @@ declare(strict_types=1);
 namespace Pablo\Agents\Ade\OpenChamber;
 
 use Pablo\Agents\Ade\AbstractAgentLauncher;
+use Pablo\Agents\Ade\AdeCall;
 use Pablo\Agents\AgentTemplates;
-use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
-use Pablo\Domain\Time;
-use Pablo\Store\Store;
 use Pablo\Support\Files;
 use Pablo\Support\Json;
-use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * The OpenChamber ADE's launcher.
@@ -37,20 +34,10 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
 {
     public const SESSION_TIMEOUT_S = 60;
 
-    public function __construct(
-        ProcessRunnerInterface $runner,
-        AgentRuntimeInterface $runtime,
-        Time $time = new Time(),
-        ?Store $store = null,
-        ?string $shimPath = null,
-        ?string $agentsDir = null,
-    ) {
-        parent::__construct(OpenChamberAde::NAME, $runner, $runtime, $time, $store, $shimPath);
-        $this->agentFilesDir = $agentsDir;
+    protected function adeName(): string
+    {
+        return OpenChamberAde::NAME;
     }
-
-    /** Override of ~/.pablo/runtime/opencode/agents (tests); null resolves it per call. */
-    private readonly ?string $agentFilesDir;
 
     /**
      * One openchamber CLI call, returning the decoded payload plus the failure
@@ -58,16 +45,14 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
      * fallback path, so the short timeout only guards against a wedged daemon.
      *
      * @param list<string> $argv
-     *
-     * @return array{payload: array<string, mixed>|null, reason: string|null}
      */
-    private function call(array $argv): array
+    private function call(array $argv): AdeCall
     {
         try {
             $out = $this->runner->run(['openchamber', ...$argv, '--json'], check: false, timeout: self::SESSION_TIMEOUT_S);
             $data = Json::tryDecodeArray($out);
         } catch (\Throwable $e) {
-            return ['payload' => null, 'reason' => $e::class.': '.$e->getMessage()];
+            return AdeCall::failed($e::class.': '.$e->getMessage());
         }
         if (!\is_array($data)) {
             $reason = 'non-JSON response: '.var_export($out, true);
@@ -77,13 +62,13 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
                 $reason .= ' (is `openchamber` the desktop app? PABLO needs its CLI, '.OpenChamberCli::INSTALL.': see pablo system:doctor)';
             }
 
-            return ['payload' => null, 'reason' => $reason];
+            return AdeCall::failed($reason);
         }
         if (($data['status'] ?? null) !== 'ok') {
-            return ['payload' => null, 'reason' => 'status:'.var_export($data['status'] ?? null, true).' error:'.var_export($data['error'] ?? null, true)];
+            return AdeCall::failed('status:'.var_export($data['status'] ?? null, true).' error:'.var_export($data['error'] ?? null, true));
         }
 
-        return ['payload' => $data, 'reason' => null];
+        return new AdeCall($data, null);
     }
 
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
@@ -99,9 +84,9 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
             $create[] = $model;
         }
         $created = $this->call($create);
-        $sessionId = $created['payload']['sessionId'] ?? null;
+        $sessionId = $created->payload['sessionId'] ?? null;
         if (!\is_string($sessionId) || '' === $sessionId) {
-            $this->logFallback($worktree, $agent, 'session create failed: '.($created['reason'] ?? 'unknown'));
+            $this->logFallback($worktree, $agent, 'session create failed: '.($created->reason ?? 'unknown'));
 
             return $this->launchHeadless($worktree, $agent, $prompt, $model);
         }
@@ -115,13 +100,13 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
             $send[] = $model;
         }
         $sent = $this->call($send);
-        if (null === $sent['payload']) {
+        if (null === $sent->payload) {
             // A failed send leaves the created session as an empty zombie: the
             // watcher would report it finished within seconds and the display
             // would park it as waiting forever. Drop the pidfile, log why, and
             // fall back to headless with the same model — so a bad model id
             // stays loud in the headless run's own log instead of vanishing.
-            $this->logFallback($worktree, $agent, 'session send failed ('.$sessionId.'): '.($sent['reason'] ?? 'unknown'));
+            $this->logFallback($worktree, $agent, 'session send failed ('.$sessionId.'): '.($sent->reason ?? 'unknown'));
             $this->cleanupSessionFile($sessionId);
 
             return $this->launchHeadless($worktree, $agent, $prompt, $model);
@@ -146,7 +131,7 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
      */
     private function agentModel(string $agent): ?string
     {
-        $path = ($this->agentFilesDir ?? AgentTemplates::renderedDir().'/agents').'/'.$agent.'.md';
+        $path = AgentTemplates::renderedDir().'/agents/'.$agent.'.md';
         if (!is_file($path)) {
             return null;
         }
@@ -198,7 +183,7 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
     {
         $out = [];
         foreach ($worktrees as $wt) {
-            $list = $this->call(['session', 'list', '--dir', $wt, '--with-status', '--limit', '200'])['payload'];
+            $list = $this->call(['session', 'list', '--dir', $wt, '--with-status', '--limit', '200'])->payload;
             foreach ($list['sessions'] ?? [] as $s) {
                 $out[$wt][] = $s;
             }
@@ -212,7 +197,7 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
      *
      * @return list<SessionInfo>
      */
-    private function mapSessions(array $rawSessions, bool $includeIdleAsWaiting): array
+    private function mapSessions(array $rawSessions, bool $display): array
     {
         $result = [];
         foreach ($rawSessions as $s) {
@@ -220,7 +205,7 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
             $id = (string) ($s['id'] ?? '');
             if ('busy' === $status || 'retry' === $status) {
                 $result[] = new SessionInfo($id, 'running');
-            } elseif ($includeIdleAsWaiting) {
+            } elseif ($display) {
                 // An idle session has finished its run; in display mode it
                 // parks as waiting (review the plan, commit-and-PR).
                 $result[] = new SessionInfo($id, 'waiting');
@@ -230,30 +215,9 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
         return $result;
     }
 
-    /** @return array<int, SessionInfo> */
-    public function activeSessions(string $worktree): array
+    protected function sessionsFor(array $worktrees, bool $display): array
     {
-        return $this->mapSessions($this->sessionsByWorktree([$worktree])[$worktree] ?? [], false);
-    }
-
-    /** @return array<int, SessionInfo> */
-    public function displaySessions(string $worktree): array
-    {
-        return $this->mapSessions($this->sessionsByWorktree([$worktree])[$worktree] ?? [], true);
-    }
-
-    /** @param list<string> $worktrees
-     * @return array<string, list<SessionInfo>>
-     */
-    public function bulkDisplaySessions(array $worktrees): array
-    {
-        $byWt = $this->sessionsByWorktree($worktrees);
-        $out = [];
-        foreach ($worktrees as $wt) {
-            $out[$wt] = $this->mapSessions($byWt[$wt] ?? [], true);
-        }
-
-        return $out;
+        return array_map(fn (array $raw): array => $this->mapSessions($raw, $display), $this->sessionsByWorktree($worktrees));
     }
 
     public function setWorktreeDisplayName(string $worktree, string $name, ?string $issueNumber = null): void

@@ -265,7 +265,7 @@ final class AgentRuntimeTest extends TestCase
 
             return json_encode(['id' => 'x', 'ok' => true, 'result' => ['handle' => 'term_9']], \JSON_THROW_ON_ERROR);
         };
-        $agents = new OrcaLauncher($runner, $this->claude(), new \Pablo\Domain\Time(), null, '/x/pablo');
+        $agents = new OrcaLauncher($runner, new \Pablo\Domain\Time(), $this->claude());
 
         $this->assertSame('term_9', $agents->doLaunchAgent($this->tmp, 'ci-analyst', 'Why is CI red?', 'haiku'));
         $key = array_search('--command', $calls[1], true);
@@ -349,7 +349,7 @@ final class AgentRuntimeTest extends TestCase
             }
         };
         mkdir($this->tmp.'/agents', 0o777, true);
-        $agents = new OrcaLauncher(new FakeProcessRunner(), $runtime, new \Pablo\Domain\Time(), null, '/x/pablo');
+        $agents = new OrcaLauncher(new FakeProcessRunner(), new \Pablo\Domain\Time(), $runtime);
 
         $handle = $agents->launchHeadless($this->tmp, 'task-analyst', 'p', 'sonnet');
         $this->assertStringStartsWith('pid:', $handle);

@@ -5,14 +5,11 @@ declare(strict_types=1);
 namespace Pablo\Agents\Ade\Orca;
 
 use Pablo\Agents\Ade\AbstractAgentLauncher;
-use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\Ade\AdeCall;
 use Pablo\Agents\SessionInfo;
-use Pablo\Domain\Time;
-use Pablo\Store\Store;
 use Pablo\Support\Files;
 use Pablo\Support\Json;
 use Pablo\Support\PabloError;
-use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * The Orca ADE's launcher: launching agents on worktrees and querying their
@@ -31,33 +28,28 @@ final class OrcaLauncher extends AbstractAgentLauncher
     public const RUNNING_STATES = ['working', 'running'];
     public const FINISHED_STATES = ['done', 'completed'];
 
-    public function __construct(
-        ProcessRunnerInterface $runner,
-        AgentRuntimeInterface $runtime,
-        Time $time = new Time(),
-        ?Store $store = null,
-        ?string $shimPath = null,
-    ) {
-        parent::__construct(OrcaAde::NAME, $runner, $runtime, $time, $store, $shimPath);
+    protected function adeName(): string
+    {
+        return OrcaAde::NAME;
     }
 
     /**
      * @param list<string> $argv
      */
-    private function orca(array $argv): OrcaCall
+    private function orca(array $argv): AdeCall
     {
         $out = '';
         try {
             $out = $this->runner->run([OrcaCli::command(), ...$argv, '--json'], check: false, timeout: self::ORCA_CALL_TIMEOUT_S);
             $data = Json::tryDecodeArray($out);
         } catch (\Throwable $e) {
-            return new OrcaCall(null, $e::class.': '.$e->getMessage().'; raw_stdout='.var_export($out, true));
+            return AdeCall::failed($e::class.': '.$e->getMessage().'; raw_stdout='.var_export($out, true));
         }
         if (!\is_array($data) || ($data['ok'] ?? false) !== true) {
-            return new OrcaCall(null, 'ok:false response: '.var_export($data, true));
+            return AdeCall::failed('ok:false response: '.var_export($data, true));
         }
 
-        return new OrcaCall(\is_array($data['result'] ?? null) ? $data['result'] : [], null);
+        return new AdeCall(\is_array($data['result'] ?? null) ? $data['result'] : [], null);
     }
 
     /**
@@ -106,6 +98,40 @@ final class OrcaLauncher extends AbstractAgentLauncher
         return 'orca adoption timeout for '.$worktree.' (last reply: '.($last ?? 'none').')';
     }
 
+    /**
+     * Open a `pablo:<label>` Orca terminal running $command in $worktree
+     * (once Orca has adopted it), serialised per worktree by the launch lock.
+     * When Orca refuses or is unreachable, the reason is logged and the caller
+     * falls back to a headless run.
+     *
+     * @return string|null the terminal handle, null to fall back
+     */
+    private function createTerminal(string $worktree, string $label, string $command): ?string
+    {
+        $call = $this->withLaunchLock($worktree, function () use ($worktree, $label, $command): AdeCall {
+            if (null !== ($notAdopted = $this->waitForOrcaAdoption($worktree))) {
+                return AdeCall::failed($notAdopted);
+            }
+
+            return $this->orca([
+                'terminal', 'create',
+                '--worktree', 'path:'.$worktree,
+                '--title', 'pablo:'.$label,
+                '--command', $command,
+            ]);
+        });
+        $result = $call->payload;
+        $handle = null === $result ? null
+            : $result['handle'] ?? $result['agentTerminalHandle'] ?? $result['startupTerminal']['handle'] ?? $result['terminal']['handle'] ?? null;
+        if (null === $handle) {
+            $this->logFallback($worktree, $label, $call->reason);
+
+            return null;
+        }
+
+        return (string) $handle;
+    }
+
     public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
     {
         // The agent runs inside the worktree, in an Orca terminal: in the
@@ -116,57 +142,17 @@ final class OrcaLauncher extends AbstractAgentLauncher
         $sessionId = $this->runtime->newSessionId();
         $command = 'cd '.escapeshellarg($worktree).'; '
             .($this->runtime->interactiveCommand($agent, $prompt, $model) ?? $this->runtime->launchCommand($agent, $prompt, $model, $sessionId));
-        $call = $this->withLaunchLock($worktree, function () use ($worktree, $agent, $command) {
-            if (null !== ($notAdopted = $this->waitForOrcaAdoption($worktree))) {
-                return new OrcaCall(null, $notAdopted);
-            }
 
-            return $this->orca([
-                'terminal', 'create',
-                '--worktree', 'path:'.$worktree,
-                '--title', 'pablo:'.$agent,
-                '--command', $command,
-            ]);
-        });
-        $result = $call->payload;
-        $reason = $call->reason;
-        if (null !== $result) {
-            $handle = $result['handle'] ?? $result['agentTerminalHandle'] ?? ($result['startupTerminal']['handle'] ?? null) ?? ($result['terminal']['handle'] ?? null);
-            if (null !== $handle) {
-                return (string) $handle;
-            }
-        }
-        $this->logFallback($worktree, $agent, $reason);
-
-        return $this->launchHeadless($worktree, $agent, $prompt, $model, $sessionId);
+        return $this->createTerminal($worktree, $agent, $command)
+            ?? $this->launchHeadless($worktree, $agent, $prompt, $model, $sessionId);
     }
 
     public function doRunStartupScript(string $worktree, string $script): string
     {
         $command = 'bash '.escapeshellarg($script).'; exec bash';
-        $call = $this->withLaunchLock($worktree, function () use ($worktree, $command) {
-            if (null !== ($notAdopted = $this->waitForOrcaAdoption($worktree))) {
-                return new OrcaCall(null, $notAdopted);
-            }
 
-            return $this->orca([
-                'terminal', 'create',
-                '--worktree', 'path:'.$worktree,
-                '--title', 'pablo:startup-script',
-                '--command', $command,
-            ]);
-        });
-        $result = $call->payload;
-        $reason = $call->reason;
-        if (null !== $result) {
-            $handle = $result['handle'] ?? $result['agentTerminalHandle'] ?? ($result['startupTerminal']['handle'] ?? null) ?? ($result['terminal']['handle'] ?? null);
-            if (null !== $handle) {
-                return (string) $handle;
-            }
-        }
-        $this->logFallback($worktree, 'startup-script', $reason);
-
-        return $this->headless->launchCommand($worktree, 'startup-script', $command);
+        return $this->createTerminal($worktree, 'startup-script', $command)
+            ?? $this->headless->launchCommand($worktree, 'startup-script', $command);
     }
 
     public function setWorktreeDisplayName(string $worktree, string $name, ?string $issueNumber = null): void
@@ -184,7 +170,7 @@ final class OrcaLauncher extends AbstractAgentLauncher
      *
      * @return array<string, list<SessionInfo>>
      */
-    private function sessionsByWorktreeFromOrca(array $orcaWorktrees, bool $includeFinishedAsWaiting = false): array
+    private function sessionsByWorktreeFromOrca(array $orcaWorktrees, bool $display): array
     {
         $grouped = [];
         foreach ($orcaWorktrees as $wt) {
@@ -192,14 +178,11 @@ final class OrcaLauncher extends AbstractAgentLauncher
             foreach ($wt['agents'] ?? [] as $agent) {
                 $state = $agent['state'] ?? null;
                 if (\in_array($state, self::FINISHED_STATES, true)) {
-                    if (!$includeFinishedAsWaiting) {
+                    if (!$display) {
                         continue; // a finished agent (e.g. "done") must not count as an active session
                     }
-                    // For the display/split path a finished analyst is parked
-                    // awaiting the user (review the plan and /pablo-commit-and-pr), so
-                    // it reports as waiting so the "💭 Waiting for feedback" split
-                    // surfaces it. It still never blocks closure or relaunch,
-                    // which keep using activeSessions() (this flag off).
+                    // A finished analyst is parked awaiting the user, so the
+                    // display reports it as waiting.
                     $status = 'waiting';
                 } else {
                     $status = \in_array($state, self::RUNNING_STATES, true) ? 'running' : 'waiting';
@@ -211,57 +194,14 @@ final class OrcaLauncher extends AbstractAgentLauncher
         return $grouped;
     }
 
-    /** @return array<int, SessionInfo> */
-    public function activeSessions(string $worktree): array
-    {
-        return $this->sessionsForWorktree($worktree, false);
-    }
-
-    /**
-     * Active agents for display/rendering, counting a finished (orca "done")
-     * analyst as waiting so the "💭 Waiting for feedback" split surfaces it.
-     *
-     * @return array<int, SessionInfo>
-     */
-    public function displaySessions(string $worktree): array
-    {
-        return $this->sessionsForWorktree($worktree, true);
-    }
-
-    /**
-     * Bulk variant of displaySessions().
-     *
-     * @param list<string> $worktrees
-     *
-     * @return array<string, list<SessionInfo>>
-     */
-    public function bulkDisplaySessions(array $worktrees): array
-    {
-        return $this->bulkSessionsForWorktrees($worktrees, true);
-    }
-
-    /** @return array<int, SessionInfo> */
-    private function sessionsForWorktree(string $worktree, bool $includeFinishedAsWaiting): array
+    /** One `orca worktree ps` for every queried worktree, plus their headless runs. */
+    protected function sessionsFor(array $worktrees, bool $display): array
     {
         $result = $this->orca(['worktree', 'ps', '--limit', '200'])->payload;
-        $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? [], $includeFinishedAsWaiting) : [];
-        $sessions = $orcaGrouped[$worktree] ?? [];
-        $sessions = array_merge($sessions, $this->headless->sessionsByWorktree()[$worktree] ?? []);
-
-        return $sessions;
-    }
-
-    /** @param list<string> $worktrees
-     * @return array<string, list<SessionInfo>>
-     */
-    private function bulkSessionsForWorktrees(array $worktrees, bool $includeFinishedAsWaiting): array
-    {
-        $wanted = array_fill_keys($worktrees, true);
-        $result = $this->orca(['worktree', 'ps', '--limit', '200'])->payload;
-        $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? [], $includeFinishedAsWaiting) : [];
+        $orcaGrouped = null !== $result ? $this->sessionsByWorktreeFromOrca($result['worktrees'] ?? [], $display) : [];
         $headlessGrouped = $this->headless->sessionsByWorktree();
         $out = [];
-        foreach ($wanted as $wt => $_) {
+        foreach ($worktrees as $wt) {
             $out[$wt] = array_merge($orcaGrouped[$wt] ?? [], $headlessGrouped[$wt] ?? []);
         }
 
