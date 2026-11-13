@@ -417,5 +417,22 @@ final class SyncTest extends TestCase
         $prompt = $this->sync()->buildConflictAgentPrompt($report, $this->cfg);
         $this->assertStringContainsString('git rebase origin/main', $prompt);
         $this->assertStringNotContainsString('git rebase origin/pr-parent', $prompt);
+        $this->assertStringContainsString('If `origin/pr-1` has new commits', $prompt);
+        $this->assertStringContainsString('git push --force-with-lease origin pr-1', $prompt);
+    }
+
+    public function testConflictPromptUsesTheBranchPushRemote(): void
+    {
+        $report = new \Pablo\Provider\Git\SyncReport(
+            worktree: $this->wt,
+            branch: 'pr-1',
+            action: 'conflict',
+            conflictFiles: ['README.md'],
+            pushRemote: 'mine',
+        );
+        $prompt = $this->sync()->buildConflictAgentPrompt($report, $this->cfg);
+        $this->assertStringContainsString('git fetch --prune origin mine', $prompt);
+        $this->assertStringContainsString('If `mine/pr-1` has new commits', $prompt);
+        $this->assertStringContainsString('git push --force-with-lease mine pr-1', $prompt);
     }
 }

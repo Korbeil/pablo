@@ -176,7 +176,7 @@ final class FakeGit implements GitRepoInterface
     {
     }
 
-    public function pushWithLease(string $worktree, string $branch): void
+    public function pushWithLease(string $worktree, string $branch, string $remote = 'origin'): void
     {
     }
 
