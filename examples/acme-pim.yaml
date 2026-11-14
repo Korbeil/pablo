@@ -23,5 +23,7 @@ ci:
   # matched by the "approval" substring so GhPr::evaluateCi() skips them and CI can
   # still resolve to green.
   ignore_checks: ["approval"]
+# models:                   # a model per agent, for this project only
+#   rebase-conflict-resolver: anthropic/claude-sonnet-5-5
 # worktrees_root omitted -> ~/.pablo/worktrees/pim/
 # sync.interval_minutes / state_polling / review omitted -> ~/.pablo/config.yaml

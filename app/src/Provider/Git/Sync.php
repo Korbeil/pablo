@@ -8,6 +8,7 @@ use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Agents\Runtime\SessionRef;
 use Pablo\Config\ProjectConfig;
+use Pablo\Domain\Agent;
 use Pablo\Domain\State;
 use Pablo\Domain\Time;
 use Pablo\Provider\Gh\GhPrInterface;
@@ -189,7 +190,7 @@ final class Sync
                 // before the run even starts.
                 $runtime = $this->runtimes->resolve();
                 $sessionId = $runtime->newSessionId();
-                $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->defaultModel, $sessionId);
+                $agents->launchHeadless($report->worktree, 'rebase-conflict-resolver', $prompt, $cfg->modelFor(Agent::RebaseConflictResolver->value), $sessionId);
                 $report->agentHandle = $runtime->sessions()->handle($sessionId);
             }
         }

@@ -114,6 +114,38 @@ final class InstallCommandTest extends TestCase
         $this->assertStringContainsString('agent runtime: copilot', $tester->getDisplay());
     }
 
+    public function testAFormerKeyIsRenamedInPlace(): void
+    {
+        $this->assertSame(0, $this->install()->getStatusCode());
+        $file = $this->home.'/.pablo/config.yaml';
+        file_put_contents($file, "\n# default_model_by_type: a comment, kept\ndefault_model_by_type:  # mine\n  work: litellm/claude-opus\n", \FILE_APPEND);
+
+        $tester = $this->install();
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $config = (string) file_get_contents($file);
+        $this->assertStringContainsString("# default_model_by_type: a comment, kept\nmodels:  # mine\n  work: litellm/claude-opus\n", $config);
+        $this->assertStringNotContainsString("\ndefault_model_by_type:", $config);
+        $this->assertStringContainsString("renamed default_model_by_type to models in {$file}", $tester->getDisplay());
+
+        $tester = $this->install();
+        $this->assertStringNotContainsString('renamed default_model_by_type', $tester->getDisplay(), 'nothing left to rename');
+    }
+
+    public function testAFormerKeyNextToItsNewNameIsLeftAlone(): void
+    {
+        $this->assertSame(0, $this->install()->getStatusCode());
+        $file = $this->home.'/.pablo/config.yaml';
+        file_put_contents($file, "\nmodels:\n  work: litellm/a\ndefault_model_by_type:\n  personal: litellm/b\n", \FILE_APPEND);
+        $before = (string) file_get_contents($file);
+
+        $tester = $this->install();
+
+        $this->assertNotSame(0, $tester->getStatusCode());
+        $this->assertSame($before, (string) file_get_contents($file));
+        $this->assertStringContainsString('sets both default_model_by_type and models', $tester->getDisplay());
+    }
+
     public function testRunningTwiceChangesNothing(): void
     {
         $this->assertSame(0, $this->install(['--runtime' => 'claude-code', '--backend' => 'orca'])->getStatusCode());

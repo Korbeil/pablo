@@ -124,7 +124,8 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
      * one the agent config declares.
      *
      * Only consulted when no model was resolved from config
-     * (project default_model / default_model_by_type / global default_model):
+     * (project default_model / models, per agent or per type /
+     * global default_model):
      * those arrive as doLaunchAgent()'s $model parameter and win.
      *
      * @return string|null null when the file or a `model:` line is missing

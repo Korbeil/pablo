@@ -299,7 +299,9 @@ concurrent reads corrupt each other (crc32 mismatch) — `php -S` forks its
 workers before opening it.
 
 **Install** (`src/Install/`, `system:install` / `system:uninstall`):
-idempotent; never touches a pre-existing non-PABLO file in
+idempotent; renames a renamed `config.yaml` key in place
+(`ConfigSeeder::RENAMED_KEYS`, before the config is first read — a key
+rename gets an entry there, and the old name an error in `ConfigSchema`); never touches a pre-existing non-PABLO file in
 `~/.config/opencode`, `~/.claude`, `~/.copilot` (a link is PABLO's when it
 points into `~/.pablo/runtime` or into a PABLO checkout — the clone install's
 links, taken over on migration); systemd units / launchd plists are bundled
@@ -479,8 +481,11 @@ error naming the key. Overridable keys: `sync.strategy` (`rebase`/`merge`),
 `sync.auto_apply`, `sync.interval_minutes`, `state_polling.interval_minutes`,
 `main_update.enabled`, `main_update.interval_minutes`,
 `review.bot_whitelist`, `ci.ignore_checks`, `testing.enabled`,
-`default_model` (project > global-only `default_model_by_type.<type>` >
-global; validated by the runtime's `modelError()`), `pr_description_locale`,
+`default_model` (project `models.<agent>` > project `default_model` >
+global-only `models.<type>.<agent>` > `models.<type>` — a model, or a
+mapping of agent label and `default` to model — > global; a project's
+`default_model` drops its type's per-agent models; `ProjectConfig::modelFor($agent)` resolves it
+at launch; validated by the runtime's `modelError()`), `pr_description_locale`,
 `branch_prefix`. Global-only: `agent_backend`, `agent_runtime`,
 `claude_code.*`, `dashboard_port`, `dashboard_trusted_hosts`,
 `dispatch.poll_concurrency`. Required per project: `name` (unique),
@@ -488,7 +493,7 @@ global; validated by the runtime's `modelError()`), `pr_description_locale`,
 `issue_tracker.{provider,identity,project_key}` (providers:
 `github`/`jira`/`linear`); optional: `repo.primary_remote` (`origin`),
 `worktrees_root`, `issue_tracker.{repo,site}`, `confluence.space`,
-`testing.failure_signal`, `startup_script`.
+`testing.failure_signal`, `startup_script`, `models` (agent label => model).
 
 Every key, with its type and range, is listed once in
 `src/Config/ConfigSchema.php`, which both loaders and `ConfigValidator`

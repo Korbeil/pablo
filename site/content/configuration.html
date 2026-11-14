@@ -71,7 +71,7 @@ ci:
   ignore_checks: ["approval"]
 # agent_runtime: claude-code        # global only, default: opencode
 # agent_backend: openchamber        # global only, default orca
-# default_model_by_type:            # global only
+# models:                           # global only
 #   work: anthropic/claude-opus-4
 # hooks:                            # your own command, see Get notified
 #   command: 'notify-send PABLO "$PABLO_TASK → $PABLO_TO"'
@@ -102,7 +102,7 @@ ci:
   </tbody>
 </table>
 
-<p>If a required key isn't set anywhere (and, for <code>default_model</code>, no <code>default_model_by_type</code> entry matches), loading the project fails with an error such as <code>no value for sync.interval_minutes — set it in the project config or ~/.pablo/config.yaml</code>.</p>
+<p>If a required key isn't set anywhere (and, for <code>default_model</code>, no <code>models</code> entry matches), loading the project fails with an error such as <code>no value for sync.interval_minutes — set it in the project config or ~/.pablo/config.yaml</code>.</p>
 
 <h3>Global-only keys</h3>
 
@@ -111,8 +111,8 @@ ci:
   <dd><code>opencode</code> (default), <code>claude-code</code> or <code>copilot</code>: the program that runs the agents. Also settable with the <code>PABLO_AGENT_RUNTIME</code> environment variable. It changes the command the doctor requires (<code>opencode</code>, <code>claude</code> or <code>copilot</code>), what the installer generates and links, and which model ids <code>default_model</code> accepts. A first install sets <code>claude-code</code> for you when it finds Claude Code but no OpenCode. It sets <code>copilot</code> when it finds Copilot CLI but neither OpenCode nor Claude Code. See <a href="page:runtimes#choose-an-agent-runtime">Choose an agent runtime</a>.</dd>
   <dt><code>agent_backend</code></dt>
   <dd>The agent environment (ADE): <code>orca</code> (default), <code>openchamber</code> or <code>headless</code>. Also settable with the <code>PABLO_AGENT_BACKEND</code> environment variable. With <code>openchamber</code>, the doctor checks the <code>openchamber</code> command instead of <code>orca</code>; with <code>headless</code> (no agent environment: every agent runs in the background) it checks neither. A first install sets <code>openchamber</code> for you when it finds OpenChamber but no Orca; when it finds neither it keeps <code>orca</code>, whose runs fall back to headless until Orca is installed. OpenChamber only runs OpenCode: with <code>agent_runtime: claude-code</code> or <code>copilot</code> it is refused. See <a href="page:runtimes#choose-an-ade">Choose an agent environment</a>.</dd>
-  <dt><code>default_model_by_type</code></dt>
-  <dd>A model per project type; see below.</dd>
+  <dt><code>models</code></dt>
+  <dd>A model per project type, optionally per agent; see below. It used to be called <code>default_model_by_type</code>: a <code>config.yaml</code> still using that name fails to load until the key is renamed. <code>pablo system:install</code> renames it for you, and so does <code>pablo update</code>, which runs it.</dd>
   <dt><code>dispatch.poll_concurrency</code></dt>
   <dd>How many projects the background job polls at once (default <code>2</code>, from <code>1</code> to <code>8</code>; <code>1</code> polls them one after the other). Only the poll job overlaps, sync and main never do. Each extra project polled at once is one more <code>gh</code> and tracker caller on the same accounts, so keep it low: see <a href="page:how-it-works#concurrent-polls">Polling several projects at once</a>. An invalid value never stops the background job: it says so in its log and polls one project at a time.</dd>
   <dt><code>dashboard_port</code></dt>
@@ -132,14 +132,16 @@ ci:
 <p>The model is resolved when an agent is launched, and passed to the runtime as <code>--model</code>. The first one found wins:</p>
 
 <ol>
+  <li>the agent's entry in the project's own <code>models</code>;</li>
   <li>the project's own <code>default_model</code>;</li>
-  <li>the entry for the project's type in <code>default_model_by_type</code>;</li>
+  <li>the agent's own entry under the project's type in <code>models</code>;</li>
+  <li>the model for the project's type in <code>models</code> (the type's <code>default</code>, when it lists agents);</li>
   <li>the global <code>default_model</code>;</li>
   <li>as a last resort, the model written in the generated agent file.</li>
 </ol>
 
 <pre><code class="language-yaml"># ~/.pablo/config.yaml — expensive models only on work projects
-default_model_by_type:
+models:
   work: anthropic/claude-opus-4
   open-source: litellm/glm-5.3-flash
   personal: opencode-go/glm-5.3-flash
@@ -147,7 +149,29 @@ default_model_by_type:
 
 <p>Keys must be project types (<code>work</code>, <code>open-source</code>, <code>personal</code>); an unknown key is an error.</p>
 
-<p>The format depends on <code>agent_runtime</code>. OpenCode takes a <code>provider/model</code> id, as above. Claude Code takes an alias (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or a full model id such as <code>claude-sonnet-5-5</code>; a <code>provider/model</code> id is refused with an error when the project loads. Copilot takes its own dotted model ids, such as <code>claude-sonnet-5.5</code> or <code>gpt-5.3-codex</code>; a <code>provider/model</code> id or a Claude Code name (<code>sonnet</code>, <code>claude-sonnet-5-5</code>) is refused, with the dotted form suggested. Under Claude Code and Copilot the generated agents carry no model, so step 4 never applies.</p>
+<h3 id="a-model-per-agent">A model per agent</h3>
+
+<p>A type's value can also be a mapping of agent to model, to give one agent a different model. <code>default</code> is the model of the type's other agents; without it, they get the global <code>default_model</code>.</p>
+
+<pre><code class="language-yaml">default_model: litellm/glm-5.3-flash
+models:
+  work:
+    rebase-conflict-resolver: anthropic/claude-sonnet-5-5
+    default: anthropic/claude-opus-5-5
+  personal: litellm/deepseek-v4.1-flash
+</code></pre>
+
+<p>The agent keys are <code>task-analyst</code>, <code>ci-analyst</code>, <code>pr-feedback</code>, <code>task-feedback</code> and <code>rebase-conflict-resolver</code> (see <a href="page:agents">Agents</a>), plus <code>default</code>; an unknown key is an error. A project that sets its own <code>default_model</code> uses it for every agent its own <code>models</code> doesn't list: its type's per-agent models don't apply to it. Each model is checked against <code>agent_runtime</code>, like <code>default_model</code>.</p>
+
+<p>A project file can set models per agent too, with its own <code>models</code>: a mapping of agent to model (the same agent keys, without <code>default</code>, since that is the project's <code>default_model</code>). They beat everything else, for that project only:</p>
+
+<pre><code class="language-yaml"># ~/.pablo/projects/acme-pim.yaml
+default_model: anthropic/claude-opus-5-5           # optional
+models:
+  rebase-conflict-resolver: anthropic/claude-sonnet-5-5
+</code></pre>
+
+<p>The format depends on <code>agent_runtime</code>. OpenCode takes a <code>provider/model</code> id, as above. Claude Code takes an alias (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or a full model id such as <code>claude-sonnet-5-5</code>; a <code>provider/model</code> id is refused with an error when the project loads. Copilot takes its own dotted model ids, such as <code>claude-sonnet-5.5</code> or <code>gpt-5.3-codex</code>; a <code>provider/model</code> id or a Claude Code name (<code>sonnet</code>, <code>claude-sonnet-5-5</code>) is refused, with the dotted form suggested. Under Claude Code and Copilot the generated agents carry no model, so the last step never applies.</p>
 
 <h2 id="runtimes-and-ades">Runtimes and agent environments</h2>
 
