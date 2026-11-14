@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Config;
 
+use Pablo\Domain\Agent;
 use Pablo\Domain\State;
 use Pablo\Web\TrustedHosts;
 
@@ -242,11 +243,15 @@ final class ConfigSchema
     {
         $byType = [];
         foreach (Config::PROJECT_TYPES as $type) {
-            $byType[$type] = self::leaf(self::text(...));
+            $byType[$type] = self::leaf(self::typeModel(...));
         }
 
         return self::inherited(false) + [
-            'default_model_by_type' => SchemaKey::map($byType, closed: 'type', mapping: 'a mapping of project type to model'),
+            'models' => SchemaKey::map($byType, closed: 'type', mapping: 'a mapping of project type to model (or to a mapping of agent to model)'),
+            // Its former name: an error rather than an ignored unknown key,
+            // which would silently put its projects on the global model.
+            // system:install renames it (ConfigSeeder::RENAMED_KEYS).
+            'default_model_by_type' => self::leaf(static fn (mixed $v): string => 'was renamed to `models`: rename the key, or run `pablo system:install`'),
             // Names checked by the registries (one place lists them), which
             // the doctor and system:config:validate report.
             'agent_backend' => self::leaf(self::text(...)),
@@ -295,6 +300,13 @@ final class ConfigSchema
                 'space' => self::leaf(self::text(...)),
             ]),
             'startup_script' => self::leaf(self::text(...)),
+            // Not config.yaml's `models` (by project type): the project's own
+            // per-agent models, its default being its default_model.
+            'models' => SchemaKey::map(
+                array_fill_keys(Agent::modelAgents(), self::leaf(self::text(...))),
+                closed: 'agent',
+                mapping: 'a mapping of agent to model',
+            ),
         ] + self::inherited(true);
     }
 
@@ -308,6 +320,33 @@ final class ConfigSchema
     private static function text(mixed $value): ?string
     {
         return \is_string($value) || \is_int($value) || \is_float($value) ? null : 'must be a string, got '.self::show($value);
+    }
+
+    /**
+     * A models entry: a model, or a mapping of agent label
+     * (or `default`, the model of the type's other agents) to model.
+     */
+    private static function typeModel(mixed $value): ?string
+    {
+        if (null === self::text($value)) {
+            return null;
+        }
+        if (!\is_array($value) || ([] !== $value && array_is_list($value))) {
+            return 'must be a model, or a mapping of agent to model, got '.self::show($value);
+        }
+        $keys = [Config::MODEL_DEFAULT_KEY, ...Agent::modelAgents()];
+        foreach ($value as $agent => $model) {
+            $agent = (string) $agent;
+            if (!\in_array($agent, $keys, true)) {
+                return \sprintf('has unknown agent %s (expected one of: %s)', var_export($agent, true), implode(', ', $keys));
+            }
+            $problem = null !== $model ? self::text($model) : null;
+            if (null !== $problem) {
+                return "{$agent} {$problem}";
+            }
+        }
+
+        return null;
     }
 
     private static function flag(mixed $value): ?string

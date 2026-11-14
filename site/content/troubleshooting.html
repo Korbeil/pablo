@@ -71,7 +71,7 @@ pablo sync:log          # what the last sync did, per project
 
 <h3>Loading a project fails: <code>default_model</code> looks like an OpenCode provider/model id</h3>
 
-<p>Under <code>agent_runtime: claude-code</code>, models are Claude aliases (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or full model ids, not <code>provider/model</code>. Fix <code>default_model</code> and <code>default_model_by_type</code> in <code>~/.pablo/config.yaml</code> and in the project files. Under <code>agent_runtime: copilot</code>, use Copilot's dotted ids (<code>claude-sonnet-5.5</code>, <code>gpt-5.3-codex</code>): <code>provider/model</code> ids and Claude Code names (<code>sonnet</code>, <code>claude-sonnet-5-5</code>) are refused too. See <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>.</p>
+<p>Under <code>agent_runtime: claude-code</code>, models are Claude aliases (<code>sonnet</code>, <code>opus</code>, <code>haiku</code>) or full model ids, not <code>provider/model</code>. Fix <code>default_model</code> and <code>models</code> in <code>~/.pablo/config.yaml</code> and in the project files. Under <code>agent_runtime: copilot</code>, use Copilot's dotted ids (<code>claude-sonnet-5.5</code>, <code>gpt-5.3-codex</code>): <code>provider/model</code> ids and Claude Code names (<code>sonnet</code>, <code>claude-sonnet-5-5</code>) are refused too. See <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>.</p>
 
 <h3>Nothing happens after a reboot (Linux)</h3>
 

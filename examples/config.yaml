@@ -14,6 +14,11 @@ ci:
 # an alias (sonnet, opus, haiku) or full model id for Claude Code, a
 # Copilot model id (dotted, e.g. claude-sonnet-5.5) for Copilot.
 default_model: opencode-go/glm-5.3-flash
+# models:                  # a model per project type (work, open-source, personal)
+#   work:                  # ... or per agent; `default` for the type's other agents
+#     rebase-conflict-resolver: anthropic/claude-sonnet-5-5
+#     default: anthropic/claude-opus-5-5
+#   personal: opencode-go/glm-5.3-flash
 pr_description_locale: en
 # hooks:                 # your own command on task events (PABLO sends nothing itself)
 #   command: 'notify-send PABLO "$PABLO_TASK: ${PABLO_TO:-$PABLO_AGENT finished}"'

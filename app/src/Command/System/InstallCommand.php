@@ -97,6 +97,8 @@ final class InstallCommand extends Command
             throw new PabloError('--with-completion and --without-completion cannot be used together');
         }
         $scheduler = $this->schedulers->create();
+        // Before the first read of the config: a former key name fails it.
+        $seeder->migrate($info);
         $this->globalConfig->schedulerPath();
 
         // 1. Config.

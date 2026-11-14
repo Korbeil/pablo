@@ -72,13 +72,13 @@ final class InternalLaunchAgentCommand extends Command
         // Persist the run id onto the launch record so a sweep-emitted
         // agent_run_finished keeps the same id as its agent_run_started.
         $this->persistRunId($project, $branch, $agent, $runId);
-        // The project's resolved agent model (project default_model /
-        // default_model_by_type / global default_model) is looked up inside
-        // the detached subprocess — launch()'s argv stays untouched. A config
-        // lookup failure must not fail the launch itself: fall back to the
-        // agent file's frontmatter model.
+        // The agent's resolved model (project default_model /
+        // models, per agent or per type / global default_model)
+        // is looked up inside the detached subprocess — launch()'s argv stays
+        // untouched. A config lookup failure must not fail the launch itself:
+        // fall back to the agent file's frontmatter model.
         $agents = $this->agentLaunchers->create($backend);
-        $handle = $agents->doLaunchAgent($worktree, $agent, $prompt, $this->modelFor($project));
+        $handle = $agents->doLaunchAgent($worktree, $agent, $prompt, $this->modelFor($project, $agent));
         $agents->spawnWatcher($project, $branch, $handle, $agent, $runId, PromptFingerprint::of($prompt));
         $agents->refreshAgentDisplayCache($project, $branch, $worktree);
 
@@ -109,7 +109,7 @@ final class InternalLaunchAgentCommand extends Command
         }
     }
 
-    private function modelFor(string $project): ?string
+    private function modelFor(string $project, string $agent): ?string
     {
         try {
             $cfg = $this->projectsLoader->loadProjects()[$project] ?? null;
@@ -117,7 +117,7 @@ final class InternalLaunchAgentCommand extends Command
             return null;
         }
 
-        return $cfg?->defaultModel;
+        return $cfg?->modelFor($agent);
     }
 
     private function persistRunId(string $project, string $branch, string $agent, string $runId): void

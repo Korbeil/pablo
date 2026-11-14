@@ -120,9 +120,9 @@ final class ConfigSchemaTest extends TestCase
 
     public function testDefaultModelByTypeOnlyTakesProjectTypes(): void
     {
-        $issue = ConfigSchema::loadError(['default_model_by_type' => ['hobby' => 'x']], ConfigSchema::GLOBAL, '/x/config.yaml', 'config.yaml');
+        $issue = ConfigSchema::loadError(['models' => ['hobby' => 'x']], ConfigSchema::GLOBAL, '/x/config.yaml', 'config.yaml');
         $this->assertNotNull($issue);
-        $this->assertSame("config.yaml: default_model_by_type has unknown type 'hobby' (expected one of: work, open-source, personal)", $issue->text());
+        $this->assertSame("config.yaml: models has unknown type 'hobby' (expected one of: work, open-source, personal)", $issue->text());
     }
 
     public function testValueErrorIsTheSchemasProblemForOneKey(): void

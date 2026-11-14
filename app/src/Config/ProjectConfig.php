@@ -26,6 +26,21 @@ final class ProjectConfig
         public readonly HooksConfig $hooks = new HooksConfig(),
         public readonly ?string $branchPrefix = null,
         public readonly ?string $confluenceSpace = null,
+        /**
+         * Per-agent models (agent label => model), each overriding
+         * $defaultModel for that agent: the project's own `models`, over its
+         * type's entry in config.yaml's `models` (left out when the project
+         * sets its own default_model).
+         *
+         * @var array<string, string>
+         */
+        public readonly array $agentModels = [],
     ) {
+    }
+
+    /** The model $agent (an agent label) runs on. */
+    public function modelFor(string $agent): string
+    {
+        return $this->agentModels[$agent] ?? $this->defaultModel;
     }
 }

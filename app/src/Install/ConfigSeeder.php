@@ -114,6 +114,46 @@ final class ConfigSeeder
         return $runtime;
     }
 
+    /** Former top-level keys of config.yaml => their current name. */
+    public const RENAMED_KEYS = ['default_model_by_type' => 'models'];
+
+    /**
+     * Rename the former keys (RENAMED_KEYS) of an existing config, in place:
+     * the loaders refuse them. A config setting both a former key and its
+     * new name is left alone, with a warning. Runs before anything reads the
+     * config, so an update can fix what would otherwise stop the install.
+     *
+     * @param \Closure(string): void $info
+     *
+     * @throws PabloError when the file cannot be written
+     */
+    public function migrate(\Closure $info): void
+    {
+        $file = $this->global->configPath();
+        $content = Files::tryRead($file);
+        if (null === $content) {
+            return;
+        }
+        $migrated = $content;
+        foreach (self::RENAMED_KEYS as $old => $new) {
+            $oldKey = '/^'.preg_quote($old, '/').':/m';
+            if (1 !== preg_match($oldKey, $migrated)) {
+                continue;
+            }
+            if (1 === preg_match('/^'.preg_quote($new, '/').':/m', $migrated)) {
+                $info("⚠ {$file} sets both {$old} and {$new}: {$old} was renamed to {$new}, merge it by hand");
+                continue;
+            }
+            $migrated = (string) preg_replace($oldKey, $new.':', $migrated, 1);
+            $info("renamed {$old} to {$new} in {$file}");
+        }
+        // Written in place, like set(): a symlinked config and its
+        // permissions are kept.
+        if ($migrated !== $content && false === @file_put_contents($file, $migrated)) {
+            throw new PabloError("cannot write {$file}");
+        }
+    }
+
     /** The bundled example config (inside the binary, or in the checkout). */
     public static function example(): string
     {

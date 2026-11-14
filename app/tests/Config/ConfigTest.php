@@ -502,7 +502,7 @@ YAML;
 
     public function testDefaultModelByTypeAppliesPerProjectType(): void
     {
-        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  work: litellm/anthropic/claude-opus\n  open-source: litellm/glm-5.3-flash\n");
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  work: litellm/anthropic/claude-opus\n  open-source: litellm/glm-5.3-flash\n");
         $this->write('wallet-kit.yaml', self::FULL_PROJECT);
         $this->write('corp.yaml', <<<'YAML'
 name: corp
@@ -523,7 +523,7 @@ YAML);
 
     public function testProjectDefaultModelBeatsTypeMap(): void
     {
-        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  open-source: litellm/glm-5.3-flash\n");
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  open-source: litellm/glm-5.3-flash\n");
         $this->write('wallet-kit.yaml', self::FULL_PROJECT."\ndefault_model: openrouter/custom/model\n");
         $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
         $this->assertSame('openrouter/custom/model', $cfg->defaultModel);
@@ -531,7 +531,7 @@ YAML);
 
     public function testTypeMapBeatsGlobalScalar(): void
     {
-        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  open-source: litellm/glm-5.3-flash\n");
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  open-source: litellm/glm-5.3-flash\n");
         $this->write('wallet-kit.yaml', self::FULL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
         $this->assertSame('litellm/glm-5.3-flash', $cfg->defaultModel);
@@ -539,7 +539,7 @@ YAML);
 
     public function testTypeMapWithoutMatchingTypeFallsBackToGlobalScalar(): void
     {
-        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  work: litellm/anthropic/claude-opus\n");
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  work: litellm/anthropic/claude-opus\n");
         $this->write('wallet-kit.yaml', self::FULL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
         $this->assertSame('opencode-go/glm-5.3-flash', $cfg->defaultModel);
@@ -547,34 +547,127 @@ YAML);
 
     public function testTypeMapUnknownTypeRejected(): void
     {
-        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  wrok: litellm/anthropic/claude-opus\n");
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  wrok: litellm/anthropic/claude-opus\n");
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         try {
             $this->loader()->loadProjects($this->projectsDir);
             $this->fail('expected PabloError');
         } catch (PabloError $e) {
-            $this->assertStringContainsString('default_model_by_type has unknown type', $e->getMessage());
+            $this->assertStringContainsString('models has unknown type', $e->getMessage());
         }
     }
 
     public function testTypeMapMustBeAMapping(): void
     {
-        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type: litellm/glm-5.3-flash\n");
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels: litellm/glm-5.3-flash\n");
         $this->write('mini.yaml', self::MINIMAL_PROJECT);
         try {
             $this->loader()->loadProjects($this->projectsDir);
             $this->fail('expected PabloError');
         } catch (PabloError $e) {
-            $this->assertStringContainsString('default_model_by_type must be a mapping', $e->getMessage());
+            $this->assertStringContainsString('models must be a mapping', $e->getMessage());
         }
     }
 
     public function testTypeMapEmptyValueIgnored(): void
     {
-        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  open-source: \"\"\n");
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  open-source: \"\"\n");
         $this->write('wallet-kit.yaml', self::FULL_PROJECT);
         $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
         $this->assertSame('opencode-go/glm-5.3-flash', $cfg->defaultModel);
+    }
+
+    public function testFormerTypeMapKeyRejectedWithItsNewName(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\ndefault_model_by_type:\n  personal: litellm/claude-opus\n");
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        try {
+            $this->loader()->loadProjects($this->projectsDir);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertSame('config.yaml: default_model_by_type was renamed to `models`: rename the key, or run `pablo system:install`', $e->getMessage());
+        }
+    }
+
+    public function testTypeMapPerAgentModels(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  open-source:\n    rebase-conflict-resolver: litellm/claude-sonnet\n    default: litellm/claude-opus\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT);
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
+        $this->assertSame('litellm/claude-opus', $cfg->defaultModel);
+        $this->assertSame(['rebase-conflict-resolver' => 'litellm/claude-sonnet'], $cfg->agentModels);
+        $this->assertSame('litellm/claude-sonnet', $cfg->modelFor('rebase-conflict-resolver'));
+        $this->assertSame('litellm/claude-opus', $cfg->modelFor('task-analyst'));
+    }
+
+    public function testTypeMapPerAgentWithoutDefaultFallsBackToGlobalScalar(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  open-source:\n    ci-analyst: litellm/claude-sonnet\n    pr-feedback: \"\"\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT);
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
+        $this->assertSame('opencode-go/glm-5.3-flash', $cfg->defaultModel);
+        $this->assertSame('litellm/claude-sonnet', $cfg->modelFor('ci-analyst'));
+        $this->assertSame('opencode-go/glm-5.3-flash', $cfg->modelFor('pr-feedback'));
+    }
+
+    public function testProjectDefaultModelBeatsPerAgentTypeModels(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  open-source:\n    ci-analyst: litellm/claude-sonnet\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT."\ndefault_model: openrouter/custom/model\n");
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
+        $this->assertSame([], $cfg->agentModels);
+        $this->assertSame('openrouter/custom/model', $cfg->modelFor('ci-analyst'));
+    }
+
+    public function testProjectPerAgentModelsBeatEverything(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  open-source:\n    ci-analyst: litellm/type-ci\n    pr-feedback: litellm/type-pr\n    default: litellm/type-default\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT."\nmodels:\n  ci-analyst: litellm/project-ci\n");
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
+        $this->assertSame('litellm/project-ci', $cfg->modelFor('ci-analyst'));
+        $this->assertSame('litellm/type-pr', $cfg->modelFor('pr-feedback'));
+        $this->assertSame('litellm/type-default', $cfg->modelFor('task-analyst'));
+
+        // With its own default_model, the type's entries no longer apply; its own per-agent ones still do.
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT."\ndefault_model: litellm/project-default\nmodels:\n  ci-analyst: litellm/project-ci\n");
+        $cfg = $this->loader()->loadProjects($this->projectsDir)['wallet-kit'];
+        $this->assertSame('litellm/project-ci', $cfg->modelFor('ci-analyst'));
+        $this->assertSame('litellm/project-default', $cfg->modelFor('pr-feedback'));
+    }
+
+    public function testProjectModelsAcceptAgentsOnly(): void
+    {
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."models:\n  work: litellm/claude-opus\n");
+        $message = $this->onlyProjectError();
+        $this->assertStringContainsString("models has unknown agent 'work' (expected one of: task-analyst,", $message);
+    }
+
+    public function testClaudeCodeRuntimeChecksProjectPerAgentModels(): void
+    {
+        $this->writeGlobalConfig(str_replace('default_model: opencode-go/glm-5.3-flash', "agent_runtime: claude-code\ndefault_model: sonnet", self::DEFAULTS));
+        $this->write('mini.yaml', self::MINIMAL_PROJECT."models:\n  ci-analyst: litellm/claude-opus\n");
+        $message = $this->onlyProjectError();
+        $this->assertStringContainsString("mini.yaml: models.ci-analyst 'litellm/claude-opus' looks like an OpenCode provider/model id", $message);
+    }
+
+    public function testTypeMapUnknownAgentRejected(): void
+    {
+        $this->writeGlobalConfig(self::DEFAULTS."\nmodels:\n  work:\n    startup-script: litellm/claude-sonnet\n");
+        $this->write('mini.yaml', self::MINIMAL_PROJECT);
+        try {
+            $this->loader()->loadProjects($this->projectsDir);
+            $this->fail('expected PabloError');
+        } catch (PabloError $e) {
+            $this->assertStringContainsString("models.work has unknown agent 'startup-script' (expected one of: default, task-analyst,", $e->getMessage());
+        }
+    }
+
+    public function testClaudeCodeRuntimeChecksPerAgentModels(): void
+    {
+        $this->writeGlobalConfig(str_replace('default_model: opencode-go/glm-5.3-flash', "agent_runtime: claude-code\ndefault_model: sonnet", self::DEFAULTS)."\nmodels:\n  open-source:\n    task-analyst: litellm/claude-opus\n");
+        $this->write('wallet-kit.yaml', self::FULL_PROJECT);
+        $message = $this->onlyProjectError();
+        $this->assertStringContainsString("models.open-source.task-analyst 'litellm/claude-opus' looks like an OpenCode provider/model id", $message);
     }
 
     public function testMissingDefaultModelAndLocaleThrows(): void

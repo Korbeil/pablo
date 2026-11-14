@@ -22,6 +22,9 @@ final class Config
 {
     public const PROJECT_TYPES = ['work', 'open-source', 'personal'];
 
+    /** In a per-agent models entry, the key of the type's model for the other agents. */
+    public const MODEL_DEFAULT_KEY = 'default';
+
     public const PROVIDERS = ['github', 'jira', 'linear'];
 
     public function __construct(private readonly GlobalConfig $global)
@@ -225,15 +228,22 @@ final class Config
         $projectName = (string) ConfigValues::required($data, 'name', $file);
         // Its value is one of PROJECT_TYPES (checked by the schema), when set.
         $type = (string) (ConfigValues::required($data, 'type', $file) ?? throw new PabloError("{$file}: missing required key 'type'"));
+        // In this order, so a project missing several keys is told about the
+        // same one first as before.
+        $repo = RepoConfig::fromYaml($data, $file);
+        $tracker = TrackerConfig::fromYaml($data, $file);
+        $sync = SyncConfig::fromYaml($data, $defaults);
+        $statePolling = StatePollingConfig::fromYaml($data, $defaults);
+        [$defaultModel, $agentModels] = $this->models($data, $defaults, $type, $file);
 
         return new ProjectConfig(
             name: $projectName,
             type: $type,
-            repo: RepoConfig::fromYaml($data, $file),
-            tracker: TrackerConfig::fromYaml($data, $file),
-            sync: SyncConfig::fromYaml($data, $defaults),
-            statePolling: StatePollingConfig::fromYaml($data, $defaults),
-            defaultModel: $this->defaultModel($data, $defaults, $type, $file),
+            repo: $repo,
+            tracker: $tracker,
+            sync: $sync,
+            statePolling: $statePolling,
+            defaultModel: $defaultModel,
             prDescriptionLocale: $this->prDescriptionLocale($data, $defaults),
             review: ReviewConfig::fromYaml($data, $defaults),
             ci: CiConfig::fromYaml($data, $defaults),
@@ -242,35 +252,79 @@ final class Config
             hooks: HooksConfig::fromYaml($data, $defaults),
             branchPrefix: $this->branchPrefix($data, $defaults),
             confluenceSpace: $data['confluence']['space'] ?? null,
+            agentModels: $agentModels,
         );
     }
 
     /**
-     * Resolution: project default_model > default_model_by_type[<project
-     * type>] (global only) > global default_model. The resolved value is
-     * what internal:launch-agent passes to the agent backends as --model.
+     * The project's default model and its per-agent models. Resolution, for
+     * an agent: the project's models[<agent>] > the project's default_model >
+     * global models[<type>][<agent>] > global models[<type>][default] (or the
+     * entry itself, when it is a plain model) > global default_model. A
+     * project setting its own default_model gets none of its type's per-agent
+     * models. ProjectConfig::modelFor() is what internal:launch-agent and the
+     * sync pass to the agents as --model.
      *
      * @param array<string, mixed> $data
      * @param array<string, mixed> $defaults
+     *
+     * @return array{string, array<string, string>}
      */
-    private function defaultModel(array $data, array $defaults, string $type, string $file): string
+    private function models(array $data, array $defaults, string $type, string $file): array
     {
-        $byType = \is_array($defaults['default_model_by_type'] ?? null) ? $defaults['default_model_by_type'] : [];
-        $typeModel = isset($byType[$type]) && '' !== (string) $byType[$type] ? (string) $byType[$type] : null;
+        $byType = \is_array($defaults['models'] ?? null) ? $defaults['models'] : [];
+        $entry = $byType[$type] ?? null;
+        $typeModel = null;
+        // agent => [model, the key it was read from, for an error]
+        $agentModels = [];
+        if (\is_array($entry)) {
+            // Its keys are `default` and agent labels (checked by the schema).
+            foreach ($entry as $key => $model) {
+                if (null === $model || '' === (string) $model) {
+                    continue;
+                }
+                if (self::MODEL_DEFAULT_KEY === (string) $key) {
+                    $typeModel = (string) $model;
+                } else {
+                    $agentModels[(string) $key] = [(string) $model, "config.yaml models.{$type}.{$key}"];
+                }
+            }
+        } elseif (null !== $entry && '' !== (string) $entry) {
+            $typeModel = (string) $entry;
+        }
+        if (null !== ($data['default_model'] ?? null)) {
+            $agentModels = [];
+        }
+        // The project's own per-agent models (agent labels only: the
+        // project's default is its default_model).
+        foreach (\is_array($data['models'] ?? null) ? $data['models'] : [] as $agent => $model) {
+            if (null !== $model && '' !== (string) $model) {
+                $agentModels[(string) $agent] = [(string) $model, "models.{$agent}"];
+            }
+        }
         $defaultModel = $data['default_model'] ?? $typeModel ?? ($defaults['default_model'] ?? null);
         if (null === $defaultModel || '' === (string) $defaultModel) {
-            throw new PabloError('no value for default_model — set it in the project config, default_model_by_type, or ~/.pablo/config.yaml');
+            throw new PabloError('no value for default_model — set it in the project config, models, or ~/.pablo/config.yaml');
         }
         $defaultModel = (string) $defaultModel;
         // The model id format depends on the runtime that receives it:
         // each runtime says what it accepts. Built here, not injected: the
         // registry depends on AgentTemplates, which depends on this loader.
-        $modelError = (new AgentRuntimeRegistry($this->global, new AgentTemplates($this)))->resolve(AgentRuntimeRegistry::nameFrom($defaults))->modelError($defaultModel);
+        $runtime = (new AgentRuntimeRegistry($this->global, new AgentTemplates($this)))->resolve(AgentRuntimeRegistry::nameFrom($defaults));
+        $modelError = $runtime->modelError($defaultModel);
         if (null !== $modelError) {
             throw new PabloError("{$file}: default_model {$modelError}");
         }
+        $resolved = [];
+        foreach ($agentModels as $agent => [$model, $key]) {
+            $modelError = $runtime->modelError($model);
+            if (null !== $modelError) {
+                throw new PabloError("{$file}: {$key} {$modelError}");
+            }
+            $resolved[$agent] = $model;
+        }
 
-        return $defaultModel;
+        return [$defaultModel, $resolved];
     }
 
     /**
