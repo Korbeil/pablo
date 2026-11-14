@@ -4,9 +4,11 @@ name: Binary
 # (nothing published) and on demand.
 #
 # Releases: `castor release:create` dispatches this workflow on main with
-# release=true. Only once the four builds pass does the release job create a
-# GitHub Release named after the commit's SHA, first 7 characters (tag and title), with
-# the binaries and their sha256sums.txt, flagged "latest" unless latest=false.
+# release=true. The version job names the release after the UTC date
+# (YYYYMMDD: 20261114, then 20261114.1, 20261114.2, … for the same day's next
+# releases), which the binaries report. Only once the four builds pass does the release job create
+# the GitHub Release (tag and title = that name), with the binaries and their
+# sha256sums.txt, flagged "latest" unless latest=false.
 # Creating the release last means `releases/latest` (what
 # https://getpablo.dev/installer and `pablo update` read) never points at a
 # release without binaries.
@@ -18,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Publish a GitHub Release named after the commit SHA's first 7 characters (main only)"
+        description: "Publish a GitHub Release named after the UTC date: YYYYMMDD, then YYYYMMDD.1, .2… the same day (main only)"
         type: boolean
         default: false
       latest:
@@ -41,8 +43,43 @@ env:
   MICRO_INI: "memory_limit=512M"
 
 jobs:
+  # The version written into the binaries, computed once for the four builds.
+  # A release: YYYYMMDD, the UTC date, suffixed .1, .2, … for the same
+  # day's next releases (release runs on main never overlap: see
+  # concurrency, they queue). Anything else: the first 7 characters of the
+  # commit SHA, as `castor build:binary` (never `git describe`).
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: version
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.release && github.ref == 'refs/heads/main' }}
+        run: |
+          if [ "$RELEASE" != true ]; then
+            echo "version=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tags="$(gh api "repos/$GITHUB_REPOSITORY/tags" --paginate --jq '.[] | "\(.name) \(.commit.sha)"')"
+          existing="$(printf '%s\n' "$tags" | awk -v sha="$GITHUB_SHA" '$2 == sha { print $1 }')"
+          if [ -n "$existing" ]; then
+            echo "this commit already has a release: $existing" >&2
+            exit 1
+          fi
+          # The day's first release is YYYYMMDD, the next ones YYYYMMDD.1, .2, …
+          # last: -1 when the day has none, 0 for YYYYMMDD alone, else the highest N.
+          day="$(date -u +%Y%m%d)"
+          last="$(printf '%s\n' "$tags" | awk -v day="$day" 'BEGIN { max = -1 } $1 == day && max < 0 { max = 0 } { n = substr($1, length(day) + 2) } index($1, day ".") == 1 && n ~ /^[0-9]+$/ && n + 0 > max { max = n + 0 } END { print max }')"
+          if [ "$last" -lt 0 ]; then version="$day"; else version="$day.$((last + 1))"; fi
+          echo "release name: $version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   build:
     name: build (${{ matrix.target }})
+    needs: version
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -81,14 +118,14 @@ jobs:
         working-directory: app
         run: php bin/console asset-map:compile --env=prod --no-debug
 
-      # The version written into the binary is the release name: the first
-      # 7 characters of the commit SHA (fixed length, unlike %h or
-      # `git describe`). Same value as castor.php and the release job.
+      # The version job's value: the release name on a release.
       - name: version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           php -r '
             $config = json_decode(file_get_contents("app/box.json"), true, flags: JSON_THROW_ON_ERROR);
-            $config["replacements"] = ["package_version" => substr(getenv("GITHUB_SHA"), 0, 7)];
+            $config["replacements"] = ["package_version" => getenv("VERSION")];
             file_put_contents("app/box.json", json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
           '
           grep -A2 replacements app/box.json
@@ -203,15 +240,17 @@ jobs:
   release:
     name: release
     if: github.event_name == 'workflow_dispatch' && inputs.release && github.ref == 'refs/heads/main'
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      # The same 7-character SHA the build job wrote into the binaries.
+      # The name the build jobs wrote into the binaries.
       - name: release name
         id: name
-        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: download the binaries
         uses: actions/download-artifact@v8

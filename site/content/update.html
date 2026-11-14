@@ -6,11 +6,11 @@
 
 <pre><code class="language-bash">pablo update           # or pablo system:update
 pablo update --check   # only tell whether a newer release exists
-pablo update 5b34e92   # install that release instead (an older one too)
+pablo update 20261114      # install that release instead (an older one too)
 pablo update --rollback  # go back to the binary the last update replaced
 </code></pre>
 
-<p>PABLO updates itself. It finds the <a href="https://github.com/Korbeil/pablo/releases">release</a> flagged <em>latest</em> (releases are named after the commit they were built from) and, when it is not the one you run:</p>
+<p>PABLO updates itself. It finds the <a href="https://github.com/Korbeil/pablo/releases">release</a> flagged <em>latest</em> (releases are named after the day they were made, such as <code>20261114</code>, then <code>20261114.1</code> for a second one that day) and, when it is not the one you run:</p>
 
 <ol>
   <li>downloads its binary for your OS and processor with <code>curl</code>;</li>

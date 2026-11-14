@@ -62,7 +62,7 @@ castor site:serve                           # build + preview it on http://127.0
 (cd app && composer test)                   # same as castor qa:test (composer test:serial = --serial)
 (cd app && vendor/bin/phpunit tests/StateMachine/StateMachineTest.php)  # one file, plain phpunit
 castor build:binary [--micro=<micro.sfx> --spc=<spc>]  # dist/pablo.phar (+ dist/pablo, the static binary)
-castor release:create [--no-latest]         # release main's last commit (named after its SHA's first 7 chars)
+castor release:create [--no-latest]         # release main's last commit (named YYYYMMDD, then YYYYMMDD.1, .2… same day)
                                             # via binary.yml (workflow_dispatch release=true)
 castor release:list [--limit=10]            # last releases (gh release list)
 php app/bin/pablo --help                    # engine subcommands, from the checkout
@@ -531,9 +531,10 @@ fails the build — and writes `search-index.json` for the local search
 `app/box.json` (base-path = repo root, so the phar mirrors the repo layout)
 packs `app/{src,config,templates,assets,public,vendor}` + `opencode/`,
 `systemd/`, `launchd/`, `examples/config.yaml`; `@package_version@` (a Box
-`replacements` entry set by castor and the workflow: the commit SHA's first 7
-characters — never `git describe`/`git-version`, which yields
-`<last release>-N-g<hash>` once a release tag exists) feeds
+`replacements` entry set by castor and the workflow: the release name on a
+release, else the commit SHA's first 7 characters — never
+`git describe`/`git-version`, which yields `<last release>-N-g<hash>` once a
+release tag exists) feeds
 `ConsoleApplication::version()` (`dev` in a checkout).
 `castor build:binary` builds from a staged copy in `dist/stage/` (no-dev
 vendor, `asset-map:compile`) so the checkout's vendor and
@@ -542,12 +543,18 @@ vendor, `asset-map:compile`) so the checkout's vendor and
 (linux-x86_64/aarch64, macos-arm64/x86_64) and smoke-tests (Linux: in a
 `debian:stable-slim` container without PHP) on PRs and on demand. Releases
 come from `castor release:create`, which dispatches it on `main` with
-`release=true`: only after the four builds pass does its release job create
-the GitHub Release — tag and title = the SHA's first 7 characters (exactly
-what the binaries report; the job checks `pablo --version`), binaries + `sha256sums.txt`, flagged
-latest unless `--no-latest` — so `releases/latest` never lacks binaries.
+`release=true`: its `version` job names the release `YYYYMMDD` (UTC
+date; the same day's next releases `YYYYMMDD.1`, `.2`…, read from the
+repository's tags; a
+commit that already has a release is refused), and only after the four
+builds pass does its release job create the GitHub Release — tag and title =
+that name (exactly what the binaries report; the job checks
+`pablo --version`), binaries + `sha256sums.txt`, flagged latest unless
+`--no-latest` — so `releases/latest` never lacks binaries. Releases made
+before this scheme are named after the SHA's first 7 characters.
 `pablo update` installs the latest-flagged release whenever its name differs
-from the running version (no ordering between hashes). micro extensions:
+from the running version (names are never compared for order, so moving the
+latest flag back rolls everyone back). micro extensions:
 `phar,ctype,iconv,mbstring,tokenizer,filter,posix,pcntl,dom,xml,zlib,openssl`
 (keep `castor.php` and the workflow in step). No `opcache.enable_cli=1`: it
 segfaults PHP 8.5 micro at startup.
