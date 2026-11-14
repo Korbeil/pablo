@@ -106,8 +106,8 @@ usage() {
     cat <<'USAGE'
 Usage: installer [options]
 
-  --version <release>   release to install, by name (the short commit hash,
-                        e.g. 5b34e92; default: the latest)
+  --version <release>   release to install, by name (e.g. 20261114;
+                        default: the latest)
   --runtime <name>      opencode, claude-code or copilot
   --backend <name>      orca, openchamber or headless (OpenChamber: OpenCode only)
   --without-web         do not install the dashboard service

@@ -98,9 +98,10 @@ final class UpdateCommand extends Command
                 return self::SUCCESS;
             }
         } else {
-            // Releases are named after a commit SHA, which carries no order:
-            // any other name than the running one is installed, so moving the
-            // "latest" flag back to an older release rolls everyone back.
+            // Names are never compared for order (older releases are named
+            // after a commit SHA): any other name than the running one is
+            // installed, so moving the "latest" flag back to an older release
+            // rolls everyone back.
             $target = $this->updater->latestVersion();
             if ($target === $current) {
                 $output->writeln("PABLO <info>{$current}</info> is up to date (latest release: {$target}).");

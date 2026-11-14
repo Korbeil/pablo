@@ -20,9 +20,9 @@ final class ConsoleApplication extends SymfonyApplication
 
     /**
      * Replaced by Box when the binary is built (a `replacements` entry set by
-     * castor build:binary and .github/workflows/binary.yml): the first 7
-     * characters of the commit SHA, which is also the release name. Left as
-     * is in a checkout.
+     * castor build:binary and .github/workflows/binary.yml): the release
+     * name (YYYYMMDD or YYYYMMDD.N) for a released binary, else the first 7 characters
+     * of the commit SHA. Left as is in a checkout.
      * A property, not a constant, so the check below is not constant-folded.
      */
     private static string $buildVersion = '@package_version@';

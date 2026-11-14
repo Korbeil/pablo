@@ -201,10 +201,10 @@ function build_binary(
     io()->section('asset-map:compile');
     run(['php', 'bin/console', 'asset-map:compile', '--env=prod', '--no-debug'], context()->withWorkingDirectory($stage . '/app'));
 
-    // The version is the release name: the first 7 characters of the commit
-    // SHA, as in .github/workflows/binary.yml (never `git describe`, which
-    // would report <last release>-N-g<hash> once a release tag exists).
-    $version = release_name('HEAD');
+    // A local build is no release: its version is the first 7 characters of
+    // the commit SHA, as a pull-request build of .github/workflows/binary.yml
+    // (never `git describe`, which would report <last release>-N-g<hash>).
+    $version = short_sha('HEAD');
     $config = json_decode((string) file_get_contents(__DIR__ . '/app/box.json'), true, flags: \JSON_THROW_ON_ERROR);
     $config['replacements'] = ['package_version' => $version];
     file_put_contents($stage . '/app/box.json', json_encode($config, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_SLASHES));
@@ -247,7 +247,7 @@ function build_binary(
     io()->success('dist/pablo');
 }
 
-#[AsTask(name: 'create', namespace: 'release', description: 'Publish a release of the last main commit (named after its SHA\'s first 7 characters) through the Binary workflow')]
+#[AsTask(name: 'create', namespace: 'release', description: 'Publish a release of the last main commit (named YYYYMMDD after the UTC date, YYYYMMDD.1, .2… for the same day\'s next ones) through the Binary workflow')]
 function release_create(
     #[AsOption(description: 'do not flag the release as the latest one (the installer and pablo update keep installing the current latest)')]
     bool $noLatest = false,
@@ -255,14 +255,16 @@ function release_create(
     // The release is made by .github/workflows/binary.yml, not here: it only
     // creates it once the four binaries are built, so `releases/latest`
     // (what the installer and `pablo update` read) never points at a release
-    // without binaries.
+    // without binaries. It also names it (its version job), so two runs can
+    // never pick the same name.
     run(['git', 'fetch', '--quiet', 'origin', 'main']);
     $sha = trim(run(['git', 'rev-parse', 'origin/main'], context()->withQuiet())->getOutput());
-    $name = release_name('origin/main');
 
-    $existing = run(['gh', 'release', 'view', $name, '--json', 'name'], context()->withQuiet()->withAllowFailure());
-    if ($existing->isSuccessful()) {
-        io()->error("A release named {$name} already exists (main has not moved since).");
+    // Fail early on what the workflow would refuse anyway: one release per commit.
+    $tags = run(['gh', 'api', 'repos/{owner}/{repo}/tags', '--paginate', '--jq', '.[] | select(.commit.sha == "'.$sha.'") | .name'], context()->withQuiet());
+    $existing = trim($tags->getOutput());
+    if ('' !== $existing) {
+        io()->error("main's last commit already has a release: {$existing} (main has not moved since).");
 
         return 1;
     }
@@ -275,7 +277,7 @@ function release_create(
 
     io()->success([
         "Binary workflow started on main ({$sha}).",
-        "Release {$name} is published once the four builds pass".($noLatest ? ', without the latest flag.' : ', flagged latest.'),
+        'Release '.gmdate('Ymd').' (or '.gmdate('Ymd').'.<n> if one was already made today) is published once the four builds pass'.($noLatest ? ', without the latest flag.' : ', flagged latest.'),
         'Follow it with: gh run list --workflow binary.yml   (then gh run watch <id>)',
     ]);
 
@@ -307,11 +309,11 @@ function embed_php_cli(string $phar, string $phpCli): void
 }
 
 /**
- * A release name, also the version its binaries report: the first 7
- * characters of the commit SHA. A fixed length, unlike `%h`, whose length
- * depends on the clone — the workflow computes the same with ${GITHUB_SHA::7}.
+ * The version of a binary that is no release: the first 7 characters of the
+ * commit SHA. A fixed length, unlike `%h`, whose length depends on the clone —
+ * the workflow computes the same with ${GITHUB_SHA::7}.
  */
-function release_name(string $ref): string
+function short_sha(string $ref): string
 {
     return substr(trim(run(['git', 'rev-parse', $ref], context()->withQuiet())->getOutput()), 0, 7);
 }
