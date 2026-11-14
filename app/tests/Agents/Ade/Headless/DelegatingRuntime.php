@@ -59,6 +59,12 @@ abstract class DelegatingRuntime implements AgentRuntimeInterface
         return null;
     }
 
+    /** A follow-up is the same harmless command as a launch. */
+    public function followUpCommand(string $sessionId, string $prompt, ?string $model): string
+    {
+        return $this->launchCommand('follow-up', $prompt, $model, $sessionId);
+    }
+
     public function modelError(string $model): ?string
     {
         return null;

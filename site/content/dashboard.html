@@ -46,6 +46,8 @@ pablo web --port 9000 --open   # another port, and open the browser
 
 <p>It does exactly what <code>pablo task:start</code> does: worktree, task, task-analyst.</p>
 
+<p>The <b>YOLO mode</b> checkbox is <code>--yolo</code> / <code>--no-yolo</code>: ticked, PABLO implements each plan and runs <code>/pablo-commit-and-pr</code> itself (see <a href="page:yolo">YOLO mode</a>). In prompt mode it starts as the picked project's <code>yolo.enabled</code>; in issue mode, left untouched, the issue's project decides. A YOLO task carries a ⚡ badge next to its branch, naming the step running (<code>implement</code>, <code>commit</code>) while there is one.</p>
+
 <h2 id="change-a-task-from-the-browser">Change a task from the browser</h2>
 
 <p>Each task row ends with buttons that open a confirmation dialog. Nothing changes until you click <b>Confirm</b>.</p>

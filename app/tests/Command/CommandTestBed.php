@@ -30,6 +30,7 @@ use Pablo\Tests\SandboxedEnv;
 use Pablo\Tests\StubProviders;
 use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
+use Pablo\Yolo\YoloPipeline;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -58,6 +59,7 @@ abstract class CommandTestBed extends TestCase
     protected StubProviders $providers;
     protected RepoSlug $repoSlug;
     protected StateMachine $stateMachine;
+    protected YoloPipeline $yolo;
     protected FakeAnalytics $analytics;
     protected Time $time;
     protected string $prevCwd;
@@ -95,6 +97,7 @@ abstract class CommandTestBed extends TestCase
         $this->repoSlug = $this->graph->repoSlug;
         $this->analytics = $this->graph->analytics;
         $this->stateMachine = $this->graph->stateMachine;
+        $this->yolo = $this->graph->yolo;
         // Launched agents' pidfiles/logs stay in the tmp dir and the
         // detached watcher re-invocation is /bin/true.
         $this->setEnv('PABLO_AGENTS_DIR', $this->tmp.'/agents');

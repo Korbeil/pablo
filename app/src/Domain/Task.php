@@ -31,6 +31,19 @@ final class Task
 
     public bool $merged = false;
 
+    /**
+     * YOLO mode for this task: true/false set per task (task:start --yolo,
+     * the dashboard's checkbox, task:yolo), null = the project's
+     * yolo.enabled decides (see Yolo\YoloPipeline::isOn()).
+     */
+    public ?bool $yolo = null;
+
+    /** YOLO implementation runs launched so far (capped by yolo.max_rounds). */
+    public int $yoloRounds = 0;
+
+    /** The YOLO follow-up run in flight (yolo-implement or yolo-commit), if any. */
+    public ?Agent $yoloStep = null;
+
     public DisplayCache $displayCache;
 
     public string $createdAt;
@@ -59,10 +72,14 @@ final class Task
      * Has PABLO triggered an agent on this task whose run has concluded, so
      * the ball is with the user? The single source of truth for the
      * "💭 Waiting for feedback" split. The startup script is not an agent:
-     * its run ending hands nothing to the user.
+     * its run ending hands nothing to the user. Neither does a run while a
+     * YOLO follow-up carries the work on.
      */
     public function hasFinishedAgent(): bool
     {
+        if (null !== $this->yoloStep) {
+            return false;
+        }
         foreach ($this->agentLaunches as $launch) {
             if (Agent::StartupScript !== $launch->agent && null !== $launch->finishedAt) {
                 return true;
@@ -73,13 +90,13 @@ final class Task
     }
 
     /**
-     * @return array{project: string, branch: string, worktree_path: string, state: string, state_entered_at: string, issue: ?array<string, mixed>, summary: ?string, prompt: ?string, state_before_waiting: ?string, task_analyst_ran: bool, startup_script_ran: bool, agent_launches: array<string, array{launched_at: ?string, attempts: int, finished_at: ?string, run_id: ?string, reported: bool}>, needs_testing_entered_at: ?string, last_handled_signal_at: ?string, last_seen_issue_status: ?string, ci_ignored: bool, pr_number: ?int, merged: bool, created_at: string, updated_at: string, cached_tracker_status: ?string, cached_pr_state: ?string, cached_agent_count: ?int, cached_agent_activity: ?string, cached_at: ?string}
+     * @return array{project: string, branch: string, worktree_path: string, state: string, state_entered_at: string, issue: ?array<string, mixed>, summary: ?string, prompt: ?string, state_before_waiting: ?string, task_analyst_ran: bool, startup_script_ran: bool, agent_launches: array<string, array{launched_at: ?string, attempts: int, finished_at: ?string, run_id: ?string, reported: bool, session_id?: string}>, needs_testing_entered_at: ?string, last_handled_signal_at: ?string, last_seen_issue_status: ?string, ci_ignored: bool, pr_number: ?int, merged: bool, yolo?: bool, yolo_rounds?: int, yolo_step?: string, created_at: string, updated_at: string, cached_tracker_status: ?string, cached_pr_state: ?string, cached_agent_count: ?int, cached_agent_activity: ?string, cached_at: ?string}
      */
     public function toJson(): array
     {
         $cache = $this->displayCache;
 
-        return [
+        $json = [
             'project' => $this->project,
             'branch' => $this->branch,
             'worktree_path' => $this->worktreePath,
@@ -101,6 +118,20 @@ final class Task
             'ci_ignored' => $this->ciIgnored,
             'pr_number' => $this->prNumber,
             'merged' => $this->merged,
+        ];
+        // YOLO keys only when set: a task that never used it keeps its
+        // record exactly as before.
+        if (null !== $this->yolo) {
+            $json['yolo'] = $this->yolo;
+        }
+        if (0 !== $this->yoloRounds) {
+            $json['yolo_rounds'] = $this->yoloRounds;
+        }
+        if (null !== $this->yoloStep) {
+            $json['yolo_step'] = $this->yoloStep->value;
+        }
+
+        return $json + [
             'created_at' => $this->createdAt,
             'updated_at' => $this->updatedAt,
             'cached_tracker_status' => $cache->trackerStatus,
@@ -143,6 +174,10 @@ final class Task
         $task->ciIgnored = (bool) ($data['ci_ignored'] ?? false);
         $task->prNumber = $data['pr_number'] ?? null;
         $task->merged = (bool) ($data['merged'] ?? false);
+        $task->yolo = isset($data['yolo']) ? (bool) $data['yolo'] : null;
+        $task->yoloRounds = (int) ($data['yolo_rounds'] ?? 0);
+        $step = Agent::tryFrom((string) ($data['yolo_step'] ?? ''));
+        $task->yoloStep = null !== $step && $step->isYoloStep() ? $step : null;
         $task->createdAt = (string) ($data['created_at'] ?? $now);
         $task->updatedAt = (string) ($data['updated_at'] ?? $now);
         $task->displayCache = DisplayCache::fromJson($data);

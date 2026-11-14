@@ -24,8 +24,35 @@ interface AgentLauncherInterface
      * terminal or session id, or "pid:N" for a headless run). Only ever runs inside
      * the detached internal:launch-agent subprocess. $model overrides the
      * agent file's frontmatter model (null = frontmatter fallback).
+     *
+     * $sessionId (YOLO mode): run unattended under that runtime session —
+     * the runtime's one-shot command, never an interactive interface that
+     * waits for the user to quit — so follow-up runs can continue it. An ADE
+     * that names its sessions itself says so through sessionOf().
      */
-    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string;
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string;
+
+    /**
+     * The runtime session behind $handle when the ADE chose it (OpenChamber's
+     * sessions), null when it is the one passed to doLaunchAgent().
+     */
+    public function sessionOf(string $handle): ?string;
+
+    /** A fresh session id of the selected runtime. */
+    public function newSessionId(): string;
+
+    /**
+     * Continue session $sessionId with $prompt, unattended, as the runtime's
+     * own build agent (YOLO mode's follow-ups, labelled $step). Like launch():
+     * a detached internal:launch-agent subprocess, returning at once.
+     */
+    public function launchFollowUp(string $worktree, Agent $step, string $sessionId, string $prompt, string $project, string $branch): string;
+
+    /**
+     * Run a follow-up synchronously (inside that subprocess) and return its
+     * ADE handle; see AgentRuntimeInterface::followUpCommand().
+     */
+    public function doLaunchFollowUp(string $worktree, string $label, string $sessionId, string $prompt, ?string $model = null): string;
 
     /** Run the startup script synchronously and return an ADE handle. */
     public function doRunStartupScript(string $worktree, string $script): string;

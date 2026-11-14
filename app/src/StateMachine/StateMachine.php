@@ -111,14 +111,15 @@ final class StateMachine
             }
             $ctx->agents->runStartupScript($task->worktreePath, $ctx->cfg->repo->startupScript, $task->project, $task->branch);
         } else {
-            $ctx->agents->launch($task->worktreePath, $agent, $this->prompt($agent, $task), $task->project, $task->branch);
+            $ctx->agents->launch($task->worktreePath, $agent, $this->promptFor($agent, $task), $task->project, $task->branch);
         }
         $task->agentLaunches[$agent->value] = new AgentLaunch($agent, $this->time->utcnow(), $attempt);
 
         return true;
     }
 
-    private function prompt(Agent $agent, Task $task): string
+    /** The prompt a state agent is launched with. */
+    public function promptFor(Agent $agent, Task $task): string
     {
         return match ($agent) {
             Agent::TaskAnalyst => null !== $task->issue
@@ -128,7 +129,7 @@ final class StateMachine
             Agent::CiAnalyst => "CI is failing on PR #{$task->prNumber}. Analyze the failing checks and produce a fix plan.",
             Agent::PrFeedback => "Review feedback was left on PR #{$task->prNumber}. Read the unresolved review comments and produce your fix plan.",
             Agent::TaskFeedback => 'Manual testing failed for '.(null !== $task->issue ? $task->issue->key : 'the task')." (PR #{$task->prNumber}). Gather the testing feedback and produce your fix plan.",
-            Agent::StartupScript, Agent::RebaseConflictResolver => throw new PabloError("{$agent->value} is not launched with a state prompt"),
+            Agent::StartupScript, Agent::RebaseConflictResolver, Agent::YoloImplement, Agent::YoloCommit => throw new PabloError("{$agent->value} is not launched with a state prompt"),
         };
     }
 

@@ -28,6 +28,9 @@ pr_description_locale: en
 # Runs detached with PABLO_EVENT (transition | agent-finished), PABLO_TASK,
 # PABLO_PROJECT, PABLO_FROM, PABLO_TO, PABLO_STATE, PABLO_AGENT, PABLO_PR_URL,
 # PABLO_ISSUE_KEY, PABLO_WORKTREE. A project file can override it per key.
+# yolo:                  # YOLO mode: after each plan, PABLO has it implemented and
+#   enabled: true        # runs /pablo-commit-and-pr itself (off by default; a project
+#   max_rounds: 5        # or a task — task:start --yolo, task:yolo — can override it)
 # dashboard_port: 8321   # the port of `pablo web` and its service (127.0.0.1 only)
 # dashboard_trusted_hosts: [pablo.home.arpa]   # extra names the dashboard answers
 #                          # (exact names, besides 127.0.0.1 and localhost)

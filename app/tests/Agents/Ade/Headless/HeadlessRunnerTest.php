@@ -78,6 +78,19 @@ final class HeadlessRunnerTest extends TestCase
         }
     }
 
+    public function testAFollowUpRunsDetachedAndRecordsItsSession(): void
+    {
+        $handle = $this->runner->launchFollowUp($this->tmp, 'yolo-commit', 'ses_plan', 'Commit it');
+        $pid = (int) substr($handle, \strlen(HeadlessRunner::HANDLE_PREFIX));
+        $this->runner->wait($handle, 30);
+
+        $record = json_decode((string) file_get_contents($this->tmp.'/agents/'.$pid.'.json'), true);
+        $this->assertIsArray($record);
+        $this->assertSame('yolo-commit', $record['agent']);
+        $this->assertSame('ses_plan', $record['session']);
+        $this->assertSame($this->tmp, $record['worktree']);
+    }
+
     /** The pid of a child that has exited and been reaped. */
     private static function deadPid(): int
     {

@@ -1,6 +1,6 @@
 <h1>What PABLO may change</h1>
 
-<p>Agents propose; you decide. PABLO never writes a commit of its own and never changes your issue tracker. This page lists every git, pull request and file operation it does perform, and when.</p>
+<p>Agents propose; you decide. PABLO never writes a commit of its own and never changes your issue tracker. This page lists every git, pull request and file operation it does perform, and when. The one way to let it decide in your place is <a href="page:yolo">YOLO mode</a>, off unless you turn it on.</p>
 
 <h2 id="git-and-pull-requests">Git and pull requests</h2>
 
@@ -10,7 +10,8 @@
   <thead><tr><th>Operation</th><th>When</th></tr></thead>
   <tbody>
     <tr><td>Create a branch and a worktree</td><td><code>pablo task:start</code></td></tr>
-    <tr><td>Commit, push, open a draft pull request</td><td>only through <code>/pablo-commit-and-pr</code>, which you run</td></tr>
+    <tr><td>Commit, push, open a draft pull request</td><td>only through <code>/pablo-commit-and-pr</code>, which you run — or which PABLO runs for you after each plan, in <a href="page:yolo">YOLO mode</a> (off unless a project or a task turns it on)</td></tr>
+    <tr><td>Edit your code</td><td>only in <a href="page:yolo">YOLO mode</a>: your runtime's build agent executes each analyst's plan in the task worktree, before <code>/pablo-commit-and-pr</code> runs; and the conflict resolver, below</td></tr>
     <tr><td>Switch a pull request between draft and ready</td><td>CI turns green (ready); changes requested or QA failure (back to draft); <code>task:retrigger-ci</code> (draft)</td></tr>
     <tr><td>Rebase or merge, then push with <code>--force-with-lease</code></td><td>sync, only with <code>sync.auto_apply</code> (off by default) or <code>pablo sync:run --apply</code>; never on a dirty worktree, nor on a branch you rewrote locally without pushing (<a href="page:sync#skipped-on-purpose">rules</a>); never plain <code>--force</code></td></tr>
     <tr><td>Resolve a rebase conflict</td><td>never in code: the <a href="page:agents#the-rebase-conflict-resolver">conflict resolver agent</a> does it, after an applied sync hit a conflict, and pushes its replay with <code>--force-with-lease</code> (nothing when a conflict needs you)</td></tr>

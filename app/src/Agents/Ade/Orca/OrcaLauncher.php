@@ -132,19 +132,32 @@ final class OrcaLauncher extends AbstractAgentLauncher
         return (string) $handle;
     }
 
-    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string
     {
         // The agent runs inside the worktree, in an Orca terminal: in the
         // runtime's interactive interface when it has one (the OpenCode TUI),
         // else its one-shot command. The same session id carries over to the
         // headless fallback so `claude --resume` / `copilot --resume` and
-        // analytics find the run either way.
-        $sessionId = $this->runtime->newSessionId();
+        // analytics find the run either way. An unattended run (a session id
+        // given: YOLO mode) is always the one-shot command: the interactive
+        // interface would hold the terminal — and the watcher — until the
+        // user quits it.
+        $interactive = null === $sessionId ? $this->runtime->interactiveCommand($agent, $prompt, $model) : null;
+        $sessionId ??= $this->runtime->newSessionId();
         $command = 'cd '.escapeshellarg($worktree).'; '
-            .($this->runtime->interactiveCommand($agent, $prompt, $model) ?? $this->runtime->launchCommand($agent, $prompt, $model, $sessionId));
+            .($interactive ?? $this->runtime->launchCommand($agent, $prompt, $model, $sessionId));
 
         return $this->createTerminal($worktree, $agent, $command)
             ?? $this->launchHeadless($worktree, $agent, $prompt, $model, $sessionId);
+    }
+
+    /** In an Orca terminal too (`pablo:yolo-…`), so the follow-up shows next to the plan. */
+    public function doLaunchFollowUp(string $worktree, string $label, string $sessionId, string $prompt, ?string $model = null): string
+    {
+        $command = 'cd '.escapeshellarg($worktree).'; '.$this->runtime->followUpCommand($sessionId, $prompt, $model);
+
+        return $this->createTerminal($worktree, $label, $command)
+            ?? $this->headless->launchFollowUp($worktree, $label, $sessionId, $prompt, $model);
     }
 
     public function doRunStartupScript(string $worktree, string $script): string

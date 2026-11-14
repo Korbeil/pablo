@@ -71,7 +71,15 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
         return new AdeCall($data, null);
     }
 
-    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
+    /**
+     * OpenChamber names its sessions: $sessionId is only used by the headless
+     * fallback, and sessionOf() hands the OpenChamber session back for YOLO
+     * mode's follow-ups. Those run headless (the inherited
+     * doLaunchFollowUp()): `openchamber session send` has no way to approve
+     * tool calls, so an unattended run there could stop on a question nobody
+     * answers.
+     */
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string
     {
         // The resolved config model (project default_model / type map) wins;
         // the agent file's frontmatter model is only the fallback.
@@ -84,11 +92,14 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
             $create[] = $model;
         }
         $created = $this->call($create);
+        // The session id PABLO assigned, for the headless fallback; from here
+        // on $sessionId is OpenChamber's own.
+        $assigned = $sessionId;
         $sessionId = $created->payload['sessionId'] ?? null;
         if (!\is_string($sessionId) || '' === $sessionId) {
             $this->logFallback($worktree, $agent, 'session create failed: '.($created->reason ?? 'unknown'));
 
-            return $this->launchHeadless($worktree, $agent, $prompt, $model);
+            return $this->launchHeadless($worktree, $agent, $prompt, $model, $assigned);
         }
         $this->writeSessionPidfile($sessionId, $worktree, $agent);
         $send = [
@@ -109,10 +120,15 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
             $this->logFallback($worktree, $agent, 'session send failed ('.$sessionId.'): '.($sent->reason ?? 'unknown'));
             $this->cleanupSessionFile($sessionId);
 
-            return $this->launchHeadless($worktree, $agent, $prompt, $model);
+            return $this->launchHeadless($worktree, $agent, $prompt, $model, $assigned);
         }
 
         return $sessionId;
+    }
+
+    public function sessionOf(string $handle): ?string
+    {
+        return $this->headless->owns($handle) ? null : $handle;
     }
 
     /**

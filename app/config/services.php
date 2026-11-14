@@ -60,6 +60,8 @@ use Pablo\Task\TaskStarter;
 use Pablo\Task\TaskStateChanger;
 use Pablo\Update\Updater;
 use Pablo\Web\TrustedHostsSubscriber;
+use Pablo\Yolo\YoloPipeline;
+use Pablo\Yolo\YoloPrompts;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\abstract_arg;
@@ -145,6 +147,9 @@ return static function (ContainerConfigurator $container): void {
 
     // Engine orchestration.
     $services->set(StateMachine::class);
+    // YOLO mode: the follow-up runs after a state agent's plan.
+    $services->set(YoloPrompts::class);
+    $services->set(YoloPipeline::class);
     $services->set(Poller::class);
     $services->set(Sync::class);
     $services->set(Doctor::class);

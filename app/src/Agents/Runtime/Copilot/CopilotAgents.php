@@ -175,13 +175,7 @@ final class CopilotAgents
             ."disable-model-invocation: true\n"
             ."---\n";
 
-        $body = preg_replace(
-            '/^## Context \(auto-injected\)\R/m',
-            "## Context (gather it first)\n\nBefore anything else, run each command below from the worktree and read\nits output; the rest of this skill refers to it as \"the context\".\n",
-            $body,
-            1,
-        ) ?? $body;
-        $body = preg_replace('/^!`(.+)`$/m', '`$1`', $body) ?? $body;
+        $body = AgentTranslation::withContextToGather($body, 'skill');
         $body = AgentTranslation::withNoEditsRule($body, 'skill');
 
         $body = str_replace(

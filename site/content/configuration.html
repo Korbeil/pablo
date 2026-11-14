@@ -96,6 +96,8 @@ ci:
     <tr><td><code>testing.enabled</code></td><td><code>true</code></td><td>Whether the project has a QA step</td></tr>
     <tr><td><code>review.bot_whitelist</code></td><td><b>required</b> somewhere (installed config: <code>[]</code>)</td><td>Bot accounts whose reviews count (login with or without its <code>[bot]</code> suffix)</td></tr>
     <tr><td><code>ci.ignore_checks</code></td><td><b>required</b> somewhere (installed config: <code>["approval"]</code>)</td><td>Checks to leave out of CI</td></tr>
+    <tr><td><code>yolo.enabled</code></td><td><code>false</code></td><td><a href="page:yolo">YOLO mode</a>: after each plan, PABLO has it implemented and runs <code>/pablo-commit-and-pr</code> itself. A task can override it either way</td></tr>
+    <tr><td><code>yolo.max_rounds</code></td><td><code>5</code></td><td>How many implementations YOLO runs per task before the next plan waits for you</td></tr>
     <tr><td><code>hooks.command</code></td><td>none</td><td>Your own shell command, run in the background when a task changes state or an agent's analysis is ready (see <a href="page:states#get-notified">Get notified</a>). A project setting it to <code>null</code> or <code>""</code> turns it off for that project</td></tr>
     <tr><td><code>hooks.states</code></td><td>every state</td><td>Only run the command for transitions into these states, e.g. <code>[request-changes, testing-failed, ci-red, approved, closed]</code></td></tr>
     <tr><td><code>hooks.agent_finished</code></td><td><code>true</code></td><td>Also run it when an auto-launched agent finishes</td></tr>
@@ -161,7 +163,7 @@ models:
   personal: litellm/deepseek-v4.1-flash
 </code></pre>
 
-<p>The agent keys are <code>task-analyst</code>, <code>ci-analyst</code>, <code>pr-feedback</code>, <code>task-feedback</code> and <code>rebase-conflict-resolver</code> (see <a href="page:agents">Agents</a>), plus <code>default</code>; an unknown key is an error. A project that sets its own <code>default_model</code> uses it for every agent its own <code>models</code> doesn't list: its type's per-agent models don't apply to it. Each model is checked against <code>agent_runtime</code>, like <code>default_model</code>.</p>
+<p>The agent keys are <code>task-analyst</code>, <code>ci-analyst</code>, <code>pr-feedback</code>, <code>task-feedback</code> and <code>rebase-conflict-resolver</code> (see <a href="page:agents">Agents</a>), <code>yolo-implement</code> and <code>yolo-commit</code> (<a href="page:yolo">YOLO mode</a>'s two runs), plus <code>default</code>; an unknown key is an error. A project that sets its own <code>default_model</code> uses it for every agent its own <code>models</code> doesn't list: its type's per-agent models don't apply to it. Each model is checked against <code>agent_runtime</code>, like <code>default_model</code>.</p>
 
 <p>A project file can set models per agent too, with its own <code>models</code>: a mapping of agent to model (the same agent keys, without <code>default</code>, since that is the project's <code>default_model</code>). They beat everything else, for that project only:</p>
 
@@ -226,6 +228,9 @@ review:
   bot_whitelist: ["copilot-pull-request-reviewer"]   # GitHub Copilot's reviews
 ci:
   ignore_checks: ["approval"]
+yolo:
+  enabled: false              # true: PABLO implements each plan and runs
+  max_rounds: 5               # /pablo-commit-and-pr itself (see YOLO mode)
 
 startup_script: ~/scripts/pablo-setup.sh
                               # optional: bash script run once per task, next to

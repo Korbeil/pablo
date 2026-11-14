@@ -111,6 +111,20 @@
                         <p class="help">The branch name comes from an AI summary of the prompt; task-analyst starts right after creation, so this can take a moment.</p>
                     </div>
                 {% endif %}
+
+                <div class="field">
+                    <label class="checkbox">
+                        <input type="checkbox" name="yolo" data-model="yolo" {{ this.yoloChecked ? 'checked' : '' }}>
+                        {{ ux_icon('lucide:zap', {class: 'pablo-icon'}) }}
+                        YOLO mode
+                    </label>
+                    <p class="help">
+                        After each plan, PABLO has it implemented and runs <code>/pablo-commit-and-pr</code> itself — no review of the plan, no confirmation.
+                        {% if 'issue' == this.mode and this.yolo is null %}
+                            Untouched, the issue's project decides{% if this.yoloProjects is not empty %} (on for {{ this.yoloProjects|join(', ') }}){% endif %}.
+                        {% endif %}
+                    </p>
+                </div>
             </section>
 
             <footer class="modal-card-foot">

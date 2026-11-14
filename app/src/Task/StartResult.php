@@ -18,6 +18,8 @@ final class StartResult
         public readonly ?string $issueTitle = null,
         public readonly bool $reused = false,
         public readonly ?string $reusedState = null,
+        /** Whether the task runs in YOLO mode (its own choice or its project's). */
+        public readonly bool $yolo = false,
     ) {
     }
 }

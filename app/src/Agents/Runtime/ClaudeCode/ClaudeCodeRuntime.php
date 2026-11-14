@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime\ClaudeCode;
 
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
+use Pablo\Agents\Runtime\FollowUpPolicy;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
 use Pablo\Agents\Runtime\RuntimeOneShotInterface;
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
@@ -50,6 +51,9 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
         .'while [ -n "$s" ] && [ "${p:-1}" -gt 1 ]; do '
         .'if ps -o args= -p "$p" | grep -qF -- "$s"; then kill -TERM "$p"; exit 0; fi; '
         .'p=$(ps -o ppid= -p "$p" | tr -d " "); done';
+
+    /** What a YOLO follow-up may use without asking (see followUpCommand()). */
+    public const FOLLOW_UP_TOOLS = ['Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write', 'NotebookEdit', 'TodoWrite', 'WebFetch', 'WebSearch'];
 
     private ?ClaudeCodeAgentFiles $agentFiles = null;
 
@@ -212,6 +216,37 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
     public function interactiveCommand(string $agent, string $prompt, ?string $model): ?string
     {
         return null;
+    }
+
+    /**
+     * `claude -p --resume <session>` as the main agent (no `--agent`: the
+     * analyst's restrictions stay with the analyst's turns), edits accepted,
+     * the build tools pre-approved and FollowUpPolicy denied — raw and
+     * `rtk`-prefixed, like every PABLO shell deny. Always `-p`: a follow-up
+     * prints into its log or terminal, Remote Control showed the plan.
+     */
+    public function followUpCommand(string $sessionId, string $prompt, ?string $model): string
+    {
+        $argv = ['claude', '-p', '--resume', $sessionId];
+        if (null !== $model) {
+            $argv[] = '--model';
+            $argv[] = $model;
+        }
+        $denied = [];
+        foreach (FollowUpPolicy::DENIED_SHELL as $pattern) {
+            $denied = [...$denied, ...ClaudeCodeAgents::shellRules($pattern)];
+        }
+        $argv = [
+            ...$argv,
+            '--strict-mcp-config',
+            '--permission-mode', 'acceptEdits',
+            '--allowedTools', ...self::FOLLOW_UP_TOOLS,
+            '--disallowedTools', ...$denied,
+            // `--`: the variadic tool flags would otherwise swallow the prompt.
+            '--', $prompt,
+        ];
+
+        return RuntimeSupport::commandLine($argv);
     }
 
     public function modelError(string $model): ?string

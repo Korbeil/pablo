@@ -227,6 +227,10 @@ final class ConfigSchema
                 'ignore_checks' => self::leaf(self::stringList('check names')),
             ]),
             'testing' => SchemaKey::map($testing),
+            'yolo' => SchemaKey::map([
+                'enabled' => self::leaf(self::flag(...)),
+                'max_rounds' => self::leaf(self::positiveInt('rounds')),
+            ]),
             'default_model' => self::leaf(self::text(...)),
             'pr_description_locale' => self::leaf(self::text(...)),
             'branch_prefix' => self::leaf(self::text(...)),

@@ -62,7 +62,7 @@
 
 <h2>Into draft: <code>/pablo-commit-and-pr</code></h2>
 
-<p>The one and only way work enters (or re-enters) <code>draft</code>, allowed from <code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>, <code>waiting-review</code> and <code>approved</code>. It commits, pushes, opens the pull request as a draft if needed, then sets the state. A raw <code>git push</code> is never detected and never changes a state. The single other way in is a <code>closed</code> task whose pull request is reopened. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>.</p>
+<p>The one and only way work enters (or re-enters) <code>draft</code>, allowed from <code>in-progress</code>, <code>ci-red</code>, <code>request-changes</code>, <code>testing-failed</code>, <code>waiting-review</code> and <code>approved</code>. It commits, pushes, opens the pull request as a draft if needed, then sets the state. A raw <code>git push</code> is never detected and never changes a state. The single other way in is a <code>closed</code> task whose pull request is reopened. How to use it: <a href="page:tasks#ship-your-work">Ship your work</a>. In <a href="page:yolo">YOLO mode</a> PABLO runs it for you, once each plan has been implemented; while it works on a <code>request-changes</code> task, the move back to review waits for its commit.</p>
 
 <h2>What the poller watches</h2>
 

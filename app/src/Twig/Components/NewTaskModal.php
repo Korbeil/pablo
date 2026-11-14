@@ -40,8 +40,15 @@ final class NewTaskModal
     #[LiveProp(writable: true)]
     public string $text = '';
 
-    #[LiveProp(writable: true)]
+    #[LiveProp(writable: true, onUpdated: 'onProjectUpdated')]
     public string $project = '';
+
+    /**
+     * The YOLO checkbox: null until the user touches it, so the project's
+     * yolo.enabled decides (see yoloChecked()).
+     */
+    #[LiveProp(writable: true)]
+    public ?bool $yolo = null;
 
     #[LiveProp]
     public bool $open = false;
@@ -76,6 +83,44 @@ final class NewTaskModal
         return $groups;
     }
 
+    /** What the YOLO checkbox shows: the user's choice, else the project's default. */
+    public function yoloChecked(): bool
+    {
+        if (null !== $this->yolo) {
+            return $this->yolo;
+        }
+        if ('prompt' !== $this->mode || '' === $this->project) {
+            return false;
+        }
+
+        return ($this->starter->projects()[$this->project] ?? null)?->yolo->enabled ?? false;
+    }
+
+    /**
+     * The projects with yolo.enabled, for issue mode's help: an untouched
+     * checkbox leaves the choice to the issue's project.
+     *
+     * @return list<string>
+     */
+    public function yoloProjects(): array
+    {
+        $names = [];
+        foreach ($this->starter->projects() as $cfg) {
+            if ($cfg->yolo->enabled) {
+                $names[] = $cfg->name;
+            }
+        }
+        sort($names);
+
+        return $names;
+    }
+
+    /** Another project: the checkbox shows that project's default again. */
+    public function onProjectUpdated(): void
+    {
+        $this->yolo = null;
+    }
+
     /**
      * Every opening starts from a blank form: the component outlives the
      * modal, so without this a second use would show the previous text and
@@ -85,6 +130,7 @@ final class NewTaskModal
     public function open(): void
     {
         $this->text = '';
+        $this->yolo = null;
         $this->error = null;
         $this->message = null;
         $this->open = true;
@@ -107,12 +153,14 @@ final class NewTaskModal
     public function useIssueMode(): void
     {
         $this->mode = 'issue';
+        $this->yolo = null;
     }
 
     #[LiveAction]
     public function usePromptMode(): void
     {
         $this->mode = 'prompt';
+        $this->yolo = null;
     }
 
     #[LiveAction]
@@ -138,7 +186,7 @@ final class NewTaskModal
         }
 
         try {
-            $this->message = $this->render($this->starter->start($text, $project));
+            $this->message = $this->render($this->starter->start($text, $project, $this->yolo));
             $this->text = '';
             $this->open = false;
             $this->emit(TaskBoard::TASKS_CHANGED_EVENT);
@@ -159,7 +207,9 @@ final class NewTaskModal
             );
         }
 
-        return null !== $result->issueKey
+        $yolo = $result->yolo ? ' — YOLO mode: PABLO implements the plan and opens the PR on its own' : '';
+
+        return (null !== $result->issueKey
             ? \sprintf(
                 'Started %s (%s) in project %s — worktree %s (branch %s), task-analyst is running',
                 $result->issueKey,
@@ -173,6 +223,6 @@ final class NewTaskModal
                 $result->project,
                 $result->worktreePath,
                 $result->branch,
-            );
+            )).$yolo;
     }
 }

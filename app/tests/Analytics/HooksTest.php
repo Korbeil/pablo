@@ -92,7 +92,7 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
         // FakeProcessRunner::probe defaults to an empty successful output, so
         // harvest() finds no OpenCode sessions and records null usage —
         // without ever invoking a real binary.
-        $cmd = new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new OpenCodeUsage($this->runner), \Pablo\Tests\Registries::hooks(), $this->analytics);
+        $cmd = new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new OpenCodeUsage($this->runner), \Pablo\Tests\Registries::hooks(), $this->yolo, $this->analytics);
         $input = new ArrayInput([
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
@@ -134,7 +134,7 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
             {
                 throw new \LogicException('a startup script has no usage to harvest');
             }
-        }, \Pablo\Tests\Registries::hooks(), $this->analytics);
+        }, \Pablo\Tests\Registries::hooks(), $this->yolo, $this->analytics);
         $input = new ArrayInput([
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
@@ -155,7 +155,7 @@ final class HooksTest extends \Pablo\Tests\Command\CommandTestBed
 
     public function testWatcherWithoutAgentRecordsNoRunEvent(): void
     {
-        $cmd = new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new OpenCodeUsage($this->runner), \Pablo\Tests\Registries::hooks(), $this->analytics);
+        $cmd = new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new OpenCodeUsage($this->runner), \Pablo\Tests\Registries::hooks(), $this->yolo, $this->analytics);
         $input = new ArrayInput([
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',

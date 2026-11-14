@@ -28,6 +28,9 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
     /** How long the TUI waits for the background run to create its session. */
     private const SESSION_WAIT_S = 60;
 
+    /** OpenCode's built-in write agent, which YOLO mode's follow-ups run as. */
+    public const BUILD_AGENT = 'build';
+
     private ?OpenCodeAgentFiles $agentFiles = null;
 
     public function __construct(private readonly AgentTemplates $templates)
@@ -84,6 +87,21 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
             .'sleep 1; i=$((i+1)); done; rm -f "$err"; exec opencode -s '.$session;
 
         return 'sh -c '.escapeshellarg($script);
+    }
+
+    /**
+     * `opencode run -s <session> --agent build --auto`: OpenCode's own build
+     * agent continues the analyst's session, `--auto` approving every
+     * permission not explicitly denied. `opencode run` takes no per-run
+     * permission rules, so FollowUpPolicy reaches it only through the prompt
+     * (and the user's own OpenCode `permission` denies, which `--auto`
+     * keeps).
+     */
+    public function followUpCommand(string $sessionId, string $prompt, ?string $model): string
+    {
+        return 'opencode run -s '.escapeshellarg($sessionId)
+            .(null !== $model ? ' --model '.escapeshellarg($model) : '')
+            .' --agent '.self::BUILD_AGENT.' --auto '.escapeshellarg($prompt);
     }
 
     /**

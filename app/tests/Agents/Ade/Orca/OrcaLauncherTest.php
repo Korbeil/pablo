@@ -170,6 +170,45 @@ final class OrcaLauncherTest extends TestCase
         $this->assertMatchesRegularExpression("/exec opencode -s '\\\\''ses_pablo[0-9a-f]{20}'\\\\'''\$/", $command);
     }
 
+    public function testAnUnattendedLaunchRunsOneShotUnderTheGivenSession(): void
+    {
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+
+            return $this->orcaOk(['handle' => 'term_123']);
+        });
+
+        $this->assertSame('term_123', $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'Analyze issue #45', null, 'ses_pabloyolo'));
+        $key = array_search('--command', $calls[1], true);
+        $this->assertIsInt($key);
+        // Not the TUI: it would hold the terminal until the user quits it.
+        $this->assertSame(
+            'cd '.escapeshellarg($this->tmp)."; opencode run -s 'ses_pabloyolo' --agent task-analyst 'Analyze issue #45'",
+            $calls[1][$key + 1],
+        );
+        $this->assertNull($this->agents->sessionOf('term_123'));
+    }
+
+    public function testAFollowUpOpensItsOwnTerminalOnTheSession(): void
+    {
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+
+            return $this->orcaOk(['handle' => 'term_456']);
+        });
+
+        $this->assertSame('term_456', $this->agents->doLaunchFollowUp($this->tmp, 'yolo-implement', 'ses_pabloyolo', 'Execute the plan', 'opencode-go/glm'));
+        $this->assertContains('pablo:yolo-implement', $calls[1]);
+        $key = array_search('--command', $calls[1], true);
+        $this->assertIsInt($key);
+        $this->assertSame(
+            'cd '.escapeshellarg($this->tmp)."; opencode run -s 'ses_pabloyolo' --model 'opencode-go/glm' --agent build --auto 'Execute the plan'",
+            $calls[1][$key + 1],
+        );
+    }
+
     public function testOrcaSessionsMapAgentStates(): void
     {
         $ps = [

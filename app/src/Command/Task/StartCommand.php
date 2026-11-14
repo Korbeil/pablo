@@ -34,6 +34,7 @@ final class StartCommand extends Command
     {
         $this
             ->addOption('project', null, InputOption::VALUE_REQUIRED, 'project name for plain-prompt tasks', null, $this->suggestions()->projectCompleter())
+            ->addOption('yolo', null, InputOption::VALUE_NEGATABLE, 'YOLO mode for this task: PABLO implements each plan and runs /pablo-commit-and-pr itself (default: the project\'s yolo.enabled)')
             ->addArgument('input', InputArgument::IS_ARRAY | InputArgument::OPTIONAL, 'issue URL or task prompt');
     }
 
@@ -44,7 +45,8 @@ final class StartCommand extends Command
             throw new PabloError('usage: pablo task:start <issue-url> | pablo task:start --project <name> "<prompt>"');
         }
 
-        $result = $this->starter->start($text, $input->getOption('project') ?: null);
+        $yolo = $input->getOption('yolo');
+        $result = $this->starter->start($text, $input->getOption('project') ?: null, \is_bool($yolo) ? $yolo : null);
 
         if ($result->reused) {
             $issueLine = null === $result->issueKey ? '' : " for {$result->issueKey}";
@@ -60,6 +62,9 @@ final class StartCommand extends Command
         }
         $output->writeln("worktree: {$result->worktreePath} (branch {$result->branch})");
         $output->writeln('state: in-progress — task-analyst is running');
+        if ($result->yolo) {
+            $output->writeln('YOLO mode: PABLO will implement the plan and run /pablo-commit-and-pr on its own');
+        }
 
         return self::SUCCESS;
     }

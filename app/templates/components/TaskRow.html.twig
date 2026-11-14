@@ -8,6 +8,13 @@
         <div class="pablo-branch">
             {{ ux_icon('lucide:git-branch', {class: 'pablo-icon pablo-icon-dim'}) }}
             <code>{{ task.branch }}</code>
+            {% if task.yolo %}
+                <span class="tag is-warning is-light pablo-yolo"
+                      title="YOLO mode: PABLO implements each plan and runs /pablo-commit-and-pr itself{{ task.yoloStep ? ' — ' ~ task.yoloStep ~ ' running' : '' }}">
+                    {{ ux_icon('lucide:zap', {class: 'pablo-icon'}) }}
+                    {{ task.yoloStep ? task.yoloStep|replace({'yolo-': ''}) : 'YOLO' }}
+                </span>
+            {% endif %}
         </div>
         <div class="pablo-label">
             {% if task.issue %}

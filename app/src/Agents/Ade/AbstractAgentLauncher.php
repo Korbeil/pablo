@@ -149,6 +149,38 @@ abstract class AbstractAgentLauncher implements AgentLauncherInterface
         return HeadlessRunner::HANDLE_PREFIX.$pid;
     }
 
+    public function launchFollowUp(string $worktree, Agent $step, string $sessionId, string $prompt, string $project, string $branch): string
+    {
+        $pid = Detached::spawn([
+            self::shimPath(), 'internal:launch-agent',
+            '--backend', $this->adeName(),
+            '--worktree', $worktree,
+            '--agent', $step->value,
+            '--prompt', $prompt,
+            '--project', $project,
+            '--branch', $branch,
+            '--follow-up-session', $sessionId,
+        ]);
+
+        return HeadlessRunner::HANDLE_PREFIX.$pid;
+    }
+
+    /** Headless by default; an ADE with somewhere to show it overrides this. */
+    public function doLaunchFollowUp(string $worktree, string $label, string $sessionId, string $prompt, ?string $model = null): string
+    {
+        return $this->headless->launchFollowUp($worktree, $label, $sessionId, $prompt, $model);
+    }
+
+    public function sessionOf(string $handle): ?string
+    {
+        return null;
+    }
+
+    public function newSessionId(): string
+    {
+        return $this->runtime->newSessionId();
+    }
+
     public function runStartupScript(string $worktree, string $script, string $project, string $branch): string
     {
         $pid = Detached::spawn([

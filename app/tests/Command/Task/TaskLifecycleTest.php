@@ -287,7 +287,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, '2026-08-11T00:00:00+00:00', 1);
         $this->store->save($task);
 
-        $tester = $this->runCommand(new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), $this->hooks, new FakeAnalytics()), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), $this->hooks, $this->yolo, new FakeAnalytics()), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -303,6 +303,34 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->assertNotNull($launch->runId);
     }
 
+    public function testWatchAgentStartsTheYoloImplementationInTheAnalystsSession(): void
+    {
+        $task = $this->getTask();
+        $task->yolo = true;
+        $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(Agent::TaskAnalyst, '2026-08-11T00:00:00+00:00', 1, sessionId: 'ses_plan');
+        $this->store->save($task);
+
+        // Headless, on a dead pid: the wait returns at once, and the
+        // follow-up's detached re-invocation is PABLO_SHIM=/bin/true.
+        $tester = $this->runCommand(new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), $this->hooks, $this->yolo, new FakeAnalytics()), [
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+            '--handle' => 'pid:999999',
+            '--agent' => 'task-analyst',
+            '--backend' => 'headless',
+        ]);
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString('wk-45: task-analyst finished → yolo-implement (round 1/5)', $tester->getDisplay());
+
+        $task = $this->getTask();
+        $this->assertSame('ses_plan', $task->agentLaunches['task-analyst']->sessionId, 'kept when stamped finished');
+        $this->assertSame(Agent::YoloImplement, $task->yoloStep);
+        $this->assertSame(1, $task->yoloRounds);
+        $implement = $task->agentLaunches['yolo-implement'];
+        $this->assertSame('ses_plan', $implement->sessionId);
+        $this->assertNull($implement->finishedAt);
+    }
+
     public function testWatchAgentFiresTheAgentFinishedHook(): void
     {
         file_put_contents($this->projectsDir.'/wallet-kit.yaml', "hooks:\n  command: notify\n", \FILE_APPEND);
@@ -311,7 +339,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->store->save($task);
 
         $runner = new \Pablo\Tests\FakeHookRunner();
-        $tester = $this->runCommand(new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), new \Pablo\Hooks\Hooks($runner, $this->repoSlug), new FakeAnalytics()), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), new \Pablo\Hooks\Hooks($runner, $this->repoSlug), $this->yolo, new FakeAnalytics()), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',
@@ -339,7 +367,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->store->save($task);
 
         $analytics = new FakeAnalytics();
-        $tester = $this->runCommand(new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), $this->hooks, $analytics), [
+        $tester = $this->runCommand(new WatchAgentCommand($this->time, $this->store, $this->projectsLoader, $this->agentLaunchers, new \Pablo\Agents\Runtime\OpenCode\OpenCodeUsage($this->runner), $this->hooks, $this->yolo, $analytics), [
             '--project' => 'wallet-kit',
             '--branch' => 'wk-45',
             '--handle' => 't1',

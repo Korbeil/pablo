@@ -33,6 +33,18 @@ final class AgentLaunchTest extends TestCase
         $this->assertTrue($back->reported);
     }
 
+    public function testRoundTripsTheSessionOnlyWhenKnown(): void
+    {
+        $launch = new AgentLaunch(Agent::TaskAnalyst, '2026-08-01T00:00:00+00:00', 1, sessionId: 'ses_plan');
+        $this->assertSame('ses_plan', AgentLaunch::fromJson('task-analyst', $launch->toJson())->sessionId);
+
+        $stamped = $launch->with(finishedAt: '2026-08-01T00:20:00+00:00', runId: 'r', reported: true);
+        $this->assertSame('ses_plan', $stamped->sessionId, 'with() keeps what it is not given');
+        $this->assertTrue($stamped->reported);
+
+        $this->assertArrayNotHasKey('session_id', (new AgentLaunch(Agent::TaskAnalyst, null, 1))->toJson());
+    }
+
     public function testLegacyJsonWithoutNewKeysLoadsDefaults(): void
     {
         // Task JSONs written before reconciliation existed carry neither key.

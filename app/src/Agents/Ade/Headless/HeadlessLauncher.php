@@ -18,9 +18,9 @@ final class HeadlessLauncher extends AbstractAgentLauncher
         return HeadlessAde::NAME;
     }
 
-    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string
     {
-        return $this->headless->launch($worktree, $agent, $prompt, $model);
+        return $this->headless->launch($worktree, $agent, $prompt, $model, $sessionId);
     }
 
     public function doRunStartupScript(string $worktree, string $script): string

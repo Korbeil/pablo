@@ -313,6 +313,11 @@ final class AgentRuntimeTest extends TestCase
                 return 'true';
             }
 
+            public function followUpCommand(string $sessionId, string $prompt, ?string $model): string
+            {
+                return 'true';
+            }
+
             public function label(): string
             {
                 return 'Fake';

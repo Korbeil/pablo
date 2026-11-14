@@ -6,6 +6,7 @@ namespace Pablo\Agents\Runtime\Copilot;
 
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\AgentTranslation;
+use Pablo\Agents\Runtime\FollowUpPolicy;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
 use Pablo\Agents\Runtime\RuntimeOneShotInterface;
 use Pablo\Agents\Runtime\RuntimeSessionsInterface;
@@ -109,6 +110,32 @@ final class CopilotRuntime implements AgentRuntimeInterface
     public function interactiveCommand(string $agent, string $prompt, ?string $model): ?string
     {
         return null;
+    }
+
+    /**
+     * `copilot --resume=<session> -p` as Copilot's default agent, every tool
+     * allowed but FollowUpPolicy (`--deny-tool` always wins in Copilot), no
+     * ask-user tool: nobody answers a YOLO run.
+     */
+    public function followUpCommand(string $sessionId, string $prompt, ?string $model): string
+    {
+        $argv = ['copilot', '--resume='.$sessionId];
+        if (null !== $model) {
+            $argv[] = '--model';
+            $argv[] = $model;
+        }
+        $argv = [...$argv, '--no-ask-user', '--no-auto-update', '--no-color', '--disable-builtin-mcps', '--allow-all-tools'];
+        foreach (FollowUpPolicy::DENIED_SHELL as $pattern) {
+            foreach (CopilotAgents::shellRules($pattern, 'yolo follow-up') as $rule) {
+                $argv[] = '--deny-tool';
+                $argv[] = $rule;
+            }
+        }
+        // The prompt goes last, as the value of -p.
+        $argv[] = '-p';
+        $argv[] = $prompt;
+
+        return RuntimeSupport::commandLine($argv);
     }
 
     public function modelError(string $model): ?string

@@ -392,6 +392,57 @@ final class PollerTest extends TestCase
         $this->assertSame([7], $this->gh->readies);
     }
 
+    public function testRequestChangesStaysWhileYoloIsFixingIt(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::RequestChanges));
+        $this->setLaunch($store, 'pr-feedback', finishedAt: '2026-07-22T00:00:00+00:00', reported: true);
+        $this->setState($store, State::RequestChanges, ['yolo' => true, 'yoloStep' => Agent::YoloImplement]);
+        $this->gh->verdict = null;
+        $this->poll($cfg, $store);
+        // Its commit moves the task on, not the resolved threads.
+        $this->assertSame(State::RequestChanges, $this->taskOrFail($store)->state);
+        $this->assertSame([], $this->gh->readies);
+    }
+
+    public function testTheSweepFinishesAYoloStepWhoseWatcherDied(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::InProgress));
+        $task = $this->setState($store, State::InProgress, ['prNumber' => null, 'yolo' => true, 'yoloStep' => Agent::YoloImplement, 'yoloRounds' => 1]);
+        $task->agentLaunches['yolo-implement'] = new AgentLaunch(Agent::YoloImplement, $this->freshTs(\Pablo\Agents\Ade\AbstractAgentLauncher::WAIT_TIMEOUT_S + Poller::LAUNCH_WINDOW_S + 1), 1, sessionId: 'ses_plan');
+        $store->save($task);
+
+        $events = $this->poll($cfg, $store);
+
+        $this->assertContains('pr-1: yolo-implement finished → yolo-commit', $events);
+        $this->assertSame('yolo-commit', $this->agents->followUps[0]['step']);
+        $this->assertSame('ses_plan', $this->agents->followUps[0]['session']);
+        $task = $this->taskOrFail($store);
+        $this->assertTrue($task->agentLaunches['yolo-implement']->reported);
+        $this->assertSame(Agent::YoloCommit, $task->yoloStep);
+    }
+
+    public function testTheSweepLeavesARunningYoloStepAlone(): void
+    {
+        $e = $this->newEnv();
+        $cfg = $this->cfg($e['tmp']);
+        $store = new Store($e['tmp'].'/state');
+        $store->save($this->task($e['tmp'], State::InProgress));
+        $task = $this->setState($store, State::InProgress, ['prNumber' => null, 'yolo' => true, 'yoloStep' => Agent::YoloImplement]);
+        $task->agentLaunches['yolo-implement'] = new AgentLaunch(Agent::YoloImplement, $this->freshTs(Poller::LAUNCH_WINDOW_S * 2), 1, sessionId: 'ses_plan');
+        $store->save($task);
+
+        $this->poll($cfg, $store);
+
+        $this->assertSame([], $this->agents->followUps);
+        $this->assertNull($this->taskOrFail($store)->agentLaunches['yolo-implement']->finishedAt);
+    }
+
     public function testRequestChangesStaysWhenPrFeedbackStillRunning(): void
     {
         $e = $this->newEnv();
