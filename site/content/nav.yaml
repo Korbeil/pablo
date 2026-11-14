@@ -3,7 +3,7 @@
 - section: Getting started
   pages: [quickstart, installation, update]
 - section: Guides
-  pages: [tasks, dashboard, analytics, backups, troubleshooting]
+  pages: [tasks, yolo, dashboard, analytics, backups, troubleshooting]
 - section: Concepts
   pages: [how-it-works, safety, states, agents, runtimes, sync, glossary]
 - section: Reference

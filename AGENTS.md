@@ -31,7 +31,15 @@ perform git/PR-metadata ops (branches, worktrees, rebase,
 force-with-lease push, draft PR toggling, worktree deletion, checkout +
 `reset --hard` of a *clean, not-ahead* primary checkout onto its remote
 primary branch), but only per the explicit rules in `site/content/safety.html`
-("What PABLO may change").
+("What PABLO may change"). **YOLO mode** (`yolo.enabled` per project, or
+`Task::$yolo` per task; off by default — `site/content/yolo.html`) is the
+user's opt-in to let PABLO act in their place: after a state analyst's plan,
+`src/Yolo/YoloPipeline` continues the analyst's session with the runtime's
+own build agent (`yolo-implement`, `AgentRuntimeInterface::followUpCommand()`,
+`FollowUpPolicy` denies), then with `/pablo-commit-and-pr`'s own body
+(`yolo-commit`), each step started by the previous run's watcher (or the
+poller's sweep). The PABLO agents themselves stay read-only and gain no
+YOLO variant: don't add one.
 
 **Git discipline:** agents never `git commit` or `git push` on their own
 initiative — not even when executing a plan that was decided, and not
@@ -42,7 +50,9 @@ commit/push, or the deliberate invocation of `/pablo-commit-and-pr`
 uncommitted working tree, say so, and let the user commit/push. The
 `rebase-conflict-resolver` is the single deliberate exception: it may
 only perform the git writes its own task mandates (replay + push per its
-Push rule), never new commits of its own.
+Push rule), never new commits of its own. A task in YOLO mode counts as the
+user's deliberate invocation of `/pablo-commit-and-pr` after each plan
+(the `yolo-commit` run); its `yolo-implement` run still never commits.
 
 ## Commands
 
@@ -176,6 +186,8 @@ run detached after a saved transition or a finished agent through
 `HookRunnerInterface` — `tests/FakeHookRunner.php` in tests; PABLO itself
 sends nothing, see `site/content/states.html#get-notified`) ·
 `src/Dispatch/` (cron entry point, its stamps/health and the poll `WorkerPool`) ·
+`src/Yolo/` (YOLO mode: `YoloPipeline` picks the next follow-up run when an
+agent finishes, `YoloPrompts` its prompts) ·
 `src/Support/` (`PabloError`, `PabloPaths` — every `~/.pablo` path and the
 phar/resources helpers —, `ProcessRunner`, `Files` — phar-safe
 `list()`/`copy()`/`remove()`, and the checked file operations: a required

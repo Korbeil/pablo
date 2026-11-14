@@ -7,7 +7,7 @@
 <table class="cmds">
   <thead><tr><th>Command</th><th>What it does</th></tr></thead>
   <tbody>
-    <tr><td><code>task:start &lt;issue-url&gt;</code><br><code>task:start --project=&lt;name&gt; "&lt;prompt&gt;"</code> (alias <code>start</code>)</td><td>Start a task: branch, worktree, task-analyst. <a href="page:tasks#start-a-task">Guide</a></td></tr>
+    <tr><td><code>task:start &lt;issue-url&gt;</code><br><code>task:start --project=&lt;name&gt; "&lt;prompt&gt;"</code> (alias <code>start</code>)</td><td>Start a task: branch, worktree, task-analyst. <code>--yolo</code> / <code>--no-yolo</code> sets <a href="page:yolo">YOLO mode</a> for this task (default: the project's <code>yolo.enabled</code>). <a href="page:tasks#start-a-task">Guide</a></td></tr>
     <tr><td><code>task:list [--live] [--refresh] [--project=&lt;name&gt;] [--type=&lt;type&gt;] [--state=&lt;state&gt;…] [--format=json]</code> (alias <code>tasks</code>)</td><td>Active tasks, split into “waiting for feedback” and the rest. <code>--live</code> fetches fresh data, <code>--refresh</code> runs the poller first; <code>--project</code>, <code>--type</code> and <code>--state</code> (repeatable) narrow the list, in the table and in the JSON alike. <a href="page:tasks#see-your-tasks">Guide</a></td></tr>
     <tr><td><code>task:waiting [&lt;branch&gt;]</code></td><td>Pause the task, or resume it. <a href="page:tasks#pause-a-task">Guide</a></td></tr>
     <tr><td><code>task:state &lt;state&gt; [&lt;branch&gt;] [--no-trigger]</code></td><td>Force a state. <a href="page:tasks#force-a-state">Guide</a></td></tr>
@@ -15,6 +15,7 @@
     <tr><td><code>task:relaunch [&lt;branch&gt;] [--only=&lt;agent&gt;]</code></td><td>Launch the agents of the task's current state again. <a href="page:tasks#relaunch-an-agent">Guide</a></td></tr>
     <tr><td><code>task:retrigger-ci [&lt;branch&gt;]</code></td><td>Re-run the GitHub Actions workflows of the branch; the pull request goes back to draft. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
     <tr><td><code>task:skip-ci [&lt;branch&gt;]</code></td><td>From <code>ci-red</code>. Ignore failing checks until the next <code>/pablo-commit-and-pr</code>. <a href="page:tasks#help-with-ci">Guide</a></td></tr>
+    <tr><td><code>task:yolo on|off|project [&lt;branch&gt;]</code></td><td>Turn <a href="page:yolo">YOLO mode</a> on or off for the task, or back to its project's <code>yolo.enabled</code>. Takes effect from the next analyst.</td></tr>
     <tr><td><code>task:close [&lt;branch&gt;] [--yes]</code></td><td>Close a task: delete its worktree and record. Asks first when the task comes from the current directory; <code>--yes</code> (<code>-y</code>) skips that and the active-agents check. <a href="page:tasks#close-a-task">Guide</a></td></tr>
     <tr><td><code>task:info [&lt;branch&gt;] [--json]</code></td><td>Print the task record as JSON (<code>--json</code> is accepted, and changes nothing). <code>task:info current</code> still works: it means the current directory's task.</td></tr>
     <tr><td><code>task:precommit-check [&lt;branch&gt;] [--json]</code></td><td>Whether <code>/pablo-commit-and-pr</code> is allowed here. Used by that command.</td></tr>
@@ -23,7 +24,7 @@
 
 <h3 id="choosing-the-task">Choosing the task</h3>
 
-<p>Every command above that acts on an existing task (<code>task:waiting</code>, <code>task:state</code>, <code>task:relaunch</code>, <code>task:retrigger-ci</code>, <code>task:skip-ci</code>, <code>task:close</code>, <code>task:info</code>, <code>task:precommit-check</code>) picks it the same way:</p>
+<p>Every command above that acts on an existing task (<code>task:waiting</code>, <code>task:state</code>, <code>task:yolo</code>, <code>task:relaunch</code>, <code>task:retrigger-ci</code>, <code>task:skip-ci</code>, <code>task:close</code>, <code>task:info</code>, <code>task:precommit-check</code>) picks it the same way:</p>
 
 <ul>
   <li><b>Nothing given</b>: the task of the worktree you're in (<code>task:close</code> asks for confirmation first).</li>

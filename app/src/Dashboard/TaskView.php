@@ -34,6 +34,10 @@ final readonly class TaskView
         public string $worktreePath,
         public bool $needsAttention,
         public ?string $polledAt,
+        /** Whether the task runs in YOLO mode (its own choice or its project's). */
+        public bool $yolo = false,
+        /** The YOLO follow-up running now (yolo-implement, yolo-commit), if any. */
+        public ?string $yoloStep = null,
     ) {
     }
 

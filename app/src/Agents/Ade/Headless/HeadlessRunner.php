@@ -66,6 +66,19 @@ final class HeadlessRunner
         return self::HANDLE_PREFIX.$pid;
     }
 
+    /** Continue session $sessionId with $prompt, unattended (YOLO mode's follow-ups). */
+    public function launchFollowUp(string $worktree, string $label, string $sessionId, string $prompt, ?string $model = null): string
+    {
+        $log = $this->logFor($label);
+        $pid = $this->exec(
+            'cd '.escapeshellarg($worktree).' && exec '.$this->runtime->followUpCommand($sessionId, $prompt, $model),
+            $log,
+        );
+        $this->writePidfile($pid, $worktree, $label, $log, $sessionId);
+
+        return self::HANDLE_PREFIX.$pid;
+    }
+
     /** Run an arbitrary shell $command (e.g. a startup script) from $worktree. */
     public function launchCommand(string $worktree, string $label, string $command): string
     {

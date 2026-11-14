@@ -1,0 +1,58 @@
+<h1>YOLO mode</h1>
+
+<p>In YOLO mode PABLO does what you'd do after each plan: it has the plan implemented, then runs <code>/pablo-commit-and-pr</code> itself. A task goes from issue to draft pull request, and through CI fixes and review feedback, with nobody at the keyboard. It is off unless you turn it on, per project or per task.</p>
+
+<aside class="callout warning"><p>Nobody reviews the plan and nobody confirms the commit: what the agents decide is pushed to your pull request. The pull request stays a draft until CI is green, and a person still reviews and merges it. Start with a project where that's fine.</p></aside>
+
+<h2 id="how-it-runs">How it runs</h2>
+
+<p>The <a href="page:agents">agents</a> don't change: each state still launches its read-only analyst, which writes a plan. In YOLO mode two more runs follow, in <b>the analyst's own session</b>, so they start from its plan:</p>
+
+<ol>
+  <li><b>yolo-implement</b>, once the analyst has finished: your runtime's own build agent (OpenCode's <code>build</code>, Claude Code's and Copilot's default agent, not a PABLO agent) executes the plan, adds or updates tests and runs the project's QA. It doesn't commit.</li>
+  <li><b>yolo-commit</b>, once the implementation has finished: the same session runs <code>/pablo-commit-and-pr</code>, from the very text of the command, so it commits, pushes, opens the draft pull request if there is none (or pushes to the existing one) and moves the task to <code>draft</code>. When there is nothing to commit, it stops, as the command always does.</li>
+</ol>
+
+<p>This happens after every analyst: <b>task-analyst</b> (<code>in-progress</code>), <b>ci-analyst</b> (<code>ci-red</code>), <b>pr-feedback</b> (<code>request-changes</code>) and <b>task-feedback</b> (<code>testing-failed</code>). So a red CI is fixed and pushed, review threads are addressed and pushed, and the poller carries on as usual: CI green, pull request ready, review.</p>
+
+<p>With Orca, each run opens its own terminal next to the plan (<code>pablo:yolo-implement</code>, <code>pablo:yolo-commit</code>), and the analyst runs as a one-shot command instead of the OpenCode TUI: the TUI only ends when you quit it, which would hold the next step back. With OpenChamber the analyst runs in OpenChamber as usual and the two follow-ups run headless on its session (OpenChamber can't approve a tool call by itself). Headless, everything runs in the background, logged under <code>~/.pablo/agents/logs/</code>.</p>
+
+<h2 id="turn-it-on">Turn it on</h2>
+
+<p>For every task of a project, or for all projects in <code>~/.pablo/config.yaml</code>:</p>
+
+<pre><code class="language-yaml">yolo:
+  enabled: true
+  max_rounds: 5      # optional, default 5
+</code></pre>
+
+<p>For one task, whatever its project says:</p>
+
+<ul>
+  <li><code>pablo task:start &lt;issue-url&gt; --yolo</code>, or <code>--no-yolo</code> to keep a task of a YOLO project manual;</li>
+  <li>the <b>YOLO mode</b> checkbox of the dashboard's <a href="page:dashboard#start-a-task-from-the-browser">New task</a> form. In prompt mode it shows the project's setting; untouched in issue mode, the issue's project decides;</li>
+  <li>on a running task: <code>pablo task:yolo on|off|project [&lt;branch&gt;]</code> (<code>project</code> hands the choice back to the project). It applies from the next analyst; a run already going finishes, but no commit follows an implementation once YOLO is off.</li>
+</ul>
+
+<p>A YOLO task shows a ⚡ badge on the dashboard, with the step running (<code>implement</code>, <code>commit</code>) while there is one. While a step runs, the task isn't listed as waiting for you.</p>
+
+<h2 id="limits">Limits</h2>
+
+<ul>
+  <li><b><code>yolo.max_rounds</code></b>: each implementation counts as one round. Past the limit, the next plan waits for you as usual (and the poll log says so). <code>pablo task:yolo</code> starts the count again.</li>
+  <li><b>No commit from <code>waiting</code></b>: pause a task and an implementation in flight ends without a commit; its changes stay in the worktree.</li>
+  <li><b>Stuck runs</b>: a step whose watcher died is considered finished by the poller about an hour after it started, and the next step goes on.</li>
+  <li><b>Models</b>: <code>yolo-implement</code> and <code>yolo-commit</code> are agent keys of <a href="page:configuration#a-model-per-agent"><code>models</code></a>, so the implementation can run on a stronger model than the analysts.</li>
+</ul>
+
+<h2 id="what-the-runs-may-not-do">What the runs may not do</h2>
+
+<p>Both runs approve their own tool calls, except these, refused whatever the runtime (raw and <code>rtk</code>-prefixed): changing the git identity (<code>git config</code>, <code>git -c user…</code>), switching, resetting, rebasing, stashing or tagging, deleting branches, any GitHub write but creating the draft pull request (<code>gh pr comment</code>, <code>edit</code>, <code>review</code>, <code>ready</code>, <code>merge</code>, <code>close</code>, <code>gh issue</code>, <code>gh api</code>…), and every Jira, Confluence and Linear command. Their prompts say the same.</p>
+
+<ul>
+  <li><b>Claude Code</b>: <code>claude -p --resume &lt;session&gt; --permission-mode acceptEdits</code>, with the build tools allowed and the list above as <code>--disallowedTools</code>.</li>
+  <li><b>Copilot CLI</b>: <code>copilot --resume=&lt;session&gt; --allow-all-tools</code>, with the list as <code>--deny-tool</code> (a deny always wins).</li>
+  <li><b>OpenCode</b>: <code>opencode run -s &lt;session&gt; --agent build --auto</code>. <code>opencode run</code> takes no per-run rules: <code>--auto</code> approves everything your own OpenCode configuration doesn't deny, so the list above only reaches it through the prompt. Add the denies you care about to the <code>permission</code> of your OpenCode configuration, which <code>--auto</code> keeps.</li>
+</ul>
+
+<p>Everything else stays as on <a href="page:safety">What PABLO may change</a>: the commits are <code>/pablo-commit-and-pr</code>'s, pushed with <code>--force-with-lease</code>, under your own git identity, and the pull request is only ever created as a draft.</p>

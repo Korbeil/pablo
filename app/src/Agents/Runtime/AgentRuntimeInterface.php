@@ -58,6 +58,16 @@ interface AgentRuntimeInterface
      */
     public function interactiveCommand(string $agent, string $prompt, ?string $model): ?string;
 
+    /**
+     * Shell command (no `cd`, no redirection) continuing session $sessionId
+     * with $prompt, unattended: YOLO mode's follow-up runs. It runs as the
+     * runtime's own default (build) agent — not a PABLO agent: the session's
+     * read-only analyst wrote the plan, this run carries it out — approving
+     * every tool call except FollowUpPolicy::DENIED_SHELL, and exits when the
+     * agent is done. Every argument is shell-escaped.
+     */
+    public function followUpCommand(string $sessionId, string $prompt, ?string $model): string;
+
     /** Why $model cannot be used with this runtime, or null when it can. */
     public function modelError(string $model): ?string;
 

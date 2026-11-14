@@ -253,6 +253,47 @@ YAML,
         $this->assertNull($modal->error);
     }
 
+    public function testTheYoloCheckboxShowsTheProjectsDefaultUntilTouched(): void
+    {
+        file_put_contents($this->projectsDir.'/wallet-kit.yaml', "\nyolo:\n  enabled: true\n", \FILE_APPEND);
+        $modal = $this->modal();
+
+        $this->assertFalse($modal->yoloChecked(), 'issue mode: the project is not known yet');
+        $this->assertSame(['wallet-kit'], $modal->yoloProjects());
+
+        $modal->usePromptMode();
+        $modal->project = 'wallet-kit';
+        $this->assertTrue($modal->yoloChecked());
+
+        $modal->yolo = false;
+        $this->assertFalse($modal->yoloChecked());
+        $modal->onProjectUpdated();
+        $this->assertNull($modal->yolo);
+    }
+
+    public function testTheCheckedBoxStartsTheTaskInYoloMode(): void
+    {
+        $modal = $this->modal();
+        $modal->mode = 'issue';
+        $modal->text = 'https://github.com/acme/wallet-kit/issues/9';
+        $modal->yolo = true;
+        $modal->start();
+
+        $this->assertStringContainsString('YOLO mode', (string) $modal->message);
+        $this->assertTrue($this->store->get('wallet-kit', 'wk-9')?->yolo);
+    }
+
+    public function testAnUntouchedBoxLeavesTheChoiceToTheProject(): void
+    {
+        $modal = $this->modal();
+        $modal->mode = 'issue';
+        $modal->text = 'https://github.com/acme/wallet-kit/issues/9';
+        $modal->start();
+
+        $this->assertStringNotContainsString('YOLO', (string) $modal->message);
+        $this->assertNull($this->store->get('wallet-kit', 'wk-9')?->yolo);
+    }
+
     public function testProjectChoicesListConfiguredProjectsByType(): void
     {
         $this->assertSame(['work' => ['wallet-kit']], $this->modal()->projectChoices());

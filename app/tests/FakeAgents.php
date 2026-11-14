@@ -54,11 +54,50 @@ final class FakeAgents implements AgentLauncherInterface
         return 'term_2';
     }
 
-    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null): string
+    /** @var list<?string> session ids passed to each doLaunchAgent() call */
+    public array $launchSessions = [];
+
+    /** @var list<array{step: string, session: string, prompt: string}> every launchFollowUp() call */
+    public array $followUps = [];
+
+    /** @var list<array{label: string, session: string, model: ?string}> every doLaunchFollowUp() call */
+    public array $doFollowUps = [];
+
+    /** What sessionOf() answers (an ADE naming its own sessions). */
+    public ?string $adeSession = null;
+
+    private int $sessions = 0;
+
+    public function doLaunchAgent(string $worktree, string $agent, string $prompt, ?string $model = null, ?string $sessionId = null): string
     {
         $this->launchModels[] = $model;
+        $this->launchSessions[] = $sessionId;
 
         return 'term_1';
+    }
+
+    public function sessionOf(string $handle): ?string
+    {
+        return $this->adeSession;
+    }
+
+    public function newSessionId(): string
+    {
+        return 'ses_fake_'.++$this->sessions;
+    }
+
+    public function launchFollowUp(string $worktree, \Pablo\Domain\Agent $step, string $sessionId, string $prompt, string $project, string $branch): string
+    {
+        $this->followUps[] = ['step' => $step->value, 'session' => $sessionId, 'prompt' => $prompt];
+
+        return 'term_3';
+    }
+
+    public function doLaunchFollowUp(string $worktree, string $label, string $sessionId, string $prompt, ?string $model = null): string
+    {
+        $this->doFollowUps[] = ['label' => $label, 'session' => $sessionId, 'model' => $model];
+
+        return 'term_3';
     }
 
     public function doRunStartupScript(string $worktree, string $script): string

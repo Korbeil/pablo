@@ -35,6 +35,7 @@ final class ProjectConfig
          * @var array<string, string>
          */
         public readonly array $agentModels = [],
+        public readonly YoloConfig $yolo = new YoloConfig(),
     ) {
     }
 

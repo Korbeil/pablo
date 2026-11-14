@@ -24,6 +24,7 @@ use Pablo\Provider\Git\Sync;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
+use Pablo\Yolo\YoloPipeline;
 
 /**
  * The engine service graph wired over fakes (FakeAgents, FakeGit, FakeGhPr,
@@ -50,6 +51,7 @@ final class EngineGraph
     public StubProviders $providers;
     public RepoSlug $repoSlug;
     public StateMachine $stateMachine;
+    public YoloPipeline $yolo;
     public FakeAnalytics $analytics;
     public Stamps $stamps;
     public Doctor $doctor;
@@ -83,6 +85,7 @@ final class EngineGraph
         $this->hookRunner = new FakeHookRunner();
         $this->hooks = new Hooks($this->hookRunner, $this->repoSlug);
         $this->stateMachine = new StateMachine($this->gh, $this->providers, $this->repoSlug, $this->time, $this->hooks, $this->analytics);
+        $this->yolo = new YoloPipeline($this->stateMachine, $this->time);
         $this->stamps = new Stamps();
         $this->doctor = new Doctor($this->runner, $this->runtimes, $this->ades);
         $this->sync = new Sync($this->git, $this->gh, $this->repoSlug, $this->time, $this->runtimes);
@@ -96,6 +99,7 @@ final class EngineGraph
             new OpenCodeUsage($this->runner),
             $this->hooks,
             $this->analytics,
+            $this->yolo,
         );
         $this->listing = new Listing($this->stamps, $this->gh, $this->providers, $this->repoSlug, $this->time);
         $this->jobWorkers = new FakeJobWorkers();

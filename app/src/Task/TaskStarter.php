@@ -19,6 +19,7 @@ use Pablo\Store\Store;
 use Pablo\Support\Naming;
 use Pablo\Support\PabloError;
 use Pablo\Support\TaskSummarizer;
+use Pablo\Yolo\YoloPipeline;
 
 /**
  * The core of `pablo task:start`, shared by the CLI command and the
@@ -55,7 +56,11 @@ final class TaskStarter
         return $this->projectsLoader->loadProjects();
     }
 
-    public function start(string $text, ?string $project): StartResult
+    /**
+     * $yolo: YOLO mode for this task — true/false, or null to follow the
+     * project's yolo.enabled (see Yolo\YoloPipeline).
+     */
+    public function start(string $text, ?string $project, ?bool $yolo = null): StartResult
     {
         $projects = $this->projects();
 
@@ -66,14 +71,14 @@ final class TaskStarter
             }
             $issue = $matched->provider->getIssue($matched->ref, $matched->cfg);
 
-            return $this->startIssueTask($matched->cfg, $issue);
+            return $this->startIssueTask($matched->cfg, $issue, $yolo);
         }
 
         $keyMatched = $this->matchIssueKey($text, $projects, $project);
         if (null !== $keyMatched) {
             $issue = $keyMatched->provider->getIssue($keyMatched->ref, $keyMatched->cfg);
 
-            return $this->startIssueTask($keyMatched->cfg, $issue);
+            return $this->startIssueTask($keyMatched->cfg, $issue, $yolo);
         }
 
         if (null === $project) {
@@ -90,10 +95,10 @@ final class TaskStarter
         $summary = $this->summarizer->summarize($cfg->repo->path, $text);
         $base = $this->prefixed($cfg, $this->naming->slugBranch($cfg->tracker->projectKey, $summary ?? $text));
         $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repo->path));
-        $task = $this->createTask($cfg, $branch, null, $text, $summary);
+        $task = $this->createTask($cfg, $branch, null, $text, $summary, $yolo);
         $this->agents->setWorktreeDisplayName($task->worktreePath, $branch);
 
-        return new StartResult(project: $cfg->name, branch: $branch, worktreePath: $task->worktreePath);
+        return new StartResult(project: $cfg->name, branch: $branch, worktreePath: $task->worktreePath, yolo: YoloPipeline::isOn($task, $cfg));
     }
 
     /**
@@ -158,7 +163,7 @@ final class TaskStarter
         return '' === $prefix ? $base : $prefix.$base;
     }
 
-    private function createTask(ProjectConfig $cfg, string $branch, ?Issue $issue, ?string $prompt, ?string $summary): Task
+    private function createTask(ProjectConfig $cfg, string $branch, ?Issue $issue, ?string $prompt, ?string $summary, ?bool $yolo): Task
     {
         $lock = $this->store->taskLock($cfg->name, $branch);
         try {
@@ -166,6 +171,8 @@ final class TaskStarter
             $task = new Task(project: $cfg->name, branch: $branch, worktreePath: $worktree, state: State::InProgress);
             $task->issue = $issue;
             $task->prompt = $prompt;
+            // Before entering the state: its agents' launch reads it.
+            $task->yolo = $yolo;
             $task->summary = null !== $prompt
                 ? $summary
                     ?? implode(' ', \array_slice(preg_split('/\s+/', trim($prompt)) ?: [], 0, self::SUMMARY_MAX_WORDS))
@@ -182,7 +189,7 @@ final class TaskStarter
         return $task;
     }
 
-    private function startIssueTask(ProjectConfig $cfg, Issue $issue): StartResult
+    private function startIssueTask(ProjectConfig $cfg, Issue $issue, ?bool $yolo): StartResult
     {
         foreach ($this->store->allTasks($cfg->name) as $existing) {
             if (null !== $existing->issue && $existing->issue->key === $issue->key) {
@@ -199,7 +206,7 @@ final class TaskStarter
         }
         $base = $this->branchBase($cfg, $issue);
         $branch = $this->naming->dedupe($base, $this->git->allBranchNames($cfg->repo->path));
-        $task = $this->createTask($cfg, $branch, $issue, null, null);
+        $task = $this->createTask($cfg, $branch, $issue, null, null, $yolo);
         $ghIssue = 'github' === $cfg->tracker->provider ? $issue->key : null;
         $this->agents->setWorktreeDisplayName($task->worktreePath, $issue->key, $ghIssue);
 
@@ -209,6 +216,7 @@ final class TaskStarter
             worktreePath: $task->worktreePath,
             issueKey: $issue->key,
             issueTitle: $issue->title,
+            yolo: YoloPipeline::isOn($task, $cfg),
         );
     }
 }

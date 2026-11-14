@@ -412,6 +412,30 @@ final class DashboardControllerTest extends WebTestCase
         $this->assertStringContainsString('In Review', $link->text());
     }
 
+    public function testAYoloTaskCarriesItsBadgeAndTheStepRunning(): void
+    {
+        $this->seed('wk-6', State::Draft);
+        $task = new Task('wallet-kit', 'wk-7', $this->tmp.'/wt/wk-7', State::CiRed);
+        $task->stateEnteredAt = '2026-08-01T10:00:00+00:00';
+        $task->yolo = true;
+        $task->yoloStep = \Pablo\Domain\Agent::YoloImplement;
+        (new Store($this->tmp.'/state'))->save($task);
+
+        $crawler = $this->browser()->request('GET', '/');
+
+        $badges = $crawler->filter('.pablo-yolo');
+        $this->assertSame(1, $badges->count());
+        $this->assertSame('implement', trim($badges->text()));
+        $this->assertStringContainsString('yolo-implement running', (string) $badges->attr('title'));
+    }
+
+    public function testTheNewTaskModalOffersTheYoloCheckbox(): void
+    {
+        $crawler = $this->browser()->request('GET', '/');
+
+        $this->assertSame(1, $crawler->filter('input[type="checkbox"][data-model="yolo"]')->count());
+    }
+
     /** A cached status with no stored issue must not render a broken link. */
     public function testTrackerStatusWithoutIssueStaysAnUnlinkedChip(): void
     {
