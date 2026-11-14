@@ -251,6 +251,24 @@ YAML,
         $this->assertStringContainsString('wk-45', $tester->getDisplay());
     }
 
+    public function testYoloFlagsSetTheTaskAndWithoutOneTheProjectDecides(): void
+    {
+        $issue = new Issue('github', '45', 'https://github.com/acme/wallet-kit/issues/45', 'T', 'WK');
+        $this->writeProject('wallet-kit', $this->tmp.'/repo', 'WK');
+        file_put_contents($this->projectsDir.'/wallet-kit.yaml', "yolo:\n  enabled: true\n", \FILE_APPEND);
+        $this->configureProviders(['github' => new FakeStartProvider($issue)]);
+
+        $tester = $this->runCommand(['input' => [$issue->url]]);
+        $this->assertNull($this->store->get('wallet-kit', 'wk-45')?->yolo);
+        $this->assertStringContainsString('YOLO mode: PABLO will implement the plan', $tester->getDisplay());
+
+        $this->git->allBranchNames = ['wk-45'];
+        $this->store->delete('wallet-kit', 'wk-45');
+        $tester = $this->runCommand(['input' => [$issue->url], '--no-yolo' => true]);
+        $this->assertFalse($this->store->get('wallet-kit', 'wk-45-2')?->yolo);
+        $this->assertStringNotContainsString('YOLO', $tester->getDisplay());
+    }
+
     public function testStartFromUrlSetsOrcaDisplayNameToIssueKey(): void
     {
         $issue = new Issue('github', '45', 'https://github.com/acme/wallet-kit/issues/45', 'T', 'WK');

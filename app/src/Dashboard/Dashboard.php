@@ -13,6 +13,7 @@ use Pablo\Listing\Listing;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
+use Pablo\Yolo\YoloPipeline;
 
 /**
  * Everything the dashboard renders, read straight off disk.
@@ -180,6 +181,8 @@ final class Dashboard
             worktreePath: $task->worktreePath,
             needsAttention: $this->listing->isWaitingForFeedback($task, $agents),
             polledAt: $cache->at,
+            yolo: YoloPipeline::isOn($task, $cfg),
+            yoloStep: $task->yoloStep?->value,
         );
     }
 

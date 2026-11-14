@@ -81,6 +81,23 @@ final class AgentTranslation
     }
 
     /**
+     * The command body for a runtime that cannot run its `!` context
+     * injection: those lines become commands to run first, each still
+     * between backticks, and the section says so.
+     */
+    public static function withContextToGather(string $body, string $what): string
+    {
+        $body = preg_replace(
+            '/^## Context \(auto-injected\)\R/m',
+            "## Context (gather it first)\n\nBefore anything else, run each command below from the worktree and read\nits output; the rest of this {$what} refers to it as \"the context\".\n",
+            $body,
+            1,
+        ) ?? $body;
+
+        return preg_replace('/^!`(.+)`$/m', '`$1`', $body) ?? $body;
+    }
+
+    /**
      * The command body with a "No code edits" rule first under its
      * `## Hard rules`, for runtimes whose commands cannot deny a tool.
      * $what names the translated command ("command", "skill").

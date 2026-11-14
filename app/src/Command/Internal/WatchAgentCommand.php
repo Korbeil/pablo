@@ -12,12 +12,13 @@ use Pablo\Analytics\NullAnalytics;
 use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Agent;
-use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Hooks\Hooks;
 use Pablo\Store\Store;
+use Pablo\Yolo\YoloPipeline;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -33,6 +34,7 @@ final class WatchAgentCommand extends Command
         private readonly AgentLauncherFactory $agentLaunchers,
         private readonly UsageHarvesterInterface $usage,
         private readonly Hooks $hooks,
+        private readonly YoloPipeline $yolo,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
     ) {
         parent::__construct();
@@ -61,6 +63,7 @@ final class WatchAgentCommand extends Command
         $agentName = $input->getOption('agent');
         $lock = $store->taskLock($project, $branch);
         $finished = null;
+        $cfg = null;
         try {
             $task = $store->get($project, $branch);
             if (null === $task) {
@@ -82,16 +85,21 @@ final class WatchAgentCommand extends Command
                     }
                     // reported=true in the same save as the stamp: whichever
                     // component reports a run, it must be reported once.
-                    $task->agentLaunches[$agent->value] = new AgentLaunch(
-                        $launch->agent,
-                        $launch->launchedAt,
-                        $launch->attempts,
-                        $finishedAt,
-                        runId: $runId,
-                        reported: true,
-                    );
+                    $task->agentLaunches[$agent->value] = $launch->with(finishedAt: $finishedAt, runId: $runId, reported: true);
                     $finished = $launch->agent;
                     $this->recordAgentRunFinished($task, $launch->launchedAt, $finishedAt, $runId, $launch->agent->value, (string) ($input->getOption('backend') ?: AdeRegistry::DEFAULT), (string) ($input->getOption('prompt-fingerprint') ?? ''));
+                    $cfg = $this->project($project);
+                    // YOLO mode: the next run, recorded in the same save.
+                    if (null !== $cfg) {
+                        try {
+                            $event = $this->yolo->onAgentFinished($cfg, $task, $finished, $agents);
+                        } catch (\Throwable $e) {
+                            $event = 'YOLO follow-up not launched: '.$e->getMessage();
+                        }
+                        if (null !== $event) {
+                            $output->writeln("{$branch}: {$event}");
+                        }
+                    }
                 }
             }
             $store->save($task);
@@ -99,18 +107,21 @@ final class WatchAgentCommand extends Command
             $lock->release();
         }
         // Only once the stamp is saved: the analysis is ready, the user's move.
-        if (null !== $finished) {
-            try {
-                $cfg = $this->projectsLoader->loadProjects()[$project] ?? null;
-            } catch (\Throwable) {
-                $cfg = null; // a hook is best-effort: never fail the watcher
-            }
-            if (null !== $cfg) {
-                $this->hooks->agentFinished($cfg, $task, $finished);
-            }
+        if (null !== $finished && null !== $cfg) {
+            $this->hooks->agentFinished($cfg, $task, $finished);
         }
 
         return self::SUCCESS;
+    }
+
+    /** $project's config; null when it cannot be read — never fail the watcher. */
+    private function project(string $project): ?ProjectConfig
+    {
+        try {
+            return $this->projectsLoader->loadProjects()[$project] ?? null;
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     /**

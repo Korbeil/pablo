@@ -94,6 +94,56 @@ final class InternalLaunchAgentCommandTest extends CommandTestBed
         $this->assertStringContainsString('Sync drops the last entry.', $sent);
     }
 
+    public function testAYoloTaskRecordsTheSessionItsFollowUpsContinue(): void
+    {
+        $task = $this->getTask();
+        $task->yolo = true;
+        $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(\Pablo\Domain\Agent::TaskAnalyst, '2026-11-01T00:00:00+00:00', 1);
+        $this->store->save($task);
+        $this->runner->onRun = static fn (array $argv): string => \in_array('create', $argv, true)
+            ? (string) json_encode(['status' => 'ok', 'sessionId' => 'ses_openchamber'])
+            : (string) json_encode(['status' => 'ok']);
+        $factory = \Pablo\Tests\Registries::launchers($this->runner, $this->globalConfig);
+
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory);
+        (new CommandTester($command))->execute([
+            '--backend' => 'openchamber',
+            '--worktree' => $this->wt,
+            '--agent' => 'task-analyst',
+            '--prompt' => 'Analyze issue #45',
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+        ]);
+
+        // OpenChamber named the session itself: that is the one recorded.
+        $this->assertSame('ses_openchamber', $this->getTask()->agentLaunches['task-analyst']->sessionId);
+    }
+
+    public function testATaskOutsideYoloRecordsNoSession(): void
+    {
+        $task = $this->getTask();
+        $task->agentLaunches['task-analyst'] = new \Pablo\Domain\AgentLaunch(\Pablo\Domain\Agent::TaskAnalyst, '2026-11-01T00:00:00+00:00', 1);
+        $this->store->save($task);
+        $this->runner->onRun = static fn (array $argv): string => \in_array('create', $argv, true)
+            ? (string) json_encode(['status' => 'ok', 'sessionId' => 'ses_openchamber'])
+            : (string) json_encode(['status' => 'ok']);
+        $factory = \Pablo\Tests\Registries::launchers($this->runner, $this->globalConfig);
+
+        $command = new InternalLaunchAgentCommand($this->analytics, $this->time, new LaunchContext($this->runner, $this->repoSlug), $this->ades, $this->store, $this->projectsLoader, $factory);
+        (new CommandTester($command))->execute([
+            '--backend' => 'openchamber',
+            '--worktree' => $this->wt,
+            '--agent' => 'task-analyst',
+            '--prompt' => 'Analyze issue #45',
+            '--project' => 'wallet-kit',
+            '--branch' => 'wk-45',
+        ]);
+
+        $launch = $this->getTask()->agentLaunches['task-analyst'];
+        $this->assertNull($launch->sessionId);
+        $this->assertNotNull($launch->runId);
+    }
+
     public function testUnknownProjectFallsBackToNullModel(): void
     {
         $calls = [];

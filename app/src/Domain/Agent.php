@@ -15,11 +15,25 @@ enum Agent: string
     case PrFeedback = 'pr-feedback';
     case TaskFeedback = 'task-feedback';
     case RebaseConflictResolver = 'rebase-conflict-resolver';
+    /**
+     * YOLO mode's two follow-up runs, in the session of the state agent that
+     * wrote the plan: the runtime's own build agent executing it, then the
+     * same session running /pablo-commit-and-pr. Not PABLO agents of their
+     * own: labels for the launch records, analytics and `models`.
+     */
+    case YoloImplement = 'yolo-implement';
+    case YoloCommit = 'yolo-commit';
 
     /** Whether it runs on a model (the startup script runs a shell script). */
     public function runsModel(): bool
     {
         return self::StartupScript !== $this;
+    }
+
+    /** Whether it is one of YOLO mode's follow-up runs. */
+    public function isYoloStep(): bool
+    {
+        return self::YoloImplement === $this || self::YoloCommit === $this;
     }
 
     /**

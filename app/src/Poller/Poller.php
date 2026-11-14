@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Poller;
 
+use Pablo\Agents\Ade\AbstractAgentLauncher;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Analytics\AgentRunRecord;
 use Pablo\Analytics\AnalyticsInterface;
@@ -12,7 +13,6 @@ use Pablo\Analytics\UsageHarvesterInterface;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentActivity;
-use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\DisplayCache;
 use Pablo\Domain\PrBadge;
 use Pablo\Domain\State;
@@ -30,6 +30,7 @@ use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
 use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
+use Pablo\Yolo\YoloPipeline;
 
 /**
  * Post-draft state polling, merge auto-close and the closed-PR park.
@@ -50,7 +51,13 @@ final class Poller
         private readonly UsageHarvesterInterface $usage,
         private readonly Hooks $hooks,
         private readonly AnalyticsInterface $analytics = new NullAnalytics(),
+        private ?YoloPipeline $yoloPipeline = null,
     ) {
+    }
+
+    private function yolo(): YoloPipeline
+    {
+        return $this->yoloPipeline ??= new YoloPipeline($this->stateMachine, $this->time);
     }
 
     // ------------------------------------------------------------- checks ---
@@ -136,6 +143,9 @@ final class Poller
         $record = $ctx->task->agentLaunches[Agent::PrFeedback->value] ?? null;
         if (null === $record || null === $record->finishedAt) {
             return null; // pr-feedback still running or never launched
+        }
+        if (null !== $ctx->task->yoloStep) {
+            return null; // YOLO is fixing it: its commit moves the task on
         }
         $verdict = $prs->reviewVerdict($prNumber, $ctx->cfg->review->botWhitelist);
         if (ReviewVerdict::CHANGES === $verdict) {
@@ -224,10 +234,15 @@ final class Poller
             }
             $finishedAt = $record->finishedAt;
             if (null === $finishedAt) {
-                if ($record->attempts < self::LAUNCH_MAX_ATTEMPTS) {
+                if ($record->agent->isYoloStep()) {
+                    // Never relaunched: its watcher reports it, at the latest
+                    // once its wait times out. Past that, the watcher died.
+                    if ($this->ageS($record->launchedAt) < AbstractAgentLauncher::WAIT_TIMEOUT_S + self::LAUNCH_WINDOW_S) {
+                        continue;
+                    }
+                } elseif ($record->attempts < self::LAUNCH_MAX_ATTEMPTS) {
                     continue; // still within the healing window; don't preempt relaunch
-                }
-                if ($this->ageS($record->launchedAt) < self::LAUNCH_WINDOW_S) {
+                } elseif ($this->ageS($record->launchedAt) < self::LAUNCH_WINDOW_S) {
                     continue; // give the agent time to show up before declaring it done
                 }
                 // PABLO gave up retrying a PABLO-triggered agent, it launched a
@@ -255,15 +270,20 @@ final class Poller
                 // analytics is best-effort by contract; still mark reported so
                 // a poison run cannot re-harvest every cycle.
             }
-            $task->agentLaunches[$label] = new AgentLaunch(
-                $record->agent,
-                $record->launchedAt,
-                $record->attempts,
-                $finishedAt,
-                runId: $runId,
-                reported: true,
-            );
+            $task->agentLaunches[$label] = $record->with(finishedAt: $finishedAt, runId: $runId, reported: true);
             $changed = true;
+        }
+        // YOLO mode: the next run of an agent this sweep declared finished
+        // (the watcher's job, when it is alive), recorded in the same save.
+        foreach ($finished as $agent) {
+            try {
+                $event = $this->yolo()->onAgentFinished($ctx->cfg, $task, $agent, $ctx->agents);
+            } catch (\Throwable $e) {
+                $event = 'YOLO follow-up not launched: '.$e->getMessage();
+            }
+            if (null !== $event) {
+                $events[] = "{$task->branch}: {$event}";
+            }
         }
         if ($changed) {
             $ctx->store->save($task);

@@ -253,6 +253,7 @@ final class Config
             branchPrefix: $this->branchPrefix($data, $defaults),
             confluenceSpace: $data['confluence']['space'] ?? null,
             agentModels: $agentModels,
+            yolo: YoloConfig::fromYaml($data, $defaults),
         );
     }
 
