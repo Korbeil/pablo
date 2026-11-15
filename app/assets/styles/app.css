@@ -703,6 +703,20 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
     gap: 0.35rem;
 }
 
+/* YOLO tag: a flex row, so the icon sits on the text's centre line and the
+   whitespace between the glyph and the label (collapsed in a flex box) is a
+   real gap. */
+.pablo-yolo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    line-height: 1;
+}
+
+.pablo-yolo .pablo-icon {
+    vertical-align: baseline;
+}
+
 .pablo-branch code {
     background: none;
     padding: 0;
