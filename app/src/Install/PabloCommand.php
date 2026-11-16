@@ -6,6 +6,7 @@ namespace Pablo\Install;
 
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
+use Pablo\Support\WriteStatus;
 
 /**
  * The `pablo` command in ~/.local/bin.
@@ -24,23 +25,22 @@ final class PabloCommand
      * @param string $binaryPath the running binary ('' when not running from one)
      * @param string $entryPoint app/bin/pablo of the checkout, for the shim
      *
+     * @return WriteStatus Unchanged when $dest already is this binary (or this shim)
+     *
      * @throws PabloError
      */
-    public static function place(string $dest, string $binaryPath, string $entryPoint): string
+    public static function place(string $dest, string $binaryPath, string $entryPoint): WriteStatus
     {
         if ('' !== $binaryPath) {
             $real = realpath($binaryPath);
             if (false !== $real && $real === realpath($dest)) {
-                return "{$dest} is this binary";
+                return WriteStatus::Unchanged;
             }
-            Files::write($dest, Files::read($binaryPath), 0o755);
 
-            return "installed {$dest} (copied from {$binaryPath})";
+            return Files::write($dest, Files::read($binaryPath), 0o755);
         }
 
-        Files::write($dest, "#!/usr/bin/env bash\nexec php '{$entryPoint}' \"\$@\"\n", 0o755);
-
-        return "wrote {$dest} shim -> php {$entryPoint}";
+        return Files::write($dest, "#!/usr/bin/env bash\nexec php '{$entryPoint}' \"\$@\"\n", 0o755);
     }
 
     /** The checkout a shim points into, or null when $path is no PABLO shim. */

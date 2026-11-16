@@ -54,21 +54,26 @@ final class Files
      * parent directories. Existing files are overwritten; files present in
      * $dest but not in $source are left alone.
      *
+     * @return WriteStatus what the copy changed (a directory: its files'
+     *                     statuses combined, see WriteStatus::combine())
+     *
      * @throws PabloError when something cannot be created or copied
      */
-    public static function copy(string $source, string $dest): void
+    public static function copy(string $source, string $dest): WriteStatus
     {
         if (is_dir($source)) {
             self::ensureDir($dest);
+            $statuses = [];
             foreach (self::list($source) as $child) {
-                self::copy($child, $dest.'/'.basename($child));
+                $statuses[] = self::copy($child, $dest.'/'.basename($child));
             }
 
-            return;
+            return WriteStatus::combine($statuses);
         }
 
         self::ensureDir(\dirname($dest));
-        self::write($dest, self::read($source));
+
+        return self::write($dest, self::read($source));
     }
 
     /**
@@ -81,11 +86,15 @@ final class Files
      * short write or failed rename throws and leaves $path intact. Identical
      * content is not rewritten.
      *
+     * @return WriteStatus Created for a new file, Unchanged when it already
+     *                     held $content, else Updated (a replaced symlink too)
+     *
      * @throws PabloError
      */
-    public static function write(string $path, string $content, ?int $mode = null): void
+    public static function write(string $path, string $content, ?int $mode = null): WriteStatus
     {
         self::ensureDir(\dirname($path));
+        $existed = is_link($path) || file_exists($path);
         if (is_link($path) && !@unlink($path)) {
             throw new PabloError("cannot replace the symlink {$path}");
         }
@@ -94,7 +103,7 @@ final class Files
                 @chmod($path, $mode);
             }
 
-            return;
+            return WriteStatus::Unchanged;
         }
         $tmp = $path.'.pablo-tmp-'.bin2hex(random_bytes(4));
         if (@file_put_contents($tmp, $content) !== \strlen($content)) {
@@ -110,6 +119,8 @@ final class Files
             self::tryRemove($tmp);
             throw new PabloError("cannot write {$path}: rename from {$tmp} failed");
         }
+
+        return $existed ? WriteStatus::Updated : WriteStatus::Created;
     }
 
     /**

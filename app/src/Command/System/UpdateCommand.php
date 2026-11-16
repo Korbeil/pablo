@@ -202,7 +202,7 @@ final class UpdateCommand extends Command
     private function install(OutputInterface $output, \Closure $info, string $binary, bool $withWeb, bool $hint = true): int
     {
         $info("running {$binary} system:install".($withWeb ? '' : ' --without-web'));
-        $result = $this->updater->runInstall($withWeb);
+        $result = $this->updater->runInstall($withWeb, $output->isDecorated(), $output->isVerbose());
         $output->writeln($result->output);
         if (0 !== $result->exitCode && $hint) {
             $output->writeln("<error>system:install failed: fix the error above, then run: {$binary} system:install".($withWeb ? '' : ' --without-web').'</error>');

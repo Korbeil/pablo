@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Pablo\Command\System;
 
 use Pablo\Agents\Ade\AdeRegistry;
+use Pablo\Agents\AgentFilesGenerator;
+use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
@@ -14,6 +16,7 @@ use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
 use Pablo\Housekeeping\Pruner;
 use Pablo\Install\ConfigSeeder;
+use Pablo\Install\InstallLog;
 use Pablo\Install\InstallPaths;
 use Pablo\Install\Links;
 use Pablo\Install\PabloCommand;
@@ -58,6 +61,7 @@ final class InstallCommand extends Command
         private readonly AgentRuntimeRegistry $runtimes,
         private readonly AdeRegistry $ades,
         private readonly Config $projectsLoader,
+        private readonly AgentFilesGenerator $generator,
         private readonly Pruner $pruner = new Pruner(),
     ) {
         parent::__construct();
@@ -76,9 +80,8 @@ final class InstallCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $info = static function (string $line) use ($output): void {
-            $output->writeln('➜ '.$line);
-        };
+        $log = new InstallLog($output);
+        $info = $log->info(...);
         $runtimeOption = self::option($input, 'runtime');
         $backendOption = self::option($input, 'backend');
         $portOption = self::option($input, 'port');
@@ -113,22 +116,23 @@ final class InstallCommand extends Command
         }
 
         // 2. pablo on the PATH.
-        $info(PabloCommand::place(InstallPaths::binPath(), PabloPaths::pharPath(), PabloPaths::resourcesDir().'/app/bin/pablo'));
         $rc = PathRc::add(
             InstallPaths::binDir(),
             (string) getenv('PATH'),
             PathRc::rcFile((string) getenv('SHELL'), PabloPaths::home(), \PHP_OS_FAMILY, getenv('ZDOTDIR') ?: null),
         );
         $info($rc['message']);
-        $this->shellCompletion($info);
+        $log->section('pablo command');
+        $log->file('command', InstallPaths::binPath(), PabloCommand::place(InstallPaths::binPath(), PabloPaths::pharPath(), PabloPaths::resourcesDir().'/app/bin/pablo'));
+        $this->shellCompletion($log);
 
         // 3. Agents, commands and skills: rendered into ~/.pablo/runtime, then linked.
-        $info("generating the {$runtime->name()} agent definitions into ".PabloPaths::runtimeDir());
-        $generated = $this->runCommand('system:generate-agents', ['--runtime' => $runtime->name()], $output);
-        if (self::SUCCESS !== $generated) {
-            throw new PabloError('system:generate-agents failed (see above)');
+        try {
+            $this->generator->generate($runtime, $log);
+        } catch (AgentTemplateError $e) {
+            throw new PabloError('cannot generate the agent definitions: '.$e->getMessage());
         }
-        $this->link($runtime, $info);
+        $this->link($runtime, $log);
         foreach ($this->runtimes->all() as $any) {
             array_map($info, $any->agentFiles()->cleanupLegacy());
         }
@@ -138,15 +142,17 @@ final class InstallCommand extends Command
         //    holds the dispatch lock meanwhile), so no running process of an
         //    older binary loses the container it reads its services from.
         $path = $this->schedulerPath($runtime);
-        $info('services PATH: '.$path);
-        $scheduler->install(InstallPaths::binPath(), $withWeb, $path, $info);
+        $log->detail('services PATH: '.$path);
+        $scheduler->install(InstallPaths::binPath(), $withWeb, $path, $log);
         $this->pruneContainers($info);
 
         // 5. Preflight.
+        $output->writeln('');
         $info('running pablo system:doctor (a failure here is a warning at install time —');
         $info('projects may not be configured yet):');
         $doctorOk = self::SUCCESS === $this->runCommand('system:doctor', [], $output);
 
+        $log->summary();
         $output->writeln('');
         $info('PABLO '.ConsoleApplication::version().' is installed. Next steps:');
         if (null !== $rc['rc']) {
@@ -164,19 +170,21 @@ final class InstallCommand extends Command
         return self::SUCCESS;
     }
 
-    /**
-     * @param \Closure(string): void $info
-     *
-     * @throws PabloError
-     */
-    private function link(AgentRuntimeInterface $runtime, \Closure $info): void
+    /** @throws PabloError */
+    private function link(AgentRuntimeInterface $runtime, InstallLog $log): void
     {
         $links = new Links(PabloPaths::runtimeDir());
         $files = $runtime->agentFiles();
+        $section = false;
         foreach ($files->links(AgentTemplates::renderedDir()) as $link => $target) {
-            $info($links->link($target, $link));
+            if (!$section) {
+                // The runtime's user dir: ~/.config/opencode for ~/.config/opencode/agents/x.md.
+                $log->section('links', \dirname($link, 2));
+                $section = true;
+            }
+            $log->file('link', $link, $links->link($target, $link));
         }
-        array_map($info, $files->installNotes());
+        array_map($log->info(...), $files->installNotes());
     }
 
     /**
@@ -205,18 +213,17 @@ final class InstallCommand extends Command
     /**
      * The completion of the user's shell, unless shell_completion is false
      * (then an installed one is removed).
-     *
-     * @param \Closure(string): void $info
      */
-    private function shellCompletion(\Closure $info): void
+    private function shellCompletion(InstallLog $log): void
     {
         if ($this->globalConfig->shellCompletion()) {
-            array_map($info, ShellCompletion::install((string) getenv('SHELL'), PabloPaths::home()));
+            $log->section('shell completion');
+            ShellCompletion::install((string) getenv('SHELL'), PabloPaths::home(), $log);
 
             return;
         }
-        $info('shell completion off (shell_completion: false; --with-completion turns it back on)');
-        array_map($info, ShellCompletion::remove(PabloPaths::home()));
+        $log->info('shell completion off (shell_completion: false; --with-completion turns it back on)');
+        array_map($log->info(...), ShellCompletion::remove(PabloPaths::home()));
     }
 
     /**

@@ -6,6 +6,7 @@ namespace Pablo\Install\Scheduler;
 
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
+use Pablo\Support\WriteStatus;
 
 /**
  * Writing and removing the marked service files both schedulers manage.
@@ -32,7 +33,7 @@ final class ServiceFiles
      *
      * @throws PabloError
      */
-    public static function write(string $path, string $name, string $content): void
+    public static function write(string $path, string $name, string $content): WriteStatus
     {
         if ((file_exists($path) || is_link($path)) && !self::isOurs($path, $name)) {
             throw new PabloError("{$path} exists and was not written by PABLO — refusing to overwrite");
@@ -40,7 +41,8 @@ final class ServiceFiles
         if (!str_contains($content, self::marker($name))) {
             throw new PabloError("the bundled {$name} has no '".self::marker($name)."' line");
         }
-        Files::write($path, $content);
+
+        return Files::write($path, $content);
     }
 
     /**

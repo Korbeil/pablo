@@ -8,6 +8,7 @@ use Pablo\Install\ConfigSeeder;
 use Pablo\Install\ShellCompletion;
 use Pablo\Tests\Install\InstallSandbox;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Output\OutputInterface;
 
 /**
  * `pablo system:install` in a throwaway HOME: the config it records
@@ -27,6 +28,36 @@ final class InstallCommandTest extends TestCase
     protected function tearDown(): void
     {
         $this->removeInstallSandbox();
+    }
+
+    public function testAReinstallShowsWhatChanged(): void
+    {
+        $first = $this->install(['--runtime' => 'opencode'])->getDisplay();
+        $this->assertStringContainsString('  + created  pablo-dispatch.service', $first);
+        $this->assertStringContainsString('  + created  agents/task-analyst.md', $first);
+
+        $again = $this->install(['--runtime' => 'opencode'])->getDisplay();
+        $this->assertStringNotContainsString('created', $again);
+        $this->assertStringNotContainsString('updated', $again);
+        $this->assertStringContainsString("pablo command\n  = unchanged ~/.local/bin/pablo\n", $again);
+        $this->assertStringContainsString('= 5 agents, 1 command, 1 skill unchanged', $again);
+        $this->assertStringContainsString('= 7 links unchanged', $again);
+        $this->assertStringContainsString('= 5 units unchanged', $again);
+        $this->assertMatchesRegularExpression('/Nothing changed: \d+ files and links already up to date\./', $again);
+        $this->assertContains('systemctl --user restart pablo-web.service', $this->serviceCalls(), 'restarted all the same: the binary may be new');
+
+        file_put_contents($this->home.'/.config/systemd/user/pablo-prune.timer', "# marker: pablo-prune.timer\nold\n");
+        unlink($this->home.'/.config/opencode/agents/ci-analyst.md');
+        symlink($this->home.'/.pablo/runtime/opencode/agents/gone.md', $this->home.'/.config/opencode/agents/ci-analyst.md');
+
+        $changed = $this->install(['--runtime' => 'opencode'])->getDisplay();
+        $this->assertStringContainsString('  ~ updated  pablo-prune.timer', $changed);
+        $this->assertStringContainsString('  ~ updated  agents/ci-analyst.md', $changed);
+        $this->assertStringContainsString('= 4 units unchanged', $changed);
+        $this->assertStringContainsString('2 changed (2 updated)', $changed);
+
+        $verbose = $this->install(['--runtime' => 'opencode'], verbosity: OutputInterface::VERBOSITY_VERBOSE)->getDisplay();
+        $this->assertStringContainsString('  = unchanged pablo-prune.timer', $verbose, '-v lists each unchanged file');
     }
 
     public function testRuntimeAndBackendAreRecordedOnAFirstInstall(): void
@@ -300,7 +331,8 @@ final class InstallCommandTest extends TestCase
         mkdir($this->home.'/.pablo', 0o777, true);
         file_put_contents($this->home.'/.pablo/config.yaml', "scheduler:\n  path: ['~/my tools/bin']\n");
 
-        $tester = $this->install(['--runtime' => 'opencode', '--backend' => 'orca']);
+        $this->assertStringNotContainsString('services PATH:', $this->install(['--runtime' => 'opencode', '--backend' => 'orca'])->getDisplay(), 'only with -v');
+        $tester = $this->install(['--runtime' => 'opencode', '--backend' => 'orca'], verbosity: OutputInterface::VERBOSITY_VERBOSE);
         $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
 
         $expected = "{$this->home}/my tools/bin:{$this->home}/.local/bin:{$this->home}/bin:{$this->sandbox}/bin:{$this->sandbox}/nvm/bin:/usr/local/sbin";
@@ -467,9 +499,9 @@ final class InstallCommandTest extends TestCase
         $tester = $this->install(['--runtime' => 'opencode']);
 
         $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
-        $this->assertStringContainsString("installed the bash completion: {$bash}", $tester->getDisplay());
+        $this->assertStringContainsString("shell completion\n  + created  ~/.local/share/bash-completion/completions/pablo", $tester->getDisplay());
         $this->assertStringContainsString(ShellCompletion::MARKER, (string) file_get_contents($bash));
-        $this->assertStringContainsString('is up to date', $this->install(['--runtime' => 'opencode'])->getDisplay());
+        $this->assertStringContainsString("shell completion\n  = unchanged ~/.local/share/bash-completion/completions/pablo", $this->install(['--runtime' => 'opencode'])->getDisplay());
 
         $tester = $this->install(['--runtime' => 'opencode', '--without-completion' => true]);
 

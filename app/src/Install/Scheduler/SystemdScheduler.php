@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Pablo\Install\Scheduler;
 
+use Pablo\Install\InstallLog;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
+use Pablo\Support\WriteStatus;
 
 /**
  * Linux: systemd user units in ~/.config/systemd/user, written from the
@@ -28,38 +30,35 @@ final class SystemdScheduler implements SchedulerInterface
     ) {
     }
 
-    public function install(string $pabloBin, bool $withWeb, string $path, \Closure $info): void
+    public function install(string $pabloBin, bool $withWeb, string $path, InstallLog $log): void
     {
-        foreach ([...self::DISPATCH_UNITS, ...self::PRUNE_UNITS] as $unit) {
-            $this->writeUnit($unit, $path);
-            $info("wrote {$this->unitDir}/{$unit}");
+        $log->section('services', $this->unitDir);
+        foreach ([...self::DISPATCH_UNITS, ...self::PRUNE_UNITS, ...($withWeb ? [self::WEB_UNIT] : [])] as $unit) {
+            $log->file('unit', $this->unitDir.'/'.$unit, $this->writeUnit($unit, $path));
         }
         // User units only start at boot if the user lingers; otherwise systemd
         // waits for a login that never comes on a headless box, and everything
         // stays down after a reboot even though it is `enabled`.
         if (0 !== $this->runner->probe(['loginctl', 'enable-linger', $this->user])->exitCode) {
-            $info('⚠ could not enable lingering — PABLO units will NOT start until you log in');
+            $log->info('⚠ could not enable lingering — PABLO units will NOT start until you log in');
         }
         $this->systemctl(['daemon-reload']);
         $this->systemctl(['enable', '--now', 'pablo-dispatch.timer']);
-        $info('pablo-dispatch.timer enabled (every 5 minutes; logs: journalctl --user -u pablo-dispatch.service)');
+        $log->info('pablo-dispatch.timer enabled (every 5 minutes; logs: journalctl --user -u pablo-dispatch.service)');
         $this->systemctl(['enable', '--now', 'pablo-prune.timer']);
-        $info('pablo-prune.timer enabled (daily at 03:00; logs: journalctl --user -u pablo-prune.service)');
+        $log->info('pablo-prune.timer enabled (daily at 03:00; logs: journalctl --user -u pablo-prune.service)');
 
         $web = $this->unitDir.'/'.self::WEB_UNIT;
         if ($withWeb) {
-            $this->writeUnit(self::WEB_UNIT, $path);
-            $info("wrote {$web}");
-            $this->systemctl(['daemon-reload']);
             $this->systemctl(['enable', '--now', self::WEB_UNIT]);
             // A running dashboard keeps serving the old binary until restarted.
             $this->systemctl(['restart', self::WEB_UNIT]);
-            $info('pablo-web.service enabled (the dashboard; logs: journalctl --user -u pablo-web.service)');
+            $log->info('pablo-web.service enabled and restarted (the dashboard; logs: journalctl --user -u pablo-web.service)');
         } elseif (ServiceFiles::isOurs($web, self::WEB_UNIT)) {
             $this->runner->probe(['systemctl', '--user', 'disable', '--now', self::WEB_UNIT]);
             ServiceFiles::removeIfOurs($web, self::WEB_UNIT);
             $this->systemctl(['daemon-reload']);
-            $info('--without-web: removed pablo-web.service');
+            $log->info('--without-web: removed pablo-web.service');
         }
     }
 
@@ -93,10 +92,11 @@ final class SystemdScheduler implements SchedulerInterface
         );
     }
 
-    private function writeUnit(string $unit, string $path): void
+    private function writeUnit(string $unit, string $path): WriteStatus
     {
         $content = str_replace('@PATH@', self::escape($path), ServiceFiles::bundled($this->sourceDir.'/'.$unit));
-        ServiceFiles::write($this->unitDir.'/'.$unit, $unit, $content);
+
+        return ServiceFiles::write($this->unitDir.'/'.$unit, $unit, $content);
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Install;
 
 use Pablo\Install\PabloCommand;
+use Pablo\Support\WriteStatus;
 use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
@@ -28,9 +29,7 @@ final class PabloCommandTest extends TestCase
         file_put_contents($this->tmp.'/pablo-linux-x86_64', "BINARY\n");
         file_put_contents($this->tmp.'/bin/pablo', "#!/usr/bin/env bash\nexec php '/old/clone/app/bin/pablo' \"\$@\"\n");
 
-        $message = PabloCommand::place($this->tmp.'/bin/pablo', $this->tmp.'/pablo-linux-x86_64', '/unused');
-
-        $this->assertStringContainsString('copied from', $message);
+        $this->assertSame(WriteStatus::Updated, PabloCommand::place($this->tmp.'/bin/pablo', $this->tmp.'/pablo-linux-x86_64', '/unused'), 'the old shim is replaced');
         $this->assertSame("BINARY\n", file_get_contents($this->tmp.'/bin/pablo'));
         $this->assertTrue(is_executable($this->tmp.'/bin/pablo'));
     }
@@ -39,7 +38,7 @@ final class PabloCommandTest extends TestCase
     {
         file_put_contents($this->tmp.'/bin/pablo', "BINARY\n");
 
-        $this->assertStringContainsString('is this binary', PabloCommand::place($this->tmp.'/bin/pablo', $this->tmp.'/bin/pablo', '/unused'));
+        $this->assertSame(WriteStatus::Unchanged, PabloCommand::place($this->tmp.'/bin/pablo', $this->tmp.'/bin/pablo', '/unused'));
     }
 
     public function testACheckoutWritesAShimItRecognises(): void

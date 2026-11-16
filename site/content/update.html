@@ -16,7 +16,7 @@ pablo update --rollback  # go back to the binary the last update replaced
   <li>downloads its binary for your OS and processor with <code>curl</code>;</li>
   <li>checks it against the release's <code>sha256sums.txt</code> and runs it once (a failed check changes nothing);</li>
   <li>swaps it in place of the current binary;</li>
-  <li>runs <a href="page:installation#what-pablo-system-install-does"><code>pablo system:install</code></a> with the new binary, which picks up new agents and links and restarts the dashboard (<code>--no-install</code> skips this step). A dashboard you opted out of (<code>--without-web</code>) stays off.</li>
+  <li>runs <a href="page:installation#what-pablo-system-install-does"><code>pablo system:install</code></a> with the new binary, which picks up new agents and links and restarts the dashboard, and shows which files the new release changed, in color when your terminal has it (<code>-v</code> is passed on; <code>--no-install</code> skips this step). A dashboard you opted out of (<code>--without-web</code>) stays off.</li>
 </ol>
 
 <p>If the background job is running (a sync or a poll), the update first waits up to 10 minutes for it to finish, and no new run starts until the update is done.</p>

@@ -4,37 +4,30 @@ declare(strict_types=1);
 
 namespace Pablo\Command\System;
 
+use Pablo\Agents\AgentFilesGenerator;
 use Pablo\Agents\AgentTemplateError;
-use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Command\Command;
-use Pablo\Config\Config;
-use Pablo\Support\Files;
+use Pablo\Install\InstallLog;
 use Pablo\Support\PabloError;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
- * Renders the agents from their bundled .md.template sources + the project
- * configs for the selected runtime. Everything goes under ~/.pablo/runtime
- * (PABLO_RUNTIME_DIR) — the sources may sit inside the read-only binary:
- *  - always, the shared render (AgentTemplates::renderedDir()):
- *    opencode/agents/<agent>.md plus the bundled commands and skills
- *    extracted to opencode/commands/ and opencode/skills/ (a symlink cannot
- *    point into the binary);
- *  - then whatever the runtime translates on top of it, in its own directory
- *    (RuntimeAgentFilesInterface::generate()).
- * `pablo system:install` runs this, then links the results into place.
+ * Renders the agents for the selected runtime into ~/.pablo/runtime (see
+ * AgentFilesGenerator), each file reported as created, updated or
+ * unchanged. `pablo system:install` does the same, then links the results
+ * into place.
  */
 #[AsCommand(name: 'system:generate-agents', description: 'generate the agent definitions for the selected runtime from .md.template + project configs')]
 final class GenerateAgentsCommand extends Command
 {
     public function __construct(
-        private readonly AgentTemplates $agentTemplates,
+        private readonly AgentFilesGenerator $generator,
         private readonly AgentRuntimeRegistry $runtimes,
-        private readonly Config $projectsLoader,
     ) {
         parent::__construct();
     }
@@ -50,79 +43,19 @@ final class GenerateAgentsCommand extends Command
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
     {
-        $agentsDir = $input->getOption('agents-dir') ?? $this->agentTemplates->templatesDir();
-        $outputDir = $input->getOption('output-dir') ?? AgentTemplates::renderedDir();
         $runtimeName = $input->getOption('runtime');
         $runtime = $this->runtimes->resolve(null !== $runtimeName ? AgentRuntimeRegistry::checkName($runtimeName, 'runtime') : null);
 
-        $projectsDir = $this->projectsLoader->projectsDir();
-        if (!is_dir($projectsDir)) {
-            $output->writeln('No projects directory found — generating agents with all providers enabled.');
-        }
-        $enabledProviders = $this->agentTemplates->enabledProviders($projectsDir);
-
-        foreach (AgentTemplates::AGENT_NAMES as $name) {
-            try {
-                $content = $this->agentTemplates->render($agentsDir, $name, $enabledProviders);
-            } catch (AgentTemplateError $e) {
-                $output->writeln('<error>'.$e->getMessage().'</error>');
-
-                return self::FAILURE;
-            }
-
-            $outputPath = $outputDir.'/agents/'.$name.'.md';
-            try {
-                Files::write($outputPath, $content);
-            } catch (PabloError) {
-                $output->writeln("<error>Cannot write: {$outputPath}</error>");
-
-                return self::FAILURE;
-            }
-
-            $output->writeln("Generated {$name}.md with providers: ".implode(', ', $enabledProviders ?: ['(none)']));
-        }
-
-        // The commands and skills ship as-is; extract them next to the agents
-        // so every runtime links to real files on disk.
+        $log = new InstallLog($output);
         try {
-            foreach (Files::list(AgentTemplates::commandsDirFor($agentsDir), '*.md') as $source) {
-                Files::copy($source, $outputDir.'/commands/'.basename($source));
-            }
-            foreach (Files::list(AgentTemplates::skillsDirFor($agentsDir), '*', dirsOnly: true) as $source) {
-                Files::copy($source, $outputDir.'/skills/'.basename($source));
-            }
-        } catch (PabloError $e) {
-            $output->writeln('<error>'.$e->getMessage().'</error>');
+            $this->generator->generate($runtime, $log, $input->getOption('agents-dir'), $input->getOption('output-dir'), $input->getOption('runtime-dir'));
+        } catch (AgentTemplateError|PabloError $e) {
+            $log->close();
+            $output->writeln('<error>'.OutputFormatter::escape($e->getMessage()).'</error>');
 
             return self::FAILURE;
         }
-
-        try {
-            $files = $runtime->agentFiles()->generate($agentsDir, $enabledProviders, $input->getOption('runtime-dir'));
-        } catch (AgentTemplateError $e) {
-            $output->writeln('<error>'.$e->getMessage().'</error>');
-
-            return self::FAILURE;
-        }
-
-        return self::writeFiles($output, $files, $runtime->label());
-    }
-
-    /**
-     * @param array<string, string> $files path => content
-     */
-    private static function writeFiles(OutputInterface $output, array $files, string $runtimeLabel): int
-    {
-        foreach ($files as $path => $content) {
-            try {
-                Files::write($path, $content);
-            } catch (PabloError) {
-                $output->writeln("<error>Cannot write: {$path}</error>");
-
-                return self::FAILURE;
-            }
-            $output->writeln("Generated {$path} ({$runtimeLabel})");
-        }
+        $log->summary();
 
         return self::SUCCESS;
     }

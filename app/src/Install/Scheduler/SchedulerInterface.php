@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Install\Scheduler;
 
+use Pablo\Install\InstallLog;
 use Pablo\Support\PabloError;
 
 /**
@@ -21,13 +22,16 @@ use Pablo\Support\PabloError;
 interface SchedulerInterface
 {
     /**
-     * @param string                 $path the services' PATH (SchedulerPath::build()), written
-     *                                     in place of the bundled files' @PATH@ placeholder
-     * @param \Closure(string): void $info
+     * The service files are reported on $log (a section of their own, each
+     * created, updated or unchanged); the services are (re)started either
+     * way, so they run the binary just installed.
+     *
+     * @param string $path the services' PATH (SchedulerPath::build()), written
+     *                     in place of the bundled files' @PATH@ placeholder
      *
      * @throws PabloError
      */
-    public function install(string $pabloBin, bool $withWeb, string $path, \Closure $info): void;
+    public function install(string $pabloBin, bool $withWeb, string $path, InstallLog $log): void;
 
     /** @param \Closure(string): void $info */
     public function uninstall(\Closure $info): void;

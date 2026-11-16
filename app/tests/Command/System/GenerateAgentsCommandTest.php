@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command\System;
 
+use Pablo\Agents\AgentFilesGenerator;
+use Pablo\Agents\AgentTemplates;
 use Pablo\Command\System\GenerateAgentsCommand;
+use Pablo\Config\Config;
+use Pablo\Config\GlobalConfig;
+use Pablo\Tests\Registries;
 use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Tester\CommandTester;
 
 final class GenerateAgentsCommandTest extends TestCase
@@ -70,7 +76,7 @@ YAML);
     {
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
 
         putenv('PABLO_PROJECTS_DIR='.$this->tmp.'/nonexistent');
@@ -78,11 +84,36 @@ YAML);
 
         $display = $tester->getDisplay();
         $this->assertStringContainsString('all providers enabled', $display);
-        $this->assertStringContainsString('task-analyst.md with providers: github, jira, linear', $display);
-        $this->assertStringContainsString('task-feedback.md with providers: github, jira, linear', $display);
+        $this->assertStringContainsString('providers: github, jira, linear', $display);
+        $this->assertStringContainsString('+ created  opencode/agents/task-analyst.md', $display);
+        $this->assertStringContainsString('+ created  opencode/agents/task-feedback.md', $display);
 
         $this->assertSectionHas('task-analyst', ['GitHub', 'Jira', 'Linear', 'Confluence']);
         $this->assertSectionHas('task-feedback', ['GitHub', 'Jira', 'Linear', 'Confluence']);
+    }
+
+    public function testASecondRunReportsWhatChanged(): void
+    {
+        $this->copyAllTemplates();
+        $tester = new CommandTester(self::command());
+        $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'opencode']);
+        $this->assertStringContainsString('changed (', $tester->getDisplay());
+
+        $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'opencode']);
+        $display = $tester->getDisplay();
+        $this->assertStringNotContainsString('created', $display);
+        $this->assertStringContainsString('= 5 agents unchanged', $display);
+        $this->assertStringContainsString('Nothing changed: 5 files and links already up to date.', $display);
+
+        file_put_contents($this->generatedDir.'/ci-analyst.md', "edited\n");
+        $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'opencode']);
+        $display = $tester->getDisplay();
+        $this->assertStringContainsString('~ updated  opencode/agents/ci-analyst.md', $display);
+        $this->assertStringContainsString('= 4 agents unchanged', $display);
+        $this->assertStringContainsString('1 changed (1 updated), 4 unchanged.', $display);
+
+        $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'opencode'], ['verbosity' => OutputInterface::VERBOSITY_VERBOSE]);
+        $this->assertStringContainsString('= unchanged opencode/agents/ci-analyst.md', $tester->getDisplay(), '-v lists each unchanged file');
     }
 
     public function testClaudeCodeRuntimeWritesAgentsJsonAndCommand(): void
@@ -92,7 +123,7 @@ YAML);
         mkdir($this->tmp.'/commands');
         copy(\dirname(__DIR__, 4).'/opencode/commands/pablo-commit-and-pr.md', $this->tmp.'/commands/pablo-commit-and-pr.md');
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute([
             '--agents-dir' => $this->agentsDir,
@@ -113,7 +144,7 @@ YAML);
         $this->assertStringContainsString('GitHub', $agents['task-analyst']['prompt']);
         $this->assertStringNotContainsString('Linear', $agents['task-analyst']['prompt']);
         $this->assertStringContainsString('allowed-tools:', (string) file_get_contents($this->tmp.'/pablo-claude/commands/pablo-commit-and-pr.md'));
-        $this->assertStringContainsString('agents.json (Claude Code)', $tester->getDisplay());
+        $this->assertStringContainsString("+ created  {$this->tmp}/pablo-claude/agents.json", $tester->getDisplay());
     }
 
     public function testCopilotRuntimeWritesAgentFilesAndSkill(): void
@@ -123,7 +154,7 @@ YAML);
         mkdir($this->tmp.'/commands');
         copy(\dirname(__DIR__, 4).'/opencode/commands/pablo-commit-and-pr.md', $this->tmp.'/commands/pablo-commit-and-pr.md');
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'copilot', '--runtime-dir' => $this->tmp.'/copilot']);
 
@@ -135,14 +166,14 @@ YAML);
         $this->assertStringContainsString('GitHub', $analyst);
         $this->assertStringNotContainsString('Linear', $analyst);
         $this->assertStringContainsString('disable-model-invocation: true', (string) file_get_contents($this->tmp.'/copilot/skills/pablo-commit-and-pr/SKILL.md'));
-        $this->assertStringContainsString('(Copilot CLI)', $tester->getDisplay());
+        $this->assertStringContainsString('Copilot CLI · providers: github', $tester->getDisplay());
     }
 
     public function testOpenCodeRuntimeWritesNoClaudeFiles(): void
     {
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir, '--runtime' => 'opencode', '--runtime-dir' => $this->tmp.'/pablo-claude']);
 
@@ -155,13 +186,12 @@ YAML);
         $this->writeProject('jira-project', 'jira');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
         $display = $tester->getDisplay();
-        $this->assertStringContainsString('task-analyst.md with providers: jira', $display);
-        $this->assertStringContainsString('task-feedback.md with providers: jira', $display);
+        $this->assertStringContainsString('providers: jira', $display);
 
         $this->assertSectionHas('task-analyst', ['Jira', 'Confluence']);
         $this->assertSectionHas('task-feedback', ['Jira', 'Confluence']);
@@ -176,12 +206,12 @@ YAML);
         $this->writeProject('lin-project', 'linear');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
         $display = $tester->getDisplay();
-        $this->assertStringContainsString('task-analyst.md with providers: github, linear', $display);
+        $this->assertStringContainsString('providers: github, linear', $display);
 
         $this->assertSectionHas('task-analyst', ['GitHub', 'Linear']);
         $this->assertSectionHas('task-feedback', ['GitHub', 'Linear']);
@@ -196,7 +226,7 @@ YAML);
         $this->writeProject('p2', 'jira');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -212,7 +242,7 @@ YAML);
         $this->writeProject('p1', 'github');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -246,7 +276,7 @@ EOF, $resolver);
         $this->writeProject('p1', 'github');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -269,7 +299,7 @@ EOF, $resolver);
         $this->copyAllTemplates();
         unlink($this->agentsDir.'/shared/housekeeping.body.md');
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -282,7 +312,7 @@ EOF, $resolver);
         $this->copyAllTemplates();
         unlink($this->agentsDir.'/shared/analysts.frontmatter.md');
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -292,7 +322,7 @@ EOF, $resolver);
 
     public function testReturnsFailureOnMissingTemplate(): void
     {
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
@@ -307,11 +337,18 @@ EOF, $resolver);
         $this->writeProject('c', 'linear');
         $this->copyAllTemplates();
 
-        $command = new GenerateAgentsCommand(new \Pablo\Agents\AgentTemplates(new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig())), \Pablo\Tests\Registries::runtimes(), new \Pablo\Config\Config(new \Pablo\Config\GlobalConfig()));
+        $command = self::command();
         $tester = new CommandTester($command);
         $tester->execute(['--agents-dir' => $this->agentsDir]);
 
         $this->assertStringContainsString('providers: github, jira, linear', $tester->getDisplay());
+    }
+
+    private static function command(): GenerateAgentsCommand
+    {
+        $config = new Config(new GlobalConfig());
+
+        return new GenerateAgentsCommand(new AgentFilesGenerator(new AgentTemplates($config), $config), Registries::runtimes());
     }
 
     /** @param list<string> $expectedSections */
