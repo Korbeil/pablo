@@ -310,11 +310,19 @@ final class Updater
      * `system:install` run by the (new) binary, so its own templates, units
      * and container are used. $withWeb keeps a `--without-web` choice.
      */
-    public function runInstall(bool $withWeb = true): ProbeResult
+    public function runInstall(bool $withWeb = true, bool $ansi = false, bool $verbose = false): ProbeResult
     {
         $argv = [$this->binaryPath(), 'system:install', '--no-interaction'];
         if (!$withWeb) {
             $argv[] = '--without-web';
+        }
+        // Its output is captured, so it is no terminal: ask for the colors
+        // (what changed is highlighted) when ours has them.
+        if ($ansi) {
+            $argv[] = '--ansi';
+        }
+        if ($verbose) {
+            $argv[] = '-v';
         }
 
         return $this->runner->probe($argv, 900.0);

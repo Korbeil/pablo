@@ -6,6 +6,7 @@ namespace Pablo\Install;
 
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
+use Pablo\Support\WriteStatus;
 
 /**
  * The symlinks `pablo system:install` creates under ~/.config/opencode,
@@ -29,17 +30,21 @@ final class Links
     /**
      * Point $dest at $source, replacing a link of ours (or a dangling one).
      *
+     * @return WriteStatus Unchanged when it already pointed there, Updated
+     *                     when another link was replaced, else Created
+     *
      * @throws PabloError when $dest is a file or link PABLO does not own
      */
-    public function link(string $source, string $dest): string
+    public function link(string $source, string $dest): WriteStatus
     {
         if (file_exists($dest) && !$this->isOurs($dest)) {
             $what = is_link($dest) ? 'a symlink PABLO did not create' : 'not a PABLO symlink';
             throw new PabloError("{$dest} exists and is {$what} — refusing to overwrite (originals stay untouched). Move it aside, then run pablo system:install again.");
         }
         if (is_link($dest) && readlink($dest) === $source) {
-            return "linked {$dest}";
+            return WriteStatus::Unchanged;
         }
+        $replaced = is_link($dest);
         $dir = \dirname($dest);
         Files::ensureDir($dir);
         if (is_link($dest) && !@unlink($dest)) {
@@ -49,7 +54,7 @@ final class Links
             throw new PabloError("cannot link {$dest} -> {$source}");
         }
 
-        return "linked {$dest}";
+        return $replaced ? WriteStatus::Updated : WriteStatus::Created;
     }
 
     /** Remove $dest when it is one of our links; true when something was removed. */

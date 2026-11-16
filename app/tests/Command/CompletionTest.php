@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Command;
 
+use Pablo\Agents\AgentFilesGenerator;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Command\Command;
 use Pablo\Command\Report\StatsCommand;
@@ -145,13 +146,13 @@ final class CompletionTest extends CommandTestBed
 
     public function testInstallSuggestsRuntimesAndAdes(): void
     {
-        $install = new InstallCommand($this->globalConfig, new SchedulerFactory($this->runner), $this->runtimes, $this->ades, $this->projectsLoader);
+        $install = new InstallCommand($this->globalConfig, new SchedulerFactory($this->runner), $this->runtimes, $this->ades, $this->projectsLoader, new AgentFilesGenerator(new AgentTemplates($this->projectsLoader), $this->projectsLoader));
         $tester = new CommandCompletionTester($install);
 
         $this->assertSame(['opencode', 'claude-code', 'copilot'], $tester->complete(['--runtime', '']));
         $this->assertSame(['orca', 'openchamber', 'headless'], $tester->complete(['--backend', '']));
 
-        $generate = new GenerateAgentsCommand(new AgentTemplates($this->projectsLoader), $this->runtimes, $this->projectsLoader);
+        $generate = new GenerateAgentsCommand(new AgentFilesGenerator(new AgentTemplates($this->projectsLoader), $this->projectsLoader), $this->runtimes);
         $this->assertSame(['opencode', 'claude-code', 'copilot'], (new CommandCompletionTester($generate))->complete(['--runtime', '']));
     }
 

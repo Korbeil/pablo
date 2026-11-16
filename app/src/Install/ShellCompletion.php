@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Install;
 
 use Pablo\Support\Files;
+use Pablo\Support\WriteStatus;
 use Symfony\Component\Console\Command\CompleteCommand;
 use Symfony\Component\Console\Command\DumpCompletionCommand;
 
@@ -56,35 +57,44 @@ final class ShellCompletion
     }
 
     /**
-     * Install the completion of $shell (a path or a name, e.g. $SHELL).
-     *
-     * @return list<string> what happened, for the install log
+     * Install the completion of $shell (a path or a name, e.g. $SHELL),
+     * reported on $log: the file, plus how the shell loads it when it is new
+     * or changed (with -v otherwise).
      */
-    public static function install(string $shell, string $home): array
+    public static function install(string $shell, string $home, InstallLog $log): void
     {
         $name = basename($shell);
         $path = self::path($name, $home);
         if (null === $path) {
-            return [\sprintf('no shell completion installed for %s (supported: %s) — see pablo completion --help', '' !== $name ? $name : 'an unknown shell', implode(', ', self::SHELLS))];
+            $log->info(\sprintf('no shell completion installed for %s (supported: %s) — see pablo completion --help', '' !== $name ? $name : 'an unknown shell', implode(', ', self::SHELLS)));
+
+            return;
         }
         if (is_link($path) || (file_exists($path) && !self::isOurs($path))) {
-            return ["⚠ {$path} exists and is not PABLO's: left alone (pablo completion {$name} prints the script)"];
+            $log->info("⚠ {$path} exists and is not PABLO's: left alone (pablo completion {$name} prints the script)");
+
+            return;
         }
 
         $script = self::script($name);
         if (is_file($path) && file_get_contents($path) === $script) {
-            $messages = ["shell completion for {$name} is up to date ({$path})"];
+            $status = WriteStatus::Unchanged;
         } else {
+            $status = is_file($path) ? WriteStatus::Updated : WriteStatus::Created;
             $dir = \dirname($path);
             // best-effort: the failed write below is reported as a warning.
             Files::tryEnsureDir($dir);
             if (false === @file_put_contents($path, $script)) {
-                return ["⚠ could not write {$path}: no shell completion (pablo completion {$name} prints the script)"];
+                $log->info("⚠ could not write {$path}: no shell completion (pablo completion {$name} prints the script)");
+
+                return;
             }
-            $messages = ["installed the {$name} completion: {$path}"];
         }
 
-        return [...$messages, ...self::notes($name, $path)];
+        $log->file($name.' completion', $path, $status);
+        foreach (self::notes($name, $path) as $note) {
+            $status->changed() ? $log->info(ltrim($note)) : $log->detail(ltrim($note));
+        }
     }
 
     /**

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Pablo\Tests\Install;
 
+use Pablo\Install\InstallLog;
 use Pablo\Install\ShellCompletion;
 use Pablo\Tests\TempDir;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\Console\Output\BufferedOutput;
+use Symfony\Component\Console\Output\OutputInterface;
 
 final class ShellCompletionTest extends TestCase
 {
@@ -36,15 +39,13 @@ final class ShellCompletionTest extends TestCase
     {
         $path = $this->home.$relative;
 
-        $messages = ShellCompletion::install($shell, $this->home);
-
-        $this->assertStringContainsString("completion: {$path}", $messages[0]);
+        $this->assertStringContainsString("+ created  {$path}", $this->install($shell));
         $script = (string) file_get_contents($path);
         $this->assertStringContainsString(ShellCompletion::MARKER, $script);
         $this->assertStringContainsString('_sf_pablo', $script);
         $this->assertStringNotContainsString('{{', $script);
 
-        $this->assertStringContainsString('is up to date', ShellCompletion::install($shell, $this->home)[0]);
+        $this->assertStringContainsString("= unchanged {$path}", $this->install($shell));
         $this->assertSame($script, file_get_contents($path));
 
         $this->assertSame(["removed {$path}"], ShellCompletion::remove($this->home));
@@ -57,7 +58,7 @@ final class ShellCompletionTest extends TestCase
 
         $this->assertSame('#compdef pablo', $lines[0]);
         $this->assertSame(ShellCompletion::MARKER, $lines[1]);
-        $this->assertStringContainsString('fpath', implode("\n", ShellCompletion::install('zsh', $this->home)));
+        $this->assertStringContainsString('fpath', $this->install('zsh'));
     }
 
     public function testAStaleScriptOfOursIsRewritten(): void
@@ -66,7 +67,7 @@ final class ShellCompletionTest extends TestCase
         mkdir(\dirname($path), 0o777, true);
         file_put_contents($path, ShellCompletion::MARKER."\nold\n");
 
-        $this->assertStringContainsString('installed the bash completion', ShellCompletion::install('bash', $this->home)[0]);
+        $this->assertStringContainsString('~ updated', $this->install('bash'));
         $this->assertSame(ShellCompletion::script('bash'), file_get_contents($path));
     }
 
@@ -76,7 +77,7 @@ final class ShellCompletionTest extends TestCase
         mkdir(\dirname($path), 0o777, true);
         file_put_contents($path, "# mine\n");
 
-        $this->assertStringContainsString('is not PABLO\'s: left alone', ShellCompletion::install('fish', $this->home)[0]);
+        $this->assertStringContainsString('is not PABLO\'s: left alone', $this->install('fish'));
         $this->assertSame([], ShellCompletion::remove($this->home));
         $this->assertSame("# mine\n", file_get_contents($path));
 
@@ -85,7 +86,7 @@ final class ShellCompletionTest extends TestCase
         file_put_contents($this->home.'/target', ShellCompletion::script('bash'));
         symlink($this->home.'/target', $bash);
 
-        $this->assertStringContainsString('left alone', ShellCompletion::install('bash', $this->home)[0]);
+        $this->assertStringContainsString('left alone', $this->install('bash'));
         $this->assertSame([], ShellCompletion::remove($this->home));
         $this->assertTrue(is_link($bash));
     }
@@ -93,7 +94,25 @@ final class ShellCompletionTest extends TestCase
     public function testAnUnknownShellGetsNothing(): void
     {
         $this->assertNull(ShellCompletion::path('/bin/tcsh', $this->home));
-        $this->assertStringContainsString('no shell completion installed for tcsh', ShellCompletion::install('/bin/tcsh', $this->home)[0]);
-        $this->assertStringContainsString('an unknown shell', ShellCompletion::install('', $this->home)[0]);
+        $this->assertStringContainsString('no shell completion installed for tcsh', $this->install('/bin/tcsh'));
+        $this->assertStringContainsString('an unknown shell', $this->install(''));
+    }
+
+    public function testTheLoadingNotesOnlyShowWhenTheScriptChanged(): void
+    {
+        $this->assertStringContainsString('bash-completion package', $this->install('bash'));
+        $this->assertStringNotContainsString('bash-completion package', $this->install('bash'));
+        $this->assertStringContainsString('bash-completion package', $this->install('bash', OutputInterface::VERBOSITY_VERBOSE));
+    }
+
+    /** What install() reported, as printed by `pablo system:install`. */
+    private function install(string $shell, int $verbosity = OutputInterface::VERBOSITY_NORMAL): string
+    {
+        $output = new BufferedOutput($verbosity);
+        $log = new InstallLog($output);
+        ShellCompletion::install($shell, $this->home, $log);
+        $log->close();
+
+        return $output->fetch();
     }
 }

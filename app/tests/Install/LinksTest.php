@@ -6,6 +6,7 @@ namespace Pablo\Tests\Install;
 
 use Pablo\Install\Links;
 use Pablo\Support\PabloError;
+use Pablo\Support\WriteStatus;
 use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
@@ -32,8 +33,8 @@ final class LinksTest extends TestCase
     {
         $source = $this->tmp.'/runtime/opencode/agents/a.md';
 
-        $this->links->link($source, $this->tmp.'/dest/sub/a.md');
-        $this->links->link($source, $this->tmp.'/dest/sub/a.md');
+        $this->assertSame(WriteStatus::Created, $this->links->link($source, $this->tmp.'/dest/sub/a.md'));
+        $this->assertSame(WriteStatus::Unchanged, $this->links->link($source, $this->tmp.'/dest/sub/a.md'));
 
         $this->assertSame($source, readlink($this->tmp.'/dest/sub/a.md'));
         $this->assertTrue($this->links->isOurs($this->tmp.'/dest/sub/a.md'));
@@ -43,7 +44,7 @@ final class LinksTest extends TestCase
     {
         symlink($this->tmp.'/nowhere', $this->tmp.'/dest/a.md');
 
-        $this->links->link($this->tmp.'/runtime/opencode/agents/a.md', $this->tmp.'/dest/a.md');
+        $this->assertSame(WriteStatus::Updated, $this->links->link($this->tmp.'/runtime/opencode/agents/a.md', $this->tmp.'/dest/a.md'));
 
         $this->assertSame($this->tmp.'/runtime/opencode/agents/a.md', readlink($this->tmp.'/dest/a.md'));
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Tests\Install;
 
 use Pablo\Agents\Ade\AdeRegistry;
+use Pablo\Agents\AgentFilesGenerator;
 use Pablo\Agents\AgentTemplates;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Command\System\GenerateAgentsCommand;
@@ -77,9 +78,9 @@ trait InstallSandbox
     }
 
     /** @param array<string, mixed> $input */
-    protected function install(array $input = [], string $os = 'Linux'): CommandTester
+    protected function install(array $input = [], string $os = 'Linux', int $verbosity = OutputInterface::VERBOSITY_NORMAL): CommandTester
     {
-        return $this->runCommand('system:install', $input, $os);
+        return $this->runCommand('system:install', $input, $os, $verbosity);
     }
 
     protected function uninstall(string $os = 'Linux'): CommandTester
@@ -105,7 +106,7 @@ trait InstallSandbox
     }
 
     /** @param array<string, mixed> $input */
-    private function runCommand(string $name, array $input, string $os): CommandTester
+    private function runCommand(string $name, array $input, string $os, int $verbosity = OutputInterface::VERBOSITY_NORMAL): CommandTester
     {
         $global = new GlobalConfig();
         $config = new Config($global);
@@ -113,10 +114,11 @@ trait InstallSandbox
         $runtimes = new AgentRuntimeRegistry($global, $templates);
         $ades = new AdeRegistry($global);
         $schedulers = new SchedulerFactory($this->runner, $os);
+        $generator = new AgentFilesGenerator($templates, $config);
 
         $application = new Application();
         $application->setAutoExit(false);
-        $application->addCommand(new GenerateAgentsCommand($templates, $runtimes, $config));
+        $application->addCommand(new GenerateAgentsCommand($generator, $runtimes));
         $application->addCommand(new class extends Command {
             public function __construct()
             {
@@ -130,11 +132,11 @@ trait InstallSandbox
                 return self::SUCCESS;
             }
         });
-        $application->addCommand(new InstallCommand($global, $schedulers, $runtimes, $ades, $config));
+        $application->addCommand(new InstallCommand($global, $schedulers, $runtimes, $ades, $config, $generator));
         $application->addCommand(new UninstallCommand($schedulers, $templates, $runtimes));
 
         $tester = new CommandTester($application->find($name));
-        $tester->execute($input, ['interactive' => false]);
+        $tester->execute($input, ['interactive' => false, 'verbosity' => $verbosity]);
 
         return $tester;
     }

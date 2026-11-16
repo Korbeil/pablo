@@ -14,6 +14,7 @@ use Pablo\Tests\TempDir;
 use Pablo\Update\Updater;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Console\Application;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Tester\CommandTester;
 
 final class UpdateCommandTest extends TestCase
@@ -93,6 +94,15 @@ final class UpdateCommandTest extends TestCase
         $this->assertStringContainsString('install output', $tester->getDisplay());
         $this->assertContains([$this->binary, 'system:install', '--no-interaction'], $this->runner->probeCalls);
         $this->assertStringContainsString('pablo v2.0.0', (string) file_get_contents($this->binary));
+    }
+
+    public function testSystemInstallKeepsOurColorsAndVerbosity(): void
+    {
+        $tester = new CommandTester($this->command(new Updater($this->runner, $this->binary, 'v1.0.0', 'linux-x86_64')));
+        $tester->execute([], ['decorated' => true, 'verbosity' => OutputInterface::VERBOSITY_VERBOSE]);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertContains([$this->binary, 'system:install', '--no-interaction', '--ansi', '-v'], $this->runner->probeCalls, 'its output is captured: no terminal of its own');
     }
 
     public function testCheckOnlyReports(): void

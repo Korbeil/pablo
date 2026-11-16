@@ -6,6 +6,7 @@ namespace Pablo\Tests\Support;
 
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
+use Pablo\Support\WriteStatus;
 use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
@@ -56,6 +57,19 @@ final class FilesTest extends TestCase
 
         $this->assertSame('skill', file_get_contents($this->tmp.'/dst/skills/b/SKILL.md'));
         $this->assertSame('a', file_get_contents($this->tmp.'/dst/a.md'));
+    }
+
+    public function testWriteAndCopySayWhatChanged(): void
+    {
+        $path = $this->tmp.'/out/file';
+        $this->assertSame(WriteStatus::Created, Files::write($path, 'one'));
+        $this->assertSame(WriteStatus::Unchanged, Files::write($path, 'one'));
+        $this->assertSame(WriteStatus::Updated, Files::write($path, 'two'));
+
+        $this->assertSame(WriteStatus::Created, Files::copy($this->tmp.'/src', $this->tmp.'/dst'));
+        $this->assertSame(WriteStatus::Unchanged, Files::copy($this->tmp.'/src', $this->tmp.'/dst'));
+        file_put_contents($this->tmp.'/dst/a.md', 'edited');
+        $this->assertSame(WriteStatus::Updated, Files::copy($this->tmp.'/src', $this->tmp.'/dst'), 'one changed file updates the directory');
     }
 
     public function testWriteReplacesASymlinkInsteadOfWritingThroughIt(): void

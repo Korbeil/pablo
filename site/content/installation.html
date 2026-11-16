@@ -98,6 +98,8 @@
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
 </ol>
 
+<p>The output groups the files and links it places (the <code>pablo</code> command, the completion, the agent definitions, the links, the service files) and says what each run changed: <code>+ created</code> and <code>~ updated</code> are listed one by one and highlighted; what was already up to date collapses into one line per group, such as <code>= 5 agents, 1 command, 1 skill unchanged</code>. A last line gives the totals, or <code>Nothing changed</code> when the run only confirmed the install. The services are restarted either way, so they run the binary just installed. Add <code>-v</code> to list every unchanged file too, with the <a href="#the-services-path">services' <code>PATH</code></a> and the other details.</p>
+
 <aside class="callout note"><p>Your own OpenCode, Claude Code and Copilot files are never touched. PABLO only creates <em>new</em> symlinks, all pointing into <code>~/.pablo/runtime/</code>, and refuses to replace any file in <code>~/.config/opencode/</code>, <code>~/.claude/</code> or <code>~/.copilot/</code> that isn't already one of its links. The same goes for the scheduler files: one without PABLO's <code>marker:</code> line is never overwritten.</p></aside>
 
 <h3>From a checkout (contributors)</h3>
@@ -183,7 +185,7 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
   <li>the system directories (<code>/usr/local/bin</code>, <code>/usr/bin</code>, <code>/bin</code>, …).</li>
 </ol>
 
-<p>Install prints it as <code>services PATH: …</code>. It is computed once: after installing or moving one of those tools, or changing the runtime or ADE, run <code>pablo system:install</code> again.</p>
+<p>Install prints it as <code>services PATH: …</code> with <code>-v</code> (<code>pablo system:install -v</code>). It is computed once: after installing or moving one of those tools, or changing the runtime or ADE, run <code>pablo system:install</code> again.</p>
 
 <h3>First install on macOS</h3>
 

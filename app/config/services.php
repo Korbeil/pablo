@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Pablo\Agents\Ade\AdeRegistry;
+use Pablo\Agents\AgentFilesGenerator;
 use Pablo\Agents\AgentLauncherFactory;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Agents\AgentTemplates;
@@ -117,6 +118,7 @@ return static function (ContainerConfigurator $container): void {
 
     // Generated-agent templates and the doctor's staleness check.
     $services->set(AgentTemplates::class);
+    $services->set(AgentFilesGenerator::class);
     $services->set(AgentStaleness::class);
 
     // Bounded context pre-fetched into auto-launched agent prompts.

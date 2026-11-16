@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Pablo\Install\Scheduler;
 
+use Pablo\Install\InstallLog;
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
+use Pablo\Support\WriteStatus;
 
 /**
  * macOS: launchd agents in ~/Library/LaunchAgents, rendered from the bundled
@@ -30,20 +32,26 @@ final class LaunchdScheduler implements SchedulerInterface
     ) {
     }
 
-    public function install(string $pabloBin, bool $withWeb, string $path, \Closure $info): void
+    public function install(string $pabloBin, bool $withWeb, string $path, InstallLog $log): void
     {
-        $this->load(self::DISPATCH, $pabloBin, $path);
-        $info(self::DISPATCH." loaded (every 5 minutes; logs: {$this->logDir}/dispatch.log)");
-        $this->load(self::PRUNE, $pabloBin, $path);
-        $info(self::PRUNE." loaded (daily at 03:00; logs: {$this->logDir}/prune.log)");
+        $labels = [self::DISPATCH, self::PRUNE, ...($withWeb ? [self::WEB] : [])];
+        $log->section('services', $this->agentsDir);
+        foreach ($labels as $label) {
+            $log->file('plist', $this->plist($label), $this->write($label, $pabloBin, $path));
+        }
+
+        $this->load(self::DISPATCH);
+        $log->info(self::DISPATCH." loaded (every 5 minutes; logs: {$this->logDir}/dispatch.log)");
+        $this->load(self::PRUNE);
+        $log->info(self::PRUNE." loaded (daily at 03:00; logs: {$this->logDir}/prune.log)");
 
         if ($withWeb) {
-            $this->load(self::WEB, $pabloBin, $path);
-            $info(self::WEB." loaded (the dashboard; logs: {$this->logDir}/web.log)");
+            $this->load(self::WEB);
+            $log->info(self::WEB." loaded (the dashboard; logs: {$this->logDir}/web.log)");
         } elseif (ServiceFiles::isOurs($this->plist(self::WEB), self::WEB)) {
             $this->runner->probe(['launchctl', 'bootout', $this->domain().'/'.self::WEB]);
             ServiceFiles::removeIfOurs($this->plist(self::WEB), self::WEB);
-            $info('--without-web: removed '.self::WEB);
+            $log->info('--without-web: removed '.self::WEB);
         }
     }
 
@@ -74,7 +82,7 @@ final class LaunchdScheduler implements SchedulerInterface
     }
 
     /** @throws PabloError */
-    private function load(string $label, string $pabloBin, string $path): void
+    private function write(string $label, string $pabloBin, string $path): WriteStatus
     {
         Files::ensureDir($this->logDir);
         $content = str_replace(
@@ -85,8 +93,13 @@ final class LaunchdScheduler implements SchedulerInterface
             ),
             ServiceFiles::bundled($this->templatesDir.'/'.$label.'.plist.template'),
         );
-        ServiceFiles::write($this->plist($label), $label, $content);
 
+        return ServiceFiles::write($this->plist($label), $label, $content);
+    }
+
+    /** @throws PabloError */
+    private function load(string $label): void
+    {
         // bootout first so a re-install picks up the fresh plist (idempotent).
         $this->runner->probe(['launchctl', 'bootout', $this->domain().'/'.$label]);
         $result = $this->runner->probe(['launchctl', 'bootstrap', $this->domain(), $this->plist($label)]);
