@@ -43,8 +43,17 @@ final class OpenChamberLauncherTest extends TestCase
         $this->agentFilesDir = $this->tmp.'/runtime/opencode/agents';
         mkdir($this->agentFilesDir, 0o777, true);
         $this->runner = new FakeProcessRunner();
-        $this->agents = new OpenChamberLauncher($this->runner, new Time(), \Pablo\Tests\Registries::defaultRuntime());
+        $this->sleeps = [];
+        $this->agents = new OpenChamberLauncher(
+            $this->runner,
+            new Time(),
+            \Pablo\Tests\Registries::defaultRuntime(),
+            function (int $us): void { $this->sleeps[] = $us; },
+        );
     }
+
+    /** @var list<int> */
+    private array $sleeps = [];
 
     private string $agentFilesDir;
 
@@ -136,10 +145,83 @@ final class OpenChamberLauncherTest extends TestCase
         $log = (string) file_get_contents($this->agentsDir.'/logs/openchamber-fallback.log');
 
         $this->assertStringStartsWith('pid:', $handle);
-        $this->assertCount(2, $calls);
+        // create, send, then one delivery check per wait, all unanswered.
+        $this->assertCount(5, $calls);
+        $this->assertSame(['openchamber', 'session', 'messages'], \array_slice($calls[2], 0, 3));
+        $this->assertCount(3, $this->sleeps);
         $this->assertFileDoesNotExist($this->agentsDir.'/openchamber-ses_abc.json');
         $this->assertStringContainsString('session send failed (ses_abc)', $log);
         $this->assertStringContainsString('Unknown model', $log);
+    }
+
+    public function testSendTimeoutKeepsSessionWhenThePromptLanded(): void
+    {
+        // The CLI gives up after 4 s on a slow daemon, which still takes the
+        // prompt: a headless fallback then would run the agent twice.
+        mkdir($this->agentsDir, 0o777, true);
+        $calls = [];
+        $this->startRunner(function (array $argv) use (&$calls): string {
+            $calls[] = $argv;
+            if (\in_array('create', $argv, true)) {
+                return $this->ocOk(['sessionId' => 'ses_abc']);
+            }
+            if (\in_array('send', $argv, true)) {
+                return $this->ocErr(['error' => ['message' => 'Request to /api/openchamber/control timed out after 4000ms.']]);
+            }
+
+            return $this->ocOk(['sessionStatus' => ['type' => 'idle'], 'messages' => [['role' => 'user', 'text' => 'hi']]]);
+        });
+
+        $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'hi');
+        $log = (string) file_get_contents($this->agentsDir.'/logs/openchamber-fallback.log');
+
+        $this->assertSame('ses_abc', $handle);
+        $this->assertCount(3, $calls);
+        $this->assertFileExists($this->agentsDir.'/openchamber-ses_abc.json');
+        $this->assertStringContainsString('prompt was delivered (ses_abc), no fallback', $log);
+    }
+
+    public function testSendTimeoutKeepsSessionOnceTheDaemonCatchesUp(): void
+    {
+        mkdir($this->agentsDir, 0o777, true);
+        $checks = 0;
+        $this->startRunner(function (array $argv) use (&$checks): string {
+            if (\in_array('create', $argv, true)) {
+                return $this->ocOk(['sessionId' => 'ses_abc']);
+            }
+            if (\in_array('send', $argv, true)) {
+                return $this->ocErr(['error' => ['message' => 'timed out']]);
+            }
+            ++$checks;
+
+            // First check: the daemon has not answered yet; second: busy.
+            return 1 === $checks
+                ? $this->ocErr(['error' => ['message' => 'timed out']])
+                : $this->ocOk(['sessionStatus' => ['type' => 'busy'], 'messages' => []]);
+        });
+
+        $this->assertSame('ses_abc', $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'hi'));
+        $this->assertSame(2, $checks);
+    }
+
+    public function testSendFailureFallsBackWhenTheSessionStaysEmpty(): void
+    {
+        mkdir($this->agentsDir, 0o777, true);
+        $this->startRunner(function (array $argv): string {
+            if (\in_array('create', $argv, true)) {
+                return $this->ocOk(['sessionId' => 'ses_abc']);
+            }
+            if (\in_array('send', $argv, true)) {
+                return $this->ocErr(['error' => ['message' => 'timed out']]);
+            }
+
+            return $this->ocOk(['sessionStatus' => ['type' => 'idle'], 'messages' => []]);
+        });
+
+        $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'hi');
+
+        $this->assertStringStartsWith('pid:', $handle);
+        $this->assertFileDoesNotExist($this->agentsDir.'/openchamber-ses_abc.json');
     }
 
     public function testLaunchPinsModelFromAgentFrontmatter(): void

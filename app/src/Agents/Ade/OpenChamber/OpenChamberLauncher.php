@@ -7,9 +7,12 @@ namespace Pablo\Agents\Ade\OpenChamber;
 use Pablo\Agents\Ade\AbstractAgentLauncher;
 use Pablo\Agents\Ade\AdeCall;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\SessionInfo;
+use Pablo\Domain\Time;
 use Pablo\Support\Files;
 use Pablo\Support\Json;
+use Pablo\Support\ProcessRunnerInterface;
 
 /**
  * The OpenChamber ADE's launcher.
@@ -25,7 +28,9 @@ use Pablo\Support\Json;
  *
  * A failed create or send (bad model id, daemon hiccup) is logged to
  * logs/openchamber-fallback.log and falls back to the shared headless run
- * (HeadlessRunner) instead of leaving an empty zombie session.
+ * (HeadlessRunner) instead of leaving an empty zombie session — unless the
+ * session shows the prompt landed anyway (the CLI times out on a slow daemon
+ * that still takes it), in which case it is kept, so the agent runs once.
  *
  * Status mapping (OpenChamber `sessionStatus.type`):
  *   busy/retry -> running; idle -> waiting (display) / excluded (active).
@@ -33,6 +38,25 @@ use Pablo\Support\Json;
 final class OpenChamberLauncher extends AbstractAgentLauncher
 {
     public const SESSION_TIMEOUT_S = 60;
+
+    /** Waits before each check that a failed `session send` landed anyway. */
+    private const DELIVERY_CHECK_DELAYS_US = [2_000_000, 5_000_000, 10_000_000];
+
+    /** @var \Closure(int): void */
+    private readonly \Closure $sleep;
+
+    /**
+     * @param (\Closure(int): void)|null $sleep test seam: wait that many microseconds
+     */
+    public function __construct(
+        ProcessRunnerInterface $runner,
+        Time $time,
+        AgentRuntimeInterface $runtime,
+        ?\Closure $sleep = null,
+    ) {
+        parent::__construct($runner, $time, $runtime);
+        $this->sleep = $sleep ?? static function (int $us): void { usleep($us); };
+    }
 
     protected function adeName(): string
     {
@@ -112,6 +136,14 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
         }
         $sent = $this->call($send);
         if (null === $sent->payload) {
+            // The CLI gives up on a slow daemon after its own 4 s while the
+            // daemon still takes the prompt: falling back then would run the
+            // agent twice. Keep the session when the prompt did land.
+            if ($this->promptDelivered($sessionId, $worktree)) {
+                $this->logFallback($worktree, $agent, 'session send reported a failure but the prompt was delivered ('.$sessionId.'), no fallback: '.($sent->reason ?? 'unknown'));
+
+                return $sessionId;
+            }
             // A failed send leaves the created session as an empty zombie: the
             // watcher would report it finished within seconds and the display
             // would park it as waiting forever. Drop the pidfile, log why, and
@@ -124,6 +156,34 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
         }
 
         return $sessionId;
+    }
+
+    /**
+     * Whether a `session send` that reported a failure reached the daemon
+     * anyway: the session is busy, or holds a user message. Asked once per
+     * DELIVERY_CHECK_DELAYS_US entry, after that wait, so a daemon still
+     * catching up gets the time to; an unanswered check counts as not
+     * delivered, so a wedged daemon still gets its headless run.
+     */
+    private function promptDelivered(string $sessionId, string $worktree): bool
+    {
+        foreach (self::DELIVERY_CHECK_DELAYS_US as $delayUs) {
+            ($this->sleep)($delayUs);
+            $payload = $this->call(['session', 'messages', '--session', $sessionId, '--dir', $worktree])->payload;
+            if (null === $payload) {
+                continue;
+            }
+            if (\in_array($payload['sessionStatus']['type'] ?? null, ['busy', 'retry'], true)) {
+                return true;
+            }
+            foreach ($payload['messages'] ?? [] as $message) {
+                if (\is_array($message) && 'user' === ($message['role'] ?? null)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     public function sessionOf(string $handle): ?string
