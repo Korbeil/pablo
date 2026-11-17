@@ -52,7 +52,7 @@
 
 <h2 id="linear">Linear: <code>linear</code> <span class="exp">experimental</span></h2>
 
-<p>Using <a href="https://github.com/schpet/linear-cli">schpet/linear-cli</a>: <code>linear issue view &lt;KEY&gt; --json</code>; the QA signal is a transition into your <code>testing.failure_signal</code> status in the issue's history; login check: <code>linear auth status</code>. Every call has a 30-second timeout.</p>
+<p>Using <a href="https://github.com/schpet/linear-cli">schpet/linear-cli</a>: <code>linear issue view &lt;KEY&gt; --json</code>; the QA signal is a transition into your <code>testing.failure_signal</code> status in the issue's history; login check: <code>linear auth whoami</code>. Every call has a 30-second timeout.</p>
 
 <aside class="callout warning"><p>The Linear provider hasn't been tested end to end yet. If a command fails, compare with <code>linear --help</code> and adjust <a href="repo:app/src/Provider/Tracker/Linear.php"><code>Linear.php</code></a>.</p></aside>
 
