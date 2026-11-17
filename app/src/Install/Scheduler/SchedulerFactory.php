@@ -14,9 +14,11 @@ use Pablo\Support\ProcessRunnerInterface;
  */
 final class SchedulerFactory
 {
+    /** @param (\Closure(int): void)|null $sleep launchd's waits, in microseconds; tests pass a no-op */
     public function __construct(
         private readonly ProcessRunnerInterface $runner,
         private readonly string $osFamily = \PHP_OS_FAMILY,
+        private readonly ?\Closure $sleep = null,
     ) {
     }
 
@@ -45,6 +47,7 @@ final class SchedulerFactory
                 PabloPaths::pabloDir().'/logs',
                 $home,
                 \function_exists('posix_getuid') ? posix_getuid() : (int) trim($this->runner->run(['id', '-u'])),
+                $this->sleep,
             ),
             default => throw new PabloError("unsupported platform: {$this->osFamily} (Linux and macOS are supported)"),
         };

@@ -113,7 +113,7 @@ trait InstallSandbox
         $templates = new AgentTemplates($config);
         $runtimes = new AgentRuntimeRegistry($global, $templates);
         $ades = new AdeRegistry($global);
-        $schedulers = new SchedulerFactory($this->runner, $os);
+        $schedulers = new SchedulerFactory($this->runner, $os, static function (int $us): void {});
         $generator = new AgentFilesGenerator($templates, $config);
 
         $application = new Application();
