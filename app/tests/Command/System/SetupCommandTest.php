@@ -225,7 +225,7 @@ YAML;
     {
         $this->writeProject('acme', 'linear');
         $this->onWhich = static fn (string $name): string => '/usr/bin/'.$name;
-        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => (['linear', 'auth', 'status'] === $argv) ? new \Pablo\Support\ProbeResult(1, 'not authenticated') : new \Pablo\Support\ProbeResult(0, 'ok');
+        $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => (['linear', 'auth', 'whoami'] === $argv) ? new \Pablo\Support\ProbeResult(1, 'not authenticated') : new \Pablo\Support\ProbeResult(0, 'ok');
 
         $tester = $this->setupTester();
         $display = $tester->getDisplay();

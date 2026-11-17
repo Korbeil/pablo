@@ -137,11 +137,11 @@ final class Doctor
             'acli-confluence' => new CliProbe('acli-confluence', ['acli', 'confluence', 'auth', 'status'], 'run: acli confluence auth login', $acli, $acliDocs, soft: true),
             'linear' => new CliProbe(
                 'linear',
-                ['linear', 'auth', 'status'],
+                ['linear', 'auth', 'whoami'],
                 'run: linear auth login (schpet/linear-cli)',
                 [
                     'Darwin' => 'brew install schpet/tap/linear',
-                    'Linux' => 'deno install -A --reload -f -g -n linear jsr:@schpet/linear-cli',
+                    'Linux' => 'brew install schpet/tap/linear',
                 ],
                 'https://github.com/schpet/linear-cli',
                 soft: true,
