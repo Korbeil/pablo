@@ -153,7 +153,7 @@ final class CopilotRuntimeTest extends TestCase
         $this->assertTrue((new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeSessions())->owns($sid), 'a UUID');
 
         $command = $runtime->launchCommand('task-analyst', "Analyze issue #45 — it's urgent", 'claude-sonnet-5.5', $sid);
-        $this->assertStringStartsWith("copilot --agent pablo-task-analyst --model claude-sonnet-5.5 --session-id {$sid} --no-ask-user --no-auto-update --no-color --disable-builtin-mcps --available-tools 'view,grep,glob,web_fetch,bash' --allow-tool read --allow-tool shell --allow-all-urls --deny-tool write ", $command);
+        $this->assertStringStartsWith("copilot --agent pablo-task-analyst --model claude-sonnet-5.5 --session-id {$sid} --no-ask-user --no-color --disable-builtin-mcps --available-tools 'view,grep,glob,web_fetch,bash' --allow-tool read --allow-tool shell --allow-all-urls --deny-tool write ", $command);
         $this->assertStringContainsString("--deny-tool 'shell(git push:*)' --deny-tool 'shell(rtk git push)'", $command);
         $this->assertStringEndsWith(' -p '.escapeshellarg("Analyze issue #45 — it's urgent"), $command);
 
@@ -161,6 +161,21 @@ final class CopilotRuntimeTest extends TestCase
         $this->assertStringContainsString('--allow-tool write', $resolver);
         $this->assertStringNotContainsString('--model', $resolver);
         $this->assertStringNotContainsString('--session-id', $resolver);
+    }
+
+    public function testNoLaunchPinsTheInstalledCopilotVersion(): void
+    {
+        // --no-auto-update makes Copilot's launcher run the version it was
+        // first installed with (e.g. 0.0.388), which refuses current models.
+        $runtime = $this->runtime();
+        foreach ([
+            'launch' => $runtime->launchCommand('task-analyst', 'go', 'claude-opus-5.5', $runtime->newSessionId()),
+            'follow-up' => $runtime->followUpCommand('11111111-2222-4333-8444-555555555555', 'go', 'claude-opus-5.5'),
+            'one-shot' => implode(' ', \Pablo\Agents\Runtime\Copilot\CopilotOneShot::argv('summarize')),
+        ] as $kind => $command) {
+            $this->assertStringNotContainsString('--no-auto-update', $command, $kind);
+            $this->assertStringContainsString('--no-ask-user', $command, $kind);
+        }
     }
 
     public function testModelsAndSessionRefs(): void
