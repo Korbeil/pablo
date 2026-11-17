@@ -36,7 +36,8 @@ final class TaskCloser
      * @param bool       $force    close even while agent sessions are active
      * @param State|null $onlyFrom refuse unless the task is in this state (the dashboard passes closed)
      *
-     * @return string what happened to the worktree ("worktree removed" or "stale worktree pruned")
+     * @return string what happened to the worktree ("worktree removed", "stale worktree pruned",
+     *                or "broken worktree pruned, …" when git could no longer remove its directory)
      */
     public function close(string $project, string $branch, bool $force = false, ?State $onlyFrom = null): string
     {
@@ -64,6 +65,12 @@ final class TaskCloser
             $lock->release();
         }
 
-        return $hadWorktree ? 'worktree removed' : 'stale worktree pruned';
+        if (!$hadWorktree) {
+            return 'stale worktree pruned';
+        }
+
+        return is_dir($task->worktreePath)
+            ? "broken worktree pruned, its directory was left in place: {$task->worktreePath}"
+            : 'worktree removed';
     }
 }
