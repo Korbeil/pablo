@@ -99,6 +99,28 @@ final class GitRepoTest extends TestCase
         $this->assertNotContains('wk-9', $this->git()->allBranchNames($this->clone));
     }
 
+    public function testRemoveWorktreeToleratesMissingDotGit(): void
+    {
+        $wt = $this->makeWorktree('wk-9');
+        unlink($wt.'/.git');
+
+        $this->git()->removeWorktree($this->clone, $wt, 'wk-9');
+
+        // Unregistered and its branch deleted; the directory is left alone.
+        $this->assertDirectoryExists($wt);
+        $this->assertStringNotContainsString('wk-9', RepoHelper::git($this->clone, ['worktree', 'list']));
+        $this->assertNotContains('wk-9', $this->git()->allBranchNames($this->clone));
+    }
+
+    public function testRemoveWorktreeStillRefusesADirtyWorktree(): void
+    {
+        $wt = $this->makeWorktree('wk-9');
+        file_put_contents($wt.'/untracked.txt', 'work');
+
+        $this->expectException(\Pablo\Support\PabloError::class);
+        $this->git()->removeWorktree($this->clone, $wt, 'wk-9');
+    }
+
     public function testAllBranchNamesIncludesRemote(): void
     {
         $wt = $this->makeWorktree();

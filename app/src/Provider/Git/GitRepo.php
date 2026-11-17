@@ -197,7 +197,19 @@ final class GitRepo implements GitRepoInterface
     public function removeWorktree(string $repo, string $path, string $branch): void
     {
         if (is_dir($path)) {
-            $this->git($repo, ['worktree', 'remove', $path]);
+            try {
+                $this->git($repo, ['worktree', 'remove', $path]);
+            } catch (PabloError $e) {
+                // The directory is no longer a valid worktree (its .git file is
+                // gone or points elsewhere): git refuses to remove it. Unregister
+                // it and go on; the directory itself is left in place, since git
+                // can no longer tell whether it holds uncommitted work. Any other
+                // refusal (modified or untracked files) still stops the close.
+                if (!str_contains($e->getMessage(), 'validation failed')) {
+                    throw $e;
+                }
+                $this->git($repo, ['worktree', 'prune']);
+            }
         } else {
             $this->git($repo, ['worktree', 'prune']);
         }
