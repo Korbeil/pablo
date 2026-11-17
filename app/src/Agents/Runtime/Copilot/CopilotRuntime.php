@@ -31,6 +31,14 @@ final class CopilotRuntime implements AgentRuntimeInterface
 {
     public const NAME = 'copilot';
 
+    /**
+     * Flags every PABLO launch passes. Never `--no-auto-update`: Copilot's
+     * launcher then runs the version it was first installed with (e.g.
+     * ~/.copilot/pkg/<platform>/0.0.388) instead of the latest one it
+     * downloaded, and that old build refuses current `--model` ids.
+     */
+    public const HEADLESS_FLAGS = ['--no-ask-user', '--no-color', '--disable-builtin-mcps'];
+
     /** Claude Code model aliases, which Copilot does not know. */
     private const CLAUDE_ALIASES = ['sonnet', 'opus', 'haiku'];
 
@@ -98,7 +106,7 @@ final class CopilotRuntime implements AgentRuntimeInterface
         }
         $argv = [
             ...$argv,
-            '--no-ask-user', '--no-auto-update', '--no-color', '--disable-builtin-mcps',
+            ...self::HEADLESS_FLAGS,
             ...$this->agents->profile($agent)->cliArgs(),
             // The prompt goes last, as the value of -p.
             '-p', $prompt,
@@ -124,7 +132,7 @@ final class CopilotRuntime implements AgentRuntimeInterface
             $argv[] = '--model';
             $argv[] = $model;
         }
-        $argv = [...$argv, '--no-ask-user', '--no-auto-update', '--no-color', '--disable-builtin-mcps', '--allow-all-tools'];
+        $argv = [...$argv, ...self::HEADLESS_FLAGS, '--allow-all-tools'];
         foreach (FollowUpPolicy::DENIED_SHELL as $pattern) {
             foreach (CopilotAgents::shellRules($pattern, 'yolo follow-up') as $rule) {
                 $argv[] = '--deny-tool';

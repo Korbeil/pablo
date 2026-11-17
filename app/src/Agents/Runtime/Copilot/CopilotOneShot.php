@@ -20,8 +20,8 @@ final class CopilotOneShot implements RuntimeOneShotInterface
     public static function argv(string $instruction): array
     {
         return [
-            'copilot', '--model', self::MODEL, '-s', '--no-color', '--no-ask-user', '--no-auto-update',
-            '--no-custom-instructions', '--disable-builtin-mcps', '--deny-tool', 'shell', '--deny-tool', 'write',
+            'copilot', '--model', self::MODEL, '-s', ...CopilotRuntime::HEADLESS_FLAGS,
+            '--no-custom-instructions', '--deny-tool', 'shell', '--deny-tool', 'write',
             '-p', $instruction,
         ];
     }

@@ -60,7 +60,7 @@ final class FollowUpCommandTest extends TestCase
 
         $command = $runtime->followUpCommand('11111111-2222-4333-8444-555555555555', 'Do it', null);
 
-        $this->assertStringStartsWith("copilot '--resume=11111111-2222-4333-8444-555555555555' --no-ask-user --no-auto-update --no-color --disable-builtin-mcps --allow-all-tools ", $command);
+        $this->assertStringStartsWith("copilot '--resume=11111111-2222-4333-8444-555555555555' --no-ask-user --no-color --disable-builtin-mcps --allow-all-tools ", $command);
         $this->assertStringContainsString("--deny-tool 'shell(git config)' --deny-tool 'shell(git config:*)'", $command);
         $this->assertStringContainsString("--deny-tool 'shell(rtk gh api:*)'", $command);
         $this->assertStringEndsWith(" -p 'Do it'", $command);
