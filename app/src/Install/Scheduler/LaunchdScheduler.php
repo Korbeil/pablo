@@ -126,7 +126,7 @@ final class LaunchdScheduler implements SchedulerInterface
             ($this->sleep)(self::POLL_US);
         }
 
-        for ($attempt = 1; ; ++$attempt) {
+        for ($attempt = 1;; ++$attempt) {
             $result = $this->runner->probe(['launchctl', 'bootstrap', $this->domain(), $this->plist($label)]);
             if (0 === $result->exitCode) {
                 return;
