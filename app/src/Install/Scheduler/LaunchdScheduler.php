@@ -22,6 +22,16 @@ final class LaunchdScheduler implements SchedulerInterface
     public const PRUNE = 'com.pablo.prune';
     public const WEB = 'com.pablo.web';
 
+    /** How long load() waits for a booted-out service to leave the domain. */
+    private const UNLOAD_WAIT_US = 10_000_000;
+    private const POLL_US = 200_000;
+    private const BOOTSTRAP_ATTEMPTS = 5;
+    private const RETRY_US = 1_000_000;
+
+    /** @var \Closure(int): void */
+    private readonly \Closure $sleep;
+
+    /** @param (\Closure(int): void)|null $sleep microseconds; tests pass a no-op */
     public function __construct(
         private readonly ProcessRunnerInterface $runner,
         private readonly string $templatesDir,
@@ -29,7 +39,9 @@ final class LaunchdScheduler implements SchedulerInterface
         private readonly string $logDir,
         private readonly string $home,
         private readonly int $uid,
+        ?\Closure $sleep = null,
     ) {
+        $this->sleep = $sleep ?? static function (int $us): void { usleep($us); };
     }
 
     public function install(string $pabloBin, bool $withWeb, string $path, InstallLog $log): void
@@ -100,11 +112,29 @@ final class LaunchdScheduler implements SchedulerInterface
     /** @throws PabloError */
     private function load(string $label): void
     {
+        $target = $this->domain().'/'.$label;
         // bootout first so a re-install picks up the fresh plist (idempotent).
-        $this->runner->probe(['launchctl', 'bootout', $this->domain().'/'.$label]);
-        $result = $this->runner->probe(['launchctl', 'bootstrap', $this->domain(), $this->plist($label)]);
-        if (0 !== $result->exitCode) {
-            throw new PabloError("launchctl bootstrap {$label} failed: {$result->output}");
+        // It returns before a running service (com.pablo.web, KeepAlive) has
+        // stopped, and a bootstrap while it is still being torn down fails
+        // with "Bootstrap failed: 5: Input/output error": wait for the label
+        // to leave the domain, then retry the bootstrap a few times anyway.
+        $this->runner->probe(['launchctl', 'bootout', $target]);
+        for ($waited = 0; $waited < self::UNLOAD_WAIT_US; $waited += self::POLL_US) {
+            if (0 !== $this->runner->probe(['launchctl', 'print', $target], 10)->exitCode) {
+                break;
+            }
+            ($this->sleep)(self::POLL_US);
+        }
+
+        for ($attempt = 1; ; ++$attempt) {
+            $result = $this->runner->probe(['launchctl', 'bootstrap', $this->domain(), $this->plist($label)]);
+            if (0 === $result->exitCode) {
+                return;
+            }
+            if ($attempt >= self::BOOTSTRAP_ATTEMPTS) {
+                throw new PabloError("launchctl bootstrap {$label} failed: {$result->output}");
+            }
+            ($this->sleep)(self::RETRY_US);
         }
     }
 
