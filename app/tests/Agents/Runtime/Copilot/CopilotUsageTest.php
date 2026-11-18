@@ -65,7 +65,8 @@ final class CopilotUsageTest extends TestCase
     public function testExactMatchReadsTheLatestCumulativeTotals(): void
     {
         $now = gmdate('Y-m-d\TH:i:s\Z');
-        $this->writeSession(self::SESSION, 'Analyze issue #45', $now);
+        // PABLO's launches send the agent's instructions, then the task: only the task is fingerprinted.
+        $this->writeSession(self::SESSION, "You are PABLO's pablo-task-analyst agent.\n\nInstructions.\n\n".\Pablo\Agents\Runtime\Copilot\CopilotAgentProfile::TASK_HEADING.'Analyze issue #45', $now);
         $this->writeSession('11111111-2222-4333-8444-555555555555', 'something else', $now);
 
         $snapshot = $this->usage()->harvest(self::WORKTREE, $now, \Pablo\Analytics\PromptFingerprint::of('Analyze issue #45'));
