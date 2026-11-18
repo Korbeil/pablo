@@ -114,7 +114,8 @@ final class CopilotUsage implements UsageHarvesterInterface
                     $cwd ??= self::cwdOf($data);
                 }
                 if ('user.message' === $type && '' === $fingerprint && \is_string($data['content'] ?? null)) {
-                    $fingerprint = PromptFingerprint::of($data['content']);
+                    // PABLO's launches put the agent's instructions first.
+                    $fingerprint = PromptFingerprint::of(CopilotAgentProfile::taskOf($data['content']));
                 }
                 if (\in_array($type, self::USAGE_EVENTS, true) && \is_array($data['modelMetrics'] ?? null)) {
                     $metrics = $data['modelMetrics'];

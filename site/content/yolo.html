@@ -15,7 +15,7 @@
 
 <p>This happens after every analyst: <b>task-analyst</b> (<code>in-progress</code>), <b>ci-analyst</b> (<code>ci-red</code>), <b>pr-feedback</b> (<code>request-changes</code>) and <b>task-feedback</b> (<code>testing-failed</code>). So a red CI is fixed and pushed, review threads are addressed and pushed, and the poller carries on as usual: CI green, pull request ready, review.</p>
 
-<p>With Orca, each run opens its own terminal next to the plan (<code>pablo:yolo-implement</code>, <code>pablo:yolo-commit</code>), and the analyst runs as a one-shot command instead of the OpenCode TUI: the TUI only ends when you quit it, which would hold the next step back. With OpenChamber the analyst runs in OpenChamber as usual and the two follow-ups run headless on its session (OpenChamber can't approve a tool call by itself). Headless, everything runs in the background, logged under <code>~/.pablo/agents/logs/</code>.</p>
+<p>With Orca, each run opens its own terminal next to the plan (<code>pablo:yolo-implement</code>, <code>pablo:yolo-commit</code>), and the analyst runs as a one-shot command instead of the OpenCode or Copilot (plan mode) interface: that interface only ends when you quit it, which would hold the next step back. With OpenChamber the analyst runs in OpenChamber as usual and the two follow-ups run headless on its session (OpenChamber can't approve a tool call by itself). Headless, everything runs in the background, logged under <code>~/.pablo/agents/logs/</code>.</p>
 
 <h2 id="turn-it-on">Turn it on</h2>
 
@@ -51,7 +51,7 @@
 
 <ul>
   <li><b>Claude Code</b>: <code>claude -p --resume &lt;session&gt; --permission-mode acceptEdits</code>, with the build tools allowed and the list above as <code>--disallowedTools</code>.</li>
-  <li><b>Copilot CLI</b>: <code>copilot --resume=&lt;session&gt; --allow-all-tools</code>, with the list as <code>--deny-tool</code> (a deny always wins).</li>
+  <li><b>Copilot CLI</b>: <code>copilot --resume=&lt;session&gt; --allow-all-tools</code>, with the list as <code>--deny-tool</code> (a deny always wins). It runs as Copilot's default agent: the analyst was launched without <code>--agent</code> (its instructions are in its first message), since Copilot restores a session's selected agent on <code>--resume</code> and the read-only analyst could not have implemented anything.</li>
   <li><b>OpenCode</b>: <code>opencode run -s &lt;session&gt; --agent build --auto</code>. <code>opencode run</code> takes no per-run rules: <code>--auto</code> approves everything your own OpenCode configuration doesn't deny, so the list above only reaches it through the prompt. Add the denies you care about to the <code>permission</code> of your OpenCode configuration, which <code>--auto</code> keeps.</li>
 </ul>
 

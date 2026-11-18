@@ -7,6 +7,7 @@ namespace Pablo\Tests\Agents\Runtime\Copilot;
 use Pablo\Agents\Ade\Orca\OrcaLauncher;
 use Pablo\Agents\AgentTemplateError;
 use Pablo\Agents\AgentTemplates;
+use Pablo\Agents\Runtime\Copilot\CopilotAgentProfile;
 use Pablo\Agents\Runtime\Copilot\CopilotAgents;
 use Pablo\Agents\Runtime\Copilot\CopilotRuntime;
 use Pablo\Agents\Runtime\SessionRef;
@@ -153,9 +154,12 @@ final class CopilotRuntimeTest extends TestCase
         $this->assertTrue((new \Pablo\Agents\Runtime\ClaudeCode\ClaudeCodeSessions())->owns($sid), 'a UUID');
 
         $command = $runtime->launchCommand('task-analyst', "Analyze issue #45 — it's urgent", 'claude-sonnet-5.5', $sid);
-        $this->assertStringStartsWith("copilot --agent pablo-task-analyst --model claude-sonnet-5.5 --session-id {$sid} --no-ask-user --no-color --disable-builtin-mcps --available-tools 'view,grep,glob,web_fetch,bash' --allow-tool read --allow-tool shell --allow-all-urls --deny-tool write ", $command);
+        $this->assertStringStartsWith("copilot --model claude-sonnet-5.5 --session-id {$sid} --no-ask-user --no-color --disable-builtin-mcps --available-tools 'view,grep,glob,web_fetch,bash' --allow-tool read --allow-tool shell --allow-all-urls --deny-tool write ", $command);
         $this->assertStringContainsString("--deny-tool 'shell(git push:*)' --deny-tool 'shell(rtk git push)'", $command);
-        $this->assertStringEndsWith(' -p '.escapeshellarg("Analyze issue #45 — it's urgent"), $command);
+        // No --agent: Copilot would restore it on --resume, and a YOLO follow-up would run read-only.
+        $this->assertStringNotContainsString('--agent', $command);
+        $profile = $this->copilot->profile('task-analyst');
+        $this->assertStringEndsWith(' -p '.escapeshellarg($profile->inlinePrompt("Analyze issue #45 — it's urgent")), $command);
 
         $resolver = $runtime->launchCommand('rebase-conflict-resolver', 'fix', null);
         $this->assertStringContainsString('--allow-tool write', $resolver);
@@ -230,11 +234,60 @@ final class CopilotRuntimeTest extends TestCase
         $wt = sys_get_temp_dir();
         $agents = new OrcaLauncher($runner, new \Pablo\Domain\Time(), $this->runtime());
 
+        // Attended: the Copilot TUI, which stays open once the agent answers.
         $this->assertSame('term_9', $agents->doLaunchAgent($wt, 'ci-analyst', 'Why is CI red?', 'gpt-5.3-codex'));
         $key = array_search('--command', $calls[1], true);
         $this->assertIsInt($key);
         $command = $calls[1][$key + 1];
-        $this->assertStringStartsWith('cd '.escapeshellarg($wt).'; copilot --agent pablo-ci-analyst --model gpt-5.3-codex --session-id ', $command);
-        $this->assertStringEndsWith(" -p 'Why is CI red?'", $command);
+        $profile = $this->copilot->profile('ci-analyst');
+        $this->assertStringStartsWith('cd '.escapeshellarg($wt).'; copilot --model gpt-5.3-codex --session-id ', $command);
+        $this->assertStringContainsString(' --plan ', $command);
+        $this->assertStringEndsWith(' -i '.escapeshellarg($profile->inlinePrompt('Why is CI red?', planMode: true)), $command);
+        $this->assertStringNotContainsString(' -p ', $command);
+
+        // Unattended (YOLO, a session id given): the one-shot `-p`, which exits.
+        $sid = '11111111-2222-4333-8444-555555555555';
+        $agents->doLaunchAgent($wt, 'ci-analyst', 'Why is CI red?', null, $sid);
+        $create = end($calls);
+        $this->assertIsArray($create);
+        $key = array_search('--command', $create, true);
+        $this->assertIsInt($key);
+        $command = $create[$key + 1];
+        $this->assertStringContainsString("--session-id {$sid} --no-ask-user", $command);
+        $this->assertStringEndsWith(' -p '.escapeshellarg($profile->inlinePrompt('Why is CI red?')), $command);
+    }
+
+    public function testInteractiveCommandOpensTheTuiInPlanMode(): void
+    {
+        $command = $this->runtime()->interactiveCommand('task-analyst', "it's urgent", 'claude-sonnet-5.5');
+        $this->assertMatchesRegularExpression('/^copilot --model claude-sonnet-5\.5 --session-id [0-9a-f-]{36} --plan --disable-builtin-mcps --allow-tool read --allow-tool shell --allow-all-urls --deny-tool /', $command);
+        $this->assertStringContainsString("--deny-tool 'shell(git push:*)'", $command);
+        $prompt = $this->copilot->profile('task-analyst')->inlinePrompt("it's urgent", planMode: true);
+        $this->assertStringEndsWith(' -i '.escapeshellarg($prompt), $command);
+        // No agent to deselect, and nothing that would outlive plan mode and
+        // block the implementation the user accepts: plan mode blocks edits.
+        $this->assertStringNotContainsString('--agent', $command);
+        $this->assertStringNotContainsString('--available-tools', $command);
+        $this->assertStringNotContainsString('--deny-tool write', $command);
+        // The user is there: Copilot may ask them, and the TUI keeps its colors.
+        $this->assertStringNotContainsString('--no-ask-user', $command);
+        $this->assertStringNotContainsString('--no-color', $command);
+        $this->assertStringNotContainsString(' -p ', $command);
+    }
+
+    public function testInlinePromptCarriesTheAgentThenTheTask(): void
+    {
+        $profile = $this->copilot->profile('task-analyst');
+        $prompt = $profile->inlinePrompt('Analyze issue #45');
+        $this->assertStringStartsWith("You are PABLO's pablo-task-analyst agent: ", $prompt);
+        $this->assertStringContainsString($profile->prompt, $prompt);
+        $this->assertStringEndsWith("\n\n# Your task (PABLO)\n\nAnalyze issue #45", $prompt);
+        $this->assertStringNotContainsString('plan mode', $prompt);
+        $this->assertSame('Analyze issue #45', CopilotAgentProfile::taskOf($prompt));
+        $this->assertSame('a message of my own', CopilotAgentProfile::taskOf('a message of my own'));
+
+        $plan = $profile->inlinePrompt('Analyze issue #45', planMode: true);
+        $this->assertStringContainsString("When the user accepts the plan, they are asking you to\nimplement it", $plan);
+        $this->assertSame('Analyze issue #45', CopilotAgentProfile::taskOf($plan));
     }
 }
