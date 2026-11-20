@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Pablo\Agents\Runtime\Copilot;
 
 use Pablo\Agents\Runtime\AgentRuntimeInterface;
-use Pablo\Agents\Runtime\AgentTranslation;
 use Pablo\Agents\Runtime\FollowUpPolicy;
 use Pablo\Agents\Runtime\RuntimeAgentFilesInterface;
 use Pablo\Agents\Runtime\RuntimeOneShotInterface;
@@ -17,15 +16,18 @@ use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
 
 /**
- * GitHub Copilot CLI: `copilot -p` with PABLO's agents installed as
- * symlinked `pablo-<agent>.agent.md` files under ~/.copilot/agents (so the
- * user can also pick them in their own sessions).
+ * GitHub Copilot CLI: `copilot -p` (the TUI in plan mode, `copilot --plan
+ * -i`, in an Orca terminal) with PABLO's agents installed as symlinked
+ * `pablo-<agent>.agent.md` files under ~/.copilot/agents (so the user can
+ * also pick them in their own sessions). PABLO's own launches send the
+ * agent's instructions in the first message rather than `--agent` (see
+ * CopilotAgentProfile::inlinePrompt()).
  *
  * Every launch repeats the agent's policy as CLI flags (the exact built-in
  * tool set, which also hides the user's MCP tools; pre-approved kinds; shell
- * denies), turns off the built-in MCP servers and the ask-user tool (nobody
- * answers a headless run), and gets a PABLO-assigned session id so analytics
- * and `copilot --resume` find it.
+ * denies), turns off the built-in MCP servers — and, for `-p`, the ask-user
+ * tool (nobody answers a headless run) — and gets a PABLO-assigned session id
+ * so analytics and `copilot --resume` find it.
  */
 final class CopilotRuntime implements AgentRuntimeInterface
 {
@@ -38,6 +40,9 @@ final class CopilotRuntime implements AgentRuntimeInterface
      * downloaded, and that old build refuses current `--model` ids.
      */
     public const HEADLESS_FLAGS = ['--no-ask-user', '--no-color', '--disable-builtin-mcps'];
+
+    /** Flags of the TUI run in an ADE terminal (interactiveCommand()): the user answers there. */
+    public const INTERACTIVE_FLAGS = ['--disable-builtin-mcps'];
 
     /** Claude Code model aliases, which Copilot does not know. */
     private const CLAUDE_ALIASES = ['sonnet', 'opus', 'haiku'];
@@ -93,9 +98,52 @@ final class CopilotRuntime implements AgentRuntimeInterface
         return RuntimeSupport::uuid();
     }
 
+    /**
+     * `copilot -p` on the agent's instructions + $prompt (see
+     * CopilotAgentProfile::inlinePrompt(): no `--agent`, which `--resume`
+     * would restore in a YOLO follow-up), its policy as this run's flags.
+     */
     public function launchCommand(string $agent, string $prompt, ?string $model, ?string $sessionId = null, ?string $detachedIn = null): string
     {
-        $argv = ['copilot', '--agent', AgentTranslation::agentId($agent)];
+        $profile = $this->agents->profile($agent);
+
+        return RuntimeSupport::commandLine([
+            ...$this->baseArgs($model, $sessionId),
+            ...self::HEADLESS_FLAGS,
+            ...$profile->cliArgs(),
+            // The prompt goes last, as the value of -p.
+            '-p', $profile->inlinePrompt($prompt),
+        ]);
+    }
+
+    /**
+     * The Copilot TUI in plan mode (`copilot --plan -i`): the prompt runs
+     * straight away, Copilot blocking every workspace change, and the agent
+     * presents its analysis as a plan. Accepting it in Copilot's own plan
+     * dialog implements it in the same session, as Copilot's default agent:
+     * no agent to deselect first. The agent's shell denies hold for the whole
+     * session; the ask-user tool and colors stay (the user is there). It gets
+     * its own session id, so `copilot --resume=<id>` finds it; it ends when
+     * the user quits.
+     */
+    public function interactiveCommand(string $agent, string $prompt, ?string $model): string
+    {
+        $profile = $this->agents->profile($agent);
+
+        return RuntimeSupport::commandLine([
+            ...$this->baseArgs($model, $this->newSessionId()),
+            '--plan',
+            ...self::INTERACTIVE_FLAGS,
+            ...$profile->planModeArgs(),
+            // The prompt goes last, as the value of -i.
+            '-i', $profile->inlinePrompt($prompt, planMode: true),
+        ]);
+    }
+
+    /** @return list<string> `copilot [--model …] [--session-id …]` */
+    private function baseArgs(?string $model, ?string $sessionId): array
+    {
+        $argv = ['copilot'];
         if (null !== $model) {
             $argv[] = '--model';
             $argv[] = $model;
@@ -104,24 +152,13 @@ final class CopilotRuntime implements AgentRuntimeInterface
             $argv[] = '--session-id';
             $argv[] = $sessionId;
         }
-        $argv = [
-            ...$argv,
-            ...self::HEADLESS_FLAGS,
-            ...$this->agents->profile($agent)->cliArgs(),
-            // The prompt goes last, as the value of -p.
-            '-p', $prompt,
-        ];
 
-        return RuntimeSupport::commandLine($argv);
-    }
-
-    public function interactiveCommand(string $agent, string $prompt, ?string $model): ?string
-    {
-        return null;
+        return $argv;
     }
 
     /**
-     * `copilot --resume=<session> -p` as Copilot's default agent, every tool
+     * `copilot --resume=<session> -p` as Copilot's default agent (the analyst
+     * ran without `--agent`, so the resume restores none), every tool
      * allowed but FollowUpPolicy (`--deny-tool` always wins in Copilot), no
      * ask-user tool: nobody answers a YOLO run.
      */
