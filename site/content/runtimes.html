@@ -196,7 +196,7 @@ pablo system:doctor         # checks copilot and the generated files
 
 <ul>
   <li><b>Orca</b> unreachable, or a repository not registered with it: the agent runs headless. Orca's launch runs in the background, so when Orca refuses or doesn't know the worktree within 15 seconds, the agent runs headless and the reason goes to <code>~/.pablo/agents/logs/orca-fallback.log</code>.</li>
-  <li><b>OpenChamber</b> unreachable, or sending the prompt fails: the reason goes to <code>~/.pablo/agents/logs/openchamber-fallback.log</code> and the agent runs headless with the same model. A send that times out on a busy daemon but still lands (the session shows the prompt within about 17 seconds) keeps its OpenChamber session instead, so the agent never runs twice.</li>
+  <li><b>OpenChamber</b> unreachable, or sending the prompt fails: the reason goes to <code>~/.pablo/agents/logs/openchamber-fallback.log</code> and the agent runs headless with the same model. A send that times out on a busy daemon but still lands (the session shows the prompt within about 17 seconds) keeps its OpenChamber session instead, so the agent never runs twice. A new worktree is a directory OpenChamber has never seen, and it can refuse the first session there while it still loads that directory's models (<code>Session selection is not ready</code>): PABLO then asks again, up to three times over about 7 seconds, before falling back.</li>
   <li><b>Always headless</b>, whatever the ADE: project startup scripts and the <a href="page:agents#the-rebase-conflict-resolver">rebase-conflict resolver</a>.</li>
 </ul>
 

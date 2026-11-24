@@ -123,6 +123,57 @@ final class OpenChamberLauncherTest extends TestCase
         $this->assertStringStartsWith('pid:', $handle);
         $this->assertStringContainsString('session create failed', $log);
         $this->assertStringContainsString('no daemon', $log);
+        // Not a "not ready" refusal: no retry.
+        $this->assertCount(1, array_filter($calls, static fn (array $argv): bool => \in_array('create', $argv, true)));
+        $this->assertSame([], $this->sleeps);
+    }
+
+    private function notReady(): string
+    {
+        return $this->ocErr(['error' => ['message' => 'Session selection is not ready: the model catalog is unavailable']]);
+    }
+
+    public function testCreateIsRetriedWhileTheModelCatalogLoads(): void
+    {
+        $creates = 0;
+        $this->startRunner(function (array $argv) use (&$creates): string {
+            if (\in_array('create', $argv, true)) {
+                return 1 === ++$creates
+                    ? $this->notReady()
+                    : $this->ocOk(['sessionId' => 'ses_late']);
+            }
+
+            return $this->ocOk(['action' => 'send', 'sessionId' => 'ses_late']);
+        });
+
+        $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'hi');
+
+        $this->assertSame('ses_late', $handle);
+        $this->assertSame(2, $creates);
+        $this->assertCount(1, $this->sleeps);
+        $this->assertFileDoesNotExist($this->agentsDir.'/logs/openchamber-fallback.log');
+    }
+
+    public function testCreateFallsBackWhenTheModelCatalogNeverLoads(): void
+    {
+        $creates = 0;
+        $this->startRunner(function (array $argv) use (&$creates): string {
+            if (\in_array('create', $argv, true)) {
+                ++$creates;
+            }
+
+            return $this->notReady();
+        });
+        mkdir($this->agentsDir, 0o777, true);
+
+        $handle = $this->agents->doLaunchAgent($this->tmp, 'task-analyst', 'hi');
+        $log = (string) file_get_contents($this->agentsDir.'/logs/openchamber-fallback.log');
+
+        $this->assertStringStartsWith('pid:', $handle);
+        $this->assertSame(4, $creates);
+        $this->assertCount(3, $this->sleeps);
+        $this->assertStringContainsString('session create failed after 3 retries', $log);
+        $this->assertStringContainsString('model catalog is unavailable', $log);
     }
 
     public function testLaunchFallsBackToHeadlessWhenSendFails(): void

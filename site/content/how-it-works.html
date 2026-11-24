@@ -101,7 +101,7 @@ openchamber session messages --session &lt;id&gt; --dir &lt;worktree&gt; --wait
 openchamber session list --dir &lt;worktree&gt; --with-status
 </code></pre>
 
-<p>OpenChamber works from directories: no repository to register, no waiting for a workspace to appear. <code>busy</code> and <code>retry</code> count as 🏃, <code>idle</code> as 💭. If sending the prompt fails, PABLO logs the reason to <code>~/.pablo/agents/logs/openchamber-fallback.log</code> and falls back to a headless run with the same model. The OpenChamber CLI gives up after 4 seconds on a busy daemon that still takes the prompt, so PABLO first checks the session a few times: when the prompt landed, it keeps that session and starts nothing else.</p>
+<p>OpenChamber works from directories: no repository to register, no waiting for a workspace to appear. <code>busy</code> and <code>retry</code> count as 🏃, <code>idle</code> as 💭. If sending the prompt fails, PABLO logs the reason to <code>~/.pablo/agents/logs/openchamber-fallback.log</code> and falls back to a headless run with the same model. The OpenChamber CLI gives up after 4 seconds on a busy daemon that still takes the prompt, so PABLO first checks the session a few times: when the prompt landed, it keeps that session and starts nothing else. Creating the session is retried for a few seconds when OpenChamber is still loading the models of a worktree it has never seen.</p>
 
 <h3>Headless</h3>
 
