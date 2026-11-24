@@ -31,6 +31,8 @@ use Pablo\Support\ProcessRunnerInterface;
  * (HeadlessRunner) instead of leaving an empty zombie session — unless the
  * session shows the prompt landed anyway (the CLI times out on a slow daemon
  * that still takes it), in which case it is kept, so the agent runs once.
+ * A create refused because the model catalog of a directory OpenChamber has
+ * never seen is still loading (every new worktree) is retried first.
  *
  * Status mapping (OpenChamber `sessionStatus.type`):
  *   busy/retry -> running; idle -> waiting (display) / excluded (active).
@@ -41,6 +43,17 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
 
     /** Waits before each check that a failed `session send` landed anyway. */
     private const DELIVERY_CHECK_DELAYS_US = [2_000_000, 5_000_000, 10_000_000];
+
+    /**
+     * Waits before each new `session create` while OpenChamber answers that
+     * the session selection is not ready yet: the first model-catalog read
+     * for a directory it has never seen (every new task worktree) comes back
+     * empty while OpenCode still loads it, and a second read has it.
+     */
+    private const CREATE_RETRY_DELAYS_US = [1_000_000, 2_000_000, 4_000_000];
+
+    /** OpenChamber's 503 for a model catalog still loading for --dir. */
+    private const NOT_READY = 'Session selection is not ready';
 
     /** @var \Closure(int): void */
     private readonly \Closure $sleep;
@@ -115,13 +128,14 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
             $create[] = '--model';
             $create[] = $model;
         }
-        $created = $this->call($create);
+        [$created, $retries] = $this->createSession($create);
         // The session id PABLO assigned, for the headless fallback; from here
         // on $sessionId is OpenChamber's own.
         $assigned = $sessionId;
         $sessionId = $created->payload['sessionId'] ?? null;
         if (!\is_string($sessionId) || '' === $sessionId) {
-            $this->logFallback($worktree, $agent, 'session create failed: '.($created->reason ?? 'unknown'));
+            $retried = $retries > 0 ? ' after '.$retries.' retries' : '';
+            $this->logFallback($worktree, $agent, 'session create failed'.$retried.': '.($created->reason ?? 'unknown'));
 
             return $this->launchHeadless($worktree, $agent, $prompt, $model, $assigned);
         }
@@ -156,6 +170,32 @@ final class OpenChamberLauncher extends AbstractAgentLauncher
         }
 
         return $sessionId;
+    }
+
+    /**
+     * `session create`, tried again after each CREATE_RETRY_DELAYS_US wait
+     * while OpenChamber answers that the session selection is not ready (a
+     * failed create makes no session, so a retry never makes two). Any other
+     * failure is returned at once.
+     *
+     * @param list<string> $argv
+     *
+     * @return array{AdeCall, int} the last call and how many retries it took
+     */
+    private function createSession(array $argv): array
+    {
+        $created = $this->call($argv);
+        $retries = 0;
+        foreach (self::CREATE_RETRY_DELAYS_US as $delayUs) {
+            if (null !== $created->payload || !str_contains($created->reason ?? '', self::NOT_READY)) {
+                break;
+            }
+            ($this->sleep)($delayUs);
+            ++$retries;
+            $created = $this->call($argv);
+        }
+
+        return [$created, $retries];
     }
 
     /**
