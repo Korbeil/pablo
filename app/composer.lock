@@ -1846,16 +1846,16 @@
         },
         {
             "name": "symfony/mime",
-            "version": "v8.1.10",
+            "version": "v8.1.12",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/mime.git",
-                "reference": "8d1232052c9cdef170ed9608b3147bca4f61ff69"
+                "reference": "4bf4ecda5ac1f1db2e9a0793675d2fc69d7cc864"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/mime/zipball/8d1232052c9cdef170ed9608b3147bca4f61ff69",
-                "reference": "8d1232052c9cdef170ed9608b3147bca4f61ff69",
+                "url": "https://api.github.com/repos/symfony/mime/zipball/4bf4ecda5ac1f1db2e9a0793675d2fc69d7cc864",
+                "reference": "4bf4ecda5ac1f1db2e9a0793675d2fc69d7cc864",
                 "shasum": ""
             },
             "require": {
@@ -1908,7 +1908,7 @@
                 "mime-type"
             ],
             "support": {
-                "source": "https://github.com/symfony/mime/tree/v8.1.10"
+                "source": "https://github.com/symfony/mime/tree/v8.1.12"
             },
             "funding": [
                 {
@@ -1928,7 +1928,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-10-28T17:58:38+00:00"
+            "time": "2026-11-24T16:43:41+00:00"
         },
         {
             "name": "symfony/polyfill-ctype",
@@ -4059,16 +4059,16 @@
         },
         {
             "name": "twig/html-extra",
-            "version": "v3.31.0",
+            "version": "v3.31.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/twigphp/html-extra.git",
-                "reference": "92d388bd1685a1ef772c44d5f21f867e9550700a"
+                "reference": "e25770102c1447ba769fedb76552864a7c82d900"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/twigphp/html-extra/zipball/92d388bd1685a1ef772c44d5f21f867e9550700a",
-                "reference": "92d388bd1685a1ef772c44d5f21f867e9550700a",
+                "url": "https://api.github.com/repos/twigphp/html-extra/zipball/e25770102c1447ba769fedb76552864a7c82d900",
+                "reference": "e25770102c1447ba769fedb76552864a7c82d900",
                 "shasum": ""
             },
             "require": {
@@ -4111,7 +4111,7 @@
                 "twig"
             ],
             "support": {
-                "source": "https://github.com/twigphp/html-extra/tree/v3.31.0"
+                "source": "https://github.com/twigphp/html-extra/tree/v3.31.1"
             },
             "funding": [
                 {
@@ -4123,20 +4123,20 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-11-23T16:19:15+00:00"
+            "time": "2026-11-24T11:48:58+00:00"
         },
         {
             "name": "twig/twig",
-            "version": "v3.31.0",
+            "version": "v3.31.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/twigphp/Twig.git",
-                "reference": "fdcda27cbcd5880ddc2c4c2dc5858fb9ea8a0cda"
+                "reference": "6f6ec372231b53d1d564567a78beb8844cafa132"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/twigphp/Twig/zipball/fdcda27cbcd5880ddc2c4c2dc5858fb9ea8a0cda",
-                "reference": "fdcda27cbcd5880ddc2c4c2dc5858fb9ea8a0cda",
+                "url": "https://api.github.com/repos/twigphp/Twig/zipball/6f6ec372231b53d1d564567a78beb8844cafa132",
+                "reference": "6f6ec372231b53d1d564567a78beb8844cafa132",
                 "shasum": ""
             },
             "require": {
@@ -4191,7 +4191,7 @@
             ],
             "support": {
                 "issues": "https://github.com/twigphp/Twig/issues",
-                "source": "https://github.com/twigphp/Twig/tree/v3.31.0"
+                "source": "https://github.com/twigphp/Twig/tree/v3.31.1"
             },
             "funding": [
                 {
@@ -4203,7 +4203,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2026-11-23T16:31:30+00:00"
+            "time": "2026-11-24T12:48:40+00:00"
         }
     ],
     "packages-dev": [
