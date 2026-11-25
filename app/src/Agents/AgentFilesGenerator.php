@@ -50,14 +50,15 @@ final class AgentFilesGenerator
             $log->info('No projects directory found — generating agents with all providers enabled.');
         }
         $enabledProviders = $this->agentTemplates->enabledProviders($projectsDir);
+        $enabledForges = $this->agentTemplates->enabledForges($projectsDir);
 
         // Render everything first: a broken template writes nothing.
         $agents = [];
         foreach (AgentTemplates::AGENT_NAMES as $name) {
-            $agents[$outputDir.'/agents/'.$name.'.md'] = $this->agentTemplates->render($agentsDir, $name, $enabledProviders);
+            $agents[$outputDir.'/agents/'.$name.'.md'] = $this->agentTemplates->render($agentsDir, $name, $enabledProviders, $enabledForges);
         }
 
-        $log->section('agent definitions', \dirname($outputDir), $runtime->label().' · providers: '.implode(', ', $enabledProviders ?: ['(none)']));
+        $log->section('agent definitions', \dirname($outputDir), $runtime->label().' · providers: '.implode(', ', $enabledProviders ?: ['(none)']).' · forges: '.implode(', ', $enabledForges ?: ['(none)']));
         foreach ($agents as $path => $content) {
             $log->file('agent', $path, Files::write($path, $content));
         }

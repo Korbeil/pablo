@@ -2,22 +2,23 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests\Provider\Gh;
+namespace Pablo\Tests\Provider\Forge\Github;
 
-use Pablo\Provider\Gh\CiCheck;
-use Pablo\Provider\Gh\GhPr;
-use Pablo\Provider\Gh\ReviewVerdict;
+use Pablo\Provider\Forge\CiCheck;
+use Pablo\Provider\Forge\Github\GithubForge;
+use Pablo\Provider\Forge\Github\GithubReviewSnapshot;
+use Pablo\Provider\Forge\ReviewVerdict;
 use Pablo\Support\PabloError;
 use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
 /**
- * GhPr::pollSnapshot(): one aliased GraphQL query per repository, whose
+ * GithubForge::pollSnapshot(): one aliased GraphQL query per repository, whose
  * answers must equal what the per-PR calls (prForBranch(), prState(),
  * ciStatus(), reviewVerdict()) would have returned, and which leaves out
  * whatever it could not read in full.
  */
-final class GhPrPollSnapshotTest extends TestCase
+final class GithubForgePollSnapshotTest extends TestCase
 {
     private FakeProcessRunner $runner;
 
@@ -60,9 +61,9 @@ final class GhPrPollSnapshotTest extends TestCase
         return $vars;
     }
 
-    private function svc(): GhPr
+    private function svc(): GithubForge
     {
-        return new GhPr($this->runner, new \Pablo\Domain\Time());
+        return new GithubForge($this->runner, new \Pablo\Domain\Time());
     }
 
     /**
@@ -103,7 +104,7 @@ final class GhPrPollSnapshotTest extends TestCase
 
         $this->assertCount(1, $this->calls);
         $this->assertFalse($this->calls[0]['check']); // an unresolvable alias must not lose the others
-        $this->assertSame((float) GhPr::GH_CALL_TIMEOUT_S, (float) $this->calls[0]['timeout']);
+        $this->assertSame((float) GithubForge::GH_CALL_TIMEOUT_S, (float) $this->calls[0]['timeout']);
         $vars = self::vars($this->calls[0]['argv']);
         $this->assertSame(['wk-45', 'wk-46', 'acme', 'wallet-kit'], [$vars['b0'], $vars['b1'], $vars['owner'], $vars['repo']]);
         // Same query shape as `gh pr list --head <b> --state all --limit 1`.
@@ -115,7 +116,7 @@ final class GhPrPollSnapshotTest extends TestCase
         $this->assertSame('main', $snapshot->branchPrs['wk-45']->baseRefName);
         $this->assertNull($snapshot->branchPrs['wk-46']);
         $this->assertSame([7 => 'OPEN', 8 => 'MERGED'], $snapshot->states); // mergedAt wins, as in prState()
-        $this->assertSame('red', GhPr::evaluateCi($snapshot->rollups[7]));
+        $this->assertSame('red', CiCheck::evaluate($snapshot->rollups[7]));
         $this->assertSame([], $snapshot->rollups[8]); // no checks: green, as gh exports none
         $this->assertSame([], $snapshot->reviews);
         // Fragments GraphQL would refuse as unused are not sent.
@@ -143,8 +144,8 @@ final class GhPrPollSnapshotTest extends TestCase
         $snapshot = $this->svc()->pollSnapshot('acme/wallet-kit', [], [7], []);
 
         $this->assertEquals(array_map(CiCheck::fromRollup(...), $ghExport), $snapshot->rollups[7]);
-        $this->assertSame('pending', GhPr::evaluateCi($snapshot->rollups[7]));
-        $this->assertSame('green', GhPr::evaluateCi($snapshot->rollups[7], ['lint', 'hold']));
+        $this->assertSame('pending', CiCheck::evaluate($snapshot->rollups[7]));
+        $this->assertSame('green', CiCheck::evaluate($snapshot->rollups[7], ['lint', 'hold']));
     }
 
     public function testAnythingIncompleteIsLeftToThePerPrCall(): void
@@ -221,15 +222,17 @@ final class GhPrPollSnapshotTest extends TestCase
 
         $this->assertSame([7], array_keys($snapshot->reviews)); // #8 has older reviews: fetchReviews() pages
         $this->assertSame(ReviewVerdict::APPROVED, $snapshot->reviews[7]->verdict([]));
-        $this->assertSame('me', $snapshot->reviews[7]->reviews->author);
+        $review = $snapshot->reviews[7];
+        $this->assertInstanceOf(GithubReviewSnapshot::class, $review);
+        $this->assertSame('me', $review->reviews->author);
     }
 
     public function testLargeProjectsAreSplitIntoBoundedQueries(): void
     {
         $this->respond(static fn (): array => ['data' => ['repository' => []]]);
 
-        $branches = array_map(static fn (int $i): string => "b-{$i}", range(1, GhPr::SNAPSHOT_BRANCHES_PER_QUERY + 10));
-        $prs = range(1, 2 * GhPr::SNAPSHOT_PRS_PER_QUERY + 5);
+        $branches = array_map(static fn (int $i): string => "b-{$i}", range(1, GithubForge::SNAPSHOT_BRANCHES_PER_QUERY + 10));
+        $prs = range(1, 2 * GithubForge::SNAPSHOT_PRS_PER_QUERY + 5);
         $this->svc()->pollSnapshot('acme/wallet-kit', $branches, $prs, []);
 
         $this->assertCount(3, $this->calls);
@@ -237,7 +240,7 @@ final class GhPrPollSnapshotTest extends TestCase
             substr_count(self::query($call['argv']), 'pullRequests(headRefName:'),
             substr_count(self::query($call['argv']), ': pullRequest(number:'),
         ], $this->calls);
-        $this->assertSame([[GhPr::SNAPSHOT_BRANCHES_PER_QUERY, GhPr::SNAPSHOT_PRS_PER_QUERY], [10, GhPr::SNAPSHOT_PRS_PER_QUERY], [0, 5]], $counts);
+        $this->assertSame([[GithubForge::SNAPSHOT_BRANCHES_PER_QUERY, GithubForge::SNAPSHOT_PRS_PER_QUERY], [10, GithubForge::SNAPSHOT_PRS_PER_QUERY], [0, 5]], $counts);
     }
 
     public function testBranchNamesTravelAsRawStrings(): void

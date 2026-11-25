@@ -16,7 +16,7 @@ use Pablo\Support\ProcessRunnerInterface;
 final class IssueStatuses
 {
     /**
-     * @param array<string, ProjectConfig>                  $issues  issue key => project config
+     * @param array<array-key, ProjectConfig>               $issues  issue key => project config
      * @param callable(string, ProjectConfig): list<string> $command the status call for one issue
      * @param callable(array<string, mixed>): string        $status  the status out of its JSON output
      *

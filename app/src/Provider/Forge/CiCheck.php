@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Provider\Gh;
+namespace Pablo\Provider\Forge;
 
 /**
  * One entry of a PR's statusCheckRollup, normalised over GitHub's two shapes
@@ -64,5 +64,70 @@ final readonly class CiCheck
             $runKey,
             (string) ($raw['startedAt'] ?? ''),
         );
+    }
+
+    /**
+     * @param list<string> $ignoreChecks
+     */
+    private static function isIgnored(self $check, array $ignoreChecks): bool
+    {
+        foreach ($ignoreChecks as $marker) {
+            if (str_contains($check->name, strtolower((string) $marker))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The pure CI evaluation behind every forge's ciStatus(): red | pending | green.
+     *
+     * @param list<self>   $rollup
+     * @param list<string> $ignoreChecks
+     */
+    public static function evaluate(array $rollup, array $ignoreChecks = []): string
+    {
+        $pending = false;
+        foreach (self::latestRuns($rollup) as $check) {
+            if (self::isIgnored($check, $ignoreChecks)) {
+                continue;
+            }
+            if ($check->failed) {
+                return 'red';
+            }
+            if ($check->pending) {
+                $pending = true;
+            }
+        }
+
+        return $pending ? 'pending' : 'green';
+    }
+
+    /**
+     * Keeps only the most recent run of each check run: a workflow triggered
+     * twice on one commit leaves both runs in the rollup, and the older one
+     * (often cancelled or failed, then superseded) must not decide the state.
+     * Legacy status contexts carry no run key and are all kept.
+     *
+     * @param list<self> $rollup
+     *
+     * @return list<self>
+     */
+    private static function latestRuns(array $rollup): array
+    {
+        $kept = [];
+        foreach ($rollup as $i => $check) {
+            if (null === $check->runKey) {
+                $kept[$i] = $check;
+                continue;
+            }
+            $key = 'run:'.$check->runKey;
+            if (!isset($kept[$key]) || $check->startedAt >= $kept[$key]->startedAt) {
+                $kept[$key] = $check;
+            }
+        }
+
+        return array_values($kept);
     }
 }

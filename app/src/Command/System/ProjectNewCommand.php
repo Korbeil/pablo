@@ -6,6 +6,7 @@ namespace Pablo\Command\System;
 
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Provider\Forge\RepoRef;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Support\Files;
 use Pablo\Support\PabloError;
@@ -68,17 +69,28 @@ final class ProjectNewCommand extends Command
             $confluenceSpace = $this->askOptional('Confluence space (optional)', null);
         } elseif ('linear' === $provider) {
             $confluenceSpace = $this->askOptional('Confluence space (optional)', null);
-        } elseif ('github' === $provider) {
-            $remoteUrl = $this->git->originUrl($repoPath);
-            $defaultIssueRepo = null !== $remoteUrl ? $this->originToSlug($remoteUrl) : null;
-            $issueRepo = $this->askOptional('Issue repo (e.g. acme/upstream, optional)', $defaultIssueRepo);
+        }
+
+        // 5a. Forge: where the pull/merge requests live. Told by the origin
+        // remote's host; asked only when the host does not say it (a
+        // self-hosted GitLab under another name).
+        $remoteUrl = $this->git->originUrl($repoPath);
+        $remote = null !== $remoteUrl ? RepoRef::parseRemote($remoteUrl) : null;
+        $detectedForge = null !== $remote ? RepoRef::forgeOfHost($remote[0]) : null;
+        $forge = null;
+        if (null !== $remote && null === $detectedForge) {
+            $forge = $this->askForge($remote[0], 'gitlab' === $provider ? RepoRef::GITLAB : RepoRef::GITHUB);
+        }
+        $originSlug = null !== $remote ? self::slugOf($remote[1], $forge ?? $detectedForge ?? RepoRef::GITHUB) : null;
+        if ('github' === $provider) {
+            $issueRepo = $this->askOptional('Issue repo (e.g. acme/upstream, optional)', $originSlug);
+        } elseif ('gitlab' === $provider) {
+            $issueRepo = $this->askOptional('Issue project (e.g. acme/platform/upstream, optional)', $originSlug);
         }
 
         // 5b. Git sync remote (fork only: sync against the upstream remote)
         // A fork is detected when the issue repo lives on a different slug
         // than the checkout's origin (e.g. origin=me/lib, issues=acme/lib).
-        $remoteUrl ??= null;
-        $originSlug = null !== $remoteUrl ? $this->originToSlug($remoteUrl) : null;
         $isFork = null !== $issueRepo && null !== $originSlug && $issueRepo !== $originSlug;
         $primaryRemote = $isFork
             ? ($this->askOptional('Primary git remote for sync (e.g. "upstream" when origin is a fork, optional)', 'origin') ?? 'origin')
@@ -95,7 +107,11 @@ final class ProjectNewCommand extends Command
         $testingEnabled = $this->ask(new ConfirmationQuestion('[Y/n] Enable the QA/testing flow (needs-testing -> testing-failed)? ', true));
         $failureSignal = null;
         if ($testingEnabled && $this->ask(new ConfirmationQuestion('[y/N] Add a failure signal (for needs-testing -> testing-failed detection)? ', false))) {
-            $hint = 'github' === $provider ? 'a GitHub label name' : 'a Jira/Linear status value';
+            $hint = match ($provider) {
+                'github' => 'a GitHub label name',
+                'gitlab' => 'a GitLab label name, put on the merge request',
+                default => 'a Jira/Linear status value',
+            };
             $failureSignal = $this->askRequired("Failure signal ({$hint})", null);
         }
 
@@ -117,6 +133,7 @@ final class ProjectNewCommand extends Command
             'testing_enabled' => (bool) $testingEnabled,
             'failure_signal' => $failureSignal,
             'branch_prefix' => $branchPrefix,
+            'forge' => $forge,
         ]), 4, 2);
 
         // 9. Confirm & write
@@ -250,6 +267,14 @@ final class ProjectNewCommand extends Command
         return (string) $this->ask($question);
     }
 
+    private function askForge(string $host, string $default): string
+    {
+        $question = new ChoiceQuestion("Where do the pull/merge requests of {$host} live?", Config::FORGES, $default);
+        $question->setErrorMessage('Invalid forge %s');
+
+        return (string) $this->ask($question);
+    }
+
     private function askOptional(string $prompt, ?string $default): ?string
     {
         $display = $prompt;
@@ -305,7 +330,7 @@ final class ProjectNewCommand extends Command
     /**
      * The project file's content, keys in the order the YAML preview shows.
      *
-     * @param array{name: string, type: string, repo_path: string, primary_branch: ?string, primary_remote: string, provider: string, identity: string, project_key: string, site: ?string, issue_repo: ?string, confluence_space: ?string, testing_enabled: bool, failure_signal: ?string, branch_prefix: ?string} $answers
+     * @param array{name: string, type: string, repo_path: string, primary_branch: ?string, primary_remote: string, provider: string, identity: string, project_key: string, site: ?string, issue_repo: ?string, confluence_space: ?string, testing_enabled: bool, failure_signal: ?string, branch_prefix: ?string, forge: ?string} $answers
      *
      * @return array<string, mixed>
      */
@@ -342,6 +367,9 @@ final class ProjectNewCommand extends Command
         if (null !== $answers['branch_prefix']) {
             $data['branch_prefix'] = $answers['branch_prefix'];
         }
+        if (null !== $answers['forge']) {
+            $data['repo']['forge'] = $answers['forge'];
+        }
         if ('origin' !== $answers['primary_remote']) {
             $data['repo']['primary_remote'] = $answers['primary_remote'];
         }
@@ -372,17 +400,9 @@ final class ProjectNewCommand extends Command
         }
     }
 
-    private function originToSlug(string $url): string
+    /** A remote's repository path as a slug: owner/repo on GitHub, the full path on GitLab. */
+    private static function slugOf(string $path, string $forge): string
     {
-        $url = (string) preg_replace('#^git@([^:]+):#', 'https://$1/', $url);
-        $url = (string) preg_replace('#\.git$#', '', $url);
-        $parts = explode('/', $url);
-        $count = \count($parts);
-
-        if ($count >= 2) {
-            return $parts[$count - 2].'/'.$parts[$count - 1];
-        }
-
-        return $url;
+        return RepoRef::GITLAB === $forge ? $path : implode('/', \array_slice(explode('/', $path), 0, 2));
     }
 }

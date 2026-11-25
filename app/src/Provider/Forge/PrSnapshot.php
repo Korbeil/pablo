@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Provider\Gh;
+namespace Pablo\Provider\Forge;
 
 /**
- * What GhPrInterface::pollSnapshot() read of a repository's pull requests in
+ * What ForgeInterface::pollSnapshot() read of a repository's pull requests in
  * one go, for one poll cycle (never persisted).
  *
  * Only complete answers are kept: whatever a batched read could not give in

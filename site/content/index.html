@@ -29,12 +29,12 @@
 
 <h2>Is it for me?</h2>
 
-<p>PABLO fits if you use OpenCode, Claude Code or GitHub Copilot CLI <span class="exp">experimental</span>, work with GitHub pull requests (issues in GitHub, Jira or Linear <span class="exp">experimental</span>), run Linux or macOS, and juggle several tasks at once. It's a personal tool that runs on your machine: no server, no account, no telemetry.</p>
+<p>PABLO fits if you use OpenCode, Claude Code or GitHub Copilot CLI <span class="exp">experimental</span>, work with GitHub pull requests or GitLab merge requests (issues in GitHub, GitLab, Jira or Linear <span class="exp">experimental</span>), run Linux or macOS, and juggle several tasks at once. It's a personal tool that runs on your machine: no server, no account, no telemetry.</p>
 
 <h2>What it never does</h2>
 
 <ul>
-  <li><b>Write your code.</b> Analysis agents are read-only by permission. The one exception, the <a href="page:agents#the-rebase-conflict-resolver">rebase-conflict resolver</a>, only resolves conflicts of a rebase that sync started, and can't comment, review or merge on GitHub.</li>
+  <li><b>Write your code.</b> Analysis agents are read-only by permission. The one exception, the <a href="page:agents#the-rebase-conflict-resolver">rebase-conflict resolver</a>, only resolves conflicts of a rebase that sync started, and can't comment, review or merge on GitHub or GitLab.</li>
   <li><b>Write a commit of its own.</b> Your work is committed and opened as a pull request only when you run <code>/pablo-commit-and-pr</code>. With <a href="page:sync"><code>sync.auto_apply</code></a> (off by default), it rebases your branch onto its target and pushes with <code>--force-with-lease</code>, never plain <code>--force</code>.</li>
   <li><b>Change your issue tracker</b>, or <b>store tokens</b>: it uses the CLIs you're already logged into.</li>
 </ul>

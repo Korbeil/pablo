@@ -1,10 +1,14 @@
 <h1>Providers</h1>
 
-<p>PABLO talks to GitHub, Jira, Confluence and Linear <span class="exp">experimental</span> through each service's own command-line tool. No API keys, no tokens in the configuration: every tool handles its own login, and when one isn't ready PABLO shows that tool's own message.</p>
+<p>PABLO talks to GitHub, GitLab, Jira, Confluence and Linear <span class="exp">experimental</span> through each service's own command-line tool. No API keys, no tokens in the configuration: every tool handles its own login, and when one isn't ready PABLO shows that tool's own message.</p>
+
+<h2 id="forges">Forges: where pull requests live</h2>
+
+<p>A project's pull requests and CI live on its <b>forge</b>, GitHub or GitLab, whatever its issue tracker: a Jira-tracked repository on GitLab follows merge requests on GitLab. PABLO reads the forge from the repository's <code>origin</code> remote: <code>github.com</code> is GitHub; <code>gitlab.com</code>, or any host whose name contains <code>gitlab</code>, is GitLab. For a self-hosted GitLab under another name, set <a href="page:configuration#project-files"><code>repo.forge: gitlab</code></a>; the host still comes from the remote. PABLO's pages say “pull request” for both; on GitLab, it is a merge request, and its number the merge request's <code>!</code> number (IID).</p>
 
 <h2>GitHub: <code>gh</code></h2>
 
-<p>Always required: pull requests and CI always go through GitHub, whatever the issue tracker. Log in once with <code>gh auth login</code>.</p>
+<p>Required when a project is on GitHub, or tracks GitHub issues (and before any project exists). Log in once with <code>gh auth login</code>.</p>
 
 <table>
   <thead><tr><th>Used for</th><th>Command</th></tr></thead>
@@ -21,6 +25,26 @@
 </table>
 
 <p>The background poll asks the same questions in bulk: one <code>gh api graphql</code> query per repository (per 20 pull requests and 50 branches) reads every task's pull request, its CI checks and, for tasks waiting on a review, its reviews. Whatever that query could not read in full (a pull request it could not resolve, more than 100 checks, reviews or comment threads) is asked with the commands above, one pull request at a time, as are the reads that follow a state change in the same poll.</p>
+
+<h2 id="gitlab">GitLab: <code>glab</code></h2>
+
+<p>Required when a project is on GitLab, or tracks GitLab issues. Log in once with <code>glab auth login</code> (<code>glab auth login --hostname &lt;host&gt;</code> for a self-hosted GitLab). Every call goes through <code>glab api</code>, naming its host (<code>--hostname</code>) and its project by full path, so nothing depends on the directory it runs from.</p>
+
+<table>
+  <thead><tr><th>Used for</th><th>Command</th></tr></thead>
+  <tbody>
+    <tr><td>Issues</td><td><code>glab api projects/&lt;path&gt;/issues/&lt;n&gt;</code>, matched against the repository's remote (<code>https://&lt;host&gt;/&lt;path&gt;/-/issues/&lt;n&gt;</code>)</td></tr>
+    <tr><td>Finding the merge request</td><td><code>glab api projects/&lt;path&gt;/merge_requests?source_branch=&lt;branch&gt;&amp;state=all</code></td></tr>
+    <tr><td>CI status</td><td><code>glab api graphql</code>: the merge request's head pipeline and its latest jobs</td></tr>
+    <tr><td>Reviews and the “ready” time</td><td><code>glab api graphql</code>: approvals, reviewers' review states, discussions and their system notes</td></tr>
+    <tr><td>Draft / ready</td><td><code>glab api graphql</code>, the <code>mergeRequestSetDraft</code> mutation</td></tr>
+    <tr><td>QA labels</td><td><code>glab api projects/&lt;path&gt;/merge_requests/&lt;n&gt;/resource_label_events</code> (<code>add</code> events)</td></tr>
+    <tr><td>Re-running CI</td><td><code>glab api --method POST projects/&lt;path&gt;/merge_requests/&lt;n&gt;/pipelines</code> (a new merge request pipeline; a branch pipeline when there is no open merge request)</td></tr>
+    <tr><td>Login check</td><td><code>glab auth status</code></td></tr>
+  </tbody>
+</table>
+
+<p>CI is read from the head pipeline's jobs, each one by its latest run: a failed job is red unless it is allowed to fail; a created, pending, running or scheduled job keeps CI pending; a cancelled, skipped or manual job says nothing. With more jobs than one page (100), the pipeline's own status decides and <code>ci.ignore_checks</code> cannot apply. No pipeline at all is green, as a GitHub pull request without checks. The background poll batches its reads like GitHub's, in smaller queries (5 merge requests, 25 branches each) to stay within GitLab's query complexity limit; a query GitLab refuses leaves its merge requests to the one-at-a-time reads. How reviews count on GitLab: <a href="page:states#reviews">Reviews</a>.</p>
 
 <h2>Jira: <code>acli</code></h2>
 
@@ -63,7 +87,8 @@
 <table>
   <thead><tr><th>Tool</th><th>Required when</th><th>In the background job</th></tr></thead>
   <tbody>
-    <tr><td><code>gh</code></td><td>always</td><td>hard: a failure stops the run</td></tr>
+    <tr><td><code>gh</code></td><td>a project is on GitHub or tracks GitHub issues, or no project exists yet</td><td>hard: a failure stops the run</td></tr>
+    <tr><td><code>glab</code></td><td>a project is on GitLab or tracks GitLab issues</td><td>hard</td></tr>
     <tr><td><code>opencode</code></td><td><code>agent_runtime</code> is <code>opencode</code> (the default); checked with <code>opencode --version</code></td><td>hard</td></tr>
     <tr><td><code>claude</code></td><td><code>agent_runtime</code> is <code>claude-code</code>; checked with <code>claude auth status</code></td><td>hard</td></tr>
     <tr><td><code>copilot</code></td><td><code>agent_runtime</code> is <code>copilot</code>; checked with <code>copilot --version</code> (Copilot has no non-interactive login check)</td><td>hard</td></tr>

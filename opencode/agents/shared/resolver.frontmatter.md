@@ -47,6 +47,63 @@ permissions:
     resource: "gh issue create*"
     effect: deny
   - action: shell
+    resource: "glab mr note*"
+    effect: deny
+  - action: shell
+    resource: "glab mr update*"
+    effect: deny
+  - action: shell
+    resource: "glab mr merge*"
+    effect: deny
+  - action: shell
+    resource: "glab mr approve*"
+    effect: deny
+  - action: shell
+    resource: "glab mr revoke*"
+    effect: deny
+  - action: shell
+    resource: "glab mr close*"
+    effect: deny
+  - action: shell
+    resource: "glab mr reopen*"
+    effect: deny
+  - action: shell
+    resource: "glab mr create*"
+    effect: deny
+  - action: shell
+    resource: "glab mr delete*"
+    effect: deny
+  - action: shell
+    resource: "glab issue update*"
+    effect: deny
+  - action: shell
+    resource: "glab issue close*"
+    effect: deny
+  - action: shell
+    resource: "glab issue reopen*"
+    effect: deny
+  - action: shell
+    resource: "glab issue note*"
+    effect: deny
+  - action: shell
+    resource: "glab issue create*"
+    effect: deny
+  - action: shell
+    resource: "glab issue delete*"
+    effect: deny
+  - action: shell
+    resource: "glab ci retry*"
+    effect: deny
+  - action: shell
+    resource: "glab ci run*"
+    effect: deny
+  - action: shell
+    resource: "glab ci cancel*"
+    effect: deny
+  - action: shell
+    resource: "glab ci delete*"
+    effect: deny
+  - action: shell
     resource: "*acli jira workitem edit*"
     effect: deny
   - action: shell

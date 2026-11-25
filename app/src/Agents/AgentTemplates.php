@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Pablo\Agents;
 
 use Pablo\Config\Config;
+use Pablo\Provider\Forge\RepoRef;
 use Pablo\Support\Files;
 use Pablo\Support\PabloPaths;
 
 /**
  * Renders the five opencode agent .md files IN MEMORY from the
- * opencode/agents/*.md.template sources plus the issue-tracker providers the
- * configured projects use. Shared by `pablo system:generate-agents` (writes
+ * opencode/agents/*.md.template sources plus the issue-tracker providers and
+ * the forges (GitHub, GitLab) the configured projects use. Shared by `pablo system:generate-agents` (writes
  * the rendered files under ~/.pablo/runtime) and `pablo system:doctor`
  * (compares a fresh render against what is installed under
  * ~/.config/opencode) so the two can never
@@ -114,15 +115,70 @@ final class AgentTemplates
     }
 
     /**
+     * Forges any configured project uses (repo.forge, else told by the
+     * origin remote in the repository's .git/config, else GitHub, or GitLab
+     * for a GitLab-tracked project) — all of them when no projects directory
+     * exists yet. Read from files only, never git: a render must stay cheap.
+     *
+     * @return list<string>
+     */
+    public function enabledForges(?string $projectsDir = null): array
+    {
+        $projectsDir ??= $this->config->projectsDir();
+        if (!is_dir($projectsDir)) {
+            return Config::FORGES;
+        }
+
+        $forges = [];
+        foreach (glob(rtrim($projectsDir, '/').'/*.yaml') ?: [] as $path) {
+            $data = $this->config->loadYaml($path);
+            $forges[] = self::forgeOf($data);
+        }
+
+        return array_values(array_intersect(Config::FORGES, $forges));
+    }
+
+    /** @param array<mixed> $project */
+    private static function forgeOf(array $project): string
+    {
+        $configured = $project['repo']['forge'] ?? null;
+        if (\is_string($configured) && \in_array($configured, Config::FORGES, true)) {
+            return $configured;
+        }
+        $repoPath = $project['repo']['path'] ?? null;
+        $url = \is_string($repoPath) ? self::originUrl(PabloPaths::expandTilde($repoPath)) : null;
+        $remote = null !== $url ? RepoRef::parseRemote($url) : null;
+        $forge = null !== $remote ? RepoRef::forgeOfHost($remote[0]) : null;
+
+        return $forge ?? (($project['issue_tracker']['provider'] ?? null) === 'gitlab' ? RepoRef::GITLAB : RepoRef::GITHUB);
+    }
+
+    /** The origin remote's URL, from the repository's .git/config. */
+    private static function originUrl(string $repoPath): ?string
+    {
+        $config = @file_get_contents($repoPath.'/.git/config'); // best-effort: no repo, no forge hint
+        if (false === $config) {
+            return null;
+        }
+        if (1 !== preg_match('/^\s*\[remote "origin"\]\s*$(.*?)(?=^\s*\[|\z)/ms', $config, $section)
+            || 1 !== preg_match('/^\s*url\s*=\s*(\S+)\s*$/m', $section[1], $url)) {
+            return null;
+        }
+
+        return $url[1];
+    }
+
+    /**
      * Render one agent's .md content exactly as system:generate-agents
      * writes it to disk.
      *
-     * @param list<string> $enabledProviders
+     * @param list<string>      $enabledProviders
+     * @param list<string>|null $enabledForges    null: enabledForges()
      *
      * @throws AgentTemplateError when the template, a provider section or a
      *                            shared frontmatter/body profile is missing/unreadable
      */
-    public function render(string $agentsDir, string $name, array $enabledProviders): string
+    public function render(string $agentsDir, string $name, array $enabledProviders, ?array $enabledForges = null): string
     {
         $templatePath = $agentsDir.'/'.$name.'.md.template';
         if (!is_file($templatePath)) {
@@ -142,6 +198,8 @@ final class AgentTemplates
             [$section, $names],
             $template,
         );
+
+        $content = $this->renderForgeSlots($content, $agentsDir.'/forges', $enabledForges ?? $this->enabledForges());
 
         $tokenMatches = [];
         $tokenCount = preg_match_all('/\{\{SHARED_(FRONTMATTER|BODY):([a-z-]+)\}\}/', $content, $tokenMatches);
@@ -174,6 +232,33 @@ final class AgentTemplates
     }
 
     /**
+     * Fills each `{{FORGE:<slot>}}` line with forges/<forge>-<slot>.md of
+     * every enabled forge, GitHub first; a forge without that fragment adds
+     * nothing.
+     *
+     * @param list<string> $forges
+     */
+    private function renderForgeSlots(string $content, string $forgesDir, array $forges): string
+    {
+        $forges = [] === $forges ? Config::FORGES : $forges;
+
+        return (string) preg_replace_callback('/^\{\{FORGE:([a-z-]+)\}\}$/m', function (array $m) use ($forgesDir, $forges): string {
+            $parts = [];
+            foreach (array_values(array_intersect(Config::FORGES, $forges)) as $forge) {
+                $part = $this->providerItem($forgesDir.'/'.$forge.'-'.$m[1].'.md');
+                if (null !== $part) {
+                    $parts[] = $part;
+                }
+            }
+            if ([] === $parts) {
+                throw new AgentTemplateError("No forge section for {{FORGE:{$m[1]}}} (forges: ".implode(', ', $forges).')');
+            }
+
+            return implode("\n\n", $parts);
+        }, $content);
+    }
+
+    /**
      * @param list<string> $providers
      */
     private function formatProviderNames(array $providers): string
@@ -181,6 +266,7 @@ final class AgentTemplates
         $displayNames = array_map(
             static fn (string $p): string => match ($p) {
                 'github' => 'GitHub Issues',
+                'gitlab' => 'GitLab Issues',
                 'jira' => 'Jira',
                 'linear' => 'Linear',
                 default => $p,

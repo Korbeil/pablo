@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Provider\Gh;
+namespace Pablo\Provider\Forge\Github;
 
 /**
  * A PR's author plus its reviews, as fetched for review evaluation.

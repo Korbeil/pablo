@@ -11,7 +11,7 @@ use Pablo\Domain\DisplayCache;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Listing\Listing;
-use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Forge\PrInfo;
 use Pablo\Tests\Command\CommandTestBed;
 
 /**

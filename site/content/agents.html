@@ -7,7 +7,7 @@
 <table>
   <thead><tr><th>Agent</th><th>Launched on</th><th>What it does</th></tr></thead>
   <tbody>
-    <tr><td><b>task-analyst</b></td><td><code>in-progress</code>, once per task</td><td>Reads the issue (GitHub, Jira or Linear), its parents, linked pull requests and the relevant code, and writes a summary and a grounded action plan. For a prompt task, it applies the same method to your prompt.</td></tr>
+    <tr><td><b>task-analyst</b></td><td><code>in-progress</code>, once per task</td><td>Reads the issue (GitHub, GitLab, Jira or Linear), its parents, linked pull requests and the relevant code, and writes a summary and a grounded action plan. For a prompt task, it applies the same method to your prompt.</td></tr>
     <tr><td><b>ci-analyst</b></td><td><code>ci-red</code></td><td>Fetches the failing checks and their logs, ties each failure to the responsible code, and proposes a fix plan. It never changes the pull request.</td></tr>
     <tr><td><b>pr-feedback</b></td><td><code>request-changes</code></td><td>Reads unresolved review threads, review bodies and comments, and turns them into a fix plan grouped by topic. The pull request goes back to draft just before it starts.</td></tr>
     <tr><td><b>task-feedback</b></td><td><code>testing-failed</code></td><td>Compares QA's feedback with what the pull request really ships, classifies each point, and drafts a reply in the language QA used. The pull request goes back to draft just before it starts.</td></tr>
@@ -21,7 +21,7 @@
 
 <h2 id="the-rebase-conflict-resolver">The rebase-conflict resolver</h2>
 
-<p>The single deliberate exception to the read-only rule. When an applied <a href="page:sync">sync</a> hits conflicts, git aborts cleanly and PABLO launches this agent headless. It may edit files and run git, because that's its job, but it is denied anything that acts as you in front of other people: no <code>gh pr merge</code>, <code>review</code>, <code>comment</code>, <code>edit</code>, <code>ready</code> or <code>close</code>, no issue commands, no Jira commands. If a conflict needs a human, it stops and pushes nothing. It has no step limit, so it never stops halfway through a rebase.</p>
+<p>The single deliberate exception to the read-only rule. When an applied <a href="page:sync">sync</a> hits conflicts, git aborts cleanly and PABLO launches this agent headless. It may edit files and run git, because that's its job, but it is denied anything that acts as you in front of other people: no <code>gh pr merge</code>, <code>review</code>, <code>comment</code>, <code>edit</code>, <code>ready</code> or <code>close</code>, no <code>glab mr merge</code>, <code>approve</code>, <code>note</code>, <code>update</code> or <code>close</code>, no issue commands, no Jira commands. If a conflict needs a human, it stops and pushes nothing. It has no step limit, so it never stops halfway through a rebase.</p>
 
 <p>Everything it does lands in your pull request, which you review before merging. The dashboard's “Last sync” card shows the command to open its session: <code>opencode -s &lt;id&gt;</code>, <code>claude --resume &lt;id&gt;</code> under Claude Code, or <code>copilot --resume=&lt;id&gt;</code> under Copilot (its handle is recorded as <code>copilot:&lt;uuid&gt;</code>, so it can't be mistaken for a Claude Code session).</p>
 
@@ -36,7 +36,7 @@
   - { action: shell, resource: "git push *", effect: deny }   # …but never a push
 </code></pre>
 
-<p>Every agent also follows shared house rules: use tools sparingly (batched calls, bounded logs and diffs), write in English, never post or edit anything on GitHub without your explicit approval in the session (they draft the text, you post it), and never commit or push.</p>
+<p>Every agent also follows shared house rules: use tools sparingly (batched calls, bounded logs and diffs), write in English, never post or edit anything on GitHub or GitLab without your explicit approval in the session (they draft the text, you post it), and never commit or push.</p>
 
 <h2>Context fetched up front</h2>
 
@@ -44,7 +44,7 @@
 
 <ul>
   <li><b>task-analyst, task-feedback</b>: the issue's title, details, description and latest 15 comments;</li>
-  <li><b>ci-analyst</b>: the failing checks (minus ignored ones) and, for up to 3 GitHub Actions jobs, their error lines and the end of their logs;</li>
+  <li><b>ci-analyst</b>: the failing checks (minus ignored ones) and, for up to 3 GitHub Actions jobs or GitLab CI jobs (allowed failures left out), their error lines and the end of their logs;</li>
   <li><b>pr-feedback</b>: unresolved threads, review bodies and comments.</li>
 </ul>
 

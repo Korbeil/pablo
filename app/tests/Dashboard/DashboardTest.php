@@ -37,7 +37,7 @@ final class DashboardTest extends TestCase
         $repoSlug = new RepoSlug($git);
         $time = new \Pablo\Domain\Time();
         $stamps = new \Pablo\Dispatch\Stamps();
-        $gh = new \Pablo\Tests\FakeGhPr();
+        $gh = new \Pablo\Tests\FakeForge();
         $providers = new \Pablo\Tests\StubProviders();
         $this->dashboard = new Dashboard(
             $this->store,

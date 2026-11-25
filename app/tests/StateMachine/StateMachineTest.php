@@ -32,7 +32,7 @@ final class StateMachineTest extends TestCase
     private FakeAgents $agents;
     private TaskCtx $ctx;
     private StateMachine $sm;
-    private FakeGhPr $gh;
+    private FakeForge $gh;
 
     protected function setUp(): void
     {
@@ -73,7 +73,7 @@ final class StateMachineTest extends TestCase
         $this->store = new Store($this->root.'/state');
         $this->agents = new FakeAgents();
         $this->ctx = new TaskCtx(task: $this->task, cfg: $this->cfg, store: $this->store, agents: $this->agents);
-        $this->gh = new FakeGhPr();
+        $this->gh = new FakeForge();
         $providers = new class implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
             public function get(string $name): \Pablo\Provider\Tracker\Provider
             {
@@ -419,7 +419,7 @@ final class StateMachineTest extends TestCase
         };
         $git = new FakeGit();
         $git->originUrl = 'git@github.com:acme/wallet-kit.git';
-        $this->sm = new StateMachine(new FakeGhPr(), $providers, new RepoSlug($git), new Time(), Registries::hooks());
+        $this->sm = new StateMachine(new FakeForge(), $providers, new RepoSlug($git), new Time(), Registries::hooks());
         $this->task->state = State::WaitingReview;
         $this->sm->enterState($this->ctx, State::NeedsTesting);
         $this->assertSame('A FIX', $this->task->lastSeenIssueStatus);

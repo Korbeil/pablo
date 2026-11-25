@@ -4,19 +4,18 @@ declare(strict_types=1);
 
 namespace Pablo\Poller;
 
-use Pablo\Provider\Gh\CiCheck;
-use Pablo\Provider\Gh\GhPr;
-use Pablo\Provider\Gh\GhPrInterface;
-use Pablo\Provider\Gh\PrInfo;
-use Pablo\Provider\Gh\PrSnapshot;
-use Pablo\Provider\Gh\ReviewSnapshot;
-use Pablo\Provider\Gh\ReviewVerdict;
+use Pablo\Provider\Forge\CiCheck;
+use Pablo\Provider\Forge\ForgeInterface;
+use Pablo\Provider\Forge\PrInfo;
+use Pablo\Provider\Forge\PrSnapshot;
+use Pablo\Provider\Forge\ReviewSnapshot;
+use Pablo\Provider\Forge\ReviewVerdict;
 
 /**
  * The pull-request reads of one project's poll cycle, so a task costs each
- * `gh` lookup once instead of once per caller (the transition checks, then
+ * forge lookup once instead of once per caller (the transition checks, then
  * the display cache), and most tasks cost none: the project's PRs are read
- * up front in one batch (GhPrInterface::pollSnapshot()).
+ * up front in one batch (ForgeInterface::pollSnapshot()).
  *
  * Lives for one pollProject() call only, never persisted. Every read is
  * answered from the batch when it holds that answer in full, else by the
@@ -24,7 +23,7 @@ use Pablo\Provider\Gh\ReviewVerdict;
  * fetched, answers every later read of the cycle; a failed fetch is not
  * remembered (the next read retries, as separate calls always did). After a
  * transition the poller forget()s the task's entries: entering a state can
- * flip the PR on GitHub (ready/draft), so what follows reads it fresh,
+ * flip the PR on its forge (ready/draft), so what follows reads it fresh,
  * exactly as before.
  */
 final class PollPrs
@@ -48,7 +47,7 @@ final class PollPrs
     private ?\Throwable $repoError = null;
 
     public function __construct(
-        private readonly GhPrInterface $gh,
+        private readonly ?ForgeInterface $forge,
         private readonly string $slug,
         PrSnapshot $snapshot = new PrSnapshot(),
     ) {
@@ -63,9 +62,9 @@ final class PollPrs
      * every task fails on that error (ensureRepo()), as it did when each
      * task resolved the slug itself.
      */
-    public static function unavailable(GhPrInterface $gh, \Throwable $error): self
+    public static function unavailable(\Throwable $error): self
     {
-        $prs = new self($gh, '');
+        $prs = new self(null, '');
         $prs->repoError = $error;
 
         return $prs;
@@ -79,11 +78,20 @@ final class PollPrs
         }
     }
 
-    /** GhPrInterface::prForBranch(), fetched once per cycle. */
+    /** The project's forge; the slug resolution's error when there is none. */
+    private function forge(): ForgeInterface
+    {
+        $this->ensureRepo();
+        \assert(null !== $this->forge);
+
+        return $this->forge;
+    }
+
+    /** ForgeInterface::prForBranch(), fetched once per cycle. */
     public function prForBranch(string $branch): ?PrInfo
     {
         if (!\array_key_exists($branch, $this->branchPrs)) {
-            $this->branchPrs[$branch] = $this->gh->prForBranch($this->slug, $branch);
+            $this->branchPrs[$branch] = $this->forge()->prForBranch($this->slug, $branch);
         }
 
         return $this->branchPrs[$branch];
@@ -107,9 +115,9 @@ final class PollPrs
     }
 
     /**
-     * GhPrInterface::prState(), from the batch, else from $branch's PR when
-     * it was already fetched this cycle and is PR $prNumber (`gh pr list`
-     * returns the same state and mergedAt as `gh pr view`).
+     * ForgeInterface::prState(), from the batch, else from $branch's PR when
+     * it was already fetched this cycle and is PR $prNumber (the branch lookup
+     * returns the same state and mergedAt as the PR lookup).
      */
     public function prState(int $prNumber, string $branch): string
     {
@@ -118,15 +126,15 @@ final class PollPrs
         }
         $pr = $this->branchPrs[$branch] ?? null;
         if (null !== $pr && $pr->number === $prNumber) {
-            return GhPr::normalizeState($pr->state, $pr->mergedAt);
+            return PrInfo::normalizeState($pr->state, $pr->mergedAt);
         }
 
-        return $this->gh->prState($this->slug, $prNumber);
+        return $this->forge()->prState($this->slug, $prNumber);
     }
 
     /**
-     * GhPrInterface::ciStatus(), evaluated from the batch's rollup by the
-     * same GhPr::evaluateCi() (ignore list, latest run of each check), else
+     * ForgeInterface::ciStatus(), evaluated from the batch's rollup by the
+     * same CiCheck::evaluate() (ignore list, latest run of each check), else
      * fetched; once per cycle either way: a draft task asks twice (CI red,
      * then CI green) and nothing changes in between.
      *
@@ -137,13 +145,13 @@ final class PollPrs
         $key = implode("\0", $ignoreChecks);
 
         return $this->ciStatuses[$prNumber][$key] ??= isset($this->rollups[$prNumber])
-            ? GhPr::evaluateCi($this->rollups[$prNumber], $ignoreChecks)
-            : $this->gh->ciStatus($this->slug, $prNumber, $ignoreChecks);
+            ? CiCheck::evaluate($this->rollups[$prNumber], $ignoreChecks)
+            : $this->forge()->ciStatus($this->slug, $prNumber, $ignoreChecks);
     }
 
     /**
-     * GhPrInterface::reviewVerdict(), evaluated from the batch's reviews by
-     * the same ReviewVerdict::evaluate(), else fetched.
+     * ForgeInterface::reviewVerdict(), evaluated from the batch's reviews by
+     * the forge's own rules, else fetched.
      *
      * @param list<string> $botWhitelist
      *
@@ -155,10 +163,10 @@ final class PollPrs
             return $this->reviews[$prNumber]->verdict($botWhitelist);
         }
 
-        return $this->gh->reviewVerdict($this->slug, $prNumber, $botWhitelist);
+        return $this->forge()->reviewVerdict($this->slug, $prNumber, $botWhitelist);
     }
 
-    /** Drops what this cycle knows of a task's PRs: the next reads go to GitHub. */
+    /** Drops what this cycle knows of a task's PRs: the next reads go to the forge. */
     public function forget(string $branch, ?int ...$prNumbers): void
     {
         unset($this->branchPrs[$branch]);

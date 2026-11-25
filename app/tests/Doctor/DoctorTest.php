@@ -94,7 +94,7 @@ YAML;
         $this->unsetGlobalConfig();
     }
 
-    private function makeCfg(string $name, string $provider, ?string $confluenceSpace = null, ?string $hookCommand = null): ProjectConfig
+    private function makeCfg(string $name, string $provider, ?string $confluenceSpace = null, ?string $hookCommand = null, ?string $forge = null): ProjectConfig
     {
         return new ProjectConfig(
             name: $name,
@@ -103,6 +103,7 @@ YAML;
                 path: self::TMP.'/'.$name,
                 primaryBranch: 'main',
                 worktreesRoot: self::TMP.'/wt/'.$name,
+                forge: $forge,
             ),
             tracker: new TrackerConfig(
                 provider: $provider,
@@ -155,6 +156,28 @@ YAML;
     {
         $projects = ['a' => $this->makeCfg('a', 'github')];
         $this->assertSame(['gh', 'opencode', 'orca'], $this->doctor()->requiredClis($projects));
+    }
+
+    public function testAGitlabOnlySetupNeedsGlabNotGh(): void
+    {
+        $projects = ['a' => $this->makeCfg('a', 'gitlab', forge: 'gitlab'), 'b' => $this->makeCfg('b', 'jira', forge: 'gitlab')];
+        $this->assertSame(['acli', 'glab', 'opencode', 'orca'], $this->doctor()->requiredClis($projects));
+    }
+
+    public function testTheForgeComesFromTheOriginRemote(): void
+    {
+        $git = new FakeGit();
+        $git->originUrl = static fn (string $repo): string => str_ends_with($repo, '/a') ? 'git@gitlab.com:acme/a.git' : 'git@github.com:acme/b.git';
+        $doctor = new Doctor($this->runner(), Registries::runtimes(new GlobalConfig()), Registries::ades(new GlobalConfig()), null, new \Pablo\Support\RepoSlug($git));
+
+        $this->assertSame(['glab', 'linear', 'opencode', 'orca'], $doctor->requiredClis(['a' => $this->makeCfg('a', 'linear')]));
+        $this->assertSame(['acli', 'gh', 'glab', 'opencode', 'orca'], $doctor->requiredClis(['a' => $this->makeCfg('a', 'jira'), 'b' => $this->makeCfg('b', 'jira')]));
+    }
+
+    public function testNoProjectYetNeedsGh(): void
+    {
+        $this->assertContains('gh', $this->doctor()->requiredClis([]));
+        $this->assertNotContains('glab', $this->doctor()->requiredClis([]));
     }
 
     public function testOpenChamberBackendReplacesOrca(): void

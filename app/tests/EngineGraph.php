@@ -27,7 +27,7 @@ use Pablo\Support\RepoSlug;
 use Pablo\Yolo\YoloPipeline;
 
 /**
- * The engine service graph wired over fakes (FakeAgents, FakeGit, FakeGhPr,
+ * The engine service graph wired over fakes (FakeAgents, FakeGit, FakeForge,
  * FakeProcessRunner, StubProviders, FakeAnalytics, FakeHookRunner), its store in a temp dir:
  * the one place tests build it. CommandTestBed holds one; tests that need
  * the services without the command bed's project and task build their own.
@@ -37,7 +37,7 @@ final class EngineGraph
     public Store $store;
     public FakeAgents $agents;
     public FakeGit $git;
-    public FakeGhPr $gh;
+    public FakeForge $gh;
     public FakeProcessRunner $runner;
     public Time $time;
     public GlobalConfig $global;
@@ -69,7 +69,7 @@ final class EngineGraph
         $this->runner = new FakeProcessRunner();
         $this->time = new Time();
         $this->git = new FakeGit();
-        $this->gh = new FakeGhPr();
+        $this->gh = new FakeForge();
         $this->global = new GlobalConfig();
         $this->config = new Config($this->global);
         // Launchers built by the factory share the fake runner: a real one

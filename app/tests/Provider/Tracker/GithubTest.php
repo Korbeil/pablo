@@ -108,9 +108,10 @@ final class GithubTest extends TestCase
         $this->expectExceptionMessage('unknown provider');
         (new ProviderRegistry(
             new Github(new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()),
+            new \Pablo\Provider\Tracker\Gitlab(new FakeProcessRunner(), new \Pablo\Support\RepoSlug($this->fakeGit), new \Pablo\Domain\Time()),
             new \Pablo\Provider\Tracker\Jira(new FakeProcessRunner()),
             new \Pablo\Provider\Tracker\Linear(new FakeProcessRunner(), new \Pablo\Domain\Time()),
-        ))->get('gitlab');
+        ))->get('bitbucket');
     }
 
     public function testMatchUrlSameRepo(): void

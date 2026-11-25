@@ -4,17 +4,43 @@ declare(strict_types=1);
 
 namespace Pablo\Tests;
 
-use Pablo\Provider\Gh\GhPrInterface;
-use Pablo\Provider\Gh\PrInfo;
-use Pablo\Provider\Gh\PrSnapshot;
-use Pablo\Provider\Gh\ReviewVerdict;
+use Pablo\Config\ProjectConfig;
+use Pablo\Provider\Forge\ForgeInterface;
+use Pablo\Provider\Forge\ForgeRegistryInterface;
+use Pablo\Provider\Forge\PrInfo;
+use Pablo\Provider\Forge\PrSnapshot;
+use Pablo\Provider\Forge\ReviewVerdict;
 
 /**
- * Test double for GhPrInterface. Mirrors the old GhPr::set* seams as
- * configurable callables/records instead of global mutable state.
+ * Test double for ForgeInterface, and its own registry: every project gets
+ * this one fake (ForgeRegistryInterface::for()), so a test hands it wherever
+ * the forges are expected. Mirrors the old GhPr::set* seams as configurable
+ * callables/records instead of global mutable state.
  */
-final class FakeGhPr implements GhPrInterface
+final class FakeForge implements ForgeInterface, ForgeRegistryInterface
 {
+    /** @var list<string> project names for() was asked about */
+    public array $forProjects = [];
+
+    public string $forgeName = 'github';
+
+    public function for(ProjectConfig $cfg): ForgeInterface
+    {
+        $this->forProjects[] = $cfg->name;
+
+        return $this;
+    }
+
+    public function name(): string
+    {
+        return $this->forgeName;
+    }
+
+    public function prUrl(string $repoSlug, int $prNumber): string
+    {
+        return "https://github.com/{$repoSlug}/pull/{$prNumber}";
+    }
+
     /** @var list<int> recorded pr numbers sent to markDraft() */
     public array $drafts = [];
 

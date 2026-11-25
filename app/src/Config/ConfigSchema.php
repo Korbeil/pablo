@@ -291,6 +291,7 @@ final class ConfigSchema
                 'path' => self::leaf(self::text(...)),
                 'primary_branch' => self::leaf(self::text(...)),
                 'primary_remote' => self::leaf(self::text(...)),
+                'forge' => self::leaf(self::enum(Config::FORGES)),
             ]),
             'worktrees_root' => self::leaf(self::text(...)),
             'issue_tracker' => SchemaKey::map([

@@ -65,7 +65,7 @@ final class TargetsTaskTest extends CommandTestBed
 
     public function testPrecommitCheckByBranch(): void
     {
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents), ['branch' => 'wk-45']);
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents, $this->repoSlug), ['branch' => 'wk-45']);
         $this->assertSame(0, $tester->getStatusCode());
         $this->assertTrue(json_decode($tester->getDisplay(), true)['allowed']);
     }

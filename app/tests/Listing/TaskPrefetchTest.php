@@ -8,7 +8,7 @@ use Pablo\Agents\SessionInfo;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Listing\TaskPrefetch;
-use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Forge\PrInfo;
 use PHPUnit\Framework\TestCase;
 
 final class TaskPrefetchTest extends TestCase

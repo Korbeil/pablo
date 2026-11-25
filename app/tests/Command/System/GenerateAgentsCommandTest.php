@@ -41,6 +41,7 @@ final class GenerateAgentsCommandTest extends TestCase
         mkdir($this->agentsDir, 0o777, true);
         mkdir($this->projectsDir, 0o777, true);
         $this->copyProviders();
+        $this->copyForges();
         $this->copyShared();
 
         putenv('PABLO_PROJECTS_DIR='.$this->projectsDir);
@@ -402,6 +403,43 @@ EOF, $resolver);
         return substr($rest, 0, $end);
     }
 
+    public function testForgeSectionsFollowTheProjectsForges(): void
+    {
+        $this->copyAllTemplates();
+        $templates = new AgentTemplates(new Config(new GlobalConfig()));
+
+        $github = $templates->render($this->agentsDir, 'pr-feedback', ['github'], ['github']);
+        $gitlab = $templates->render($this->agentsDir, 'pr-feedback', ['gitlab'], ['gitlab']);
+        $both = $templates->render($this->agentsDir, 'ci-analyst', ['jira'], ['github', 'gitlab']);
+
+        $this->assertStringContainsString('gh api graphql', $github);
+        $this->assertStringNotContainsString('merge_requests/NUMBER/discussions', $github);
+        $this->assertStringContainsString('merge_requests/NUMBER/discussions', $gitlab);
+        $this->assertStringNotContainsString('gh api graphql', $gitlab);
+        $this->assertLessThan(strpos($both, '**GitLab**'), strpos($both, '**GitHub**'), 'GitHub first');
+        $this->assertStringNotContainsString('{{FORGE:', $both);
+    }
+
+    public function testEnabledForgesComeFromTheProjects(): void
+    {
+        $repo = $this->tmp.'/gl-repo';
+        mkdir($repo.'/.git', 0o777, true);
+        file_put_contents($repo.'/.git/config', "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = git@gitlab.com:acme/app.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n");
+        file_put_contents($this->projectsDir.'/gl.yaml', "name: gl\ntype: work\nrepo:\n  path: {$repo}\n  primary_branch: main\nissue_tracker:\n  provider: jira\n  identity: u@e.com\n  project_key: XX\n");
+        $templates = new AgentTemplates(new Config(new GlobalConfig()));
+
+        $this->assertSame(['gitlab'], $templates->enabledForges($this->projectsDir));
+
+        $this->writeProject('gh', 'github');
+        $this->assertSame(['github', 'gitlab'], $templates->enabledForges($this->projectsDir), 'no readable origin: GitHub');
+
+        file_put_contents($this->projectsDir.'/self.yaml', "name: self\ntype: work\nrepo:\n  path: /nowhere\n  primary_branch: main\n  forge: gitlab\nissue_tracker:\n  provider: jira\n  identity: u@e.com\n  project_key: XX\n");
+        unlink($this->projectsDir.'/gh.yaml');
+        unlink($this->projectsDir.'/gl.yaml');
+        $this->assertSame(['gitlab'], $templates->enabledForges($this->projectsDir), 'repo.forge');
+        $this->assertSame(['github', 'gitlab'], $templates->enabledForges($this->tmp.'/no-projects'));
+    }
+
     private function writeProject(string $name, string $provider): void
     {
         file_put_contents($this->projectsDir.'/'.$name.'.yaml', <<<YAML
@@ -439,6 +477,18 @@ YAML);
     {
         foreach (self::TEMPLATE_NAMES as $name) {
             $this->copyTemplate($name);
+        }
+    }
+
+    private function copyForges(): void
+    {
+        $repoForges = \dirname(__DIR__, 4).'/opencode/agents/forges';
+        $dest = $this->agentsDir.'/forges';
+        if (!is_dir($dest)) {
+            mkdir($dest, 0o777, true);
+        }
+        foreach (glob($repoForges.'/*.md') ?: [] as $file) {
+            copy($file, $dest.'/'.basename($file));
         }
     }
 

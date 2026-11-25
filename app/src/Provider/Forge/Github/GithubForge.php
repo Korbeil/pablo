@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Provider\Gh;
+namespace Pablo\Provider\Forge\Github;
 
 use Pablo\Domain\Time;
+use Pablo\Provider\Forge\CiCheck;
+use Pablo\Provider\Forge\ForgeInterface;
+use Pablo\Provider\Forge\PrInfo;
+use Pablo\Provider\Forge\PrSnapshot;
 use Pablo\Support\Json;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
@@ -13,7 +17,7 @@ use Pablo\Support\ProcessRunnerInterface;
  * GitHub PR plumbing via the gh CLI: CI status, review evaluation, draft/ready
  * toggling, merge detection.
  */
-final class GhPr implements GhPrInterface
+final class GithubForge implements ForgeInterface
 {
     public const GH_CALL_TIMEOUT_S = 20;
 
@@ -76,6 +80,16 @@ GQL;
         private readonly ProcessRunnerInterface $runner,
         private readonly Time $time,
     ) {
+    }
+
+    public function name(): string
+    {
+        return 'github';
+    }
+
+    public function prUrl(string $repoSlug, int $prNumber): string
+    {
+        return "https://github.com/{$repoSlug}/pull/{$prNumber}";
     }
 
     /**
@@ -187,71 +201,6 @@ GQL;
         return $result;
     }
 
-    /**
-     * @param list<string> $ignoreChecks
-     */
-    private static function isIgnored(CiCheck $check, array $ignoreChecks): bool
-    {
-        foreach ($ignoreChecks as $marker) {
-            if (str_contains($check->name, strtolower((string) $marker))) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * The pure CI evaluation behind ciStatus(): red | pending | green.
-     *
-     * @param list<CiCheck> $rollup
-     * @param list<string>  $ignoreChecks
-     */
-    public static function evaluateCi(array $rollup, array $ignoreChecks = []): string
-    {
-        $pending = false;
-        foreach (self::latestRuns($rollup) as $check) {
-            if (self::isIgnored($check, $ignoreChecks)) {
-                continue;
-            }
-            if ($check->failed) {
-                return 'red';
-            }
-            if ($check->pending) {
-                $pending = true;
-            }
-        }
-
-        return $pending ? 'pending' : 'green';
-    }
-
-    /**
-     * Keeps only the most recent run of each check run: a workflow triggered
-     * twice on one commit leaves both runs in the rollup, and the older one
-     * (often cancelled or failed, then superseded) must not decide the state.
-     * Legacy status contexts carry no run key and are all kept.
-     *
-     * @param list<CiCheck> $rollup
-     *
-     * @return list<CiCheck>
-     */
-    private static function latestRuns(array $rollup): array
-    {
-        $kept = [];
-        foreach ($rollup as $i => $check) {
-            if (null === $check->runKey) {
-                $kept[$i] = $check;
-                continue;
-            }
-            $key = 'run:'.$check->runKey;
-            if (!isset($kept[$key]) || $check->startedAt >= $kept[$key]->startedAt) {
-                $kept[$key] = $check;
-            }
-        }
-
-        return array_values($kept);
-    }
-
     public function ciStatus(string $repoSlug, int $prNumber, array $ignoreChecks = []): string
     {
         $out = $this->runner->run([
@@ -261,7 +210,7 @@ GQL;
         $data = Json::decodeArray($out, 'gh pr view output');
         $rollup = array_values(array_map(CiCheck::fromRollup(...), $data['statusCheckRollup'] ?? []));
 
-        return self::evaluateCi($rollup, $ignoreChecks);
+        return CiCheck::evaluate($rollup, $ignoreChecks);
     }
 
     public function reviewVerdict(string $repoSlug, int $prNumber, array $botWhitelist): ?string
@@ -269,7 +218,7 @@ GQL;
         $anchor = $this->readyAnchor($repoSlug, $prNumber);
         $prReviews = $this->fetchReviews($repoSlug, $prNumber);
 
-        return ReviewVerdict::evaluate($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $botWhitelist);
+        return GithubReviewVerdict::evaluate($prReviews->reviews, $prReviews->threads, $anchor, $prReviews->author, $botWhitelist);
     }
 
     /** GitHub's last "ready for review" event, else the PR's creation. */
@@ -443,7 +392,7 @@ GQL,
                 if (!\is_array($pr) || !isset($pr['state'])) {
                     continue; // unresolved (NOT_FOUND, no access…): read one by one
                 }
-                $states[$prNumber] = self::normalizeState((string) $pr['state'], $pr['mergedAt'] ?? null);
+                $states[$prNumber] = PrInfo::normalizeState((string) $pr['state'], $pr['mergedAt'] ?? null);
                 $rollup = self::snapshotRollup($pr);
                 if (null !== $rollup) {
                     $rollups[$prNumber] = $rollup;
@@ -571,7 +520,7 @@ GQL,
      *
      * @param array<string, mixed> $pr
      */
-    private function snapshotReviews(array $pr): ?ReviewSnapshot
+    private function snapshotReviews(array $pr): ?GithubReviewSnapshot
     {
         $author = $pr['author']['login'] ?? null;
         $reviews = $pr['reviews'] ?? null;
@@ -586,7 +535,7 @@ GQL,
             ? $this->time->parseTs((string) $nodes[\count($nodes) - 1]['createdAt'])
             : $this->time->parseTs((string) $pr['createdAt']);
 
-        return new ReviewSnapshot(
+        return new GithubReviewSnapshot(
             new PrReviews(
                 $author,
                 array_map(ReviewNode::fromNode(...), array_values(array_filter($reviews['nodes'] ?? [], static fn ($n) => null !== $n))),
@@ -614,18 +563,7 @@ GQL,
         ], timeout: self::GH_CALL_TIMEOUT_S);
         $data = Json::decodeArray($out, 'gh pr view output');
 
-        return self::normalizeState((string) ($data['state'] ?? ''), $data['mergedAt'] ?? null);
-    }
-
-    /**
-     * The prState() answer from a PR's raw state and mergedAt: a PR with a
-     * mergedAt is MERGED whatever its state says.
-     */
-    public static function normalizeState(string $state, mixed $mergedAt): string
-    {
-        $state = strtoupper($state);
-
-        return 'MERGED' === $state || !empty($mergedAt) ? 'MERGED' : $state;
+        return PrInfo::normalizeState((string) ($data['state'] ?? ''), $data['mergedAt'] ?? null);
     }
 
     /** @return array<int, string> */

@@ -10,7 +10,7 @@
 pablo task:start https://acme.atlassian.net/browse/PIM-123
 </code></pre>
 
-<p>PABLO matches the link against every project's issue tracker (and, for GitHub issues, against each repository's remote). If nothing matches, it stops with an error rather than guessing. You can also start a task from the <a href="page:dashboard#start-a-task-from-the-browser">dashboard</a>, which accepts an issue key such as <code>PIM-123</code> too.</p>
+<p>PABLO matches the link against every project's issue tracker (and, for GitHub and GitLab issues, against each repository's remote). If nothing matches, it stops with an error rather than guessing. You can also start a task from the <a href="page:dashboard#start-a-task-from-the-browser">dashboard</a>, which accepts an issue key such as <code>PIM-123</code> too.</p>
 
 <p>What happens next:</p>
 
@@ -35,7 +35,7 @@ pablo task:start https://acme.atlassian.net/browse/PIM-123
 <h2 id="see-your-tasks">See your tasks</h2>
 
 <pre><code class="language-bash">pablo task:list            # instant, from the poller's cache
-pablo task:list --live     # fetch fresh data from GitHub and your tracker
+pablo task:list --live     # fetch fresh data from GitHub/GitLab and your tracker
 pablo task:list --refresh  # run the poller first, then list
 
 pablo task:list --project wallet-kit                 # one project
@@ -119,7 +119,7 @@ pablo task:relaunch --only=task-analyst   # just one of them
 
 <dl>
   <dt><code>pablo task:retrigger-ci</code></dt>
-  <dd>Re-runs the latest GitHub Actions run of each workflow on the task's branch, and puts the pull request back in draft while they run.</dd>
+  <dd>Re-runs the latest GitHub Actions run of each workflow on the task's branch (on GitLab: starts a new pipeline for the merge request), and puts the pull request back in draft while they run.</dd>
   <dt><code>pablo task:skip-ci</code></dt>
   <dd>From <code>ci-red</code> only: ignores the failing checks and moves the task on to review. CI is ignored until the next <code>/pablo-commit-and-pr</code>. The <a href="page:dashboard#change-a-task-from-the-browser">dashboard</a> shows a <b>Skip CI</b> button on <code>ci-red</code> tasks.</dd>
 </dl>

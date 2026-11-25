@@ -162,7 +162,13 @@ and the dashboard: `TaskStarter`, `TaskAttacher`, `TaskStateChanger`,
 (`Task`/`Issue` records, the `State` and `Agent` enums, `Time`) ·
 `src/StateMachine/` (the data-driven state machine) · `src/Store/` (state
 store + per-task flock) · `src/Poller/` (state polling) ·
-`src/Provider/` (all external integrations): `Gh/` (`gh` PR/CI),
+`src/Provider/` (all external integrations): `Forge/` (pull requests
+and CI: `ForgeInterface`, implemented by `Github/GithubForge` over `gh`
+and `Gitlab/GitlabForge` over `glab api`; `ForgeRegistry::for($cfg)` is
+the one place picking a project's forge — `repo.forge`, else the origin
+remote's host through `Support\RepoSlug::ref()` and its `RepoRef` — so
+engine code never names a forge; the engine says "PR" for a GitLab merge
+request too, its number being the IID),
 `Git/` (worktrees, lease-safe sync; every git call gets an explicit
 timeout by kind, `GitRepo::TIMEOUT_*`, and a timeout surfaces as a
 `PabloError`; `Sync` isolates each worktree — a failure is reported as that
@@ -209,7 +215,7 @@ read only the JSONL analytics and local config/state; their numbers come from
 the same `AnalyticsAggregator` methods as `pablo stats`/`task:history`) ·
 `src/Twig/Components/` (UX Twig/Live components) · `templates/` ·
 `assets/`. Hard rules: rendering or refreshing a page never changes anything
-and never calls `gh`/`orca`/a tracker CLI — it reads the poller's
+and never calls `gh`/`glab`/`orca`/a tracker CLI — it reads the poller's
 `DisplayCache`. The only writes are LiveComponent actions behind an explicit
 click: `NewTaskModal::start()` (= `task:start`) and
 `TaskActionsModal::confirm()` (force state, skip CI, close a `closed` task =
@@ -227,6 +233,13 @@ via `StateMachine::enterState()`, never mutate `task.state` directly.
 
 **New provider**: implement `Provider\Tracker\Provider`, register in
 `ProviderRegistry`.
+
+**New forge**: implement `Provider\Forge\ForgeInterface` in
+`src/Provider/Forge/<Forge>/`, add it to `Config::FORGES`, `RepoRef`
+(`forgeOfHost()`, `prUrl()`) and `ForgeRegistry`, its CLI probe to
+`Doctor`, and its `opencode/agents/forges/<forge>-<slot>.md` fragments for
+every `{{FORGE:<slot>}}` of the agent templates (`AgentTemplates` fails on
+a slot without any fragment).
 
 **Two layers**: interactive (OpenCode agents/commands the user invokes
 directly — commands wrap `pablo` CLI calls; agents are read-only,
@@ -399,11 +412,12 @@ subject. `tests/FakeAgents.php` is injected through `AgentLauncherInterface`
 wherever a test could otherwise reach a real launcher (`OrcaLauncher`, …) —
 this stops a forgotten real one from starting a real `opencode run` (a real LLM call) during
 PHPUnit. Never remove it or widen the exemption. The engine is DI-based: every
-former static class (`GhPr`, `GitRepo`, `ProcessRunner`, `Config`, `StateMachine`, …) is
+former static class (`GithubForge`, `GitRepo`, `ProcessRunner`, `Config`, `StateMachine`, …) is
 a constructor-injected service behind an interface where tests need fakes
-(`GhPrInterface`, `GitRepoInterface`, `ProcessRunnerInterface`,
+(`ForgeRegistryInterface`/`ForgeInterface`, `GitRepoInterface`, `ProcessRunnerInterface`,
 `ProviderRegistryInterface`, `AnalyticsInterface`). Test doubles live beside
-`tests/FakeAgents.php` (`FakeGit`, `FakeGhPr`, `FakeProcessRunner`,
+`tests/FakeAgents.php` (`FakeGit`, `FakeForge` — a forge that is also
+its own registry —, `FakeProcessRunner`,
 `StubProviders`, `FakeAnalytics`, `FakeHookRunner`). `tests/EngineGraph.php` is the one place
 that fake service graph is wired (store in a temp dir, launchers over the
 fake runner, hooks over the fake hook runner); a test building one service
@@ -503,7 +517,8 @@ at launch; validated by the runtime's `modelError()`), `pr_description_locale`,
 `dispatch.poll_concurrency`. Required per project: `name` (unique),
 `type` (`work`/`open-source`/`personal`), `repo.path`, `repo.primary_branch`,
 `issue_tracker.{provider,identity,project_key}` (providers:
-`github`/`jira`/`linear`); optional: `repo.primary_remote` (`origin`),
+`github`/`gitlab`/`jira`/`linear`); optional: `repo.primary_remote` (`origin`),
+`repo.forge` (`github`/`gitlab`, else detected from the origin remote),
 `worktrees_root`, `issue_tracker.{repo,site}`, `confluence.space`,
 `testing.failure_signal`, `startup_script`, `models` (agent label => model).
 

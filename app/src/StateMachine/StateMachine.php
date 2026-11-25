@@ -6,13 +6,14 @@ namespace Pablo\StateMachine;
 
 use Pablo\Analytics\AnalyticsInterface;
 use Pablo\Analytics\NullAnalytics;
+use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\AgentLaunch;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Hooks\Hooks;
-use Pablo\Provider\Gh\GhPrInterface;
+use Pablo\Provider\Forge\ForgeRegistryInterface;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
 use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
@@ -53,7 +54,7 @@ final class StateMachine
     ];
 
     public function __construct(
-        private readonly GhPrInterface $gh,
+        private readonly ForgeRegistryInterface $forges,
         private readonly ProviderRegistryInterface $providers,
         private readonly RepoSlug $repoSlug,
         private readonly Time $time,
@@ -111,24 +112,38 @@ final class StateMachine
             }
             $ctx->agents->runStartupScript($task->worktreePath, $ctx->cfg->repo->startupScript, $task->project, $task->branch);
         } else {
-            $ctx->agents->launch($task->worktreePath, $agent, $this->promptFor($agent, $task), $task->project, $task->branch);
+            $ctx->agents->launch($task->worktreePath, $agent, $this->promptFor($agent, $task, $ctx->cfg), $task->project, $task->branch);
         }
         $task->agentLaunches[$agent->value] = new AgentLaunch($agent, $this->time->utcnow(), $attempt);
 
         return true;
     }
 
-    /** The prompt a state agent is launched with. */
-    public function promptFor(Agent $agent, Task $task): string
+    /**
+     * The prompt a state agent is launched with. A GitLab project's PR is a
+     * merge request, named as GitLab does: "merge request !12".
+     */
+    public function promptFor(Agent $agent, Task $task, ?ProjectConfig $cfg = null): string
     {
+        $pr = "PR #{$task->prNumber}";
+        if (null !== $cfg) {
+            try {
+                if ($this->repoSlug->ref($cfg)->isGitlab()) {
+                    $pr = "merge request !{$task->prNumber}";
+                }
+            } catch (PabloError) {
+                // no readable origin: the PR stays a PR
+            }
+        }
+
         return match ($agent) {
             Agent::TaskAnalyst => null !== $task->issue
                 ? "Analyze issue {$task->issue->key} ({$task->issue->url}) for this worktree and produce your summary and action plan."
                 : 'No linked issue for this task. Apply your analysis methodology '
                     .'directly to this task prompt instead: '.($task->prompt ?? $task->summary ?? ''),
-            Agent::CiAnalyst => "CI is failing on PR #{$task->prNumber}. Analyze the failing checks and produce a fix plan.",
-            Agent::PrFeedback => "Review feedback was left on PR #{$task->prNumber}. Read the unresolved review comments and produce your fix plan.",
-            Agent::TaskFeedback => 'Manual testing failed for '.(null !== $task->issue ? $task->issue->key : 'the task')." (PR #{$task->prNumber}). Gather the testing feedback and produce your fix plan.",
+            Agent::CiAnalyst => "CI is failing on {$pr}. Analyze the failing checks and produce a fix plan.",
+            Agent::PrFeedback => "Review feedback was left on {$pr}. Read the unresolved review comments and produce your fix plan.",
+            Agent::TaskFeedback => 'Manual testing failed for '.(null !== $task->issue ? $task->issue->key : 'the task')." ({$pr}). Gather the testing feedback and produce your fix plan.",
             Agent::StartupScript, Agent::RebaseConflictResolver, Agent::YoloImplement, Agent::YoloCommit => throw new PabloError("{$agent->value} is not launched with a state prompt"),
         };
     }
@@ -149,7 +164,7 @@ final class StateMachine
     private function markDraftThenLaunchStateAgents(TaskCtx $ctx): void
     {
         if (null !== $ctx->task->prNumber) {
-            $this->gh->markDraft($this->repoSlug->for($ctx->cfg), $ctx->task->prNumber);
+            $this->forges->for($ctx->cfg)->markDraft($this->repoSlug->for($ctx->cfg), $ctx->task->prNumber);
         }
         $this->launchStateAgents($ctx);
     }
@@ -170,7 +185,7 @@ final class StateMachine
     private function enterReadyToReview(TaskCtx $ctx): void
     {
         if (null !== $ctx->task->prNumber) {
-            $this->gh->markReady($this->repoSlug->for($ctx->cfg), $ctx->task->prNumber);
+            $this->forges->for($ctx->cfg)->markReady($this->repoSlug->for($ctx->cfg), $ctx->task->prNumber);
         }
         // Momentary state: immediately settle into waiting-review.
         $this->enterState($ctx, State::WaitingReview);

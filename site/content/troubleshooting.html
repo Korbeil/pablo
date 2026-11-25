@@ -6,7 +6,7 @@
 
 <pre><code class="language-bash">pablo system:doctor     # is every tool installed and logged in? is the background job running?
 pablo system:config:validate  # do the config files hold what you meant?
-pablo task:list --live  # what GitHub and the tracker say right now
+pablo task:list --live  # what GitHub/GitLab and the tracker say right now
 pablo sync:log          # what the last sync did, per project
 </code></pre>
 
@@ -113,7 +113,7 @@ pablo sync:log          # what the last sync did, per project
 
 <ul>
   <li>The project needs a <code>testing.failure_signal</code>, and <code>testing.enabled</code> must not be <code>false</code>.</li>
-  <li>Only a <em>new</em> signal counts: a label added (GitHub) or a status reached (Jira, Linear) after the task entered <code>needs-testing</code>. A label that was already there doesn't.</li>
+  <li>Only a <em>new</em> signal counts: a label added (GitHub, GitLab) or a status reached (Jira, Linear) after the task entered <code>needs-testing</code>. A label that was already there doesn't.</li>
   <li>On Jira, PABLO sees status changes between two polls, so it can take up to <code>state_polling.interval_minutes</code>.</li>
 </ul>
 

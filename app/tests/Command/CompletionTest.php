@@ -107,7 +107,7 @@ final class CompletionTest extends CommandTestBed
         yield 'task:retrigger-ci' => [static fn (self $t): Command => new RetriggerCiCommand($t->gh, $t->repoSlug, $t->store, $t->projectsLoader, $t->agents), []];
         yield 'task:skip-ci' => [static fn (self $t): Command => new SkipCiCommand($t->stateChanger(), $t->store, $t->projectsLoader, $t->agents), []];
         yield 'task:close' => [static fn (self $t): Command => $t->closeCommand(), []];
-        yield 'task:precommit-check' => [static fn (self $t): Command => new PrecommitCheckCommand($t->store, $t->projectsLoader, $t->agents), []];
+        yield 'task:precommit-check' => [static fn (self $t): Command => new PrecommitCheckCommand($t->store, $t->projectsLoader, $t->agents, $t->repoSlug), []];
     }
 
     /**

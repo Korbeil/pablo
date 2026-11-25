@@ -21,7 +21,7 @@ use Pablo\Support\TaskSummarizer;
 use Pablo\Task\TaskStarter;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeAnalytics;
-use Pablo\Tests\FakeGhPr;
+use Pablo\Tests\FakeForge;
 use Pablo\Tests\FakeGit;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\TempDir;
@@ -161,7 +161,7 @@ YAML);
             $this->providers,
             new Naming(),
             $this->git,
-            new StateMachine(new FakeGhPr(), $this->providers, new RepoSlug($this->git), new Time(), \Pablo\Tests\Registries::hooks()),
+            new StateMachine(new FakeForge(), $this->providers, new RepoSlug($this->git), new Time(), \Pablo\Tests\Registries::hooks()),
             new TaskSummarizer(new FakeProcessRunner(), \Pablo\Tests\Registries::runtimes()),
             $this->analytics,
             $this->store,

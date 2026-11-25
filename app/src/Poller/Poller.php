@@ -19,9 +19,10 @@ use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
 use Pablo\Hooks\Hooks;
-use Pablo\Provider\Gh\GhPrInterface;
-use Pablo\Provider\Gh\PrSnapshot;
-use Pablo\Provider\Gh\ReviewVerdict;
+use Pablo\Provider\Forge\ForgeInterface;
+use Pablo\Provider\Forge\ForgeRegistryInterface;
+use Pablo\Provider\Forge\PrSnapshot;
+use Pablo\Provider\Forge\ReviewVerdict;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
 use Pablo\StateMachine\StateMachine;
@@ -42,7 +43,7 @@ final class Poller
     public const LAUNCH_MAX_ATTEMPTS = 3;
 
     public function __construct(
-        private readonly GhPrInterface $gh,
+        private readonly ForgeRegistryInterface $forges,
         private readonly GitRepoInterface $git,
         private readonly ProviderRegistryInterface $providers,
         private readonly RepoSlug $repoSlug,
@@ -130,7 +131,7 @@ final class Poller
      * The request-changes self-heal exit: a comment review whose threads were
      * all resolved is feedback addressed, so once pr-feedback has finished
      * and no unresolved signal remains, the pull request goes back to review
-     * (ready-to-review marks it ready on GitHub, resetting the review anchor).
+     * (ready-to-review marks it ready on the forge, resetting the review anchor).
      * Deliberately NOT the /pablo-commit-and-pr path: nothing is committed or
      * pushed here, the git work stays whatever the worktree holds.
      */
@@ -528,7 +529,7 @@ final class Poller
 
     /**
      * Every PR read this cycle's checks and display caches need, batched
-     * per repository (GhPrInterface::pollSnapshot()): each task's head-branch
+     * per repository (ForgeInterface::pollSnapshot()): each task's head-branch
      * PR, the state and CI rollup of each known PR, and the reviews of the
      * PRs whose state reads them (checksFor(): checkReviews(), and
      * checkFeedbackAddressed() once pr-feedback has finished). A merged task
@@ -537,7 +538,7 @@ final class Poller
      * @param array<Task>           $tasks
      * @param array<string, string> $branches task branch => checked-out branch
      */
-    private function fetchPrSnapshot(string $slug, array $tasks, array $branches): PrSnapshot
+    private function fetchPrSnapshot(ForgeInterface $forge, string $slug, array $tasks, array $branches): PrSnapshot
     {
         $prNumbers = [];
         $reviewPrNumbers = [];
@@ -555,7 +556,7 @@ final class Poller
             return new PrSnapshot();
         }
         try {
-            return $this->gh->pollSnapshot($slug, array_values($branches), $prNumbers, $reviewPrNumbers);
+            return $forge->pollSnapshot($slug, array_values($branches), $prNumbers, $reviewPrNumbers);
         } catch (\Throwable) {
             return new PrSnapshot(); // every read falls back to its per-PR call
         }
@@ -592,9 +593,10 @@ final class Poller
         }
         try {
             $slug = $this->repoSlug->for($cfg);
-            $prs = new PollPrs($this->gh, $slug, $this->fetchPrSnapshot($slug, $tasks, $branches));
+            $forge = $this->forges->for($cfg);
+            $prs = new PollPrs($forge, $slug, $this->fetchPrSnapshot($forge, $slug, $tasks, $branches));
         } catch (\Throwable $e) {
-            $prs = PollPrs::unavailable($this->gh, $e);
+            $prs = PollPrs::unavailable($e);
         }
         foreach ($tasks as $task) {
             try {
@@ -615,7 +617,7 @@ final class Poller
                         $events[] = "{$task->branch}: poll check failed: {$e->getMessage()}";
                     }
                     if ($before !== [$fresh->state, $fresh->stateEnteredAt]) {
-                        // Entering a state may have flipped the PR on GitHub
+                        // Entering a state may have flipped the PR on its forge
                         // (ready/draft): the display cache reads it fresh.
                         $prs->forget($actualBranch, $prBefore, $fresh->prNumber);
                     }

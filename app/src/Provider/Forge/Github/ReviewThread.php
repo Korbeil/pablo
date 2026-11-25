@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Provider\Gh;
+namespace Pablo\Provider\Forge\Github;
 
 /**
  * One PR review thread from the GraphQL query.

@@ -66,7 +66,7 @@ final class YoloPipeline
         // fresh one, whose prompt says to analyse first.
         $session = $task->agentLaunches[$finished->value]->sessionId ?? $agents->newSessionId();
         ++$task->yoloRounds;
-        $this->launch($task, Agent::YoloImplement, $session, $this->prompts->implement($this->stateMachine->promptFor($finished, $task)), $agents);
+        $this->launch($task, Agent::YoloImplement, $session, $this->prompts->implement($this->stateMachine->promptFor($finished, $task, $cfg)), $agents);
 
         return "{$finished->value} finished → yolo-implement (round {$task->yoloRounds}/{$cfg->yolo->maxRounds})";
     }

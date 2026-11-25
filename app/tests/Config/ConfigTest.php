@@ -449,9 +449,9 @@ YAML;
 
     public function testUnknownProviderRejected(): void
     {
-        $this->write('bad.yaml', str_replace('provider: github', 'provider: gitlab', self::MINIMAL_PROJECT));
+        $this->write('bad.yaml', str_replace('provider: github', 'provider: bitbucket', self::MINIMAL_PROJECT));
         $message = $this->onlyProjectError();
-        $this->assertStringContainsString('gitlab', $message);
+        $this->assertStringContainsString('bitbucket', $message);
     }
 
     public function testANullTypeOrProviderIsMissing(): void

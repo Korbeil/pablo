@@ -47,7 +47,7 @@ final class DispatchTest extends TestCase
         $doctor = new Doctor($this->runner, \Pablo\Tests\Registries::runtimes($global), \Pablo\Tests\Registries::ades($global), static fn (string $name): string => '/usr/bin/'.$name);
         $time = new \Pablo\Domain\Time();
         $git = $this->git = new \Pablo\Tests\FakeGit();
-        $gh = new \Pablo\Tests\FakeGhPr();
+        $gh = new \Pablo\Tests\FakeForge();
         $repoSlug = new \Pablo\Support\RepoSlug($git);
         $providers = new \Pablo\Tests\StubProviders();
         $sm = new \Pablo\StateMachine\StateMachine($gh, $providers, $repoSlug, $time, \Pablo\Tests\Registries::hooks());

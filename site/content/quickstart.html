@@ -7,7 +7,7 @@
 <ul>
   <li><b>Linux or macOS</b>;</li>
   <li><b>git</b>;</li>
-  <li>the GitHub CLI <a href="https://cli.github.com/"><code>gh</code></a>, logged in (<code>gh auth login</code>): PABLO follows pull requests and CI on GitHub, whatever the issue tracker;</li>
+  <li>the CLI of the forge your repositories are on, logged in: <a href="https://cli.github.com/"><code>gh</code></a> for GitHub (<code>gh auth login</code>), <a href="https://gitlab.com/gitlab-org/cli"><code>glab</code></a> for GitLab (<code>glab auth login</code>). PABLO follows pull requests (merge requests) and CI there, whatever the issue tracker;</li>
   <li><b>curl</b>, and <b>sha256sum</b> or <b>shasum</b> (one ships with every Linux and macOS) for the installer to verify the download;</li>
   <li>a <a href="page:glossary#runtime">runtime</a>, the agent CLI that runs PABLO's agents: <a href="https://opencode.ai">OpenCode</a> (the default), <a href="https://code.claude.com/docs">Claude Code</a>, or <a href="https://docs.github.com/en/copilot/how-tos/copilot-cli">GitHub Copilot CLI</a> <span class="exp">experimental</span>;</li>
   <li>an <a href="page:glossary#ade">agent environment (ADE)</a>, where the agents run and where you read their work: <a href="https://www.onorca.dev/">Orca</a> (the default), <a href="https://openchamber.dev/">OpenChamber</a> (OpenCode only), or none: headless, in the background.</li>

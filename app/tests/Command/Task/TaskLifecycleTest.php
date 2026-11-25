@@ -219,7 +219,7 @@ final class TaskLifecycleTest extends CommandTestBed
 
     public function testPrecommitCheckAllowed(): void
     {
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents));
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents, $this->repoSlug));
         $this->assertSame(0, $tester->getStatusCode());
         $data = json_decode($tester->getDisplay(), true);
         $this->assertSame([
@@ -228,6 +228,7 @@ final class TaskLifecycleTest extends CommandTestBed
             'state' => 'in-progress',
             'allowed' => true,
             'pr_description_locale' => 'en',
+            'forge' => 'github',
         ], $data);
     }
 
@@ -236,7 +237,7 @@ final class TaskLifecycleTest extends CommandTestBed
         $task = $this->getTask();
         $task->state = State::Waiting;
         $this->store->save($task);
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents));
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents, $this->repoSlug));
         $this->assertSame(0, $tester->getStatusCode());
         $data = json_decode($tester->getDisplay(), true);
         $this->assertFalse($data['allowed']);
@@ -244,21 +245,21 @@ final class TaskLifecycleTest extends CommandTestBed
 
     public function testPrecommitCheckDescriptionNamesPabloCommand(): void
     {
-        $command = new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents);
+        $command = new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents, $this->repoSlug);
         $this->assertSame('check /pablo-commit-and-pr is allowed here', $command->getDescription());
     }
 
     public function testPrecommitCheckRefusesNonTaskDir(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents));
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents, $this->repoSlug));
         $this->assertSame(2, $tester->getStatusCode());
     }
 
     public function testPrecommitCheckWithWorktreeOptionFromOutsideWorktree(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents), ['--worktree' => $this->wt]);
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents, $this->repoSlug), ['--worktree' => $this->wt]);
         $this->assertSame(0, $tester->getStatusCode());
         $data = json_decode($tester->getDisplay(), true);
         $this->assertSame('wk-45', $data['branch']);
@@ -268,7 +269,7 @@ final class TaskLifecycleTest extends CommandTestBed
     public function testPrecommitCheckWorktreeOptionUnknownPath(): void
     {
         chdir($this->tmp);
-        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents), ['--worktree' => $this->tmp.'/nowhere']);
+        $tester = $this->runCommand(new PrecommitCheckCommand($this->store, $this->projectsLoader, $this->agents, $this->repoSlug), ['--worktree' => $this->tmp.'/nowhere']);
         $this->assertSame(2, $tester->getStatusCode());
     }
 

@@ -22,7 +22,7 @@ use Pablo\Task\TaskStateChanger;
 use Pablo\Tests\EngineGraph;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeAnalytics;
-use Pablo\Tests\FakeGhPr;
+use Pablo\Tests\FakeForge;
 use Pablo\Tests\FakeGit;
 use Pablo\Tests\FakeHookRunner;
 use Pablo\Tests\FakeProcessRunner;
@@ -47,7 +47,7 @@ abstract class CommandTestBed extends TestCase
     protected Store $store;
     protected FakeAgents $agents;
     protected FakeGit $git;
-    protected FakeGhPr $gh;
+    protected FakeForge $gh;
     protected FakeProcessRunner $runner;
     protected Config $projectsLoader;
     protected GlobalConfig $globalConfig;
