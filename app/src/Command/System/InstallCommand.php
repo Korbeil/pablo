@@ -27,17 +27,22 @@ use Pablo\Install\ShellCompletion;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\ChoiceQuestion;
+use Symfony\Component\Console\Question\Question;
 
 /**
  * Installs PABLO for the current user (Linux + macOS). Idempotent: run it
  * again after an upgrade or to switch runtime.
  *
  *  1. ~/.pablo/config.yaml seeded from the bundled example (an existing one
- *     is kept, except for the keys --runtime / --backend set);
+ *     is kept, except for the keys --runtime / --backend / --model set); on
+ *     a first install or a runtime change, the default model is asked for
+ *     when interactive;
  *  2. ~/.local/bin/pablo: this binary (or, from a checkout, a shim),
  *     ~/.local/bin on the PATH, and the shell completion of the user's shell
  *     (unless --without-completion);
@@ -72,6 +77,7 @@ final class InstallCommand extends Command
         $this
             ->addOption('runtime', null, InputOption::VALUE_REQUIRED, implode(' | ', AgentRuntimeRegistry::NAMES).': record it in ~/.pablo/config.yaml', null, AgentRuntimeRegistry::NAMES)
             ->addOption('backend', null, InputOption::VALUE_REQUIRED, implode(' | ', AdeRegistry::NAMES).': record it in ~/.pablo/config.yaml', null, AdeRegistry::NAMES)
+            ->addOption('model', null, InputOption::VALUE_REQUIRED, 'the agents\' default model, in the runtime\'s format: record it in ~/.pablo/config.yaml (default_model; asked on a first install or a runtime change when interactive)')
             ->addOption('without-web', null, InputOption::VALUE_NONE, 'do not install the dashboard service (and remove a previously installed one)')
             ->addOption('without-completion', null, InputOption::VALUE_NONE, 'do not install the shell completion, now or on later installs (shell_completion: false), and remove an installed one')
             ->addOption('with-completion', null, InputOption::VALUE_NONE, 'install the shell completion again after --without-completion (shell_completion: true)')
@@ -84,6 +90,7 @@ final class InstallCommand extends Command
         $info = $log->info(...);
         $runtimeOption = self::option($input, 'runtime');
         $backendOption = self::option($input, 'backend');
+        $modelOption = self::option($input, 'model');
         $portOption = self::option($input, 'port');
         $withWeb = !$input->getOption('without-web');
         $withoutCompletion = (bool) $input->getOption('without-completion');
@@ -92,7 +99,7 @@ final class InstallCommand extends Command
         // 0. Bad options are refused before anything is touched; so is a
         //    platform without a scheduler, and an invalid scheduler.path.
         $seeder = new ConfigSeeder($this->globalConfig, $this->projectsLoader, $this->runtimes, $this->ades);
-        $seeder->validate($runtimeOption, $backendOption);
+        $seeder->validate($runtimeOption, $backendOption, $modelOption);
         if (null !== $portOption && !GlobalConfig::isPort($portOption)) {
             throw new PabloError("invalid --port {$portOption}: expected a number between 1 and 65535");
         }
@@ -105,7 +112,10 @@ final class InstallCommand extends Command
         $this->globalConfig->schedulerPath();
 
         // 1. Config.
-        $runtime = $this->runtimes->resolve($seeder->apply($runtimeOption, $backendOption, $info));
+        $askModel = $input->isInteractive()
+            ? fn (AgentRuntimeInterface $runtime, string $current): string => $this->askModel($runtime, $current, $input, $output)
+            : null;
+        $runtime = $this->runtimes->resolve($seeder->apply($runtimeOption, $backendOption, $info, $modelOption, $askModel));
         if (null !== $portOption) {
             // `pablo web` (and so the service) reads it: no port in the unit files.
             ConfigSeeder::set($this->globalConfig->configPath(), 'dashboard_port', (string) (int) $portOption);
@@ -168,6 +178,54 @@ final class InstallCommand extends Command
             : '   3. pablo task:list (or pablo web for the dashboard)');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Which model the agents use by default: one of the runtime's
+     * suggestions, or any id typed in (checked by the runtime).
+     */
+    private function askModel(AgentRuntimeInterface $runtime, string $current, InputInterface $input, OutputInterface $output): string
+    {
+        $models = $runtime->suggestedModels();
+        if (!isset($models[$current])) {
+            $models = [$current => 'current'] + $models;
+        }
+        $choices = [];
+        $number = 1;
+        foreach ($models as $model => $hint) {
+            $choices[(string) $number++] = "{$model}  ({$hint})";
+        }
+        $other = (string) $number;
+        $choices[$other] = 'another model: type its id';
+        $ids = array_keys($models);
+
+        $output->writeln('');
+        $output->writeln("<info>Which model should the {$runtime->label()} agents use by default?</info>");
+        $output->writeln('It must be one your '.$runtime->label().' account can use. You can change it at any time in '
+            .'~/.pablo/config.yaml (default_model), or pick one per project type or per agent: '.ConfigSeeder::MODEL_DOCS_URL);
+        $helper = new QuestionHelper();
+        $question = new ChoiceQuestion("Default model (Enter: {$current})", $choices, (string) (array_search($current, $ids, true) + 1));
+        // Integer keys: the answer is the chosen label.
+        $answer = (string) array_search($helper->ask($input, $output, $question), $choices, true);
+        if ($answer !== $other) {
+            return $ids[(int) $answer - 1];
+        }
+
+        $typed = new Question('Model id: ');
+        $typed->setValidator(static function (mixed $value) use ($runtime): string {
+            $model = trim(\is_string($value) ? $value : '');
+            if ('' === $model || 1 !== preg_match('/^[^\s"\'#]+$/', $model)) {
+                throw new \RuntimeException('Type a model id, without spaces, quotes or #.');
+            }
+            if (null !== ($error = $runtime->modelError($model))) {
+                throw new \RuntimeException($error);
+            }
+
+            return $model;
+        });
+        $typed->setMaxAttempts(3);
+
+        return (string) $helper->ask($input, $output, $typed);
     }
 
     /** @throws PabloError */

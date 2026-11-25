@@ -57,6 +57,16 @@ final class OpenCodeRuntime implements AgentRuntimeInterface
         return 'opencode-go/glm-5.3-flash';
     }
 
+    public function suggestedModels(): array
+    {
+        return [
+            $this->defaultModel() => 'fast and cheap (OpenCode Go subscription)',
+            'opencode-go/glm-5.3' => 'GLM 5.3, more capable than Flash (OpenCode Go subscription)',
+            'opencode-go/deepseek-v4.1-flash' => 'DeepSeek V4.1 Flash, fast and cheap (OpenCode Go subscription)',
+            'opencode-go/deepseek-v4-pro' => 'DeepSeek V4 Pro, most capable, slower (OpenCode Go subscription)',
+        ];
+    }
+
     public function newSessionId(): string
     {
         return self::SESSION_PREFIX.bin2hex(random_bytes(10));

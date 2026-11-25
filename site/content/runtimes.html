@@ -21,7 +21,7 @@
 
 <h3 id="switch-runtime">Switch runtime</h3>
 
-<p>Run <code>pablo system:install</code> again with <code>--runtime</code>: it records <code>agent_runtime</code>, resets <code>default_model</code> to a model of that runtime, regenerates the agents and links them. Or change <code>agent_runtime</code> (and <code>default_model</code>) yourself and run it without options. The other runtimes' links stay in place until <code>pablo system:uninstall</code>; they're harmless.</p>
+<p>Run <code>pablo system:install</code> again with <code>--runtime</code>: it records <code>agent_runtime</code>, resets <code>default_model</code> to a model of that runtime (in a terminal it asks which one, see <a href="page:installation#choose-the-default-model">Choose the default model</a>; <code>--model</code> gives it), regenerates the agents and links them. Or change <code>agent_runtime</code> (and <code>default_model</code>) yourself and run it without options. The other runtimes' links stay in place until <code>pablo system:uninstall</code>; they're harmless.</p>
 
 <pre><code class="language-bash">pablo system:install --runtime claude-code   # or opencode, copilot
 pablo system:doctor                          # checks the runtime and its generated files

@@ -71,6 +71,12 @@ final class RuntimeContractTest extends TestCase
         $this->assertSame($name, $runtime->name());
         $this->assertNotSame('', $runtime->label());
         $this->assertNull($runtime->modelError($runtime->defaultModel()), 'the default model must be valid');
+        $suggested = $runtime->suggestedModels();
+        $this->assertSame($runtime->defaultModel(), array_key_first($suggested), 'the default model is suggested first');
+        foreach ($suggested as $model => $hint) {
+            $this->assertNull($runtime->modelError($model), "suggested model {$model} must be valid");
+            $this->assertNotSame('', $hint);
+        }
 
         $probe = $runtime->probe();
         $this->assertSame($runtime->binary(), $probe->cli);

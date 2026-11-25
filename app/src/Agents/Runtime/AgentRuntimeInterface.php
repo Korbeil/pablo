@@ -34,6 +34,15 @@ interface AgentRuntimeInterface
     public function defaultModel(): string;
 
     /**
+     * Models `system:install` offers to choose from, id => one-line hint,
+     * defaultModel() first. Any other id the runtime accepts can still be
+     * typed in (and checked by modelError()).
+     *
+     * @return non-empty-array<string, string>
+     */
+    public function suggestedModels(): array;
+
+    /**
      * A fresh session id PABLO assigns up front: launchCommand() runs the
      * agent under it, so its handle is known before the run starts.
      */

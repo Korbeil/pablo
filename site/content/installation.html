@@ -34,7 +34,7 @@
 
 <h2 id="choose-an-agent-runtime">Choose an agent runtime and an ADE</h2>
 
-<p>The installer asks for two things. The <b>agent runtime</b> runs the agents: OpenCode (the default), Claude Code, or GitHub Copilot CLI <span class="exp">experimental</span>; it lists the ones it finds on your <code>PATH</code>, takes a single one without asking, and stops with none. The <b>agent environment (ADE)</b> is where they run and where you read them: Orca (the default), OpenChamber (OpenCode only) or headless, which is also every ADE's fallback. Change either later with <code>pablo system:install --runtime …</code> or <code>--backend …</code>. Setup, limits and fallback rules of each are on <a href="page:runtimes">Runtimes &amp; ADEs</a>.</p>
+<p>The installer asks for two things. The <b>agent runtime</b> runs the agents: OpenCode (the default), Claude Code, or GitHub Copilot CLI <span class="exp">experimental</span>; it lists the ones it finds on your <code>PATH</code>, takes a single one without asking, and stops with none. The <b>agent environment (ADE)</b> is where they run and where you read them: Orca (the default), OpenChamber (OpenCode only) or headless, which is also every ADE's fallback. Change either later with <code>pablo system:install --runtime …</code> or <code>--backend …</code>. Once PABLO is downloaded, a first install also asks which <b>model</b> the agents use by default (see <a href="#choose-the-default-model">below</a>). Setup, limits and fallback rules of each are on <a href="page:runtimes">Runtimes &amp; ADEs</a>.</p>
 
 <h2>Install</h2>
 
@@ -48,7 +48,8 @@
   <li>looks for the <a href="page:runtimes#choose-an-agent-runtime">runtimes</a> you have (OpenCode, Claude Code, GitHub Copilot CLI) and asks which one to use;</li>
   <li>looks for the <a href="page:runtimes#choose-an-ade">ADEs</a> you have (Orca, OpenChamber) and asks which one to use. It only offers the ones that can run your runtime;</li>
   <li>asks whether to install the <a href="#the-dashboard-service">dashboard service</a>. If another program already uses its port (8321, or the <code>dashboard_port</code> of your config), it suggests the next free port and lets you type another; without a terminal it takes the suggestion. A port already used by PABLO's own dashboard (a re-install) is kept. Then it shows a summary;</li>
-  <li>downloads <code>pablo-&lt;os&gt;-&lt;arch&gt;</code> from the latest <a href="https://github.com/Korbeil/pablo/releases">GitHub release</a>, checks it against the release's <code>sha256sums.txt</code> (a mismatch installs nothing), installs it as <code>~/.local/bin/pablo</code>, then runs <a href="#what-pablo-system-install-does"><code>pablo system:install</code></a> with your answers.</li>
+  <li>downloads <code>pablo-&lt;os&gt;-&lt;arch&gt;</code> from the latest <a href="https://github.com/Korbeil/pablo/releases">GitHub release</a>, checks it against the release's <code>sha256sums.txt</code> (a mismatch installs nothing), installs it as <code>~/.local/bin/pablo</code>, then runs <a href="#what-pablo-system-install-does"><code>pablo system:install</code></a> with your answers;</li>
+  <li>on a first install, <code>pablo system:install</code> asks which <a href="#choose-the-default-model">default model</a> the agents use.</li>
 </ol>
 
 <p>If it finds no runtime, it stops and sends you back to the <a href="#prerequisites">prerequisites</a>. If it finds no ADE (neither Orca nor OpenChamber), it says so with the same pointer and offers to carry on headless (the agents then run in the background) or to stop so you can install one first. Without a terminal, it carries on headless.</p>
@@ -64,6 +65,7 @@
     <tr><td><code>--version &lt;release&gt;</code></td><td>a release to install, by name (e.g. <code>20261114</code>), instead of the latest</td></tr>
     <tr><td><code>--runtime &lt;name&gt;</code></td><td><code>opencode</code>, <code>claude-code</code> or <code>copilot</code></td></tr>
     <tr><td><code>--backend &lt;name&gt;</code></td><td><code>orca</code>, <code>openchamber</code> (OpenCode only) or <code>headless</code></td></tr>
+    <tr><td><code>--model &lt;id&gt;</code></td><td>the agents' <a href="#choose-the-default-model">default model</a>, in your runtime's format (e.g. <code>opus</code> for Claude Code), instead of asking</td></tr>
     <tr><td><code>--without-web</code></td><td>skip the dashboard service</td></tr>
     <tr><td><code>--with-web</code></td><td>install the dashboard service (the default; cancels an earlier <code>--without-web</code>)</td></tr>
     <tr><td><code>--without-completion</code></td><td>skip the <a href="#shell-completion">shell completion</a></td></tr>
@@ -80,7 +82,8 @@
 <p>The installer hands over to <code>pablo system:install</code>, which you can also run yourself at any time: it is safe to run again. Without options it keeps the choices already in <code>~/.pablo/config.yaml</code>; on a first install it picks the tools it finds. Its options:</p>
 
 <ul>
-  <li><code>--runtime opencode|claude-code|copilot</code> records the runtime in the config. Changing it also resets <code>default_model</code> to a model of that runtime.</li>
+  <li><code>--runtime opencode|claude-code|copilot</code> records the runtime in the config. Changing it also resets <code>default_model</code> to a model of that runtime, or asks for one when it runs in a terminal.</li>
+  <li><code>--model &lt;id&gt;</code> records the agents' default model (<code>default_model</code>), checked against the runtime's format; without it, a first install or a runtime change in a terminal asks (see below).</li>
   <li><code>--backend orca|openchamber|headless</code> records the ADE. The installer leaves it out when it only falls back to headless because it found no ADE.</li>
   <li><code>--without-web</code> skips (and removes) the dashboard service.</li>
   <li><code>--port &lt;port&gt;</code> records the dashboard's port (<code>dashboard_port</code>).</li>
@@ -97,6 +100,24 @@
   <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, the daily <a href="page:storage#what-grows-and-how-its-pruned">housekeeping job</a> (03:00), and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary), with the <a href="#the-services-path">services' <code>PATH</code></a> computed from yours;</li>
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
 </ol>
+
+<h3 id="choose-the-default-model">Choose the default model</h3>
+
+<p>On a first install, and when <code>--runtime</code> changes the runtime, <code>pablo system:install</code> asks which model the agents use by default, among a few that suit your runtime, or any other you type in (checked against the runtime's format):</p>
+
+<pre><code class="language-text">Which model should the Claude Code agents use by default?
+It must be one your Claude Code account can use. You can change it at any time in ~/.pablo/config.yaml (default_model), or pick one per project type or per agent: https://getpablo.dev/docs/configuration/#choose-the-agent-model
+Default model (Enter: sonnet)
+  [1] sonnet  (balanced: the latest Sonnet)
+  [2] opus  (most capable, slower and uses more of your plan: the latest Opus)
+  [3] haiku  (fastest and cheapest: the latest Haiku)
+  [4] another model: type its id
+ &gt;
+</code></pre>
+
+<p>Under OpenCode it offers <code>opencode-go/glm-5.3-flash</code> (the default), <code>opencode-go/glm-5.3</code>, <code>opencode-go/deepseek-v4.1-flash</code> and <code>opencode-go/deepseek-v4-pro</code>, all four from the OpenCode Go subscription; under Copilot <code>claude-sonnet-5.5</code> (the default), <code>claude-opus-5.5</code>, <code>gpt-5.3-codex</code> and <code>claude-haiku-5.5</code>. Pick one your runtime is set up for: under OpenCode, that model's provider must be logged in (<code>opencode auth login</code>). Without a terminal (<code>--no-interaction</code>, or a script), or with <code>--model</code>, nothing is asked: the runtime's default, or <code>--model</code>, is written. A re-install never asks again; the model stays the one in <code>~/.pablo/config.yaml</code>.</p>
+
+<p>It is only the starting point: edit <code>default_model</code> at any time, or give each project type, project or agent its own model, as explained in <a href="page:configuration#choose-the-agent-model">Choose the agent model</a>. The install prints that link too.</p>
 
 <p>The output groups the files and links it places (the <code>pablo</code> command, the completion, the agent definitions, the links, the service files) and says what each run changed: <code>+ created</code> and <code>~ updated</code> are listed one by one and highlighted; what was already up to date collapses into one line per group, such as <code>= 5 agents, 1 command, 1 skill unchanged</code>. A last line gives the totals, or <code>Nothing changed</code> when the run only confirmed the install. The services are restarted either way, so they run the binary just installed. Add <code>-v</code> to list every unchanged file too, with the <a href="#the-services-path">services' <code>PATH</code></a> and the other details.</p>
 

@@ -88,6 +88,16 @@ final class CopilotRuntime implements AgentRuntimeInterface
         return 'claude-sonnet-5.5';
     }
 
+    public function suggestedModels(): array
+    {
+        return [
+            $this->defaultModel() => 'balanced',
+            'claude-opus-5.5' => 'most capable, uses more premium requests',
+            'gpt-5.3-codex' => 'OpenAI, tuned for code',
+            'claude-haiku-5.5' => 'fastest and cheapest',
+        ];
+    }
+
     public function newSessionId(): string
     {
         return RuntimeSupport::uuid();
