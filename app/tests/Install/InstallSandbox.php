@@ -83,6 +83,17 @@ trait InstallSandbox
         return $this->runCommand('system:install', $input, $os, $verbosity);
     }
 
+    /**
+     * An interactive install, answering its questions with $answers.
+     *
+     * @param array<string, mixed> $input
+     * @param list<string>         $answers
+     */
+    protected function installInteractively(array $input, array $answers): CommandTester
+    {
+        return $this->runCommand('system:install', $input, 'Linux', OutputInterface::VERBOSITY_NORMAL, $answers);
+    }
+
     protected function uninstall(string $os = 'Linux'): CommandTester
     {
         return $this->runCommand('system:uninstall', [], $os);
@@ -105,8 +116,11 @@ trait InstallSandbox
         return null;
     }
 
-    /** @param array<string, mixed> $input */
-    private function runCommand(string $name, array $input, string $os, int $verbosity = OutputInterface::VERBOSITY_NORMAL): CommandTester
+    /**
+     * @param array<string, mixed> $input
+     * @param list<string>|null    $answers the answers of an interactive run; null: not interactive
+     */
+    private function runCommand(string $name, array $input, string $os, int $verbosity = OutputInterface::VERBOSITY_NORMAL, ?array $answers = null): CommandTester
     {
         $global = new GlobalConfig();
         $config = new Config($global);
@@ -136,7 +150,10 @@ trait InstallSandbox
         $application->addCommand(new UninstallCommand($schedulers, $templates, $runtimes));
 
         $tester = new CommandTester($application->find($name));
-        $tester->execute($input, ['interactive' => false, 'verbosity' => $verbosity]);
+        if (null !== $answers) {
+            $tester->setInputs($answers);
+        }
+        $tester->execute($input, ['interactive' => null !== $answers, 'verbosity' => $verbosity]);
 
         return $tester;
     }

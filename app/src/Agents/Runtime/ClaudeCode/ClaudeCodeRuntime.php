@@ -114,6 +114,15 @@ final class ClaudeCodeRuntime implements AgentRuntimeInterface
         return 'sonnet';
     }
 
+    public function suggestedModels(): array
+    {
+        return [
+            $this->defaultModel() => 'balanced: the latest Sonnet',
+            'opus' => 'most capable, slower and uses more of your plan: the latest Opus',
+            'haiku' => 'fastest and cheapest: the latest Haiku',
+        ];
+    }
+
     public function newSessionId(): string
     {
         return RuntimeSupport::uuid();

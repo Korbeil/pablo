@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Install;
 
 use Pablo\Agents\Ade\AdeRegistry;
+use Pablo\Agents\Runtime\AgentRuntimeInterface;
 use Pablo\Agents\Runtime\AgentRuntimeRegistry;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
@@ -39,15 +40,23 @@ final class ConfigSeeder
         $this->hasCommand = $hasCommand ?? InstallPaths::hasCommand(...);
     }
 
+    /** Where the docs explain default_model, models per type/agent and the id formats. */
+    public const MODEL_DOCS_URL = 'https://getpablo.dev/docs/configuration/#choose-the-agent-model';
+
     /**
-     * Refuse bad --runtime / --backend values before anything is touched.
+     * Refuse bad --runtime / --backend / --model values before anything is
+     * touched (--model only when --runtime says which runtime checks it;
+     * otherwise apply() checks it).
      *
      * @throws PabloError
      */
-    public function validate(?string $runtime, ?string $backend): void
+    public function validate(?string $runtime, ?string $backend, ?string $model = null): void
     {
         if (null !== $runtime) {
             AgentRuntimeRegistry::checkName($runtime, '--runtime');
+            if (null !== $model) {
+                $this->checkModel($this->runtimes->resolve($runtime), $model);
+            }
         }
         if (null !== $backend) {
             AdeRegistry::checkName($backend, '--backend');
@@ -62,13 +71,18 @@ final class ConfigSeeder
      * Seed or update the config, then return the runtime the rest of the
      * install works for.
      *
-     * @param \Closure(string): void $info
+     * The default model is chosen with $askModel (an interactive install)
+     * when the config is new or the runtime changes, unless --model gives
+     * it; without either, the runtime's defaultModel() is written.
+     *
+     * @param \Closure(string): void                                 $info
+     * @param (\Closure(AgentRuntimeInterface, string): string)|null $askModel the model to use, given the runtime and the current one
      *
      * @throws PabloError
      */
-    public function apply(?string $runtimeOption, ?string $backendOption, \Closure $info): string
+    public function apply(?string $runtimeOption, ?string $backendOption, \Closure $info, ?string $modelOption = null, ?\Closure $askModel = null): string
     {
-        self::validate($runtimeOption, $backendOption);
+        self::validate($runtimeOption, $backendOption, $modelOption);
 
         $projectsDir = $this->config->projectsDir();
         if (!is_dir($projectsDir)) {
@@ -77,7 +91,9 @@ final class ConfigSeeder
         }
 
         $file = $this->global->configPath();
-        if (!is_file($file)) {
+        // A new config, or a new runtime: its default model is to be chosen.
+        $chooseModel = !is_file($file);
+        if ($chooseModel) {
             $this->seed($file, $info);
         } else {
             $info("keeping existing {$file}");
@@ -91,6 +107,7 @@ final class ConfigSeeder
                 $model = $this->runtimes->resolve($runtimeOption)->defaultModel();
                 self::set($file, 'default_model', $model);
                 $info("agent runtime {$current} -> {$runtimeOption}: set default_model: {$model}");
+                $chooseModel = true;
             }
             self::set($file, 'agent_runtime', $runtimeOption);
         }
@@ -110,8 +127,44 @@ final class ConfigSeeder
             throw new PabloError("{$error} (agent_backend is set in {$file}; or pass --backend ".AdeRegistry::DEFAULT.')');
         }
         $info("agent runtime: {$runtime}");
+        $this->model($file, $this->runtimes->resolve($runtime), $modelOption, $chooseModel ? $askModel : null, $info);
 
         return $runtime;
+    }
+
+    /**
+     * Record --model, else the one $askModel picks, then say which model the
+     * agents use and where to read how to change it.
+     *
+     * @param \Closure(string): void                                 $info
+     * @param (\Closure(AgentRuntimeInterface, string): string)|null $askModel
+     *
+     * @throws PabloError
+     */
+    private function model(string $file, AgentRuntimeInterface $runtime, ?string $modelOption, ?\Closure $askModel, \Closure $info): void
+    {
+        $current = self::value($file, 'default_model') ?? $runtime->defaultModel();
+        $model = $modelOption;
+        if (null === $model && null !== $askModel) {
+            $model = $askModel($runtime, $current);
+        }
+        if (null !== $model && $model !== $current) {
+            $this->checkModel($runtime, $model);
+            self::set($file, 'default_model', $model);
+            $current = $model;
+        }
+        $info("default model: {$current} (a model per project type or per agent, and the id formats: ".self::MODEL_DOCS_URL.')');
+    }
+
+    /** @throws PabloError */
+    private function checkModel(AgentRuntimeInterface $runtime, string $model): void
+    {
+        if (1 !== preg_match('/^[^\s"\'#]+$/', $model)) {
+            throw new PabloError("invalid --model '{$model}': a model id has no spaces, quotes or #");
+        }
+        if (null !== ($error = $runtime->modelError($model))) {
+            throw new PabloError("invalid --model: {$error}");
+        }
     }
 
     /** Former top-level keys of config.yaml => their current name. */

@@ -133,6 +133,68 @@ final class InstallCommandTest extends TestCase
         $this->assertSame('opus', $this->configValue('default_model'));
     }
 
+    public function testModelIsRecordedAndTheDocsLinked(): void
+    {
+        $tester = $this->install(['--runtime' => 'claude-code', '--model' => 'opus']);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertSame('opus', $this->configValue('default_model'));
+        $this->assertStringContainsString('default model: opus', $tester->getDisplay());
+        $this->assertStringContainsString(ConfigSeeder::MODEL_DOCS_URL, $tester->getDisplay());
+
+        // On an existing config too, without changing the runtime.
+        $this->assertSame(0, $this->install(['--model' => 'haiku'])->getStatusCode());
+        $this->assertSame('haiku', $this->configValue('default_model'));
+    }
+
+    public function testAModelTheRuntimeRefusesIsRefusedBeforeTouchingAnything(): void
+    {
+        $tester = $this->install(['--runtime' => 'claude-code', '--model' => 'anthropic/claude-opus-5-5']);
+
+        $this->assertNotSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString('invalid --model', $tester->getDisplay());
+        $this->assertFileDoesNotExist($this->home.'/.pablo/config.yaml');
+    }
+
+    public function testAFirstInteractiveInstallAsksForTheModel(): void
+    {
+        // 2) opus, the second of Claude Code's suggestions.
+        $tester = $this->installInteractively(['--runtime' => 'claude-code', '--backend' => 'headless'], ['2']);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertStringContainsString('Which model should the Claude Code agents use by default?', $tester->getDisplay());
+        $this->assertStringContainsString(ConfigSeeder::MODEL_DOCS_URL, $tester->getDisplay());
+        $this->assertSame('opus', $this->configValue('default_model'));
+
+        // A re-install keeps it, without asking again.
+        $again = $this->installInteractively(['--runtime' => 'claude-code', '--backend' => 'headless'], []);
+        $this->assertSame(0, $again->getStatusCode(), $again->getDisplay());
+        $this->assertStringNotContainsString('Which model', $again->getDisplay());
+        $this->assertSame('opus', $this->configValue('default_model'));
+    }
+
+    public function testAnotherModelCanBeTypedAndIsCheckedByTheRuntime(): void
+    {
+        // Claude Code suggests 3 models; 4) is "another model".
+        $tester = $this->installInteractively(['--runtime' => 'claude-code', '--backend' => 'headless'], ['4', 'anthropic/claude-opus-5-5', 'claude-opus-5-5']);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertStringContainsString('looks like an OpenCode provider/model id', $tester->getDisplay());
+        $this->assertSame('claude-opus-5-5', $this->configValue('default_model'));
+    }
+
+    public function testSwitchingRuntimeInteractivelyAsksForAModelOfTheNewOne(): void
+    {
+        $this->assertSame(0, $this->install(['--runtime' => 'claude-code'])->getStatusCode());
+
+        // Copilot: 1) claude-sonnet-5.5 (the default), 2) claude-opus-5.5, ...
+        $tester = $this->installInteractively(['--runtime' => 'copilot'], ['2']);
+
+        $this->assertSame(0, $tester->getStatusCode(), $tester->getDisplay());
+        $this->assertStringContainsString('Which model should the Copilot CLI agents use by default?', $tester->getDisplay());
+        $this->assertSame('claude-opus-5.5', $this->configValue('default_model'));
+    }
+
     public function testWithoutOptionsAnExistingConfigIsLeftAlone(): void
     {
         $this->assertSame(0, $this->install(['--runtime' => 'copilot', '--backend' => 'orca'])->getStatusCode());

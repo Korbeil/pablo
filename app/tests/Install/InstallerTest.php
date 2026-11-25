@@ -130,6 +130,18 @@ final class InstallerTest extends TestCase
         $this->assertStringContainsString('Uninstall  pablo system:uninstall', $this->outputOf($process));
     }
 
+    public function testTheModelIsHandedOverAndTheModelsDocsLinked(): void
+    {
+        $this->fakeTool('claude');
+        $this->fakeOrca();
+
+        $process = $this->install(['--no-interaction', '--model', 'opus']);
+
+        $this->assertSame(0, $process->getExitCode(), $this->outputOf($process));
+        $this->assertSame('--runtime claude-code --backend orca --model opus', $this->installArguments());
+        $this->assertStringContainsString('https://getpablo.dev/docs/configuration/#choose-the-agent-model', $this->outputOf($process));
+    }
+
     public function testAChecksumMismatchInstallsNothing(): void
     {
         $this->fakeTool('claude');

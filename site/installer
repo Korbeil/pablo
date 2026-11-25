@@ -21,6 +21,7 @@ set -euo pipefail
 
 PABLO_RELEASES_URL="${PABLO_RELEASES_URL:-https://github.com/Korbeil/pablo/releases}"
 PREREQUISITES_URL="https://getpablo.dev/docs/installation/#prerequisites"
+MODELS_URL="https://getpablo.dev/docs/configuration/#choose-the-agent-model"
 BIN_DIR="${HOME}/.local/bin"
 BIN="${BIN_DIR}/pablo"
 # The dashboard's port when ~/.pablo/config.yaml sets none (PABLO_INSTALLER_DEFAULT_PORT: tests).
@@ -110,6 +111,9 @@ Usage: installer [options]
                         default: the latest)
   --runtime <name>      opencode, claude-code or copilot
   --backend <name>      orca, openchamber or headless (OpenChamber: OpenCode only)
+  --model <id>          the agents' default model, in the runtime's format
+                        (e.g. sonnet for Claude Code; default: asked on a first
+                        install, else the runtime's default)
   --without-web         do not install the dashboard service
   --without-completion  do not install the shell completion
   --port <port>         port of the dashboard (default: 8321, or the next free
@@ -118,6 +122,7 @@ Usage: installer [options]
   -h, --help            show this help
 
 Without --runtime / --backend, the installer detects what is installed and asks.
+Without --model, a first install asks which model the agents use.
 Run it again to update PABLO.
 USAGE
 }
@@ -581,7 +586,15 @@ run_install() {
     if ! $WITH_COMPLETION; then
         set -- "$@" --without-completion
     fi
-    if ! "$BIN" system:install "$@" </dev/null; then
+    if [ -n "$MODEL" ]; then
+        set -- "$@" --model "$MODEL"
+    fi
+    # Interactive: system:install gets the terminal, to ask which model the
+    # agents use (on a first install or a runtime change). Otherwise it reads
+    # nothing and keeps the runtime's default model.
+    if $INTERACTIVE; then
+        "$BIN" system:install "$@" <&3 || fail "pablo system:install failed. Fix the error above, then run: $BIN system:install $*"
+    elif ! "$BIN" system:install "$@" </dev/null; then
         fail "pablo system:install failed. Fix the error above, then run: $BIN system:install $*"
     fi
 }
@@ -592,6 +605,7 @@ main() {
     VERSION=""
     RUNTIME=""
     BACKEND=""
+    MODEL=""
     # true when headless was only picked because no ADE was found: the
     # backend is then left to pablo (Orca by default), so an ADE installed
     # later is used without re-running the installer.
@@ -620,6 +634,12 @@ main() {
         --backend)
             [ $# -ge 2 ] || fail "--backend needs a value"
             BACKEND="$2"
+            shift
+            ;;
+        --model=*) MODEL="${1#*=}" ;;
+        --model)
+            [ $# -ge 2 ] || fail "--model needs a value"
+            MODEL="$2"
             shift
             ;;
         --port=*) PORT="${1#*=}" ;;
@@ -676,6 +696,9 @@ main() {
     output "  Binary             $BIN ($TARGET)"
     output "  Agent runtime      $(runtime_label "$RUNTIME")"
     output "  Agent environment  $(backend_label "$BACKEND")"
+    if [ -n "$MODEL" ]; then
+        output "  Default model      $MODEL"
+    fi
     if $WITH_WEB; then
         output "  Dashboard service  yes, on http://127.0.0.1:$PORT"
     else
@@ -694,6 +717,7 @@ main() {
     output "  Command    $BIN"
     output "  Update     pablo update"
     output "  Uninstall  pablo system:uninstall"
+    output "  Models     default_model in ~/.pablo/config.yaml, see $MODELS_URL"
     if [ -n "$CHECKOUT" ]; then
         output "  The checkout in $CHECKOUT is no longer used: delete it when you no longer need it."
     fi

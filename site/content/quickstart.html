@@ -43,7 +43,7 @@ scheduler:
 
 <h2 id="set-your-model">2. Set your model</h2>
 
-<p>The installer writes a <code>default_model</code> into <code>~/.pablo/config.yaml</code> for the runtime it picked: <code>opencode-go/glm-5.3-flash</code> under OpenCode, <code>sonnet</code> under Claude Code, <code>claude-sonnet-5.5</code> under Copilot. Your runtime must be able to use it: under OpenCode, that model's provider (here, OpenCode Go) has to be set up in OpenCode itself (<code>opencode auth login</code>). Otherwise, put a model you already use:</p>
+<p>The installer asks which model the agents use and writes it as <code>default_model</code> into <code>~/.pablo/config.yaml</code> (see <a href="page:installation#choose-the-default-model">Choose the default model</a>). Without a terminal it takes the runtime's default: <code>opencode-go/glm-5.3-flash</code> under OpenCode, <code>sonnet</code> under Claude Code, <code>claude-sonnet-5.5</code> under Copilot. Your runtime must be able to use it: under OpenCode, that model's provider (here, OpenCode Go) has to be set up in OpenCode itself (<code>opencode auth login</code>). Otherwise, put a model you already use:</p>
 
 <pre><code class="language-yaml"># ~/.pablo/config.yaml
 default_model: anthropic/claude-sonnet-5-5   # OpenCode: provider/model

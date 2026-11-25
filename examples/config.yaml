@@ -12,7 +12,8 @@ ci:
   ignore_checks: ["approval"]
 # Model id format follows agent_runtime: provider/model for OpenCode,
 # an alias (sonnet, opus, haiku) or full model id for Claude Code, a
-# Copilot model id (dotted, e.g. claude-sonnet-5.5) for Copilot.
+# Copilot model id (dotted, e.g. claude-sonnet-5.5) for Copilot. Per project
+# type, project or agent: https://getpablo.dev/docs/configuration/#choose-the-agent-model
 default_model: opencode-go/glm-5.3-flash
 # models:                  # a model per project type (work, open-source, personal)
 #   work:                  # ... or per agent; `default` for the type's other agents

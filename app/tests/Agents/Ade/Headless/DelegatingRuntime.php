@@ -49,6 +49,11 @@ abstract class DelegatingRuntime implements AgentRuntimeInterface
         return $this->inner->defaultModel();
     }
 
+    public function suggestedModels(): array
+    {
+        return $this->inner->suggestedModels();
+    }
+
     public function newSessionId(): string
     {
         return $this->inner->newSessionId();

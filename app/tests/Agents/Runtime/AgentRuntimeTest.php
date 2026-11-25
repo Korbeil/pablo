@@ -296,6 +296,11 @@ final class AgentRuntimeTest extends TestCase
                 return 'sonnet';
             }
 
+            public function suggestedModels(): array
+            {
+                return ['sonnet' => 'balanced'];
+            }
+
             public function newSessionId(): string
             {
                 return '11111111-2222-4333-8444-555555555555';
