@@ -7,6 +7,8 @@ namespace Pablo\Agents;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\Task;
+use Pablo\Provider\Forge\Gitlab\GitlabApi;
+use Pablo\Provider\Forge\RepoRef;
 use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
@@ -20,7 +22,7 @@ use Pablo\Support\RepoSlug;
  *
  * Strictly best-effort: any fetch failure drops that block (or the whole
  * section) and the agent falls back to fetching by itself, as its prompt
- * describes. Read-only — only `gh`/`acli`/`linear` view calls.
+ * describes. Read-only — only `gh`/`glab`/`acli`/`linear` view calls.
  */
 final class LaunchContext
 {
@@ -107,6 +109,7 @@ final class LaunchContext
 
         return match ($issue->provider) {
             'github' => $this->githubIssue($issue->key, $cfg),
+            'gitlab' => $this->gitlabIssue($issue->key, $cfg),
             'jira' => $this->jiraIssue($issue->key),
             'linear' => $this->linearIssue($issue->key),
             default => '',
@@ -126,6 +129,26 @@ final class LaunchContext
             'State' => self::str($data['state'] ?? null),
             'Labels' => implode(', ', array_filter($labels)),
         ], self::str($data['body'] ?? null), $comments);
+    }
+
+    private function gitlabIssue(string $key, ProjectConfig $cfg): string
+    {
+        $repo = $this->repoSlug->ref($cfg);
+        $path = GitlabApi::project($repo->slug).'/issues/'.rawurlencode($key);
+        $data = $this->json(GitlabApi::argv($repo->host, $path));
+        $comments = [];
+        foreach (self::listOf(self::decode($this->runner->run(GitlabApi::argv($repo->host, "{$path}/notes", ['sort' => 'asc', 'order_by' => 'created_at', 'per_page' => 100]), true, self::TIMEOUT))) as $note) {
+            if (true === ($note['system'] ?? false)) {
+                continue; // label changes, mentions…: not a comment
+            }
+            $comments[] = [self::str($note['author']['username'] ?? null), self::str($note['created_at'] ?? null), self::str($note['body'] ?? null)];
+        }
+        $labels = array_map(self::str(...), \is_array($data['labels'] ?? null) ? $data['labels'] : []);
+
+        return $this->renderIssue("GitLab issue #{$key}", self::str($data['title'] ?? null), [
+            'State' => self::str($data['state'] ?? null),
+            'Labels' => implode(', ', array_filter($labels)),
+        ], self::str($data['description'] ?? null), $comments);
     }
 
     private function jiraIssue(string $key): string
@@ -205,7 +228,11 @@ final class LaunchContext
 
     private function ciBlock(int $prNumber, ProjectConfig $cfg): string
     {
-        $slug = $this->repoSlug->for($cfg);
+        $repo = $this->repoSlug->ref($cfg);
+        if ($repo->isGitlab()) {
+            return $this->gitlabCiBlock($prNumber, $repo, $cfg);
+        }
+        $slug = $repo->slug;
         // gh pr checks exits non-zero whenever a check fails — that is the
         // normal case here, so never treat the exit code as an error.
         $checks = self::decode($this->runner->run(
@@ -249,23 +276,85 @@ final class LaunchContext
         return self::clip($out, self::MAX_CHARS - 1_000);
     }
 
+    private const GITLAB_FAILED_JOBS_QUERY = <<<'GRAPHQL'
+        query($path: ID!, $iid: String!) {
+          project(fullPath: $path) {
+            mergeRequest(iid: $iid) {
+              headPipeline {
+                webPath
+                jobs(retried: false, statuses: [FAILED], first: 50) {
+                  nodes { id name allowFailure webPath stage { name } }
+                }
+              }
+            }
+          }
+        }
+        GRAPHQL;
+
     /**
-     * The useful part of a `gh run view --log-failed` dump: the error lines
+     * GitLab: the head pipeline's failed jobs (allowed failures and
+     * ci.ignore_checks left out) and the tail of a few of their logs.
+     */
+    private function gitlabCiBlock(int $prNumber, RepoRef $repo, ProjectConfig $cfg): string
+    {
+        $data = $this->json(GitlabApi::graphqlArgv($repo->host, self::GITLAB_FAILED_JOBS_QUERY, ['path' => $repo->slug, 'iid' => (string) $prNumber]));
+        $pipeline = $data['data']['project']['mergeRequest']['headPipeline'] ?? null;
+        if (!\is_array($pipeline)) {
+            return '';
+        }
+        $failing = [];
+        foreach (self::listOf($pipeline['jobs']['nodes'] ?? null) as $job) {
+            $name = self::str($job['name'] ?? null);
+            if (true !== ($job['allowFailure'] ?? false) && !\in_array($name, $cfg->ci->ignoreChecks, true)) {
+                $failing[] = $job;
+            }
+        }
+        if ([] === $failing) {
+            return '';
+        }
+
+        $out = "### Failing jobs on MR !{$prNumber} (pipeline https://{$repo->host}".self::str($pipeline['webPath'] ?? null).")\n";
+        foreach ($failing as $job) {
+            $stage = self::str($job['stage']['name'] ?? null);
+            $out .= '- '.('' !== $stage ? "{$stage} / " : '').self::str($job['name'] ?? null)
+                .' — failed — https://'.$repo->host.self::str($job['webPath'] ?? null)."\n";
+        }
+
+        $jobs = 0;
+        foreach ($failing as $job) {
+            if ($jobs >= self::MAX_FAILED_JOBS) {
+                $out .= "\n(further failing jobs not pre-fetched)\n";
+                break;
+            }
+            if (1 !== preg_match('#/(\d+)$#', self::str($job['id'] ?? null), $m)) {
+                continue;
+            }
+            ++$jobs;
+            $log = $this->runner->run(GitlabApi::argv($repo->host, GitlabApi::project($repo->slug)."/jobs/{$m[1]}/trace"), false, self::TIMEOUT);
+            $out .= "\n#### Log tail — ".self::str($job['name'] ?? null)." (job {$m[1]})\n```\n".self::logTail($log)."\n```\n";
+        }
+
+        return self::clip($out, self::MAX_CHARS - 1_000);
+    }
+
+    /**
+     * The useful part of a `gh run view --log-failed` dump or a GitLab job trace: the error lines
      * first, then the last lines before the runner's post-job cleanup. Each
-     * line loses its "<job>\t<step>\t<timestamp> " prefix and colour codes.
+     * line loses its "<job>\t<step>\t<timestamp> " prefix (GitHub), its
+     * section markers (GitLab) and colour codes.
      */
     private static function logTail(string $log): string
     {
         $lines = array_map(
             static function (string $l): string {
-                $l = (string) preg_replace(['/^[^\t]*\t[^\t]*\t\S+Z /', '/(\e|\^\[)\[[0-9;]*m/'], '', $l);
+                $l = (string) preg_replace(['/^[^\t]*\t[^\t]*\t\S+Z /', '/section_(?:start|end):\d+:[^\s\e]*\r?/', '/(\e|\^\[)\[[0-9;]*[mK]/'], '', $l);
 
                 return mb_strlen($l) > 200 ? mb_substr($l, 0, 200).'…' : $l;
             },
             preg_split('/\R/', rtrim($log)) ?: [],
         );
         foreach ($lines as $i => $line) {
-            if (str_contains($line, 'Post job cleanup.')) {
+            if (str_contains($line, 'Post job cleanup.') || str_contains($line, 'Cleaning up project directory and file based variables')) {
                 $lines = \array_slice($lines, 0, $i);
                 break;
             }
@@ -292,7 +381,11 @@ final class LaunchContext
 
     private function reviewBlock(int $prNumber, ProjectConfig $cfg): string
     {
-        [$owner, $repo] = explode('/', $this->repoSlug->for($cfg), 2) + [1 => ''];
+        $ref = $this->repoSlug->ref($cfg);
+        if ($ref->isGitlab()) {
+            return $this->gitlabReviewBlock($prNumber, $ref);
+        }
+        [$owner, $repo] = explode('/', $ref->slug, 2) + [1 => ''];
         $data = $this->json([
             'gh', 'api', 'graphql',
             '-F', "owner={$owner}", '-F', "repo={$repo}", '-F', "pr={$prNumber}",
@@ -346,6 +439,64 @@ final class LaunchContext
                 $out .= "\n- **".self::str($c['author']['login'] ?? null).'** '.self::str($c['url'] ?? null).":\n  "
                     .str_replace("\n", "\n  ", self::clip(trim(self::str($c['body'] ?? null)), self::COMMENT_CHARS))."\n";
             }
+        }
+
+        return self::clip($out, self::MAX_CHARS - 1_000);
+    }
+
+    /**
+     * GitLab: the merge request's unresolved threads and its plain comments
+     * (system notes left out), first 100 discussions.
+     */
+    private function gitlabReviewBlock(int $prNumber, RepoRef $repo): string
+    {
+        $discussions = self::listOf(self::decode($this->runner->run(
+            GitlabApi::argv($repo->host, GitlabApi::project($repo->slug)."/merge_requests/{$prNumber}/discussions", ['per_page' => 100]),
+            true,
+            self::TIMEOUT,
+        )));
+        $mrUrl = $repo->prUrl($prNumber);
+        $threads = [];
+        $conversation = [];
+        foreach ($discussions as $discussion) {
+            $notes = array_values(array_filter(self::listOf($discussion['notes'] ?? null), static fn (array $n): bool => true !== ($n['system'] ?? false)));
+            if ([] === $notes) {
+                continue;
+            }
+            if (true === ($notes[0]['resolvable'] ?? false)) {
+                if (true !== ($notes[0]['resolved'] ?? false)) {
+                    $threads[] = $notes;
+                }
+            } else {
+                array_push($conversation, ...$notes);
+            }
+        }
+        $line = static fn (array $n): string => '**'.self::str($n['author']['username'] ?? null).'** '.$mrUrl.'#note_'.self::str($n['id'] ?? null);
+
+        $out = "### Open review feedback on MR !{$prNumber}\n"
+            .\sprintf("%d unresolved threads, %d comments%s.\n",
+                \count($threads), \count($conversation), \count($discussions) >= 100 ? ' [truncated: more pages exist, paginate yourself]' : '');
+        if ([] !== $threads) {
+            $out .= "\n#### Unresolved threads\n";
+            foreach ($threads as $notes) {
+                $position = \is_array($notes[0]['position'] ?? null) ? $notes[0]['position'] : [];
+                $path = self::str($position['new_path'] ?? $position['old_path'] ?? null);
+                $out .= "\n- ".('' !== $path ? '`'.$path.':'.self::str($position['new_line'] ?? $position['old_line'] ?? null).'`' : '(general)')."\n";
+                foreach ($notes as $n) {
+                    $out .= '  - '.$line($n).":\n    "
+                        .str_replace("\n", "\n    ", self::clip(trim(self::str($n['body'] ?? null)), self::COMMENT_CHARS))."\n";
+                }
+            }
+        }
+        if ([] !== $conversation) {
+            $out .= "\n#### Comments\n";
+            foreach ($conversation as $n) {
+                $out .= "\n- ".$line($n).":\n  "
+                    .str_replace("\n", "\n  ", self::clip(trim(self::str($n['body'] ?? null)), self::COMMENT_CHARS))."\n";
+            }
+        }
+        if ([] === $threads && [] === $conversation) {
+            return '';
         }
 
         return self::clip($out, self::MAX_CHARS - 1_000);

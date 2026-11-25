@@ -38,17 +38,17 @@ several) and note repro steps, environment, expected vs actual.
 ## Branch discipline
 
 QA fixes are new commits on the existing feature branch and PR — never a
-new branch or PR. The canonical branch is the PR's head
-(`gh pr view --json headRefName`) or the branch named after the key
-(`xxx-123`). If `git branch --show-current` differs, STOP and ask the user
-to check it out; if no branch/PR exists, say so and ask which one carries
+new branch or PR. The canonical branch is the PR's head (see below) or
+the branch named after the key (`xxx-123`). If `git branch
+--show-current` differs, STOP and ask the user to check it out; if no branch/PR exists, say so and ask which one carries
 the work.
 
 ## What was actually shipped
 
-`gh pr view` / `gh pr diff --name-only`, then targeted `gh pr diff` or
-`git diff $(git merge-base origin/main HEAD)...HEAD -- <path>` (adjust the
-base) when there is no PR; `git log` on the branch to spot remarks already
+{{FORGE:shipped}}
+
+Without a PR: `git diff $(git merge-base origin/main HEAD)...HEAD -- <path>`
+(adjust the base). Then `git log` on the branch to spot remarks already
 addressed by a later commit; read the code each remark touches.
 
 ## Analyzing each remark

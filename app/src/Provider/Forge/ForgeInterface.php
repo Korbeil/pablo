@@ -2,17 +2,27 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Provider\Gh;
+namespace Pablo\Provider\Forge;
 
 /**
- * GitHub PR plumbing via the gh CLI: CI status, review evaluation, draft/ready
- * toggling, merge detection.
+ * A code forge's pull-request plumbing, through the forge's own CLI: CI
+ * status, review evaluation, draft/ready toggling, merge detection. GitHub
+ * (gh, pull requests) and GitLab (glab, merge requests) implement it; the
+ * engine says "PR" for both. A PR number is GitHub's PR number or GitLab's
+ * merge request IID, and $repoSlug is RepoSlug::for() ("owner/repo",
+ * "group/subgroup/project").
  *
- * Abstraction so engine services and commands stay testable: tests inject a
- * fake implementing this interface instead of calling real gh.
+ * The forge of a project comes from ForgeRegistryInterface::for(). Tests
+ * inject a fake instead of calling a real CLI.
  */
-interface GhPrInterface
+interface ForgeInterface
 {
+    /** github | gitlab */
+    public function name(): string;
+
+    /** The web address of PR $prNumber. */
+    public function prUrl(string $repoSlug, int $prNumber): string;
+
     public function prForBranch(string $repoSlug, string $branch): ?PrInfo;
 
     /**
@@ -33,8 +43,8 @@ interface GhPrInterface
     public function ciStatus(string $repoSlug, int $prNumber, array $ignoreChecks = []): string;
 
     /**
-     * The review verdict since GitHub's last "ready for review" event, by
-     * the rules of ReviewVerdict::evaluate().
+     * The review verdict since the PR's last "ready for review" event, by
+     * the forge's own rules (site/content/states.html#reviews).
      *
      * @param list<string> $botWhitelist
      *
@@ -44,8 +54,7 @@ interface GhPrInterface
 
     /**
      * One poll cycle's reads of a repository in as few calls as possible
-     * (one GraphQL query per SNAPSHOT_PRS_PER_QUERY PRs / SNAPSHOT_BRANCHES_PER_QUERY
-     * branches): prForBranch() of each $branches, prState() and the
+     * (a few batched GraphQL queries): prForBranch() of each $branches, prState() and the
      * ciStatus() rollup of each $prNumbers, reviewVerdict()'s inputs of each
      * $reviewPrNumbers. Never throws: whatever it could not read in full is
      * absent from the snapshot, for the per-PR call to answer.

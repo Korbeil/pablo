@@ -38,12 +38,15 @@ use Pablo\Housekeeping\Pruner;
 use Pablo\Install\Scheduler\SchedulerFactory;
 use Pablo\Listing\Listing;
 use Pablo\Poller\Poller;
-use Pablo\Provider\Gh\GhPr;
-use Pablo\Provider\Gh\GhPrInterface;
+use Pablo\Provider\Forge\ForgeRegistry;
+use Pablo\Provider\Forge\ForgeRegistryInterface;
+use Pablo\Provider\Forge\Github\GithubForge;
+use Pablo\Provider\Forge\Gitlab\GitlabForge;
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Git\Sync;
 use Pablo\Provider\Tracker\Github;
+use Pablo\Provider\Tracker\Gitlab;
 use Pablo\Provider\Tracker\Jira;
 use Pablo\Provider\Tracker\Linear;
 use Pablo\Provider\Tracker\ProviderRegistry;
@@ -87,8 +90,12 @@ return static function (ContainerConfigurator $container): void {
     $services->set(GitRepo::class);
     $services->alias(GitRepoInterface::class, GitRepo::class);
 
-    $services->set(GhPr::class);
-    $services->alias(GhPrInterface::class, GhPr::class);
+    // Forges (where pull/merge requests and CI live): one per project, picked
+    // by the registry from repo.forge or the origin remote.
+    $services->set(GithubForge::class);
+    $services->set(GitlabForge::class);
+    $services->set(ForgeRegistry::class);
+    $services->alias(ForgeRegistryInterface::class, ForgeRegistry::class);
 
     $services->set(Time::class);
     $services->set(Naming::class);
@@ -111,6 +118,7 @@ return static function (ContainerConfigurator $container): void {
 
     // Tracker providers and their registry.
     $services->set(Github::class);
+    $services->set(Gitlab::class);
     $services->set(Jira::class);
     $services->set(Linear::class);
     $services->set(ProviderRegistry::class);

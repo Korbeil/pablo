@@ -9,7 +9,7 @@
 <pre><code class="language-bash">pablo project:new
 </code></pre>
 
-<p>It asks for the repository path, a name, the type (<code>work</code>, <code>open-source</code> or <code>personal</code>, used to filter tasks and pick models), the issue tracker and its details, whether you have a QA step, and an optional branch prefix. It shows the YAML and writes it to <code>~/.pablo/projects/</code> once you confirm. Or write the file by hand; the smallest useful one, for GitHub:</p>
+<p>It asks for the repository path, a name, the type (<code>work</code>, <code>open-source</code> or <code>personal</code>, used to filter tasks and pick models), the issue tracker and its details, whether you have a QA step, and an optional branch prefix. It shows the YAML and writes it to <code>~/.pablo/projects/</code> once you confirm. When the repository's <code>origin</code> is on a host that doesn't say whether it's GitHub or GitLab, it also asks where the pull requests live (<code>repo.forge</code>). Or write the file by hand; the smallest useful one, for GitHub:</p>
 
 <pre><code class="language-yaml"># ~/.pablo/projects/wallet-kit.yaml
 name: wallet-kit
@@ -21,6 +21,22 @@ issue_tracker:
   provider: github
   identity: your-github-login
   project_key: WK        # GitHub has no issue keys: this becomes the branch prefix (wk-45)
+</code></pre>
+
+<p>A GitLab project is the same file with <code>provider: gitlab</code>; PABLO finds the GitLab host and the project's full path (<code>group/subgroup/project</code>) in the <code>origin</code> remote:</p>
+
+<pre><code class="language-yaml"># ~/.pablo/projects/billing.yaml
+name: billing
+type: work
+repo:
+  path: ~/dev/billing          # origin: git@gitlab.com:acme/platform/billing.git
+  primary_branch: main
+  # forge: gitlab              # only for a self-hosted GitLab whose host name
+                               # doesn't contain "gitlab"
+issue_tracker:
+  provider: gitlab
+  identity: your-gitlab-login
+  project_key: BIL             # GitLab issues are numbers too: the branch prefix (bil-12)
 </code></pre>
 
 <p>And a Jira project with a QA step and a CI gate to ignore:</p>
@@ -193,19 +209,26 @@ repo:
                               # start from and sync rebases onto, e.g. when origin
                               # is your fork (task branches are still pushed to
                               # their own remote, origin by default)
+  forge: github               # optional: github | gitlab, where pull (merge)
+                              # requests and CI live. Default: told by the
+                              # origin remote's host (github.com → github,
+                              # gitlab.com or a host containing "gitlab" →
+                              # gitlab); set it for a self-hosted GitLab
+                              # under any other name
 
 worktrees_root: ~/dev/wallet-kit-worktrees
                               # optional, default ~/.pablo/worktrees/&lt;repo folder name&gt;/
 
 issue_tracker:
-  provider: github            # required: github | jira | linear
+  provider: github            # required: github | gitlab | jira | linear
   identity: your-login        # required: whose issues are "assigned to me"
                               # (informational for Jira, which uses your acli login)
   project_key: WK             # required. Jira/Linear: the issue key prefix.
-                              # GitHub: the branch prefix (GitHub has no keys)
+                              # GitHub/GitLab: the branch prefix (no keys there)
   site: acme.atlassian.net    # Jira only, optional: the Atlassian site for links
-  repo: acme/upstream         # GitHub only, optional: where issues and pull requests
-                              # live, when you work on a fork
+  repo: acme/upstream         # GitHub/GitLab, optional: where issues and pull
+                              # requests live, when you work on a fork (on
+                              # GitLab, the full path: acme/platform/upstream)
 
 confluence:
   space: PIM                  # Jira only, optional: where agents look for docs
@@ -222,10 +245,12 @@ main_update:
 
 testing:
   enabled: true               # false: no QA step, approval is final
-  failure_signal: qa-failed   # GitHub: a pull request label. Jira/Linear: an issue status.
+  failure_signal: qa-failed   # GitHub/GitLab: a label on the pull (merge) request.
+                              # Jira/Linear: an issue status.
                               # Without it, testing-failed never triggers by itself.
 review:
   bot_whitelist: ["copilot-pull-request-reviewer"]   # GitHub Copilot's reviews
+                              # (on GitLab: the bot's username)
 ci:
   ignore_checks: ["approval"]
 yolo:
@@ -244,7 +269,7 @@ branch_prefix: pablo/
 
 <h3 id="ci-ignore-checks"><code>ci.ignore_checks</code></h3>
 
-<p>A list of words. Any check whose name, workflow or context <em>contains</em> one of them is left out when PABLO decides whether CI is red or green. Use it for checks that never finish on their own, such as CircleCI manual approval gates, which stay pending (or “action required”) forever and would otherwise keep the task in <code>draft</code>. It's deliberately simple: a substring match.</p>
+<p>A list of words. Any check whose name, workflow or context (on GitLab, any job whose name) <em>contains</em> one of them is left out when PABLO decides whether CI is red or green. Use it for checks that never finish on their own, such as CircleCI manual approval gates, which stay pending (or “action required”) forever and would otherwise keep the task in <code>draft</code>. It's deliberately simple: a substring match.</p>
 
 <h3>Startup script</h3>
 
@@ -259,7 +284,7 @@ branch_prefix: pablo/
 
 <ul>
   <li><b>Jira and Linear</b>: the issue's key, so <code>PIM-123</code> becomes <code>pim-123</code>.</li>
-  <li><b>GitHub</b>: the project's <code>issue_tracker.project_key</code> and the issue number: <code>project_key: WK</code> and issue #45 give <code>wk-45</code>.</li>
+  <li><b>GitHub and GitLab</b>: the project's <code>issue_tracker.project_key</code> and the issue number: <code>project_key: WK</code> and issue #45 give <code>wk-45</code>.</li>
   <li><b>Prompt tasks</b>: the project key and a short slug of the prompt, such as <code>wk-fix-callback-verification</code>. If the prompt mentions a Jira or Linear key from one of your projects, that issue's name is used instead.</li>
   <li>No title is added: the name is only those parts.</li>
   <li><b>Duplicates</b>: if the name is already taken, PABLO tries <code>-2</code>, <code>-3</code>, … until one is free. It never reuses or overwrites a branch.</li>

@@ -9,6 +9,7 @@ use Pablo\Domain\PrBadge;
 use Pablo\Domain\PrBadgeKind;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
+use Pablo\Provider\Forge\RepoRef;
 
 /**
  * One task of `pablo task:list`, resolved once (display cache or live fetch)
@@ -26,7 +27,7 @@ final readonly class TaskRow
         public string $prCell,
         public AgentCell $agentCell,
         public bool $waitingForFeedback,
-        public ?string $repoSlug,
+        public ?RepoRef $repo,
     ) {
     }
 
@@ -69,7 +70,7 @@ final readonly class TaskRow
             'tracker_status' => null === $issue || '?' === $this->tracker ? null : $this->tracker,
             'pr' => $pr->exists() ? [
                 'number' => $pr->number,
-                'url' => $pr->url($this->repoSlug),
+                'url' => $pr->url($this->repo),
                 'state' => $pr->kind->value,
                 'draft' => PrBadgeKind::Draft === $pr->kind,
             ] : null,

@@ -14,8 +14,8 @@ use Pablo\Domain\PrBadge;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Domain\Time;
-use Pablo\Provider\Gh\GhPrInterface;
-use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Forge\ForgeRegistryInterface;
+use Pablo\Provider\Forge\PrInfo;
 use Pablo\Provider\Tracker\ProviderRegistryInterface;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
@@ -48,7 +48,7 @@ final class Listing
 
     public function __construct(
         private readonly Stamps $stamps,
-        private readonly GhPrInterface $gh,
+        private readonly ForgeRegistryInterface $forges,
         private readonly ProviderRegistryInterface $providers,
         private readonly RepoSlug $repoSlug,
         private readonly Time $time,
@@ -245,7 +245,7 @@ final class Listing
             return PrBadge::fromTask($task, $prefetched[$task->branch] ?? null)->render();
         }
         try {
-            $pr = $this->gh->prForBranch($this->repoSlug->for($cfg), $task->branch);
+            $pr = $this->forges->for($cfg)->prForBranch($this->repoSlug->for($cfg), $task->branch);
         } catch (PabloError) {
             return "#{$task->prNumber}";
         }
@@ -458,30 +458,38 @@ final class Listing
      */
     private function prefetchPrs(array $tasks, array $projects, bool $fetchLive): array
     {
+        // Grouped by forge (one per GitLab host), then by repository: each
+        // forge reads its repositories in one parallel batch.
+        $forges = [];
         $branchesBySlug = [];
         foreach ($tasks as $task) {
             if ($task->merged || null === $task->prNumber || (!$fetchLive && null !== $task->displayCache->prState)) {
                 continue;
             }
-            $branchesBySlug[$this->repoSlug->for($projects[$task->project])][] = $task->branch;
-        }
-        if ([] === $branchesBySlug) {
-            return [];
-        }
-
-        $repoBranches = [];
-        foreach ($branchesBySlug as $slug => $branches) {
-            $repoBranches[] = [$slug, $branches];
+            $cfg = $projects[$task->project];
+            $forge = $this->forges->for($cfg);
+            $id = spl_object_id($forge);
+            $forges[$id] = $forge;
+            $branchesBySlug[$id][$this->repoSlug->for($cfg)][] = $task->branch;
         }
 
-        return $this->gh->prsForBranchesBulk($repoBranches);
+        $all = [];
+        foreach ($branchesBySlug as $id => $bySlug) {
+            $repoBranches = [];
+            foreach ($bySlug as $slug => $branches) {
+                $repoBranches[] = [(string) $slug, $branches];
+            }
+            $all += $forges[$id]->prsForBranchesBulk($repoBranches);
+        }
+
+        return $all;
     }
 
     private function taskRow(Task $task, ProjectConfig $cfg, AgentLauncherInterface $agents, TaskPrefetch $prefetch, bool $fetchLive): TaskRow
     {
         $tracker = $this->remoteStatusCell($task, $cfg, $fetchLive, $prefetch->trackerStatusesFor($cfg->tracker->provider));
-        $slug = $this->repoSlug->for($cfg);
-        $pr = $this->prCell($task, $cfg, $fetchLive, $prefetch->prsFor($slug));
+        $repo = $this->repoSlug->ref($cfg);
+        $pr = $this->prCell($task, $cfg, $fetchLive, $prefetch->prsFor($repo->slug));
         $cell = $this->agentCells($task, $fetchLive, $agents, $prefetch->sessionsFor($task));
 
         return new TaskRow(
@@ -492,7 +500,7 @@ final class Listing
             prCell: $pr,
             agentCell: $cell,
             waitingForFeedback: $this->isWaitingForFeedback($task, AgentActivity::fromDisplay((int) $cell->count, $cell->activity)),
-            repoSlug: $slug,
+            repo: $repo,
         );
     }
 
@@ -553,18 +561,17 @@ final class Listing
             }
             $info = null;
             try {
-                $info = $this->gh->prForBranch($this->repoSlug->for($cfg), $task->branch);
+                $info = $this->forges->for($cfg)->prForBranch($this->repoSlug->for($cfg), $task->branch);
             } catch (PabloError) {
                 // no PR found (or gh failed): the Slack line goes out without one
             }
             if (null !== $info) {
                 $pr = new SlackPr($info->number, $info->title, $info->url, $info->isDraft);
             } elseif (null !== $task->prNumber) {
-                $slug = $this->repoSlug->for($cfg);
                 $pr = new SlackPr(
                     $task->prNumber,
                     null !== $task->issue ? $task->issue->key : ($task->summary ?? ''),
-                    "https://github.com/{$slug}/pull/{$task->prNumber}",
+                    $this->repoSlug->ref($cfg)->prUrl($task->prNumber),
                     false,
                 );
             } else {

@@ -35,7 +35,7 @@ interface Provider
     /**
      * Issue status for multiple keys, run in parallel.
      *
-     * @param array<string, ProjectConfig> $issues issue key => project config
+     * @param array<array-key, ProjectConfig> $issues issue key => project config (PHP makes a GitHub/GitLab issue number an int key)
      *
      * @return array<string, string> key => status; failed keys mapped to '?'
      */

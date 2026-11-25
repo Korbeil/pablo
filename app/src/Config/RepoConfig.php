@@ -18,6 +18,9 @@ final class RepoConfig
         public readonly string $worktreesRoot,
         public readonly string $primaryRemote = 'origin',
         public readonly ?string $startupScript = null,
+        // repo.forge: github | gitlab, null = detected from the origin remote
+        // (Support\RepoSlug::ref()).
+        public readonly ?string $forge = null,
     ) {
     }
 
@@ -29,6 +32,7 @@ final class RepoConfig
         $path = PabloPaths::expandTilde((string) ConfigValues::required($project, 'repo.path', $file));
         $primaryBranch = (string) ConfigValues::required($project, 'repo.primary_branch', $file);
         $primaryRemote = (string) (ConfigValues::optional($project, 'repo.primary_remote') ?? 'origin');
+        $forge = ConfigValues::optional($project, 'repo.forge');
 
         $rawRoot = $project['worktrees_root'] ?? null;
         if (null !== $rawRoot && '' !== $rawRoot) {
@@ -44,6 +48,7 @@ final class RepoConfig
             worktreesRoot: $worktreesRoot,
             primaryRemote: $primaryRemote,
             startupScript: $startup ? PabloPaths::expandTilde((string) $startup) : null,
+            forge: null === $forge || '' === $forge ? null : (string) $forge,
         );
     }
 }

@@ -7,7 +7,7 @@ namespace Pablo\Command\Task;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
-use Pablo\Provider\Gh\GhPrInterface;
+use Pablo\Provider\Forge\ForgeRegistryInterface;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -20,7 +20,7 @@ final class RetriggerCiCommand extends Command
     use TargetsTask;
 
     public function __construct(
-        private readonly GhPrInterface $gh,
+        private readonly ForgeRegistryInterface $forges,
         private readonly RepoSlug $repoSlug,
         protected readonly Store $store,
         protected readonly Config $projectsLoader,
@@ -39,11 +39,12 @@ final class RetriggerCiCommand extends Command
         $store = $this->store;
         $ctx = $this->resolveTargetCtx($input);
         $repo = $this->repoSlug->for($ctx->cfg);
+        $forge = $this->forges->for($ctx->cfg);
         $lock = $store->taskLock($ctx->task->project, $ctx->task->branch);
         try {
-            $runIds = $this->gh->rerunCi($repo, $ctx->task->branch);
+            $runIds = $forge->rerunCi($repo, $ctx->task->branch);
             if (null !== $ctx->task->prNumber) {
-                $this->gh->markDraft($repo, $ctx->task->prNumber);
+                $forge->markDraft($repo, $ctx->task->prNumber);
             }
         } finally {
             $lock->release();

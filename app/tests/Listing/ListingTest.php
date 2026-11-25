@@ -19,7 +19,7 @@ use Pablo\Domain\Time;
 use Pablo\Listing\AgentCell;
 use Pablo\Listing\Listing;
 use Pablo\Listing\TaskRow;
-use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Forge\PrInfo;
 use Pablo\Provider\Tracker\Provider;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
@@ -79,7 +79,7 @@ final class ListingTest extends TestCase
     private ProjectConfig $cfg;
     private Store $store;
     private FakeAgents $agents;
-    private \Pablo\Tests\FakeGhPr $gh;
+    private \Pablo\Tests\FakeForge $gh;
     private Listing $listing;
     private FakeProvider $provider;
 
@@ -113,7 +113,7 @@ final class ListingTest extends TestCase
         $this->provider = new FakeProvider();
         $this->provider->status = 'In Progress';
 
-        $this->gh = new \Pablo\Tests\FakeGhPr();
+        $this->gh = new \Pablo\Tests\FakeForge();
         $providers = new class($this->provider) implements \Pablo\Provider\Tracker\ProviderRegistryInterface {
             public function __construct(private readonly Provider $provider)
             {
@@ -566,7 +566,7 @@ final class ListingTest extends TestCase
         };
         $task = $this->task('wk-45', State::CiRed, 7, new Issue('github', '45', 'u', 'Fix callbacks', 'WK'));
         $rows = [
-            new TaskRow($task, 'ci-red', '🔴', 'In Review', '📖 open #7', new AgentCell('1', '💤 1'), true, 'acme/wallet-kit'),
+            new TaskRow($task, 'ci-red', '🔴', 'In Review', '📖 open #7', new AgentCell('1', '💤 1'), true, new \Pablo\Provider\Forge\RepoRef('github', 'github.com', 'acme/wallet-kit')),
             new TaskRow($this->task('wk-46', State::Draft, null, null, 'docs'), 'draft', '', 'N/A', '-', new AgentCell('0', '-'), false, null),
         ];
 
@@ -607,6 +607,6 @@ final class ListingTest extends TestCase
         $this->assertStringContainsString('#7', $rows[0]->prCell);
         $this->assertSame('1', $rows[0]->agentCell->count);
         $this->assertTrue($rows[0]->waitingForFeedback);
-        $this->assertSame('acme/wallet-kit', $rows[0]->repoSlug);
+        $this->assertSame('acme/wallet-kit', $rows[0]->repo?->slug);
     }
 }

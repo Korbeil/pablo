@@ -11,7 +11,7 @@ use Pablo\Config\SyncConfig;
 use Pablo\Config\TrackerConfig;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
-use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Forge\PrInfo;
 use Pablo\Provider\Git\Sync;
 use Pablo\Store\Store;
 use Pablo\Support\RepoSlug;
@@ -20,12 +20,12 @@ use PHPUnit\Framework\TestCase;
 
 final class SyncTest extends TestCase
 {
-    private \Pablo\Tests\FakeGhPr $gh;
+    private \Pablo\Tests\FakeForge $gh;
 
     private function sync(): Sync
     {
         if (!isset($this->gh)) {
-            $this->gh = new \Pablo\Tests\FakeGhPr();
+            $this->gh = new \Pablo\Tests\FakeForge();
         }
 
         $slugGit = new \Pablo\Tests\FakeGit();
@@ -255,7 +255,7 @@ final class SyncTest extends TestCase
         RepoHelper::commitFile($this->other, 'main-only.txt', "m\n", 'advance main');
         RepoHelper::git($this->other, ['push', '-q', 'origin', 'main']);
 
-        $this->gh = new \Pablo\Tests\FakeGhPr();
+        $this->gh = new \Pablo\Tests\FakeForge();
         $this->gh->prByBranch = [
             'pr-1' => new PrInfo(1, 'Child', $prState, false, 'u1', null, $base),
         ];

@@ -36,9 +36,11 @@ traces, reproduction steps.
 
 Ground the plan in the real code: grep/glob for the classes, routes,
 config keys or errors the ticket mentions; read the relevant ranges;
-`git log`/`git blame` the affected area; `gh pr list --search "<KEY>"`
-for related PRs; map stack-trace frames to project lines. If the repo
-looks unrelated to the ticket, say so instead of inventing paths.
+`git log`/`git blame` the affected area; map stack-trace frames to
+project lines. If the repo looks unrelated to the ticket, say so instead
+of inventing paths. Related pull/merge requests:
+
+{{FORGE:related}}
 
 ## Output format
 

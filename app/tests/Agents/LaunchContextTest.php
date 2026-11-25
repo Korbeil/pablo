@@ -32,6 +32,101 @@ final class LaunchContextTest extends TestCase
         $this->context = new LaunchContext($this->runner, new RepoSlug(new FakeGit()));
     }
 
+    /** A GitLab project: its context comes from glab, on its own host. */
+    private function gitlab(): ProjectConfig
+    {
+        $git = new FakeGit();
+        $git->originUrl = 'git@gitlab.acme.io:platform/wallet-kit.git';
+        $this->context = new LaunchContext($this->runner, new RepoSlug($git));
+
+        return new ProjectConfig(
+            name: 'wallet-kit',
+            type: 'work',
+            repo: new RepoConfig(path: '/nonexistent', primaryBranch: 'main', worktreesRoot: '/nonexistent/wt'),
+            tracker: new TrackerConfig(provider: 'gitlab', identity: 'me', projectKey: 'WK'),
+            sync: new SyncConfig(strategy: 'rebase', autoApply: false, intervalMinutes: 30),
+            statePolling: new StatePollingConfig(10),
+            defaultModel: 'm',
+            prDescriptionLocale: 'en',
+            ci: new CiConfig(ignoreChecks: ['danger']),
+        );
+    }
+
+    public function testGitlabIssueBlockSkipsSystemNotes(): void
+    {
+        $cfg = $this->gitlab();
+        $this->runner->onRun = static function (array $argv): string {
+            $endpoint = (string) end($argv);
+            if (str_contains($endpoint, '/notes')) {
+                return (string) json_encode([
+                    ['system' => true, 'body' => 'added ~bug label', 'author' => ['username' => 'bot'], 'created_at' => '2026-03-01'],
+                    ['system' => false, 'body' => 'Repro on staging', 'author' => ['username' => 'qa'], 'created_at' => '2026-03-02'],
+                ]);
+            }
+
+            return (string) json_encode(['title' => 'Fix callbacks', 'state' => 'opened', 'labels' => ['bug'], 'description' => 'Callbacks fire twice.']);
+        };
+
+        $prompt = $this->context->augment(Agent::TaskAnalyst, $this->task(new Issue('gitlab', '45', 'u', 'Fix callbacks', 'WK')), $cfg, 'Analyze.');
+
+        $this->assertStringContainsString('### GitLab issue #45: Fix callbacks', $prompt);
+        $this->assertStringContainsString('Labels: bug', $prompt);
+        $this->assertStringContainsString('Repro on staging', $prompt);
+        $this->assertStringNotContainsString('added ~bug label', $prompt);
+        $this->assertSame(['glab', 'api', '--hostname', 'gitlab.acme.io', 'projects/platform%2Fwallet-kit/issues/45'], $this->runner->calls[0][0]);
+    }
+
+    public function testGitlabCiBlockListsBlockingFailedJobsWithTheirTrace(): void
+    {
+        $cfg = $this->gitlab();
+        $this->runner->onRun = static function (array $argv): string {
+            if (\in_array('graphql', $argv, true)) {
+                return (string) json_encode(['data' => ['project' => ['mergeRequest' => ['headPipeline' => [
+                    'webPath' => '/platform/wallet-kit/-/pipelines/77',
+                    'jobs' => ['nodes' => [
+                        ['id' => 'gid://gitlab/Ci::Build/501', 'name' => 'phpunit', 'allowFailure' => false, 'webPath' => '/platform/wallet-kit/-/jobs/501', 'stage' => ['name' => 'test']],
+                        ['id' => 'gid://gitlab/Ci::Build/502', 'name' => 'audit', 'allowFailure' => true, 'webPath' => '/platform/wallet-kit/-/jobs/502', 'stage' => ['name' => 'test']],
+                        ['id' => 'gid://gitlab/Ci::Build/503', 'name' => 'danger', 'allowFailure' => false, 'webPath' => '/platform/wallet-kit/-/jobs/503', 'stage' => ['name' => 'review']],
+                    ]],
+                ]]]]]);
+            }
+
+            return "section_start:1700000000:step_script\r\e[0KRunning tests\n\e[31;1mFAILED\e[0m tests/FooTest.php\nsection_end:1700000001:step_script\r\e[0K\nCleaning up project directory and file based variables\nnoise";
+        };
+
+        $prompt = $this->context->augment(Agent::CiAnalyst, $this->task(), $cfg, 'Fix CI.');
+
+        $this->assertStringContainsString('### Failing jobs on MR !12 (pipeline https://gitlab.acme.io/platform/wallet-kit/-/pipelines/77)', $prompt);
+        $this->assertStringContainsString('- test / phpunit — failed — https://gitlab.acme.io/platform/wallet-kit/-/jobs/501', $prompt);
+        $this->assertStringNotContainsString('audit', $prompt, 'an allowed failure is no blocker');
+        $this->assertStringNotContainsString('danger', $prompt, 'ci.ignore_checks applies');
+        $this->assertStringContainsString('FAILED tests/FooTest.php', $prompt);
+        $this->assertStringNotContainsString('section_start', $prompt);
+        $this->assertStringNotContainsString('noise', $prompt);
+        $this->assertSame('projects/platform%2Fwallet-kit/jobs/501/trace', end($this->runner->calls[1][0]));
+    }
+
+    public function testGitlabReviewBlockKeepsUnresolvedThreadsAndComments(): void
+    {
+        $cfg = $this->gitlab();
+        $this->runner->onRun = static fn (): string => (string) json_encode([
+            ['notes' => [['id' => 1, 'system' => true, 'body' => 'approved this merge request', 'author' => ['username' => 'alice']]]],
+            ['notes' => [['id' => 2, 'system' => false, 'resolvable' => true, 'resolved' => false, 'body' => 'Rename this', 'author' => ['username' => 'alice'], 'position' => ['new_path' => 'src/A.php', 'new_line' => 7]]]],
+            ['notes' => [['id' => 3, 'system' => false, 'resolvable' => true, 'resolved' => true, 'body' => 'Done already', 'author' => ['username' => 'bob']]]],
+            ['notes' => [['id' => 4, 'system' => false, 'resolvable' => false, 'body' => 'Looks good overall', 'author' => ['username' => 'bob']]]],
+        ]);
+
+        $prompt = $this->context->augment(Agent::PrFeedback, $this->task(), $cfg, 'Plan.');
+
+        $this->assertStringContainsString('### Open review feedback on MR !12', $prompt);
+        $this->assertStringContainsString('1 unresolved threads, 1 comments', $prompt);
+        $this->assertStringContainsString('`src/A.php:7`', $prompt);
+        $this->assertStringContainsString('**alice** https://gitlab.acme.io/platform/wallet-kit/-/merge_requests/12#note_2', $prompt);
+        $this->assertStringContainsString('Looks good overall', $prompt);
+        $this->assertStringNotContainsString('Done already', $prompt);
+        $this->assertStringNotContainsString('approved this merge request', $prompt);
+    }
+
     /** @param list<string> $ciIgnoreChecks */
     private function cfg(array $ciIgnoreChecks = []): ProjectConfig
     {

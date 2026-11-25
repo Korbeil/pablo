@@ -11,7 +11,7 @@ use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\State;
 use Pablo\Domain\Time;
-use Pablo\Provider\Gh\GhPrInterface;
+use Pablo\Provider\Forge\ForgeRegistryInterface;
 use Pablo\Store\Store;
 use Pablo\Store\TaskLockedException;
 use Pablo\Support\Files;
@@ -47,7 +47,7 @@ final class Sync
 
     public function __construct(
         private readonly GitRepoInterface $git,
-        private readonly GhPrInterface $gh,
+        private readonly ForgeRegistryInterface $forges,
         private readonly RepoSlug $repoSlug,
         private readonly Time $time,
         private readonly AgentRuntimeRegistry $runtimes,
@@ -76,11 +76,11 @@ final class Sync
 
     /**
      * The branch a task's PR is stacked on, if it differs from the primary.
-     * PRs live on GitHub whatever the issue tracker (a Jira- or Linear-tracked
-     * repo still has GitHub PRs), so this keys off the repo being on GitHub,
-     * not `issue_tracker.provider`. A repo that is not on GitHub, and any
-     * branch without an open PR targeting a non-primary base, syncs against
-     * the primary. A gh failure propagates: falling back to the primary would
+     * PRs live on the repo's forge whatever the issue tracker (a Jira- or
+     * Linear-tracked repo still has GitHub PRs or GitLab MRs), so this keys
+     * off the repo's forge, not `issue_tracker.provider`. A repo on neither
+     * forge, and any branch without an open PR targeting a non-primary base,
+     * syncs against the primary. A forge failure propagates: falling back to the primary would
      * silently rebase a stacked branch onto main and break the stack.
      *
      * @param list<string> $branches
@@ -95,10 +95,11 @@ final class Sync
         }
         try {
             $slug = $this->repoSlug->for($cfg);
+            $forge = $this->forges->for($cfg);
         } catch (PabloError) {
-            return $baseByBranch; // not a GitHub repo: no PRs to stack on
+            return $baseByBranch; // neither a GitHub nor a GitLab repo: no PRs to stack on
         }
-        $prs = $this->gh->prsForBranches($slug, $branches);
+        $prs = $forge->prsForBranches($slug, $branches);
         foreach ($branches as $branch) {
             $pr = $prs[$branch] ?? null;
             if (null === $pr || 'OPEN' !== $pr->state) {

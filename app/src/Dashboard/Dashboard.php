@@ -10,6 +10,7 @@ use Pablo\Domain\AgentActivity;
 use Pablo\Domain\PrBadge;
 use Pablo\Domain\Task;
 use Pablo\Listing\Listing;
+use Pablo\Provider\Forge\RepoRef;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Support\RepoSlug;
@@ -39,8 +40,8 @@ final class Dashboard
      */
     public const TYPES = ['', 'work', 'open-source', 'personal'];
 
-    /** @var array<string, ?string> memoised repo slugs, keyed by project name */
-    private array $slugs = [];
+    /** @var array<string, ?RepoRef> memoised repositories, keyed by project name */
+    private array $repos = [];
 
     public function __construct(
         private readonly Store $store,
@@ -172,7 +173,7 @@ final class Dashboard
             stateLabel: $task->state->label(),
             agents: $agents,
             pr: $pr,
-            prUrl: $pr->url($this->slugFor($cfg)),
+            prUrl: $pr->url($this->repoFor($cfg)),
             issue: $task->issue,
             summary: $task->summary,
             trackerStatus: $cache->trackerStatus,
@@ -187,16 +188,16 @@ final class Dashboard
     }
 
     /** One local `git remote get-url origin` per project, memoised. */
-    private function slugFor(ProjectConfig $cfg): ?string
+    private function repoFor(ProjectConfig $cfg): ?RepoRef
     {
-        if (\array_key_exists($cfg->name, $this->slugs)) {
-            return $this->slugs[$cfg->name];
+        if (\array_key_exists($cfg->name, $this->repos)) {
+            return $this->repos[$cfg->name];
         }
 
         try {
-            return $this->slugs[$cfg->name] = $this->repoSlug->for($cfg);
+            return $this->repos[$cfg->name] = $this->repoSlug->ref($cfg);
         } catch (PabloError) {
-            return $this->slugs[$cfg->name] = null;
+            return $this->repos[$cfg->name] = null;
         }
     }
 }

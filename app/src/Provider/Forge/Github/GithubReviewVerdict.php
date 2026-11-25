@@ -2,17 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Provider\Gh;
+namespace Pablo\Provider\Forge\Github;
+
+use Pablo\Provider\Forge\ReviewVerdict;
 
 /**
- * The pure review evaluation behind GhPrInterface::reviewVerdict(): no gh
+ * The pure review evaluation behind ForgeInterface::reviewVerdict(): no gh
  * call, so every rule of site/content/states.html#reviews is tested directly.
  */
-final class ReviewVerdict
+final class GithubReviewVerdict
 {
-    public const APPROVED = 'approved';
-    public const CHANGES = 'changes';
-
     /**
      * @param list<ReviewNode>   $reviews
      * @param list<ReviewThread> $threads      — unresolved threads keep a comment
@@ -21,7 +20,7 @@ final class ReviewVerdict
      *                                         counts as addressed
      * @param list<string>       $botWhitelist
      *
-     * @return self::APPROVED|self::CHANGES|null
+     * @return ReviewVerdict::APPROVED|ReviewVerdict::CHANGES|null
      */
     public static function evaluate(array $reviews, array $threads, \DateTimeImmutable $anchor, string $author, array $botWhitelist): ?string
     {
@@ -79,10 +78,10 @@ final class ReviewVerdict
             $verdicts[$node->state] = true;
         }
         if (isset($verdicts['CHANGES_REQUESTED']) || isset($verdicts['COMMENTED'])) {
-            return self::CHANGES;
+            return ReviewVerdict::CHANGES;
         }
         if (isset($verdicts['APPROVED'])) {
-            return self::APPROVED;
+            return ReviewVerdict::APPROVED;
         }
 
         return null;

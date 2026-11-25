@@ -37,7 +37,7 @@ Then watch your tasks on http://127.0.0.1:8321 or with `pablo task:list`.
 
 - Linux or macOS;
 - git;
-- [`gh`](https://cli.github.com/), logged in (`gh auth login`);
+- the CLI of your forge, logged in: [`gh`](https://cli.github.com/) for GitHub (`gh auth login`), [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab (`glab auth login`);
 - curl, and `sha256sum` or `shasum`, to download and verify PABLO;
 - a runtime, the agent CLI: [OpenCode](https://opencode.ai) (default), [Claude Code](https://code.claude.com/docs) or [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli) (experimental);
 - an agent environment (ADE), where agents run: [Orca](https://www.onorca.dev/) (default), [OpenChamber](https://openchamber.dev/) (OpenCode only), or none (headless: agents run in the background).
@@ -47,7 +47,7 @@ Using Jira or Linear (experimental), or want the details, such as setting your m
 
 ## What PABLO never does
 
-Agents propose; you decide. PABLO writes no code of its own: only the rebase conflict resolver agent edits files, to replay your branch. It never touches your issue tracker (GitHub Issues, Jira, Linear stay read-only), never merges or closes a pull request, and never comments or reviews. It never writes a commit of its own: commits happen only when you run `/pablo-commit-and-pr`, which also pushes. It pushes otherwise only with sync's `sync.auto_apply` (off by default), which rebases (or merges, per `sync.strategy`) a clean worktree onto its base branch and pushes with `--force-with-lease`, never plain `--force`, and when the conflict resolver pushes its replay of such a rebase the same way. The one opt-in exception is [YOLO mode](https://getpablo.dev/docs/yolo/) (off by default, per project or per task): after each plan, your runtime's build agent implements it and PABLO runs `/pablo-commit-and-pr` for you. The full list: [What PABLO may change](https://getpablo.dev/docs/safety/).
+Agents propose; you decide. PABLO writes no code of its own: only the rebase conflict resolver agent edits files, to replay your branch. It never touches your issue tracker (GitHub Issues, GitLab issues, Jira, Linear stay read-only), never merges or closes a pull request (or GitLab merge request), and never comments or reviews. It never writes a commit of its own: commits happen only when you run `/pablo-commit-and-pr`, which also pushes. It pushes otherwise only with sync's `sync.auto_apply` (off by default), which rebases (or merges, per `sync.strategy`) a clean worktree onto its base branch and pushes with `--force-with-lease`, never plain `--force`, and when the conflict resolver pushes its replay of such a rebase the same way. The one opt-in exception is [YOLO mode](https://getpablo.dev/docs/yolo/) (off by default, per project or per task): after each plan, your runtime's build agent implements it and PABLO runs `/pablo-commit-and-pr` for you. The full list: [What PABLO may change](https://getpablo.dev/docs/safety/).
 
 ## Learn more
 

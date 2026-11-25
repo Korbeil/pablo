@@ -34,17 +34,20 @@
 
 <p>Where a task stands in PABLO's state machine (<code>in-progress</code>, <code>draft</code>, <code>ci-red</code>, <code>waiting-review</code>…). Entering a state may launch an agent. See <a href="page:states#every-state">Every state</a>.</p>
 
+<h3 id="forge">Forge</h3>
+<p>Where a project's pull requests and CI live: GitHub (<code>gh</code>) or GitLab (<code>glab</code>, where a pull request is a merge request). Told by the repository's <code>origin</code> remote, or set with <code>repo.forge</code>. See <a href="page:providers#forges">Forges</a>.</p>
+
 <h3 id="failure-signal">Failure signal</h3>
 
-<p>How QA says a task failed testing: a label on the pull request (GitHub) or an issue status (Jira, Linear), set by <code>testing.failure_signal</code>. Only a new one moves a task to <code>testing-failed</code>. See <a href="page:states#qa-failure-signal">QA failure signal</a>.</p>
+<p>How QA says a task failed testing: a label on the pull request (GitHub, GitLab) or an issue status (Jira, Linear), set by <code>testing.failure_signal</code>. Only a new one moves a task to <code>testing-failed</code>. See <a href="page:states#qa-failure-signal">QA failure signal</a>.</p>
 
 <h3 id="ready-anchor">Ready anchor</h3>
 
-<p>The time of GitHub's last “ready for review” event on a pull request. Only reviews submitted after it count, so an approval from a previous round doesn't leak into this one. See <a href="page:states#reviews">Reviews</a>.</p>
+<p>The time of the forge's last “ready for review” event on a pull request (on GitLab, “marked this merge request as ready”). Only reviews submitted after it count, so an approval from a previous round doesn't leak into this one. See <a href="page:states#reviews">Reviews</a>.</p>
 
 <h3 id="display-cache">Display cache</h3>
 
-<p>The rendered cells of <code>pablo task:list</code>, written into each task record by the poller, so the listing and the dashboard show instantly without calling GitHub. See <a href="page:storage#task-records">Task records</a>.</p>
+<p>The rendered cells of <code>pablo task:list</code>, written into each task record by the poller, so the listing and the dashboard show instantly without calling GitHub, GitLab or the tracker. See <a href="page:storage#task-records">Task records</a>.</p>
 
 <h2>The background job</h2>
 

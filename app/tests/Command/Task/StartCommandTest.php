@@ -20,7 +20,7 @@ use Pablo\Support\TaskSummarizer;
 use Pablo\Task\TaskStarter;
 use Pablo\Tests\FakeAgents;
 use Pablo\Tests\FakeAnalytics;
-use Pablo\Tests\FakeGhPr;
+use Pablo\Tests\FakeForge;
 use Pablo\Tests\FakeGit;
 use Pablo\Tests\FakeProcessRunner;
 use Pablo\Tests\TempDir;
@@ -209,7 +209,7 @@ YAML,
         $time = new Time();
         $repoSlug = new RepoSlug($this->git);
         $registry = $this->currentProviders;
-        $gh = new FakeGhPr();
+        $gh = new FakeForge();
         $sm = new StateMachine($gh, $registry, $repoSlug, $time, \Pablo\Tests\Registries::hooks());
         $starter = new TaskStarter(
             $this->currentProviders,

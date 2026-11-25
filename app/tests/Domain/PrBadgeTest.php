@@ -8,7 +8,7 @@ use Pablo\Domain\PrBadge;
 use Pablo\Domain\PrBadgeKind;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
-use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Forge\PrInfo;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -104,8 +104,8 @@ final class PrBadgeTest extends TestCase
     public function testUrl(): void
     {
         $badge = new PrBadge(PrBadgeKind::Open, 42);
-        $this->assertSame('https://github.com/acme/web/pull/42', $badge->url('acme/web'));
+        $this->assertSame('https://github.com/acme/web/pull/42', $badge->url(new \Pablo\Provider\Forge\RepoRef('github', 'github.com', 'acme/web')));
         $this->assertNull($badge->url(null));
-        $this->assertNull((new PrBadge(PrBadgeKind::Merged))->url('acme/web'));
+        $this->assertNull((new PrBadge(PrBadgeKind::Merged))->url(new \Pablo\Provider\Forge\RepoRef('github', 'github.com', 'acme/web')));
     }
 }

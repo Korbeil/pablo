@@ -9,7 +9,8 @@ use Pablo\Command\Command;
 use Pablo\Command\UsesProjects;
 use Pablo\Config\Config;
 use Pablo\Config\ProjectConfig;
-use Pablo\Provider\Gh\GhPrInterface;
+use Pablo\Provider\Forge\ForgeInterface;
+use Pablo\Provider\Forge\ForgeRegistryInterface;
 use Pablo\Store\Store;
 use Pablo\Support\Files;
 use Pablo\Support\Json;
@@ -23,7 +24,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 /**
  * One-off history repair: task_closed events written before the poller fix
  * recorded merged=false even when the PR was in fact merged. Re-checks every
- * such event against GitHub and flips merged to true where the PR is MERGED,
+ * such event against the forge (GitHub or GitLab) and flips merged to true where the PR is MERGED,
  * rewriting the affected month files atomically. Append-only applies to the
  * engine's normal writes; this command exists precisely to correct bad
  * history, so it rewrites lines in place.
@@ -34,7 +35,7 @@ final class RepairMergeFlagsCommand extends Command
     use UsesProjects;
 
     public function __construct(
-        private readonly GhPrInterface $gh,
+        private readonly ForgeRegistryInterface $forges,
         private readonly RepoSlug $repoSlug,
         protected readonly Store $store,
         protected readonly Config $projectsLoader,
@@ -62,7 +63,7 @@ final class RepairMergeFlagsCommand extends Command
         }
 
         $projects = $this->projects();
-        /** @var array<string, string> $slugs */
+        /** @var array<string, array{0: string, 1: ForgeInterface}> $slugs */
         $slugs = [];
         /** @var array<string, bool> $mergedCache keyed "slug#number" */
         $mergedCache = [];
@@ -91,7 +92,7 @@ final class RepairMergeFlagsCommand extends Command
                 }
                 $perProject[$project] ??= ['repaired' => 0, 'unmerged' => 0, 'skipped' => 0];
                 try {
-                    $slug = $this->slugFor($projects, $project, $slugs);
+                    [$slug, $forge] = $this->slugFor($projects, $project, $slugs);
                 } catch (PabloError $e) {
                     $output->writeln("<comment>skip {$project}: {$e->getMessage()}</comment>");
                     ++$perProject[$project]['skipped'];
@@ -101,7 +102,7 @@ final class RepairMergeFlagsCommand extends Command
                 $prNumber = (int) $event['pr_number'];
                 $key = $slug.'#'.$prNumber;
                 try {
-                    $isMerged = $mergedCache[$key] ??= 'MERGED' === $this->gh->prState($slug, $prNumber);
+                    $isMerged = $mergedCache[$key] ??= 'MERGED' === $forge->prState($slug, $prNumber);
                 } catch (\Throwable $e) {
                     $output->writeln("<comment>skip {$project}#{$prNumber}: {$e->getMessage()}</comment>");
                     ++$perProject[$project]['skipped'];
@@ -158,19 +159,21 @@ final class RepairMergeFlagsCommand extends Command
     }
 
     /**
-     * @param array<string, ProjectConfig> $projects
-     * @param array<string, string>        $slugs
+     * @param array<string, ProjectConfig>                       $projects
+     * @param array<string, array{0: string, 1: ForgeInterface}> $slugs
+     *
+     * @return array{0: string, 1: ForgeInterface} the project's repo slug and forge
      */
-    private function slugFor(array $projects, string $project, array &$slugs): string
+    private function slugFor(array $projects, string $project, array &$slugs): array
     {
         if (isset($slugs[$project])) {
             return $slugs[$project];
         }
         $cfg = $projects[$project] ?? null;
         if (null === $cfg) {
-            throw new PabloError('no config under projects/ — cannot resolve the GitHub repo');
+            throw new PabloError('no config under projects/ — cannot resolve the repository');
         }
-        $slugs[$project] = $this->repoSlug->for($cfg);
+        $slugs[$project] = [$this->repoSlug->for($cfg), $this->forges->for($cfg)];
 
         return $slugs[$project];
     }

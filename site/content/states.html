@@ -48,7 +48,7 @@
     <tr><td>🥱 <code>waiting</code></td><td><code>pablo task:waiting</code></td><td>remember the previous state</td></tr>
     <tr><td>📝 <code>draft</code></td><td><code>/pablo-commit-and-pr</code></td><td>—</td></tr>
     <tr><td>🔴 <code>ci-red</code></td><td>poller: a check failed</td><td>launch <b>ci-analyst</b></td></tr>
-    <tr><td><code>ready-to-review</code></td><td>poller: CI is green</td><td>mark the pull request ready on GitHub, then move straight to <code>waiting-review</code></td></tr>
+    <tr><td><code>ready-to-review</code></td><td>poller: CI is green</td><td>mark the pull request ready on its forge (GitHub, or GitLab for a merge request), then move straight to <code>waiting-review</code></td></tr>
     <tr><td>👀 <code>waiting-review</code></td><td>right after <code>ready-to-review</code></td><td>— (the task waits for reviewers)</td></tr>
     <tr><td>✅ <code>approved</code></td><td>poller: the review is approved</td><td>move straight to <code>needs-testing</code>, unless the project has no QA step: then it stays here until merged</td></tr>
     <tr><td>🧪 <code>needs-testing</code></td><td>right after <code>approved</code></td><td>record the time, as the baseline for QA signals</td></tr>
@@ -90,12 +90,13 @@
   <li><b>No checks at all counts as green</b>, otherwise a project without CI could never leave draft.</li>
   <li><b>A cancelled check is not a failure.</b> When a workflow runs more than once on the same commit, only its latest run counts, so a run cancelled or failed and then superseded by a newer one no longer turns the task red.</li>
   <li>Checks whose name matches <a href="page:configuration#ci-ignore-checks"><code>ci.ignore_checks</code></a> are left out.</li>
-  <li>If CI turns red during review (after a sync push, for example), the task goes to <code>ci-red</code> and comes back the usual way. The pull request never left “ready” on GitHub, so reviews given before the blip still count.</li>
+  <li>If CI turns red during review (after a sync push, for example), the task goes to <code>ci-red</code> and comes back the usual way. The pull request never left “ready” on its forge, so reviews given before the blip still count.</li>
+  <li><b>On GitLab</b>, the checks are the jobs of the merge request's head pipeline, each by its latest run. A job allowed to fail never turns CI red, and a manual job never keeps it pending (see <a href="page:providers#gitlab">GitLab</a>).</li>
 </ul>
 
 <h3 id="reviews">Reviews</h3>
 
-<p>From <code>waiting-review</code>, the poller reads the pull request's reviews and decides between <code>approved</code> and <code>request-changes</code>:</p>
+<p>From <code>waiting-review</code>, the poller reads the pull request's reviews and decides between <code>approved</code> and <code>request-changes</code>. On GitHub:</p>
 
 <ul>
   <li><b>Your own reviews never count.</b> Replying to a comment on your own pull request creates a review in your name; it shouldn't send you back to draft.</li>
@@ -104,12 +105,22 @@
   <li><b>The latest review of each reviewer wins.</b> Every review and every comment thread is read, however long the pull request: each reply to a comment is a review of its own, so a busy pull request can hold hundreds.</li>
   <li><b>Resolved comments clear a comment review.</b> A review whose comment threads were all resolved, and that carries no top-level body text, no longer counts as a changes signal — resolving is the reviewer's way of saying "addressed". A non-empty review body without a thread to resolve keeps counting, and resolving threads never withdraws an explicit “changes requested” verdict.</li>
   <li><b>Any “changes requested” or plain comment review beats every approval.</b> If someone took the time to write, you read it before QA.</li>
-  <li><b>Back to review once everything is addressed (only from <code>request-changes</code>).</b> Once <b>pr-feedback</b> has finished and no review signal stands anymore (every comment review cleared by resolving its threads, no “changes requested” verdict, and no approval either, since an approval would move the task to <code>approved</code> instead), the poller puts the pull request back to review itself: it marks it ready on GitHub and settles the task in <code>waiting-review</code>. Nothing is committed or pushed — address the feedback in the worktree and let the reviewers look again.</li>
+  <li><b>Back to review once everything is addressed (only from <code>request-changes</code>).</b> Once <b>pr-feedback</b> has finished and no review signal stands anymore (every comment review cleared by resolving its threads, no “changes requested” verdict, and no approval either, since an approval would move the task to <code>approved</code> instead), the poller puts the pull request back to review itself: it marks it ready on its forge and settles the task in <code>waiting-review</code>. Nothing is committed or pushed — address the feedback in the worktree and let the reviewers look again.</li>
+</ul>
+
+<p id="gitlab-reviews">On GitLab, a merge request has no reviews of its own, only approvals, each reviewer's review state and discussions. The same rules apply to them:</p>
+
+<ul>
+  <li><b>Your own signals never count, nor a bot's</b> unless <code>review.bot_whitelist</code> names its username.</li>
+  <li><b>Only signals after the last “marked this merge request as ready” event count</b> (else, after the merge request was created).</li>
+  <li><b>Changes</b>: a reviewer whose review state is “Request changes” (GitLab 17.2 and later), until they review again; or an unresolved thread holding a reviewer's comment posted after that event. Resolving the thread clears it. A plain comment, not a thread, doesn't count, like a GitHub conversation comment.</li>
+  <li><b>Approved</b>: a current approval given after that event. GitLab itself drops approvals on a new push when the project says so.</li>
+  <li><b>Changes beat every approval</b>, and <code>request-changes</code> goes back to review once none stands, as on GitHub.</li>
 </ul>
 
 <h3>QA failure signal</h3>
 
-<p>From <code>needs-testing</code>, the task moves to <code>testing-failed</code> when the project's <code>testing.failure_signal</code> fires: a label added to the pull request (GitHub), or the issue reaching a status (Jira, Linear). It must be a <b>new</b> event, newer than both the task's entry into <code>needs-testing</code> and the last signal already handled. An old label never triggers, and a label that stays never triggers twice. PABLO never removes the label or touches the issue.</p>
+<p>From <code>needs-testing</code>, the task moves to <code>testing-failed</code> when the project's <code>testing.failure_signal</code> fires: a label added to the pull request (GitHub, GitLab), or the issue reaching a status (Jira, Linear). It must be a <b>new</b> event, newer than both the task's entry into <code>needs-testing</code> and the last signal already handled. An old label never triggers, and a label that stays never triggers twice. PABLO never removes the label or touches the issue.</p>
 
 <h3>Known gaps, on purpose</h3>
 

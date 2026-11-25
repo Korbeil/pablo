@@ -6,7 +6,7 @@ namespace Pablo\Listing;
 
 use Pablo\Agents\SessionInfo;
 use Pablo\Domain\Task;
-use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Forge\PrInfo;
 
 /**
  * What `pablo task:list` fetched in bulk before building its rows: agent

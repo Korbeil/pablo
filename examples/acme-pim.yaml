@@ -7,6 +7,10 @@ type: work
 repo:
   path: ~/Sites/acme/pim
   primary_branch: main
+  # forge: gitlab            # github | gitlab: where pull/merge requests and CI
+                             # live. Detected from the origin remote; set it only
+                             # for a self-hosted GitLab whose host name doesn't
+                             # contain "gitlab"
 issue_tracker:
   provider: jira
   identity: acme@example.com

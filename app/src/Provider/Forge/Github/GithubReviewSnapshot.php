@@ -2,13 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Provider\Gh;
+namespace Pablo\Provider\Forge\Github;
+
+use Pablo\Provider\Forge\ReviewSnapshot;
+use Pablo\Provider\Forge\ReviewVerdict;
 
 /**
- * Everything GhPrInterface::reviewVerdict() reads of one PR: its author,
+ * Everything ForgeInterface::reviewVerdict() reads of one PR: its author,
  * every review and thread, and GitHub's last "ready for review" anchor.
  */
-final readonly class ReviewSnapshot
+final readonly class GithubReviewSnapshot implements ReviewSnapshot
 {
     public function __construct(
         public PrReviews $reviews,
@@ -23,6 +26,6 @@ final readonly class ReviewSnapshot
      */
     public function verdict(array $botWhitelist): ?string
     {
-        return ReviewVerdict::evaluate($this->reviews->reviews, $this->reviews->threads, $this->readyAnchor, $this->reviews->author, $botWhitelist);
+        return GithubReviewVerdict::evaluate($this->reviews->reviews, $this->reviews->threads, $this->readyAnchor, $this->reviews->author, $botWhitelist);
     }
 }

@@ -19,7 +19,7 @@
   <li>takes a global lock, so two runs never overlap (a second one exits immediately);</li>
   <li>works out which jobs are due: those whose interval has elapsed since their last success, unless they are <a href="#dispatcher-health">backing off</a>;</li>
   <li>checks the agent setup: an impossible one (OpenChamber with Claude Code or Copilot) stops the run, due jobs or not;</li>
-  <li>when at least one job is due, checks the tools those jobs need. A problem with <code>gh</code> or with the <a href="page:glossary#runtime">runtime</a>'s command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>) stops the run; a problem with a tracker tool or the ADE only produces a warning, and only the projects using that tool are affected. Tracker tools are only checked for the projects with a job due;</li>
+  <li>when at least one job is due, checks the tools those jobs need. A problem with <code>gh</code>, <code>glab</code> or with the <a href="page:glossary#runtime">runtime</a>'s command (<code>opencode</code>, <code>claude</code> or <code>copilot</code>) stops the run; a problem with a tracker tool or the ADE only produces a warning, and only the projects using that tool are affected. Tracker tools are only checked for the projects with a job due;</li>
   <li>runs the due jobs: first every due sync, one after the other, then the due polls, <a href="#concurrent-polls">a few projects at a time</a>, then every due main update, one after the other.</li>
 </ol>
 
@@ -38,7 +38,7 @@
 
 <h3 id="concurrent-polls">Polling several projects at once</h3>
 
-<p>Polling is mostly waiting on <code>gh</code>, <code>git</code> and the tracker commands, so the dispatcher polls up to <code>dispatch.poll_concurrency</code> projects at once (default 2; see <a href="page:configuration#global-only-keys">Global-only keys</a>). Each one runs in a child process of the same <code>pablo</code> (<code>pablo internal:dispatch-job</code>); the dispatcher keeps the global lock while they run and records their stamps and health itself, exactly as when it runs them one after the other.</p>
+<p>Polling is mostly waiting on <code>gh</code> or <code>glab</code>, <code>git</code> and the tracker commands, so the dispatcher polls up to <code>dispatch.poll_concurrency</code> projects at once (default 2; see <a href="page:configuration#global-only-keys">Global-only keys</a>). Each one runs in a child process of the same <code>pablo</code> (<code>pablo internal:dispatch-job</code>); the dispatcher keeps the global lock while they run and records their stamps and health itself, exactly as when it runs them one after the other.</p>
 
 <ul>
   <li><b>Only polls overlap.</b> Sync and main update write to git repositories (rebase, push, reset of the primary checkout), so they still run one at a time, sync before the polls and main after them: a project's own jobs keep their order and never overlap. Two projects on the same repository are never polled at the same time either.</li>

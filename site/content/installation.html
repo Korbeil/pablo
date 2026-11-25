@@ -22,13 +22,14 @@
 <table>
   <thead><tr><th>Your project uses…</th><th>You need</th><th>Log in once with</th></tr></thead>
   <tbody>
-    <tr><td>GitHub pull requests (every project: PABLO follows PRs and CI on GitHub, whatever the issue tracker)</td><td><a href="https://cli.github.com/"><code>gh</code></a></td><td><code>gh auth login</code></td></tr>
+    <tr><td>GitHub: pull requests and CI (followed on the repository's forge, whatever the issue tracker), or GitHub issues</td><td><a href="https://cli.github.com/"><code>gh</code></a></td><td><code>gh auth login</code></td></tr>
+    <tr><td>GitLab: merge requests and CI, or GitLab issues (gitlab.com or self-hosted)</td><td><a href="https://gitlab.com/gitlab-org/cli"><code>glab</code></a></td><td><code>glab auth login</code> (<code>--hostname &lt;host&gt;</code> for a self-hosted GitLab)</td></tr>
     <tr><td>Jira issues, or Confluence pages</td><td><a href="https://www.atlassian.com/software/cli"><code>acli</code></a></td><td><code>acli auth login</code> for Jira; Confluence has its own, <code>acli confluence auth login</code></td></tr>
     <tr><td>Linear issues <span class="exp">experimental</span></td><td><a href="https://github.com/schpet/linear-cli"><code>linear</code></a></td><td>see its docs (checked with <code>linear auth whoami</code>)</td></tr>
   </tbody>
 </table>
 
-<p>GitHub Issues need nothing more than <code>gh</code>. More details on what each tool is used for in <a href="page:providers">Providers</a>.</p>
+<p>GitHub Issues need nothing more than <code>gh</code>, GitLab issues nothing more than <code>glab</code>. More details on what each tool is used for in <a href="page:providers">Providers</a>.</p>
 
 <aside class="callout tip"><p>No need to get it all right up front: the installer finishes with <code>pablo system:doctor</code>, which checks exactly the tools your projects need and tells you how to install or log in to each one.</p></aside>
 

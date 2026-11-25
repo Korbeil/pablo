@@ -7,9 +7,11 @@ namespace Pablo\Command\Task;
 use Pablo\Agents\AgentLauncherInterface;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
+use Pablo\Config\ProjectConfig;
 use Pablo\StateMachine\StateMachine;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
+use Pablo\Support\RepoSlug;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -24,6 +26,7 @@ final class PrecommitCheckCommand extends Command
         protected readonly Store $store,
         protected readonly Config $projectsLoader,
         protected readonly AgentLauncherInterface $agents,
+        private readonly RepoSlug $repoSlug,
     ) {
         parent::__construct();
     }
@@ -50,9 +53,21 @@ final class PrecommitCheckCommand extends Command
             'state' => $ctx->task->state->value,
             'allowed' => \in_array($ctx->task->state, StateMachine::COMMIT_ALLOWED_FROM, true),
             'pr_description_locale' => $ctx->cfg->prDescriptionLocale,
+            // github | gitlab: which CLI opens the draft PR/MR (null: no
+            // readable GitHub/GitLab origin)
+            'forge' => $this->forgeOf($ctx->cfg),
         ];
         $output->writeln(json_encode($payload, \JSON_THROW_ON_ERROR));
 
         return self::SUCCESS;
+    }
+
+    private function forgeOf(ProjectConfig $cfg): ?string
+    {
+        try {
+            return $this->repoSlug->ref($cfg)->forge;
+        } catch (PabloError) {
+            return null;
+        }
     }
 }

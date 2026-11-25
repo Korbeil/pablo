@@ -11,21 +11,21 @@ use Pablo\Config\ProjectConfig;
 use Pablo\Support\PabloError;
 use Pablo\Support\PabloPaths;
 use Pablo\Support\ProcessRunnerInterface;
+use Pablo\Support\RepoSlug;
 use Symfony\Component\Process\ExecutableFinder;
 
 /**
  * CLI preflight checks — pablo system:doctor / /pablo-doctor.
  *
- * Derives the required CLI set from the configured projects. gh is always
- * required; acli (Jira) and a separate acli-confluence probe when a project
+ * Derives the required CLI set from the configured projects. gh when a
+ * project is on GitHub (forge or issues) or none is configured yet, glab
+ * when one is on GitLab; acli (Jira) and a separate acli-confluence probe when a project
  * configures a Confluence space, only for jira projects; linear only when a
  * project uses that provider; the selected agent runtime's CLI and the
  * selected ADE's (if it needs one), each described by its own CliProbe.
  */
 final class Doctor
 {
-    private const ALWAYS_REQUIRED = ['gh'];
-
     private const PROBE_TIMEOUT_S = 30;
 
     /** @var callable|null PATH-lookup override fn(string): ?string */
@@ -36,6 +36,7 @@ final class Doctor
         private readonly AgentRuntimeRegistry $runtimes,
         private readonly AdeRegistry $ades,
         ?callable $which = null,
+        private readonly ?RepoSlug $repoSlug = null,
     ) {
         $this->which = $which;
     }
@@ -47,10 +48,15 @@ final class Doctor
      */
     public function requiredClis(array $projects): array
     {
-        $required = array_fill_keys(self::ALWAYS_REQUIRED, true);
+        $required = [] === $projects ? ['gh' => true] : [];
         $needsConfluence = false;
         foreach ($projects as $cfg) {
-            if ('jira' === $cfg->tracker->provider) {
+            $required['github' === $this->forgeOf($cfg) ? 'gh' : 'glab'] = true;
+            if ('github' === $cfg->tracker->provider) {
+                $required['gh'] = true;
+            } elseif ('gitlab' === $cfg->tracker->provider) {
+                $required['glab'] = true;
+            } elseif ('jira' === $cfg->tracker->provider) {
                 $required['acli'] = true;
                 if (null !== $cfg->confluenceSpace) {
                     $needsConfluence = true;
@@ -73,6 +79,23 @@ final class Doctor
         sort($list);
 
         return $list;
+    }
+
+    /**
+     * The forge of a project: from its origin remote when it can be read
+     * (RepoSlug::ref()), else repo.forge, else GitHub.
+     */
+    private function forgeOf(ProjectConfig $cfg): string
+    {
+        if (null !== $this->repoSlug) {
+            try {
+                return $this->repoSlug->ref($cfg)->forge;
+            } catch (PabloError) {
+                // no readable origin: the configuration alone decides
+            }
+        }
+
+        return $cfg->repo->forge ?? 'github';
     }
 
     /**
@@ -150,7 +173,7 @@ final class Doctor
     }
 
     /**
-     * Every CLI doctor knows, keyed by CLI id: gh, every ADE's then every
+     * Every CLI doctor knows, keyed by CLI id: gh and glab, every ADE's then every
      * runtime's probe, then the trackers'. Built per call (the ADE and
      * runtime probes depend on the runtime environment).
      *
@@ -164,6 +187,12 @@ final class Doctor
             'run: gh auth login',
             ['Darwin' => 'brew install gh', 'Linux' => 'sudo apt-get install gh'],
             'https://cli.github.com',
+        ), 'glab' => new CliProbe(
+            'glab',
+            ['glab', 'auth', 'status'],
+            'run: glab auth login (add --hostname <host> for a self-hosted GitLab)',
+            ['Darwin' => 'brew install glab', 'Linux' => 'sudo apt-get install glab'],
+            'https://gitlab.com/gitlab-org/cli',
         )];
         foreach ($this->ades->all() as $ade) {
             $probe = $ade->probe();
@@ -180,7 +209,7 @@ final class Doctor
     }
 
     /**
-     * Wizard ordering: hard requirements first (gh, then the ADEs' and the
+     * Wizard ordering: hard requirements first (gh and glab, then the ADEs' and the
      * runtimes' CLIs), then the per-provider trackers (only included when a
      * project uses them).
      *

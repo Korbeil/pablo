@@ -2,14 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Pablo\Tests;
+namespace Pablo\Tests\Provider\Forge\Github;
 
-use Pablo\Provider\Gh\GhPr;
-use Pablo\Provider\Gh\ReviewVerdict;
+use Pablo\Provider\Forge\CiCheck;
+use Pablo\Provider\Forge\Github\GithubForge;
+use Pablo\Provider\Forge\Github\GithubReviewVerdict;
+use Pablo\Provider\Forge\ReviewVerdict;
 use Pablo\Support\PabloError;
+use Pablo\Tests\FakeProcessRunner;
 use PHPUnit\Framework\TestCase;
 
-final class GhPrTest extends TestCase
+final class GithubForgeTest extends TestCase
 {
     private FakeProcessRunner $runner;
 
@@ -24,14 +27,14 @@ final class GhPrTest extends TestCase
     }
     private const ANCHOR = '2026-07-20T12:00:00+00:00';
 
-    private static function review(string $login, string $state, string $when, string $typename = 'User', string $id = '', string $body = ''): \Pablo\Provider\Gh\ReviewNode
+    private static function review(string $login, string $state, string $when, string $typename = 'User', string $id = '', string $body = ''): \Pablo\Provider\Forge\Github\ReviewNode
     {
-        return new \Pablo\Provider\Gh\ReviewNode($login, $typename, $state, $when, $id, $body);
+        return new \Pablo\Provider\Forge\Github\ReviewNode($login, $typename, $state, $when, $id, $body);
     }
 
-    private static function thread(bool $resolved, string ...$reviewIds): \Pablo\Provider\Gh\ReviewThread
+    private static function thread(bool $resolved, string ...$reviewIds): \Pablo\Provider\Forge\Github\ReviewThread
     {
-        return new \Pablo\Provider\Gh\ReviewThread($resolved, array_values($reviewIds));
+        return new \Pablo\Provider\Forge\Github\ReviewThread($resolved, array_values($reviewIds));
     }
 
     public function testPrsForBranchesMatchesMultipleBranchesFromOneCall(): void
@@ -65,161 +68,161 @@ final class GhPrTest extends TestCase
 
     public function testCiRedOnFailure(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS'],
             ['status' => 'COMPLETED', 'conclusion' => 'FAILURE'],
         ]);
-        $this->assertSame('red', GhPr::evaluateCi($rollup));
+        $this->assertSame('red', CiCheck::evaluate($rollup));
     }
 
     public function testCiRedWinsOverPending(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'IN_PROGRESS', 'conclusion' => null],
             ['status' => 'COMPLETED', 'conclusion' => 'FAILURE'],
         ]);
-        $this->assertSame('red', GhPr::evaluateCi($rollup));
+        $this->assertSame('red', CiCheck::evaluate($rollup));
     }
 
     public function testCiPendingNotGreen(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS'],
             ['status' => 'QUEUED', 'conclusion' => null],
         ]);
-        $this->assertSame('pending', GhPr::evaluateCi($rollup));
+        $this->assertSame('pending', CiCheck::evaluate($rollup));
     }
 
     public function testCiGreenWhenAllPassOrSkipped(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS'],
             ['status' => 'COMPLETED', 'conclusion' => 'SKIPPED'],
             ['status' => 'COMPLETED', 'conclusion' => 'NEUTRAL'],
         ]);
-        $this->assertSame('green', GhPr::evaluateCi($rollup));
+        $this->assertSame('green', CiCheck::evaluate($rollup));
     }
 
     public function testCiCancelledIsNotAFailure(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'build'],
             ['status' => 'COMPLETED', 'conclusion' => 'CANCELLED', 'name' => 'deploy'],
         ]);
-        $this->assertSame('green', GhPr::evaluateCi($rollup));
+        $this->assertSame('green', CiCheck::evaluate($rollup));
     }
 
     public function testCiSupersededCancelledRunIgnored(): void
     {
         // Real shape: a concurrency group cancels the first run, a second one passes.
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'CANCELLED', 'name' => 'Check-Migration', 'workflowName' => 'Pull Request Jobs', 'startedAt' => '2026-11-12T15:58:46Z'],
             ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'Check-Migration', 'workflowName' => 'Pull Request Jobs', 'startedAt' => '2026-11-12T15:58:59Z'],
         ]);
-        $this->assertSame('green', GhPr::evaluateCi($rollup));
+        $this->assertSame('green', CiCheck::evaluate($rollup));
     }
 
     public function testCiLatestRunWinsWhateverTheRollupOrder(): void
     {
         $older = ['status' => 'COMPLETED', 'conclusion' => 'FAILURE', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:00:00Z'];
         $newer = ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:05:00Z'];
-        $this->assertSame('green', GhPr::evaluateCi(array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [$older, $newer])));
-        $this->assertSame('green', GhPr::evaluateCi(array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [$newer, $older])));
+        $this->assertSame('green', CiCheck::evaluate(array_map(CiCheck::fromRollup(...), [$older, $newer])));
+        $this->assertSame('green', CiCheck::evaluate(array_map(CiCheck::fromRollup(...), [$newer, $older])));
     }
 
     public function testCiNewerFailedRunStillRed(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:00:00Z'],
             ['status' => 'COMPLETED', 'conclusion' => 'FAILURE', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:05:00Z'],
         ]);
-        $this->assertSame('red', GhPr::evaluateCi($rollup));
+        $this->assertSame('red', CiCheck::evaluate($rollup));
     }
 
     public function testCiNewerRunInProgressIsPending(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'FAILURE', 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:00:00Z'],
             ['status' => 'IN_PROGRESS', 'conclusion' => null, 'name' => 'tests', 'workflowName' => 'CI', 'startedAt' => '2026-11-12T10:05:00Z'],
         ]);
-        $this->assertSame('pending', GhPr::evaluateCi($rollup));
+        $this->assertSame('pending', CiCheck::evaluate($rollup));
     }
 
     public function testCiSameCheckNameInDifferentWorkflowsKeptApart(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'FAILURE', 'name' => 'build', 'workflowName' => 'Backend', 'startedAt' => '2026-11-12T10:00:00Z'],
             ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'build', 'workflowName' => 'Frontend', 'startedAt' => '2026-11-12T10:05:00Z'],
         ]);
-        $this->assertSame('red', GhPr::evaluateCi($rollup));
+        $this->assertSame('red', CiCheck::evaluate($rollup));
     }
 
     public function testCiGreenWhenNoChecks(): void
     {
-        $this->assertSame('green', GhPr::evaluateCi([]));
+        $this->assertSame('green', CiCheck::evaluate([]));
     }
 
     public function testCiStatusContextShape(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['state' => 'SUCCESS'],
             ['state' => 'FAILURE'],
         ]);
-        $this->assertSame('red', GhPr::evaluateCi($rollup));
+        $this->assertSame('red', CiCheck::evaluate($rollup));
     }
 
     public function testCiIgnoresApprovalCheckByName(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'SUCCESS'],
             ['status' => 'COMPLETED', 'conclusion' => 'ACTION_REQUIRED', 'name' => 'hold-for-approval'],
         ]);
-        $this->assertSame('red', GhPr::evaluateCi($rollup));
-        $this->assertSame('green', GhPr::evaluateCi($rollup, ['approval']));
+        $this->assertSame('red', CiCheck::evaluate($rollup));
+        $this->assertSame('green', CiCheck::evaluate($rollup, ['approval']));
     }
 
     public function testCiIgnoreChecksMatchesWorkflowNameAndContext(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'ACTION_REQUIRED', 'workflowName' => 'Approval Gate'],
             ['state' => 'PENDING', 'context' => 'ci/circleci: approval-job'],
         ]);
-        $this->assertSame('green', GhPr::evaluateCi($rollup, ['approval']));
+        $this->assertSame('green', CiCheck::evaluate($rollup, ['approval']));
     }
 
     public function testCiIgnoreChecksRealCircleciApprovalShape(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['__typename' => 'CheckRun', 'status' => 'COMPLETED', 'conclusion' => 'SUCCESS', 'name' => 'Labeler'],
             ['__typename' => 'StatusContext', 'context' => 'ci/circleci: tests_workflow/deploy-code-approval-ppr', 'state' => 'PENDING'],
             ['__typename' => 'StatusContext', 'context' => 'ci/circleci: tests_workflow/deploy-code-approval-prod', 'state' => 'PENDING'],
             ['__typename' => 'StatusContext', 'context' => 'ci/circleci: build', 'state' => 'SUCCESS'],
             ['__typename' => 'StatusContext', 'context' => 'ci/circleci: tests', 'state' => 'SUCCESS'],
         ]);
-        $this->assertSame('pending', GhPr::evaluateCi($rollup));
-        $this->assertSame('green', GhPr::evaluateCi($rollup, ['approval']));
+        $this->assertSame('pending', CiCheck::evaluate($rollup));
+        $this->assertSame('green', CiCheck::evaluate($rollup, ['approval']));
     }
 
     public function testCiIgnoreChecksCaseInsensitiveAndUnmatchedStillEvaluated(): void
     {
-        $rollup = array_map(\Pablo\Provider\Gh\CiCheck::fromRollup(...), [
+        $rollup = array_map(CiCheck::fromRollup(...), [
             ['status' => 'COMPLETED', 'conclusion' => 'ACTION_REQUIRED', 'name' => 'APPROVAL-hold'],
             ['status' => 'COMPLETED', 'conclusion' => 'FAILURE', 'name' => 'unit-tests'],
         ]);
-        $this->assertSame('red', GhPr::evaluateCi($rollup, ['Approval']));
+        $this->assertSame('red', CiCheck::evaluate($rollup, ['Approval']));
     }
 
     public function testReviewsExcludeAuthor(): void
     {
         $reviews = [self::review('me', 'CHANGES_REQUESTED', '2026-07-21T10:00:00Z')];
-        $this->assertNull(ReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertNull(GithubReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testReviewsExcludeBotUnlessWhitelisted(): void
     {
         $reviews = [self::review('sonar[bot]', 'COMMENTED', '2026-07-21T10:00:00Z', 'Bot')];
-        $this->assertNull(ReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
-        $this->assertSame('changes', ReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', ['sonar[bot]']));
+        $this->assertNull(GithubReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertSame('changes', GithubReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', ['sonar[bot]']));
     }
 
     public function testBotWhitelistAcceptsLoginWithOrWithoutBotSuffix(): void
@@ -229,7 +232,7 @@ final class GhPrTest extends TestCase
         $reviews = [self::review('copilot-pull-request-reviewer', 'COMMENTED', '2026-07-21T10:00:00Z', 'Bot', id: 'r1')];
         $threads = [self::thread(false, 'r1')];
         foreach (['copilot-pull-request-reviewer', 'copilot-pull-request-reviewer[bot]'] as $listed) {
-            $this->assertSame('changes', ReviewVerdict::evaluate($reviews, $threads, new \DateTimeImmutable(self::ANCHOR), 'me', [$listed]));
+            $this->assertSame('changes', GithubReviewVerdict::evaluate($reviews, $threads, new \DateTimeImmutable(self::ANCHOR), 'me', [$listed]));
         }
     }
 
@@ -239,14 +242,14 @@ final class GhPrTest extends TestCase
         // recommended": without an unresolved thread there is nothing to address.
         $reviews = [self::review('copilot-pull-request-reviewer', 'COMMENTED', '2026-07-21T10:00:00Z', 'Bot', id: 'r1', body: '### 🟢 Approval recommended')];
         $whitelist = ['copilot-pull-request-reviewer'];
-        $this->assertNull(ReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', $whitelist));
-        $this->assertNull(ReviewVerdict::evaluate($reviews, [self::thread(true, 'r1')], new \DateTimeImmutable(self::ANCHOR), 'me', $whitelist));
+        $this->assertNull(GithubReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', $whitelist));
+        $this->assertNull(GithubReviewVerdict::evaluate($reviews, [self::thread(true, 'r1')], new \DateTimeImmutable(self::ANCHOR), 'me', $whitelist));
     }
 
     public function testWhitelistedBotUnresolvedThreadCounts(): void
     {
         $reviews = [self::review('copilot-pull-request-reviewer', 'COMMENTED', '2026-07-21T10:00:00Z', 'Bot', id: 'r1', body: '### 🟡 Changes recommended')];
-        $this->assertSame('changes', ReviewVerdict::evaluate(
+        $this->assertSame('changes', GithubReviewVerdict::evaluate(
             $reviews,
             [self::thread(false, 'r1')],
             new \DateTimeImmutable(self::ANCHOR), 'me', ['copilot-pull-request-reviewer'],
@@ -256,7 +259,7 @@ final class GhPrTest extends TestCase
     public function testReviewsBeforeAnchorIgnored(): void
     {
         $reviews = [self::review('alice', 'CHANGES_REQUESTED', '2026-07-19T10:00:00Z')];
-        $this->assertNull(ReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertNull(GithubReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testLatestPerReviewerWins(): void
@@ -265,7 +268,7 @@ final class GhPrTest extends TestCase
             self::review('alice', 'CHANGES_REQUESTED', '2026-07-21T10:00:00Z'),
             self::review('alice', 'APPROVED', '2026-07-22T10:00:00Z'),
         ];
-        $this->assertSame('approved', ReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertSame('approved', GithubReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testMixedVerdictsChangesWins(): void
@@ -274,13 +277,13 @@ final class GhPrTest extends TestCase
             self::review('alice', 'APPROVED', '2026-07-21T10:00:00Z'),
             self::review('bob', 'CHANGES_REQUESTED', '2026-07-21T11:00:00Z'),
         ];
-        $this->assertSame('changes', ReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertSame('changes', GithubReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testCommentReviewCountsAsChanges(): void
     {
         $reviews = [self::review('alice', 'COMMENTED', '2026-07-21T10:00:00Z')];
-        $this->assertSame('changes', ReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertSame('changes', GithubReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testResolvedOnlyCommentReviewStoppedCounting(): void
@@ -288,7 +291,7 @@ final class GhPrTest extends TestCase
         // #974: alice reviewed with inline comments, every thread got resolved
         // afterwards — the review no longer counts as a changes signal.
         $reviews = [self::review('alice', 'COMMENTED', '2026-07-21T10:00:00Z', id: 'r1')];
-        $this->assertNull(ReviewVerdict::evaluate(
+        $this->assertNull(GithubReviewVerdict::evaluate(
             $reviews,
             [self::thread(true, 'r1')],
             new \DateTimeImmutable(self::ANCHOR), 'me', [],
@@ -298,7 +301,7 @@ final class GhPrTest extends TestCase
     public function testUnresolvedThreadKeepsCommentReviewCounting(): void
     {
         $reviews = [self::review('alice', 'COMMENTED', '2026-07-21T10:00:00Z', id: 'r1')];
-        $this->assertSame('changes', ReviewVerdict::evaluate(
+        $this->assertSame('changes', GithubReviewVerdict::evaluate(
             $reviews,
             [self::thread(false, 'r1')],
             new \DateTimeImmutable(self::ANCHOR), 'me', [],
@@ -310,7 +313,7 @@ final class GhPrTest extends TestCase
         // Top-level feedback ("please fix the naming") has no thread to
         // resolve: an empty thread story never clears it.
         $reviews = [self::review('alice', 'COMMENTED', '2026-07-21T10:00:00Z', id: 'r1', body: 'Please fix the naming.')];
-        $this->assertSame('changes', ReviewVerdict::evaluate(
+        $this->assertSame('changes', GithubReviewVerdict::evaluate(
             $reviews,
             [self::thread(true, 'r1')],
             new \DateTimeImmutable(self::ANCHOR), 'me', [],
@@ -322,7 +325,7 @@ final class GhPrTest extends TestCase
         // CHANGES_REQUESTED is an explicit verdict of its own: resolving the
         // threads does not withdraw it, a new review from the reviewer does.
         $reviews = [self::review('alice', 'CHANGES_REQUESTED', '2026-07-21T10:00:00Z', id: 'r1')];
-        $this->assertSame('changes', ReviewVerdict::evaluate(
+        $this->assertSame('changes', GithubReviewVerdict::evaluate(
             $reviews,
             [self::thread(true, 'r1')],
             new \DateTimeImmutable(self::ANCHOR), 'me', [],
@@ -332,12 +335,12 @@ final class GhPrTest extends TestCase
     public function testDismissedReviewsIgnored(): void
     {
         $reviews = [self::review('alice', 'DISMISSED', '2026-07-21T10:00:00Z')];
-        $this->assertNull(ReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertNull(GithubReviewVerdict::evaluate($reviews, [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     public function testNoReviewsReturnsNull(): void
     {
-        $this->assertNull(ReviewVerdict::evaluate([], [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
+        $this->assertNull(GithubReviewVerdict::evaluate([], [], new \DateTimeImmutable(self::ANCHOR), 'me', []));
     }
 
     /**
@@ -419,11 +422,11 @@ final class GhPrTest extends TestCase
         $this->assertSame(['r150'], $fetched->threads[1]->reviewIds);
 
         // Both bob's old change request and alice's newest approval are seen.
-        $this->assertSame('changes', ReviewVerdict::evaluate(
+        $this->assertSame('changes', GithubReviewVerdict::evaluate(
             $fetched->reviews, $fetched->threads, new \DateTimeImmutable(self::ANCHOR), $fetched->author, [],
         ));
         $withoutBob = array_values(array_filter($fetched->reviews, static fn ($r) => 'bob' !== $r->login));
-        $this->assertSame('approved', ReviewVerdict::evaluate(
+        $this->assertSame('approved', GithubReviewVerdict::evaluate(
             $withoutBob, $fetched->threads, new \DateTimeImmutable(self::ANCHOR), $fetched->author, [],
         ));
     }
@@ -472,10 +475,10 @@ final class GhPrTest extends TestCase
 
         $fetched = $this->svc()->fetchReviews('acme/wallet-kit', 45);
 
-        $this->assertSame(GhPr::MAX_REVIEW_PAGES, $calls);
-        $this->assertCount(GhPr::MAX_REVIEW_PAGES, $fetched->reviews);
+        $this->assertSame(GithubForge::MAX_REVIEW_PAGES, $calls);
+        $this->assertCount(GithubForge::MAX_REVIEW_PAGES, $fetched->reviews);
         // Still chronological: the oldest page fetched comes first.
-        $this->assertSame('r'.(1000 - GhPr::MAX_REVIEW_PAGES), $fetched->reviews[0]->id);
+        $this->assertSame('r'.(1000 - GithubForge::MAX_REVIEW_PAGES), $fetched->reviews[0]->id);
     }
 
     public function testReviewVerdictCountsOnlyReviewsAfterTheReadyEvent(): void
@@ -606,8 +609,8 @@ final class GhPrTest extends TestCase
         $this->assertSame(7, $result['acme/b']['wk-45']->number);
     }
 
-    private function svc(): GhPr
+    private function svc(): GithubForge
     {
-        return new GhPr($this->runner ?? new FakeProcessRunner(), new \Pablo\Domain\Time());
+        return new GithubForge($this->runner ?? new FakeProcessRunner(), new \Pablo\Domain\Time());
     }
 }

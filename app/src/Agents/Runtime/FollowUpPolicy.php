@@ -10,7 +10,7 @@ namespace Pablo\Agents\Runtime;
  * tool call approved, so these shell patterns are refused instead.
  *
  * They mirror /pablo-commit-and-pr's hard rules — never touch the git
- * identity, the only GitHub write is creating the draft PR — plus the git
+ * identity, the only forge write is creating the draft PR/MR — plus the git
  * operations that rewrite or move away from the task branch, and every
  * tracker write (trackers stay read-only). Same glob syntax as the agents'
  * `permissions:` (only leading/trailing `*`), so every runtime translates
@@ -43,6 +43,19 @@ final class FollowUpPolicy
         'gh api*',
         'gh repo*',
         'gh release*',
+        'glab mr note*',
+        'glab mr update*',
+        'glab mr merge*',
+        'glab mr approve*',
+        'glab mr revoke*',
+        'glab mr close*',
+        'glab mr reopen*',
+        'glab mr delete*',
+        'glab issue*',
+        'glab api*',
+        'glab repo*',
+        'glab release*',
+        'glab ci*',
         '*acli jira workitem*',
         '*acli confluence*',
         '*acli auth*',

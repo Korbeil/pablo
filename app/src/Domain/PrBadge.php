@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Pablo\Domain;
 
-use Pablo\Provider\Gh\PrInfo;
+use Pablo\Provider\Forge\PrInfo;
+use Pablo\Provider\Forge\RepoRef;
 
 /**
  * The pull-request state of a task, as structure rather than as a string.
@@ -96,13 +97,13 @@ final readonly class PrBadge
         return PrBadgeKind::None !== $this->kind;
     }
 
-    /** The GitHub PR URL, or null when the number is unknown. */
-    public function url(?string $repoSlug): ?string
+    /** The PR's (or GitLab merge request's) URL, or null when the number is unknown. */
+    public function url(?RepoRef $repo): ?string
     {
-        if (null === $repoSlug || null === $this->number) {
+        if (null === $repo || null === $this->number) {
             return null;
         }
 
-        return "https://github.com/{$repoSlug}/pull/{$this->number}";
+        return $repo->prUrl($this->number);
     }
 }

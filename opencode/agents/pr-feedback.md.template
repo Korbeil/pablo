@@ -17,52 +17,19 @@ threads, comment, or push.
 ## Input
 
 PABLO launches you in the task worktree with the PR number, e.g. "Review
-feedback was left on PR #123. …" — use it directly. Invoked without one,
-use `gh pr view --json number,title,url`. Get owner/repo from
-`gh repo view --json owner,name`.
+feedback was left on PR #123. …" (on GitLab, "merge request !123") — use
+it directly. Invoked without one, find the branch's:
 
-## Step 1 — Fetch open feedback (two calls, filtered server-side)
+{{FORGE:pr-lookup}}
 
-Thread resolution is only exposed by GraphQL. Fetch reviews and threads,
-keeping only non-empty review bodies and unresolved threads:
+## Step 1 — Fetch open feedback
 
-```bash
-gh api graphql -F owner=OWNER -F repo=REPO -F pr=NUMBER -f query='
-query($owner: String!, $repo: String!, $pr: Int!) {
-  repository(owner: $owner, name: $repo) {
-    pullRequest(number: $pr) {
-      title url
-      reviews(first: 50) {
-        pageInfo { hasNextPage endCursor }
-        nodes { author { login } state body url }
-      }
-      reviewThreads(first: 100) {
-        pageInfo { hasNextPage endCursor }
-        nodes {
-          isResolved isOutdated path line startLine
-          comments(first: 30) { nodes { author { login } body url } }
-        }
-      }
-    }
-  }
-}' --jq '.data.repository.pullRequest | {title, url,
-  reviews: [.reviews.nodes[] | select(.body != "")],
-  threads: [.reviewThreads.nodes[] | select(.isResolved | not)],
-  more: (.reviews.pageInfo.hasNextPage or .reviewThreads.pageInfo.hasNextPage)}'
-```
-
-If `more` is true, paginate with `after:` — never silently truncate.
-Then the top-level conversation comments:
-
-```bash
-gh pr view NUMBER --repo OWNER/REPO --json comments \
-  --jq '[.comments[] | {author: .author.login, body, url}]'
-```
+{{FORGE:review-fetch}}
 
 Processing:
 1. **Threads**: read the whole thread — later replies refine or cancel
    the request; the last reviewer message is the current expectation.
-   Flag `isOutdated` threads and verify them against the current code.
+   Flag outdated threads and verify them against the current code.
 2. **Review bodies**: every distinct request in a non-empty body
    (especially `CHANGES_REQUESTED`/`COMMENTED`) is its own item.
 3. **Conversation comments**: skip one only when it clearly duplicates a
@@ -72,10 +39,13 @@ Processing:
 
 ## Step 2 — Understand the code
 
-For each item, read the current code at the targeted lines (and
-`gh pr diff` for that file only when needed). Never plan a fix for code
-you haven't looked at. If the code changed or disappeared, recommend
-replying/resolving instead of fixing.
+For each item, read the current code at the targeted lines. Never plan a
+fix for code you haven't looked at; the diff, only when needed:
+
+{{FORGE:diff}}
+
+If the code changed or disappeared, recommend replying/resolving instead
+of fixing.
 
 ## Step 3 — The plan
 

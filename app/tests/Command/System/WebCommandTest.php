@@ -114,7 +114,7 @@ final class WebCommandTest extends TestCase
         // A second request reuses a booted worker and still renders.
         $this->assertSame(200, self::get($port, '/')[0]);
 
-        $this->assertFileDoesNotExist($this->tmp.'/external-tool-called', 'the dashboard must never run gh/orca/a tracker CLI to render');
+        $this->assertFileDoesNotExist($this->tmp.'/external-tool-called', 'the dashboard must never run gh/glab/orca/a tracker CLI to render');
     }
 
     private function start(): int
@@ -123,7 +123,7 @@ final class WebCommandTest extends TestCase
         foreach (['home/.pablo/projects', 'home/.pablo/stamps', 'home/.pablo/logs', 'home/.pablo/state', 'bin'] as $dir) {
             mkdir($this->tmp.'/'.$dir, 0o777, true);
         }
-        foreach (['gh', 'orca', 'openchamber', 'acli', 'linear', 'opencode', 'claude', 'copilot'] as $tool) {
+        foreach (['gh', 'glab', 'orca', 'openchamber', 'acli', 'linear', 'opencode', 'claude', 'copilot'] as $tool) {
             file_put_contents($this->tmp.'/bin/'.$tool, "#!/bin/sh\necho \"\$0 \$*\" >> '{$this->tmp}/external-tool-called'\nexit 1\n");
             chmod($this->tmp.'/bin/'.$tool, 0o755);
         }

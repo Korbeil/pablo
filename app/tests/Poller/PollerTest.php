@@ -19,12 +19,12 @@ use Pablo\Domain\Issue;
 use Pablo\Domain\State;
 use Pablo\Domain\Task;
 use Pablo\Poller\Poller;
-use Pablo\Provider\Gh\CiCheck;
-use Pablo\Provider\Gh\PrInfo;
-use Pablo\Provider\Gh\PrReviews;
-use Pablo\Provider\Gh\PrSnapshot;
-use Pablo\Provider\Gh\ReviewNode;
-use Pablo\Provider\Gh\ReviewSnapshot;
+use Pablo\Provider\Forge\CiCheck;
+use Pablo\Provider\Forge\Github\GithubReviewSnapshot;
+use Pablo\Provider\Forge\Github\PrReviews;
+use Pablo\Provider\Forge\Github\ReviewNode;
+use Pablo\Provider\Forge\PrInfo;
+use Pablo\Provider\Forge\PrSnapshot;
 use Pablo\Provider\Tracker\Provider;
 use Pablo\StateMachine\StateMachine;
 use Pablo\StateMachine\TaskCtx;
@@ -107,7 +107,7 @@ final class PollerTest extends TestCase
         };
     }
     private FakeAgents $agents;
-    private \Pablo\Tests\FakeGhPr $gh;
+    private \Pablo\Tests\FakeForge $gh;
     private \Pablo\Tests\FakeGit $git;
     private Poller $poller;
     private \Pablo\Provider\Tracker\ProviderRegistryInterface $providers;
@@ -129,7 +129,7 @@ final class PollerTest extends TestCase
             'startups' => [],
             'display_names' => [],
         ];
-        $this->gh = new \Pablo\Tests\FakeGhPr();
+        $this->gh = new \Pablo\Tests\FakeForge();
         $this->gh->onCiStatus = fn () => $this->stubs['ci'];
         $this->git = new \Pablo\Tests\FakeGit();
         $this->runner = new \Pablo\Tests\FakeProcessRunner();
@@ -1306,7 +1306,7 @@ final class PollerTest extends TestCase
     }
 
     /** @param list<CiCheck> $rollup */
-    private function snapshotOf(PrInfo $branchPr, array $rollup, ?ReviewSnapshot $reviews = null): PrSnapshot
+    private function snapshotOf(PrInfo $branchPr, array $rollup, ?GithubReviewSnapshot $reviews = null): PrSnapshot
     {
         return new PrSnapshot(
             branchPrs: ['pr-1' => $branchPr],
@@ -1375,7 +1375,7 @@ final class PollerTest extends TestCase
         $this->gh->snapshot = $this->snapshotOf(
             new PrInfo(7, 't', 'OPEN', false, 'u', null),
             [],
-            new ReviewSnapshot(new PrReviews('me', [
+            new GithubReviewSnapshot(new PrReviews('me', [
                 new ReviewNode('bob', 'User', 'CHANGES_REQUESTED', '2026-07-10T00:00:00Z', 'r1'), // previous round
                 new ReviewNode('alice', 'User', 'APPROVED', '2026-07-21T00:00:00Z', 'r2'),
             ]), $anchor),

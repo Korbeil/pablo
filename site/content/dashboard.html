@@ -65,7 +65,7 @@ pablo web --port 9000 --open   # another port, and open the browser
 
 <h2>Slack messages</h2>
 
-<p><b>Slack messages</b> builds two ready-to-paste lists: your pull requests waiting for review, and the ones waiting for QA, each with a copy button. They're fetched from GitHub when you click, not when the page loads; <b>Refresh</b> fetches again.</p>
+<p><b>Slack messages</b> builds two ready-to-paste lists: your pull requests waiting for review, and the ones waiting for QA, each with a copy button. They're fetched from GitHub or GitLab when you click, not when the page loads; <b>Refresh</b> fetches again.</p>
 
 <h2>Analytics</h2>
 
@@ -82,13 +82,13 @@ pablo web --port 9000 --open   # another port, and open the browser
 
 <p>A task's history page (<code>/analytics/task/&lt;project&gt;/&lt;branch&gt;</code>) shows the same timeline as <a href="page:analytics#task-history"><code>pablo task:history</code></a>: each state with how long it lasted, each agent run with its model, duration, tokens and cost, and the totals. Every row of the task tables links to it (the history icon, first of its buttons), and it still works once a task is closed and gone from the tables. A project that is neither configured nor in the log, or a branch with no task and no history, gets a <code>404</code>.</p>
 
-<p>Like the rest of the page, Analytics only reads files on your machine: the event log under <code>~/.pablo/analytics/</code>, your project configuration and the task records. It never calls git, GitHub, Orca or your tracker.</p>
+<p>Like the rest of the page, Analytics only reads files on your machine: the event log under <code>~/.pablo/analytics/</code>, your project configuration and the task records. It never calls git, GitHub, GitLab, Orca or your tracker.</p>
 
 <h2>Guarantees</h2>
 
 <ul>
   <li><b>Nothing changes until you confirm.</b> Loading or refreshing the page never changes a task, a worktree, a pull request or an issue. Only four buttons change something: <b>Start task</b> in the New task form, and <b>Confirm</b> in the Force state, Skip CI and Close the task dialogs.</li>
   <li><b>Local only.</b> It always listens on <code>127.0.0.1</code> and that can't be changed: the page has no login and shows branch names, issue titles and pull request links. It also only answers requests addressed to <code>127.0.0.1</code> or <code>localhost</code> (any port): anything else gets a <code>400 Bad Request</code>, so a website can't reach it by pointing its own domain name at your machine (DNS rebinding) and press its buttons. Open it as <code>http://127.0.0.1:&lt;port&gt;</code> or <code>http://localhost:&lt;port&gt;</code>. To reach it under another name (through a reverse proxy, an SSH tunnel or an <code>/etc/hosts</code> alias), list that name in <a href="page:configuration#global-only-keys"><code>dashboard_trusted_hosts</code></a>.</li>
-  <li><b>Fast and quiet.</b> The tables are built from what the background poller already saved, so a page load never calls GitHub or your tracker. Only the Slack messages, New task, Force state, Skip CI and Close the task forms do, when you use them.</li>
+  <li><b>Fast and quiet.</b> The tables are built from what the background poller already saved, so a page load never calls GitHub, GitLab or your tracker. Only the Slack messages, New task, Force state, Skip CI and Close the task forms do, when you use them.</li>
   <li><b>Works offline.</b> Fonts, icons and scripts are all bundled; nothing is loaded from the internet.</li>
 </ul>

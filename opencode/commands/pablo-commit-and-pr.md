@@ -1,5 +1,5 @@
 ---
-description: "PABLO : commit, push, PR draft GitHub (description dans la locale configurée du projet) et passage de la tâche en état draft"
+description: "PABLO : commit, push, PR draft GitHub ou MR draft GitLab (description dans la locale configurée du projet) et passage de la tâche en état draft"
 permission:
   edit: deny
   write: allow
@@ -21,8 +21,12 @@ permission:
     "gh pr list*": allow
     "gh pr view*": allow
     "gh pr create*": allow
+    "glab mr list*": allow
+    "glab mr view*": allow
+    "glab mr create*": allow
     "cat .github/pull_request_template.md*": allow
     "cat .github/PULL_REQUEST_TEMPLATE.md*": allow
+    "cat .gitlab/merge_request_templates/*": allow
     "git config*": deny
     "git -c user.name*": deny
     "git -c user.email*": deny
@@ -31,7 +35,7 @@ permission:
 
 PABLO's commit-and-pr (the original `/commit-and-pr` stays untouched for
 non-PABLO work): commit the current changes, push, create the GitHub PR
-**as a draft** if none exists (description in the project's configured
+(or, on GitLab, the merge request) **as a draft** if none exists (description in the project's configured
 locale), then switch the PABLO task to `draft`.
 
 ## Context (auto-injected)
@@ -61,10 +65,10 @@ Branch diff vs base (adjust base branch if wrong):
 !`git diff origin/main...HEAD --stat 2>/dev/null || git diff origin/master...HEAD --stat 2>/dev/null || echo "(base branch not found: main/master)"`
 
 PR template:
-!`cat .github/pull_request_template.md 2>/dev/null || cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null || echo "(no PR template found)"`
+!`cat .github/pull_request_template.md 2>/dev/null || cat .github/PULL_REQUEST_TEMPLATE.md 2>/dev/null || cat .gitlab/merge_request_templates/Default.md 2>/dev/null || cat .gitlab/merge_request_templates/default.md 2>/dev/null || echo "(no PR template found)"`
 
-Existing PR for this branch:
-!`gh pr list --head "$(git branch --show-current)" --state all --json number,title,state,isDraft 2>/dev/null || echo "[]"`
+Existing PR (GitHub) or merge request (GitLab) for this branch:
+!`gh pr list --head "$(git branch --show-current)" --state all --json number,title,state,isDraft 2>/dev/null || glab mr list --source-branch "$(git branch --show-current)" --all -F json 2>/dev/null || echo "[]"`
 
 The context only carries diff stats: read actual diffs (`git diff
 [--staged] -- <path>`, `git diff <base>...HEAD`) only when you need them
@@ -85,23 +89,26 @@ for a commit message or the PR description.
   skip only the commit step.
 - **Push is always** `git push --force-with-lease -u origin <branch>`.
   If rejected, report and stop.
-- **Only GitHub write allowed: creating the draft PR.** Never comment on,
-  review, or edit an existing PR (no `gh pr comment/edit/review`, no
-  `gh api` mutations). If the user asks for a description update, draft
-  the body and get explicit confirmation of *that text* first.
-- The PR is always `--draft`; never mark it ready (PABLO's poller does).
+- **Only forge write allowed: creating the draft PR (GitLab: merge
+  request).** Never comment on, review, approve, or edit an existing one
+  (no `gh pr comment/edit/review`, no `glab mr note/update/approve`, no
+  `gh api`/`glab api` mutations). If the user asks for a description
+  update, draft the body and get explicit confirmation of *that text*
+  first.
+- The PR/MR is always a draft; never mark it ready (PABLO's poller does).
 
 ## Steps
 
 1. **Resolve the worktree and guard.** `pablo task:precommit-check --json`
    succeeds inside the task worktree (JSON with `project`, `branch`,
-   `state`, `allowed`, `pr_description_locale`). If it fails with "not a
+   `state`, `allowed`, `pr_description_locale`, and `forge`: `github` or
+   `gitlab`, the CLI of step 4). If it fails with "not a
    PABLO task worktree" (common with OpenChamber), find the worktree: the
    `openchamber` tool's `session.status` (no `sessionId`) gives the
    session's `directory`; otherwise `pablo task:list` when the context
    clearly identifies one task. Then `cd <wt>`, re-run
    `pablo task:precommit-check --worktree <wt> --json`, and run every
-   later git/gh/pablo command from `<wt>` (pass `--worktree <wt>` to
+   later git/gh/glab/pablo command from `<wt>` (pass `--worktree <wt>` to
    `pablo task:*`). If no worktree can be resolved, say this command only
    works in a PABLO task worktree and point to `/commit-and-pr`.
 
@@ -140,20 +147,24 @@ for a commit message or the PR description.
      class names unless needed, nothing that isn't in the diff; flag
      breaking changes in one line of the Description.
 
-4. **Push and PR.** Push (see Hard rules). No existing PR: write the body
-   to `.pablo-pr-body.md` in the worktree root and run
-   `gh pr create --draft --title "<title>" --body-file .pablo-pr-body.md`
-   (title follows the commit convention, with the issue key if the branch
-   has one). Existing PR: just push.
+4. **Push and PR.** Push (see Hard rules). No existing PR/MR: write the
+   body to `.pablo-pr-body.md` in the worktree root and run, by `forge`:
+   - `github`: `gh pr create --draft --title "<title>" --body-file .pablo-pr-body.md`
+   - `gitlab`: `glab mr create --draft --title "<title>" --description-file .pablo-pr-body.md --target-branch <base> --yes --push=false`
+     (`<base>` is the branch the diff above was taken against, usually
+     the default branch)
+
+   The title follows the commit convention, with the issue key if the
+   branch has one. Existing PR/MR: just push.
 
 5. **State switch**, only after push (and PR creation) succeeded:
    `pablo task:state draft` (with `--worktree <wt>` if resolved in step
    1). A raw `git push` never changes PABLO state.
 
-6. **Output**: when a PR was created, its title on its own line, then the
+6. **Output**: when a PR/MR was created, its title on its own line, then the
    description in a fenced block using **four backticks** (templates
    contain triple-backtick blocks); then one short confirmation — what was committed (or
-   skipped via `--force`), the push result, the PR URL, and that the task
+   skipped via `--force`), the push result, the PR/MR URL, and that the task
    is now 📝 draft.
 
 User request: $ARGUMENTS

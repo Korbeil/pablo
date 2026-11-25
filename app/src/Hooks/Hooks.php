@@ -104,8 +104,8 @@ final class Hooks
             return '';
         }
         try {
-            return 'https://github.com/'.$this->repoSlug->for($cfg).'/pull/'.$task->prNumber;
-        } catch (PabloError) { // no GitHub origin: the hook just gets no PR URL
+            return $this->repoSlug->ref($cfg)->prUrl($task->prNumber);
+        } catch (PabloError) { // no GitHub/GitLab origin: the hook just gets no PR URL
             return '';
         }
     }
