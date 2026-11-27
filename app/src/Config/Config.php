@@ -28,7 +28,7 @@ final class Config
     public const PROVIDERS = ['github', 'jira', 'linear', 'gitlab'];
 
     /** repo.forge values: where a project's pull/merge requests and CI live. */
-    public const FORGES = ['github', 'gitlab'];
+    public const FORGES = ['github', 'gitlab', 'gitea'];
 
     public function __construct(private readonly GlobalConfig $global)
     {

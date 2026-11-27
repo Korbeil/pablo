@@ -127,6 +127,91 @@ final class LaunchContextTest extends TestCase
         $this->assertStringNotContainsString('approved this merge request', $prompt);
     }
 
+    /** A Gitea project: its context comes from gt api, on its own host. */
+    private function gitea(): ProjectConfig
+    {
+        $git = new FakeGit();
+        $git->originUrl = 'git@gitea.acme.io:platform/wallet-kit.git';
+        $this->context = new LaunchContext($this->runner, new RepoSlug($git));
+
+        return new ProjectConfig(
+            name: 'wallet-kit',
+            type: 'work',
+            repo: new RepoConfig(path: '/nonexistent', primaryBranch: 'main', worktreesRoot: '/nonexistent/wt'),
+            tracker: new TrackerConfig(provider: 'jira', identity: 'me', projectKey: 'WK'),
+            sync: new SyncConfig(strategy: 'rebase', autoApply: false, intervalMinutes: 30),
+            statePolling: new StatePollingConfig(10),
+            defaultModel: 'm',
+            prDescriptionLocale: 'en',
+            ci: new CiConfig(ignoreChecks: ['danger']),
+        );
+    }
+
+    /** @param callable(string): mixed $answer endpoint => answer, JSON-encoded unless a string */
+    private function gtAnswers(callable $answer): void
+    {
+        $this->runner->onRun = static function (array $argv) use ($answer): string {
+            $out = $answer((string) end($argv));
+
+            return \is_string($out) ? $out : (string) json_encode($out);
+        };
+    }
+
+    public function testGiteaCiBlockListsFailingStatusesAndActionsLogs(): void
+    {
+        $cfg = $this->gitea();
+        $this->gtAnswers(static fn (string $endpoint): mixed => match (true) {
+            str_ends_with($endpoint, 'pulls/12') => ['number' => 12, 'head' => ['sha' => 'abc']],
+            str_contains($endpoint, 'commits/abc/status') => ['statuses' => [
+                ['context' => 'CI / phpunit (pull_request)', 'status' => 'failure', 'target_url' => 'https://gitea.acme.io/platform/wallet-kit/actions/runs/3/jobs/0'],
+                ['context' => 'danger', 'status' => 'failure', 'target_url' => 'https://ci.example/1'],
+                ['context' => 'CI / lint (pull_request)', 'status' => 'success', 'target_url' => ''],
+            ]],
+            str_contains($endpoint, 'actions/runs?') => ['workflow_runs' => [['id' => 31, 'conclusion' => 'failure'], ['id' => 30, 'conclusion' => 'success']]],
+            str_contains($endpoint, 'actions/runs/31/jobs') => ['jobs' => [['id' => 501, 'name' => 'phpunit', 'conclusion' => 'failure'], ['id' => 502, 'name' => 'lint', 'conclusion' => 'success']]],
+            str_contains($endpoint, 'actions/jobs/501/logs') => "Running tests\nFAILED tests/FooTest.php\n",
+            default => throw new \LogicException($endpoint),
+        });
+
+        $prompt = $this->context->augment(Agent::CiAnalyst, $this->task(), $cfg, 'Fix CI.');
+
+        $this->assertStringContainsString('### Failing checks on PR #12', $prompt);
+        $this->assertStringContainsString('- CI / phpunit (pull_request) — failure — https://gitea.acme.io/platform/wallet-kit/actions/runs/3/jobs/0', $prompt);
+        $this->assertStringNotContainsString('danger', $prompt, 'ci.ignore_checks applies');
+        $this->assertStringContainsString('#### Log tail — phpunit (run 31, job 501)', $prompt);
+        $this->assertStringContainsString('FAILED tests/FooTest.php', $prompt);
+        $this->assertSame(['gt', 'api', '--host', 'gitea.acme.io', '--no-input', 'repos/platform/wallet-kit/pulls/12'], $this->runner->calls[0][0]);
+    }
+
+    public function testGiteaReviewBlockKeepsUnresolvedCommentsBodiesAndConversation(): void
+    {
+        $cfg = $this->gitea();
+        $this->gtAnswers(static fn (string $endpoint): mixed => match (true) {
+            str_contains($endpoint, 'reviews/7/comments') => [
+                ['body' => 'Rename this', 'path' => 'src/A.php', 'position' => 7, 'resolver' => null, 'user' => ['login' => 'alice'], 'html_url' => 'https://gitea.acme.io/c/1'],
+                ['body' => 'Done already', 'path' => 'src/B.php', 'position' => 2, 'resolver' => ['login' => 'me'], 'user' => ['login' => 'alice'], 'html_url' => 'https://gitea.acme.io/c/2'],
+            ],
+            str_contains($endpoint, '/reviews') => [
+                ['id' => 7, 'state' => 'COMMENT', 'body' => '', 'comments_count' => 2, 'user' => ['login' => 'alice']],
+                ['id' => 8, 'state' => 'REQUEST_CHANGES', 'body' => 'Needs tests', 'comments_count' => 0, 'user' => ['login' => 'bob'], 'html_url' => 'https://gitea.acme.io/r/8'],
+                ['id' => 9, 'state' => 'PENDING', 'body' => 'unsent draft', 'comments_count' => 0, 'user' => ['login' => 'bob']],
+            ],
+            str_contains($endpoint, 'issues/12/comments') => [['body' => 'Any news?', 'user' => ['login' => 'carol'], 'html_url' => 'https://gitea.acme.io/i/1']],
+            default => throw new \LogicException($endpoint),
+        });
+
+        $prompt = $this->context->augment(Agent::PrFeedback, $this->task(), $cfg, 'Plan.');
+
+        $this->assertStringContainsString('### Open review feedback on PR #12', $prompt);
+        $this->assertStringContainsString('1 unresolved threads, 1 non-empty review bodies, 1 conversation comments', $prompt);
+        $this->assertStringContainsString('`src/A.php:7`', $prompt);
+        $this->assertStringContainsString('Rename this', $prompt);
+        $this->assertStringContainsString('**bob** (REQUEST_CHANGES) https://gitea.acme.io/r/8', $prompt);
+        $this->assertStringContainsString('Any news?', $prompt);
+        $this->assertStringNotContainsString('Done already', $prompt);
+        $this->assertStringNotContainsString('unsent draft', $prompt);
+    }
+
     /** @param list<string> $ciIgnoreChecks */
     private function cfg(array $ciIgnoreChecks = []): ProjectConfig
     {

@@ -79,7 +79,7 @@ final class ConfigSchemaTest extends TestCase
         yield 'type' => [['type' => 'hobby'], "type must be one of: work, open-source, personal, got 'hobby'"];
         yield 'enum' => [['issue_tracker' => ['provider' => 'bitbucket']], "issue_tracker.provider must be one of: github, jira, linear, gitlab, got 'bitbucket'"];
         yield 'hook state' => [['hooks' => ['states' => ['red']]], "hooks.states has unknown state 'red'"];
-        yield 'forge' => [['repo' => ['forge' => 'bitbucket']], "repo.forge must be one of: github, gitlab, got 'bitbucket'"];
+        yield 'forge' => [['repo' => ['forge' => 'bitbucket']], "repo.forge must be one of: github, gitlab, gitea, got 'bitbucket'"];
     }
 
     /**

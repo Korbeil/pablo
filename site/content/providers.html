@@ -1,6 +1,6 @@
 <h1>Providers</h1>
 
-<p>PABLO talks to GitHub, GitLab, Jira, Confluence and Linear <span class="exp">experimental</span> through each service's own command-line tool. No API keys, no tokens in the configuration: every tool handles its own login, and when one isn't ready PABLO shows that tool's own message.</p>
+<p>PABLO talks to GitHub, GitLab, Gitea, Jira, Confluence and Linear <span class="exp">experimental</span> through each service's own command-line tool. No API keys, no tokens in the configuration: every tool handles its own login, and when one isn't ready PABLO shows that tool's own message.</p>
 
 <h2 id="forges">Forges: where pull requests live</h2>
 
@@ -45,6 +45,24 @@
 </table>
 
 <p>CI is read from the head pipeline's jobs, each one by its latest run: a failed job is red unless it is allowed to fail; a created, pending, running or scheduled job keeps CI pending; a cancelled, skipped or manual job says nothing. With more jobs than one page (100), the pipeline's own status decides and <code>ci.ignore_checks</code> cannot apply. No pipeline at all is green, as a GitHub pull request without checks. The background poll batches its reads like GitHub's, in smaller queries (5 merge requests, 25 branches each) to stay within GitLab's query complexity limit; a query GitLab refuses leaves its merge requests to the one-at-a-time reads. How reviews count on GitLab: <a href="page:states#reviews">Reviews</a>.</p>
+
+<h2 id="gitea">Gitea: <code>gt</code></h2>
+
+<p>Required when a project's pull requests are on Gitea (gitea.com or self-hosted): <code>gt</code>, the official Gitea CLI (the successor of <code>tea</code>, which is archived; not Graphite's <code>gt</code>, which shares the name). Gitea issues are not an issue tracker PABLO reads: track the project's work in GitHub, GitLab, Jira or Linear. Log in once with <code>gt auth login --host &lt;host&gt;</code>. Every call names its instance (<code>--host</code>) and its repository by path, and passes <code>--no-input</code>, so nothing depends on the directory it runs from nor on gt's default instance, and nothing ever waits for a prompt.</p>
+
+<table>
+  <thead><tr><th>Used for</th><th>Command</th></tr></thead>
+  <tbody>
+    <tr><td>Finding the pull request</td><td><code>gt api repos/&lt;owner&gt;/&lt;repo&gt;/pulls?state=all&amp;sort=recentupdate</code>, matched on the head branch (Gitea's list has no branch filter: up to 300 most recently updated pull requests are read)</td></tr>
+    <tr><td>CI status</td><td><code>gt api repos/&lt;owner&gt;/&lt;repo&gt;/commits/&lt;head sha&gt;/status</code>: the head commit's combined status</td></tr>
+    <tr><td>Reviews and the “ready” time</td><td><code>gt api …/pulls/&lt;n&gt;/reviews</code>, the comments of comment reviews (resolved or not), and <code>…/issues/&lt;n&gt;/timeline</code> for the title changes</td></tr>
+    <tr><td>Draft / ready</td><td><code>gt pr ready &lt;n&gt;</code> (<code>--undo</code> for draft): removes or adds the <code>WIP:</code> title prefix, Gitea's draft</td></tr>
+    <tr><td>Re-running CI</td><td><code>gt api --method POST …/actions/runs/&lt;id&gt;/rerun</code>: the latest completed Gitea Actions run of each workflow on the branch</td></tr>
+    <tr><td>Login check</td><td><code>gt auth status</code></td></tr>
+  </tbody>
+</table>
+
+<p>CI is read from the head commit's statuses, which Gitea Actions and external CI both report, one per context (Gitea keeps each context's latest): <code>failure</code> and <code>error</code> are red, <code>pending</code> keeps CI pending, <code>warning</code> and <code>skipped</code> say nothing. No status at all is green, as a GitHub pull request without checks. Gitea has no GraphQL, so the background poll reads a repository's pull requests concurrently, then their statuses, then the reviews of those waiting on one. A host name containing “gitea” is recognised; any other (Forgejo and Codeberg included, untested) is declared with <code>repo.forge: gitea</code>. How reviews count on Gitea: <a href="page:states#reviews">Reviews</a>.</p>
 
 <h2>Jira: <code>acli</code></h2>
 

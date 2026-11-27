@@ -10,8 +10,8 @@ use Pablo\Provider\Git\GitRepoInterface;
 
 /**
  * Shared repository helper used by states/poller/listing: which forge
- * (GitHub or GitLab) and host a project's pull requests live on, and the
- * repository's slug there — "owner/repo" or "group/subgroup/project".
+ * (GitHub, GitLab or Gitea) and host a project's pull requests live on, and
+ * the repository's slug there — "owner/repo" or "group/subgroup/project".
  *
  * The slug is the configured upstream (issue_tracker.repo) when set, else
  * the origin remote's path. The forge is repo.forge when set, else told by
@@ -51,7 +51,7 @@ final class RepoSlug
             return new RepoRef(RepoRef::GITHUB, RepoRef::DEFAULT_HOSTS[RepoRef::GITHUB], $configured);
         }
         if (null === $forge) {
-            throw new PabloError("{$cfg->name}: origin remote is neither a GitHub nor a GitLab URL: {$url} (a self-hosted GitLab: set repo.forge: gitlab)");
+            throw new PabloError("{$cfg->name}: origin remote is not a GitHub, GitLab or Gitea URL: {$url} (a self-hosted GitLab or Gitea: set repo.forge: gitlab or gitea)");
         }
         if (RepoRef::GITHUB === $forge && RepoRef::GITHUB !== RepoRef::forgeOfHost($host)) {
             throw new PabloError("{$cfg->name}: origin remote is not a GitHub URL: {$url} (only github.com is supported)");
@@ -60,6 +60,10 @@ final class RepoSlug
         if (RepoRef::GITHUB === $forge && null === $configured) {
             // owner/repo: whatever follows the second segment is not the slug
             $slug = implode('/', \array_slice(explode('/', $path), 0, 2));
+        } elseif (RepoRef::GITEA === $forge && null === $configured) {
+            // owner/repo: what comes before is the instance's sub-path
+            // (https://example.com/gitea/owner/repo)
+            $slug = implode('/', \array_slice(explode('/', $path), -2));
         }
 
         return new RepoRef($forge, $host, $slug);

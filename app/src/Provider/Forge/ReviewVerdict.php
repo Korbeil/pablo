@@ -7,7 +7,8 @@ namespace Pablo\Provider\Forge;
 /**
  * The review verdicts a forge's reviewVerdict() answers (null: no verdict
  * yet). Each forge evaluates them by its own rules: GitHub through
- * Github\GithubReviewVerdict, GitLab through Gitlab\GitlabReviewVerdict.
+ * Github\GithubReviewVerdict, GitLab through Gitlab\GitlabReviewVerdict,
+ * Gitea through Gitea\GiteaReviewVerdict.
  */
 final class ReviewVerdict
 {

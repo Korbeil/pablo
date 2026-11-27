@@ -36,7 +36,7 @@
   - { action: shell, resource: "git push *", effect: deny }   # …but never a push
 </code></pre>
 
-<p>Every agent also follows shared house rules: use tools sparingly (batched calls, bounded logs and diffs), write in English, never post or edit anything on GitHub or GitLab without your explicit approval in the session (they draft the text, you post it), and never commit or push.</p>
+<p>Every agent also follows shared house rules: use tools sparingly (batched calls, bounded logs and diffs), write in English, never post or edit anything on GitHub, GitLab or Gitea without your explicit approval in the session (they draft the text, you post it), and never commit or push.</p>
 
 <h2>Context fetched up front</h2>
 
@@ -44,7 +44,7 @@
 
 <ul>
   <li><b>task-analyst, task-feedback</b>: the issue's title, details, description and latest 15 comments;</li>
-  <li><b>ci-analyst</b>: the failing checks (minus ignored ones) and, for up to 3 GitHub Actions jobs or GitLab CI jobs (allowed failures left out), their error lines and the end of their logs;</li>
+  <li><b>ci-analyst</b>: the failing checks (minus ignored ones) and, for up to 3 GitHub Actions, GitLab CI or Gitea Actions jobs (allowed failures left out), their error lines and the end of their logs;</li>
   <li><b>pr-feedback</b>: unresolved threads, review bodies and comments.</li>
 </ul>
 

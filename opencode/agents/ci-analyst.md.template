@@ -27,8 +27,8 @@ fix plan."
 {{FORGE:ci-checks}}
 
 A check stuck pending on a manual gate (GitHub `action_required`, a
-GitLab manual job blocking the pipeline) is a process gate, not a
-failure — say so.
+GitLab manual job blocking the pipeline, a Gitea Actions run waiting for
+approval) is a process gate, not a failure — say so.
 
 ## Investigating the codebase
 

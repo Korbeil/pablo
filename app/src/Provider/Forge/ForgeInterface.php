@@ -7,17 +7,17 @@ namespace Pablo\Provider\Forge;
 /**
  * A code forge's pull-request plumbing, through the forge's own CLI: CI
  * status, review evaluation, draft/ready toggling, merge detection. GitHub
- * (gh, pull requests) and GitLab (glab, merge requests) implement it; the
- * engine says "PR" for both. A PR number is GitHub's PR number or GitLab's
- * merge request IID, and $repoSlug is RepoSlug::for() ("owner/repo",
- * "group/subgroup/project").
+ * (gh, pull requests), GitLab (glab, merge requests) and Gitea (gt, pull
+ * requests) implement it; the engine says "PR" for all. A PR number is
+ * GitHub's or Gitea's PR number or GitLab's merge request IID, and
+ * $repoSlug is RepoSlug::for() ("owner/repo", "group/subgroup/project").
  *
  * The forge of a project comes from ForgeRegistryInterface::for(). Tests
  * inject a fake instead of calling a real CLI.
  */
 interface ForgeInterface
 {
-    /** github | gitlab */
+    /** github | gitlab | gitea */
     public function name(): string;
 
     /** The web address of PR $prNumber. */
@@ -54,7 +54,7 @@ interface ForgeInterface
 
     /**
      * One poll cycle's reads of a repository in as few calls as possible
-     * (a few batched GraphQL queries): prForBranch() of each $branches, prState() and the
+     * (a few batched GraphQL queries; concurrent REST reads on Gitea): prForBranch() of each $branches, prState() and the
      * ciStatus() rollup of each $prNumbers, reviewVerdict()'s inputs of each
      * $reviewPrNumbers. Never throws: whatever it could not read in full is
      * absent from the snapshot, for the per-PR call to answer.

@@ -6,15 +6,17 @@ namespace Pablo\Provider\Forge;
 
 /**
  * Where a project's repository lives on its forge: the forge (github |
- * gitlab), its host and the repository's slug there ("owner/repo" on GitHub,
- * "group/subgroup/project" on GitLab). Resolved by Support\RepoSlug::ref().
+ * gitlab | gitea), its host and the repository's slug there ("owner/repo" on
+ * GitHub and Gitea, "group/subgroup/project" on GitLab). Resolved by
+ * Support\RepoSlug::ref().
  */
 final readonly class RepoRef
 {
     public const GITHUB = 'github';
     public const GITLAB = 'gitlab';
+    public const GITEA = 'gitea';
 
-    public const DEFAULT_HOSTS = [self::GITHUB => 'github.com', self::GITLAB => 'gitlab.com'];
+    public const DEFAULT_HOSTS = [self::GITHUB => 'github.com', self::GITLAB => 'gitlab.com', self::GITEA => 'gitea.com'];
 
     public function __construct(
         public string $forge,
@@ -28,25 +30,33 @@ final readonly class RepoRef
         return self::GITLAB === $this->forge;
     }
 
+    public function isGitea(): bool
+    {
+        return self::GITEA === $this->forge;
+    }
+
     /** The repository's web page. */
     public function webUrl(): string
     {
         return "https://{$this->host}/{$this->slug}";
     }
 
-    /** The web page of pull (GitHub) or merge (GitLab) request $number. */
+    /** The web page of pull (GitHub, Gitea) or merge (GitLab) request $number. */
     public function prUrl(int $number): string
     {
-        return $this->isGitlab()
-            ? $this->webUrl()."/-/merge_requests/{$number}"
-            : $this->webUrl()."/pull/{$number}";
+        return match ($this->forge) {
+            self::GITLAB => $this->webUrl()."/-/merge_requests/{$number}",
+            self::GITEA => $this->webUrl()."/pulls/{$number}",
+            default => $this->webUrl()."/pull/{$number}",
+        };
     }
 
     /**
      * The forge a remote's host points to, when the host says it:
-     * github.com, gitlab.com, or any host whose name contains "gitlab"
-     * (gitlab.example.com, git.gitlab.acme.io). Null for anything else: a
-     * self-hosted GitLab elsewhere is declared with repo.forge.
+     * github.com, any host whose name contains "gitlab" (gitlab.com,
+     * gitlab.example.com, git.gitlab.acme.io) or "gitea" (gitea.com,
+     * gitea.example.com). Null for anything else: a self-hosted GitLab or
+     * Gitea elsewhere is declared with repo.forge.
      */
     public static function forgeOfHost(string $host): ?string
     {
@@ -56,6 +66,9 @@ final readonly class RepoRef
         }
         if (str_contains($host, 'gitlab')) {
             return self::GITLAB;
+        }
+        if (str_contains($host, 'gitea')) {
+            return self::GITEA;
         }
 
         return null;

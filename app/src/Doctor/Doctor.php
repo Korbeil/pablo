@@ -19,7 +19,7 @@ use Symfony\Component\Process\ExecutableFinder;
  *
  * Derives the required CLI set from the configured projects. gh when a
  * project is on GitHub (forge or issues) or none is configured yet, glab
- * when one is on GitLab; acli (Jira) and a separate acli-confluence probe when a project
+ * when one is on GitLab, gt (the Gitea CLI) when one is on Gitea; acli (Jira) and a separate acli-confluence probe when a project
  * configures a Confluence space, only for jira projects; linear only when a
  * project uses that provider; the selected agent runtime's CLI and the
  * selected ADE's (if it needs one), each described by its own CliProbe.
@@ -51,7 +51,11 @@ final class Doctor
         $required = [] === $projects ? ['gh' => true] : [];
         $needsConfluence = false;
         foreach ($projects as $cfg) {
-            $required['github' === $this->forgeOf($cfg) ? 'gh' : 'glab'] = true;
+            $required[match ($this->forgeOf($cfg)) {
+                'gitlab' => 'glab',
+                'gitea' => 'gt',
+                default => 'gh',
+            }] = true;
             if ('github' === $cfg->tracker->provider) {
                 $required['gh'] = true;
             } elseif ('gitlab' === $cfg->tracker->provider) {
@@ -173,7 +177,7 @@ final class Doctor
     }
 
     /**
-     * Every CLI doctor knows, keyed by CLI id: gh and glab, every ADE's then every
+     * Every CLI doctor knows, keyed by CLI id: gh, glab and gt, every ADE's then every
      * runtime's probe, then the trackers'. Built per call (the ADE and
      * runtime probes depend on the runtime environment).
      *
@@ -193,6 +197,12 @@ final class Doctor
             'run: glab auth login (add --hostname <host> for a self-hosted GitLab)',
             ['Darwin' => 'brew install glab', 'Linux' => 'sudo apt-get install glab'],
             'https://gitlab.com/gitlab-org/cli',
+        ), 'gt' => new CliProbe(
+            'gt',
+            ['gt', 'auth', 'status', '--no-input'],
+            'run: gt auth login --host <gitea-host> (the Gitea CLI, not Graphite\'s gt)',
+            ['Darwin' => 'brew install gitea-cli', 'Linux' => 'brew install gitea-cli'],
+            'https://gitea.com/gitea/cli',
         )];
         foreach ($this->ades->all() as $ade) {
             $probe = $ade->probe();
@@ -209,7 +219,7 @@ final class Doctor
     }
 
     /**
-     * Wizard ordering: hard requirements first (gh and glab, then the ADEs' and the
+     * Wizard ordering: hard requirements first (gh, glab and gt, then the ADEs' and the
      * runtimes' CLIs), then the per-provider trackers (only included when a
      * project uses them).
      *

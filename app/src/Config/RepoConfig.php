@@ -18,7 +18,7 @@ final class RepoConfig
         public readonly string $worktreesRoot,
         public readonly string $primaryRemote = 'origin',
         public readonly ?string $startupScript = null,
-        // repo.forge: github | gitlab, null = detected from the origin remote
+        // repo.forge: github | gitlab | gitea, null = detected from the origin remote
         // (Support\RepoSlug::ref()).
         public readonly ?string $forge = null,
     ) {

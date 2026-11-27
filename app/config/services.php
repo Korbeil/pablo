@@ -40,6 +40,7 @@ use Pablo\Listing\Listing;
 use Pablo\Poller\Poller;
 use Pablo\Provider\Forge\ForgeRegistry;
 use Pablo\Provider\Forge\ForgeRegistryInterface;
+use Pablo\Provider\Forge\Gitea\GiteaForge;
 use Pablo\Provider\Forge\Github\GithubForge;
 use Pablo\Provider\Forge\Gitlab\GitlabForge;
 use Pablo\Provider\Git\GitRepo;
@@ -94,6 +95,7 @@ return static function (ContainerConfigurator $container): void {
     // by the registry from repo.forge or the origin remote.
     $services->set(GithubForge::class);
     $services->set(GitlabForge::class);
+    $services->set(GiteaForge::class);
     $services->set(ForgeRegistry::class);
     $services->alias(ForgeRegistryInterface::class, ForgeRegistry::class);
 

@@ -97,7 +97,7 @@ final class Sync
             $slug = $this->repoSlug->for($cfg);
             $forge = $this->forges->for($cfg);
         } catch (PabloError) {
-            return $baseByBranch; // neither a GitHub nor a GitLab repo: no PRs to stack on
+            return $baseByBranch; // not on a supported forge: no PRs to stack on
         }
         $prs = $forge->prsForBranches($slug, $branches);
         foreach ($branches as $branch) {

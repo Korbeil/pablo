@@ -11,6 +11,7 @@ use Pablo\Config\SyncConfig;
 use Pablo\Config\TrackerConfig;
 use Pablo\Domain\Time;
 use Pablo\Provider\Forge\ForgeRegistry;
+use Pablo\Provider\Forge\Gitea\GiteaForge;
 use Pablo\Provider\Forge\Github\GithubForge;
 use Pablo\Provider\Forge\Gitlab\GitlabForge;
 use Pablo\Support\PabloError;
@@ -32,9 +33,11 @@ final class ForgeRegistryTest extends TestCase
             '/r/gl2' => 'git@gitlab.com:acme/api.git',
             '/r/self' => 'https://git.acme.io/team/app.git',
             '/r/odd' => 'https://git.acme.io/team/app.git',
+            '/r/gt' => 'git@gitea.com:acme/web.git',
+            '/r/gt2' => 'https://gitea.acme.io/acme/api.git',
         ][$repo] ?? null;
         $runner = new FakeProcessRunner();
-        $this->forges = new ForgeRegistry(new GithubForge($runner, new Time()), new GitlabForge($runner), new RepoSlug($git));
+        $this->forges = new ForgeRegistry(new GithubForge($runner, new Time()), new GitlabForge($runner), new GiteaForge($runner), new RepoSlug($git));
     }
 
     private static function cfg(string $repo, ?string $forge = null): ProjectConfig
@@ -65,6 +68,20 @@ final class ForgeRegistryTest extends TestCase
         $selfHosted = $this->forges->for(self::cfg('/r/self', 'gitlab'));
         $this->assertInstanceOf(GitlabForge::class, $selfHosted);
         $this->assertSame('git.acme.io', $selfHosted->host());
+    }
+
+    public function testGiteaProjectsGetAGiteaForgePerHost(): void
+    {
+        $gitea = $this->forges->for(self::cfg('/r/gt'));
+        $this->assertInstanceOf(GiteaForge::class, $gitea);
+        $this->assertSame('gitea.com', $gitea->host());
+        $other = $this->forges->for(self::cfg('/r/gt2'));
+        $this->assertInstanceOf(GiteaForge::class, $other);
+        $this->assertSame('gitea.acme.io', $other->host());
+        $selfHosted = $this->forges->for(self::cfg('/r/self', 'gitea'));
+        $this->assertInstanceOf(GiteaForge::class, $selfHosted);
+        $this->assertSame('git.acme.io', $selfHosted->host());
+        $this->assertSame($selfHosted, $this->forges->for(self::cfg('/r/odd', 'gitea')));
     }
 
     public function testAnUnknownHostWithoutRepoForgeFails(): void

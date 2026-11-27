@@ -73,7 +73,7 @@ final class ProjectNewCommand extends Command
 
         // 5a. Forge: where the pull/merge requests live. Told by the origin
         // remote's host; asked only when the host does not say it (a
-        // self-hosted GitLab under another name).
+        // self-hosted GitLab or Gitea under another name).
         $remoteUrl = $this->git->originUrl($repoPath);
         $remote = null !== $remoteUrl ? RepoRef::parseRemote($remoteUrl) : null;
         $detectedForge = null !== $remote ? RepoRef::forgeOfHost($remote[0]) : null;
@@ -400,9 +400,16 @@ final class ProjectNewCommand extends Command
         }
     }
 
-    /** A remote's repository path as a slug: owner/repo on GitHub, the full path on GitLab. */
+    /**
+     * A remote's repository path as a slug: owner/repo on GitHub, the full
+     * path on GitLab, its last two segments on Gitea (after a sub-path).
+     */
     private static function slugOf(string $path, string $forge): string
     {
-        return RepoRef::GITLAB === $forge ? $path : implode('/', \array_slice(explode('/', $path), 0, 2));
+        return match ($forge) {
+            RepoRef::GITLAB => $path,
+            RepoRef::GITEA => implode('/', \array_slice(explode('/', $path), -2)),
+            default => implode('/', \array_slice(explode('/', $path), 0, 2)),
+        };
     }
 }

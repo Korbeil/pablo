@@ -30,9 +30,9 @@ final class SchedulerPath
      * trackers' CLIs, `node` for npm/pnpm shims (OpenChamber, Orca's shim),
      * the tools of a detached headless run (including the session helpers:
      * `setsid`, else `perl` on macOS), and `brew` so Homebrew's prefix (where
-     * gh/glab/acli/… usually are on macOS) is found wherever it lives.
+     * gh/glab/gt/acli/… usually are on macOS) is found wherever it lives.
      */
-    public const TOOLS = ['git', 'gh', 'glab', 'node', 'acli', 'linear', 'bash', ...Detached::SESSION_HELPERS, 'script', 'brew'];
+    public const TOOLS = ['git', 'gh', 'glab', 'gt', 'node', 'acli', 'linear', 'bash', ...Detached::SESSION_HELPERS, 'script', 'brew'];
 
     private const SYSTEM = [
         'Linux' => ['/usr/local/sbin', '/usr/local/bin', '/usr/sbin', '/usr/bin', '/sbin', '/bin', '/snap/bin'],
