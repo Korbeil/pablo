@@ -74,7 +74,7 @@ castor site:serve                           # build + preview it on http://127.0
 castor build:binary [--micro=<micro.sfx> --spc=<spc>]  # dist/pablo.phar (+ dist/pablo, the static binary)
 castor release:create [--no-latest]         # release main's last commit (named YYYYMMDD, then YYYYMMDD.1, .2… same day)
                                             # via binary.yml (workflow_dispatch release=true)
-castor release:list [--limit=10]            # last releases (gh release list)
+castor release:list [--limit=10]            # last releases + binary downloads per OS (minus CI's own)
 php app/bin/pablo --help                    # engine subcommands, from the checkout
 php app/bin/pablo web                       # dashboard on 127.0.0.1:8321 (php -S, see Pablo\Web\PhpServer)
 php app/bin/console cache:clear             # framework CLI: cache:clear, lint:twig, debug:router,

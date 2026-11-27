@@ -284,12 +284,108 @@ function release_create(
     return 0;
 }
 
-#[AsTask(name: 'list', namespace: 'release', description: 'List the last releases (the "Latest" one is what the installer and pablo update install)')]
+/**
+ * Downloads the release workflow makes of each of its own assets: it fetches
+ * every asset once after publishing, so a fresh release shows 1 everywhere.
+ */
+const CI_DOWNLOADS_PER_ASSET = 1;
+
+#[AsTask(name: 'list', namespace: 'release', description: 'List the last releases with their downloads (the "Latest" one is what the installer and pablo update install)')]
 function release_list(
     #[AsOption(description: 'how many releases to show')]
     int $limit = 10,
-): void {
-    run(['gh', 'release', 'list', '--limit', (string) $limit]);
+): int {
+    if ($limit < 1) {
+        io()->error('--limit must be at least 1.');
+
+        return 1;
+    }
+
+    $quiet = context()->withQuiet();
+    $releases = [];
+    $page = 1;
+    while (\count($releases) < $limit) {
+        $perPage = min(100, $limit);
+        $batch = json_decode(
+            run(['gh', 'api', "repos/{owner}/{repo}/releases?per_page={$perPage}&page={$page}"], $quiet)->getOutput(),
+            true,
+            flags: \JSON_THROW_ON_ERROR,
+        );
+        if (!\is_array($batch) || [] === $batch) {
+            break;
+        }
+        array_push($releases, ...$batch);
+        if (\count($batch) < $perPage) {
+            break;
+        }
+        ++$page;
+    }
+    $releases = \array_slice($releases, 0, $limit);
+
+    if ([] === $releases) {
+        io()->writeln('No release yet.');
+
+        return 0;
+    }
+
+    // No latest release answers 404: then no row is flagged.
+    $latest = run(['gh', 'api', 'repos/{owner}/{repo}/releases/latest', '--jq', '.tag_name'], $quiet->withAllowFailure());
+    $latestTag = $latest->isSuccessful() ? trim($latest->getOutput()) : '';
+
+    // Only the binaries (pablo-<os>-<arch>) count, summed per OS whatever
+    // the arch; the checksums are left out.
+    $osOf = static function (string $asset): ?string {
+        if (!preg_match('/^pablo-([^-]+)-/', $asset, $m)) {
+            return null;
+        }
+
+        return match ($m[1]) {
+            'linux' => 'Linux',
+            'macos' => 'macOS',
+            default => $m[1],
+        };
+    };
+
+    // One column per OS seen.
+    $columns = [];
+    foreach ($releases as $release) {
+        foreach ($release['assets'] ?? [] as $asset) {
+            if (null !== $os = $osOf($asset['name'])) {
+                $columns[$os] = true;
+            }
+        }
+    }
+    ksort($columns);
+    $columns = array_keys($columns);
+
+    $rows = [];
+    foreach ($releases as $release) {
+        $counts = [];
+        foreach ($release['assets'] ?? [] as $asset) {
+            if (null !== $os = $osOf($asset['name'])) {
+                $counts[$os] = ($counts[$os] ?? 0) + max(0, (int) $asset['download_count'] - CI_DOWNLOADS_PER_ASSET);
+            }
+        }
+        $status = match (true) {
+            (bool) ($release['draft'] ?? false) => 'Draft',
+            (bool) ($release['prerelease'] ?? false) => 'Pre-release',
+            $release['tag_name'] === $latestTag => 'Latest',
+            default => '',
+        };
+        $row = [$release['tag_name'], $status, substr((string) ($release['published_at'] ?? ''), 0, 10)];
+        foreach ($columns as $os) {
+            $row[] = isset($counts[$os]) ? (string) $counts[$os] : '-';
+        }
+        $row[] = (string) array_sum($counts);
+        $rows[] = $row;
+    }
+
+    $headers = ['Release', '', 'Published', ...$columns, 'Total'];
+
+    io()->table($headers, $rows);
+    io()->writeln(\sprintf('<comment>Downloads exclude the %d per asset the release workflow makes itself.</comment>', CI_DOWNLOADS_PER_ASSET));
+
+    return 0;
 }
 
 /**
