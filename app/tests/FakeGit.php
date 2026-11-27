@@ -133,12 +133,30 @@ final class FakeGit implements GitRepoInterface
     /** When set, removeWorktree() throws PabloError with this message. */
     public ?string $removeThrows = null;
 
-    public function removeWorktree(string $repo, string $path, string $branch): void
+    /** @var list<string> what uncommittedChanges() reports, for any worktree */
+    public array $changes = [];
+
+    /** @var list<string> worktrees removed with */
+    public array $discarded = [];
+
+    /** Like git, refuses a worktree with $changes unless they are discarded. */
+    public function removeWorktree(string $repo, string $path, string $branch, bool $discardChanges = false): void
     {
         if (null !== $this->removeThrows) {
             throw new PabloError($this->removeThrows);
         }
+        if ([] !== $this->changes && !$discardChanges) {
+            throw new PabloError("git worktree remove failed in {$repo}: '{$path}' contains modified or untracked files, use --force to delete it");
+        }
         $this->removed[] = [$path, $branch];
+        if ($discardChanges) {
+            $this->discarded[] = $path;
+        }
+    }
+
+    public function uncommittedChanges(string $worktree): array
+    {
+        return $this->changes;
     }
 
     public function recreateWorktree(string $repo, string $worktreesRoot, string $branch): string

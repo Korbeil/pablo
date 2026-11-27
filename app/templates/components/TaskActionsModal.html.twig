@@ -51,7 +51,30 @@
                 </p>
 
                 {% if closeTask %}
-                    <p class="block">Remove <code>{{ this.branch }}</code> from PABLO: its worktree, its local branch and the task record are deleted. The pull request and the remote branch are untouched. A worktree with uncommitted changes is refused.</p>
+                    {% if this.currentState != 'closed' %}
+                        <div class="notification is-warning is-light">
+                            {{ ux_icon('lucide:triangle-alert', {class: 'pablo-icon'}) }}
+                            This task is still <b>{{ this.currentState }}</b>: PABLO stops following it, but its pull request stays open.
+                        </div>
+                    {% endif %}
+                    <p class="block">Remove <code>{{ this.branch }}</code> from PABLO: its worktree, its local branch and the task record are deleted. The pull request and the remote branch are untouched.</p>
+                    {% set fileCount = this.changeCount %}
+                    {% if fileCount > 0 %}
+                        <div class="notification is-danger is-light pablo-changes">
+                            <p class="pablo-changes-title">
+                                {{ ux_icon('lucide:triangle-alert', {class: 'pablo-icon'}) }}
+                                The worktree has {{ fileCount }} uncommitted file{{ fileCount > 1 ? 's' }}: closing deletes {{ fileCount > 1 ? 'them' : 'it' }} for good.
+                            </p>
+                            <pre class="pablo-changes-list">{% for change in this.changes %}{{ change }}{{ not loop.last ? '\n' }}{% endfor %}</pre>
+                            {% if fileCount > this.changes|length %}
+                                <p class="pablo-changes-more">… and {{ fileCount - this.changes|length }} more (<code>git status</code> in the worktree lists them all).</p>
+                            {% endif %}
+                            <label class="checkbox pablo-changes-approve">
+                                <input type="checkbox" name="discard" data-model="discard" {{ this.discard ? 'checked' : '' }}>
+                                Delete {{ fileCount > 1 ? 'these files' : 'this file' }} with the worktree
+                            </label>
+                        </div>
+                    {% endif %}
                     <div class="field">
                         <label class="checkbox">
                             <input type="checkbox" name="force" data-model="force" {{ this.force ? 'checked' : '' }}>

@@ -31,7 +31,22 @@ interface GitRepoInterface
 
     public function createWorktree(string $repo, string $worktreesRoot, string $branch, string $base, string $remote = 'origin'): string;
 
-    public function removeWorktree(string $repo, string $path, string $branch): void;
+    /**
+     * Remove a task worktree and its local branch. A worktree holding
+     * modified or untracked files is refused, unless $discardChanges: then
+     * they are deleted with it (`git worktree remove --force`).
+     */
+    public function removeWorktree(string $repo, string $path, string $branch, bool $discardChanges = false): void;
+
+    /**
+     * The worktree's uncommitted files, one `git status --porcelain` entry
+     * each ("XY path", e.g. " M src/a.php", "?? notes.txt"), untracked ones
+     * included and ignored ones left out — what `git worktree remove` would
+     * refuse to delete. Empty when the directory is gone or not a worktree.
+     *
+     * @return list<string>
+     */
+    public function uncommittedChanges(string $worktree): array;
 
     /**
      * Recreate a task worktree from its remote branch (restore path).

@@ -218,7 +218,7 @@ the same `AnalyticsAggregator` methods as `pablo stats`/`task:history`) ·
 and never calls `gh`/`glab`/`orca`/a tracker CLI — it reads the poller's
 `DisplayCache`. The only writes are LiveComponent actions behind an explicit
 click: `NewTaskModal::start()` (= `task:start`) and
-`TaskActionsModal::confirm()` (force state, skip CI, close a `closed` task =
+`TaskActionsModal::confirm()` (force state, skip CI, close a task =
 `task:state`/`task:skip-ci`/`task:close`), through the same `src/Task/`
 services as the CLI. Those forms and the Slack modal are the only live
 fetches; never add a write or a live call without the same confirmation step.

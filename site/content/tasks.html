@@ -143,6 +143,10 @@ pablo task:close pim-123 --project acme-pim   # when several projects have that 
 
 <p>It refuses while agents are active (add <code>--yes</code> to close anyway, which also skips the confirmation), works even if the worktree folder is already gone, or is no longer a git worktree (its <code>.git</code> file is missing: git can't remove it, so PABLO unregisters it, deletes the branch and the task, and leaves the folder for you to delete), and moves you to the project's primary checkout before deleting the worktree, so your shell isn't left in a deleted folder.</p>
 
+<p>A worktree with uncommitted files (modified or untracked; ignored ones such as <code>vendor/</code> don't count) is refused, and the error lists them. Add <code>--discard-changes</code> to delete them with the worktree: the command prints the list, then closes.</p>
+
+<pre><code class="language-bash">pablo task:close pim-123 --discard-changes</code></pre>
+
 <h2 id="inspect-a-task">Inspect a task</h2>
 
 <pre><code class="language-bash">pablo task:info           # the current worktree's task record, as JSON
