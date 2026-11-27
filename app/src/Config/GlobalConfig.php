@@ -198,6 +198,33 @@ final class GlobalConfig
     }
 
     /**
+     * The values `dispatch.tick_minutes` may take: the minutes that divide an
+     * hour, so every tick lands on the same wall-clock minutes (systemd's
+     * OnCalendar=*:0/N) and the dashboard can predict them.
+     */
+    public const TICK_MINUTES = [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60];
+
+    /**
+     * `dispatch.tick_minutes`: how often the scheduler starts the background
+     * dispatcher, else $default. Read per call; written into the timer/agent by
+     * `pablo system:install`, so a change only takes effect after it.
+     *
+     * @throws PabloError when it is not one of TICK_MINUTES
+     */
+    public function dispatchTickMinutes(int $default): int
+    {
+        $dispatch = $this->defaults()['dispatch'] ?? null;
+        $this->check('dispatch', $dispatch);
+        $value = \is_array($dispatch) ? ($dispatch['tick_minutes'] ?? null) : null;
+        if (null === $value) {
+            return $default;
+        }
+        $this->check('dispatch.tick_minutes', $value);
+
+        return (int) $value;
+    }
+
+    /**
      * Whether `pablo system:install` installs the shell completion: on unless
      * shell_completion is false (what --without-completion records, so a
      * `pablo update` keeps the choice).

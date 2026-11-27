@@ -274,9 +274,12 @@ final class ConfigSchema
                 'keep_days' => self::leaf(self::positiveInt('days'), deferred: true),
             ], deferred: true),
             'shell_completion' => self::leaf(self::flag(...), deferred: true),
-            // Read by the dispatcher alone, which falls back to 1 on a bad value.
+            // poll_concurrency: read by the dispatcher alone, which falls back to
+            // 1 on a bad value. tick_minutes: refused by system:install, every
+            // other reader falls back to Dispatch::DEFAULT_TICK_MINUTES.
             'dispatch' => SchemaKey::map([
                 'poll_concurrency' => self::leaf(self::intRange(1, GlobalConfig::MAX_POLL_CONCURRENCY, 'projects'), deferred: true),
+                'tick_minutes' => self::leaf(self::intChoice(GlobalConfig::TICK_MINUTES, 'minutes dividing an hour'), deferred: true),
             ], deferred: true),
         ];
     }
@@ -375,6 +378,20 @@ final class ConfigSchema
             $whole = \is_int($value) || (\is_string($value) && 1 === preg_match('/^\d+$/', $value));
 
             return $whole && (int) $value >= $min && (int) $value <= $max ? null : "must be a whole number of {$unit}, from {$min} to {$max}, got ".self::show($value);
+        };
+    }
+
+    /**
+     * @param list<int> $allowed
+     *
+     * @return \Closure(mixed): ?string
+     */
+    private static function intChoice(array $allowed, string $what): \Closure
+    {
+        return static function (mixed $value) use ($allowed, $what): ?string {
+            $whole = \is_int($value) || (\is_string($value) && 1 === preg_match('/^\d+$/', $value));
+
+            return $whole && \in_array((int) $value, $allowed, true) ? null : \sprintf('must be one of: %s (%s), got %s', implode(', ', $allowed), $what, self::show($value));
         };
     }
 

@@ -46,7 +46,7 @@ final class LaunchdSchedulerTest extends TestCase
             return new ProbeResult(0, '');
         };
 
-        $this->scheduler()->install('/bin/pablo', true, '/usr/bin', $this->log());
+        $this->scheduler()->install('/bin/pablo', true, '/usr/bin', 1, $this->log());
 
         $web = array_values(array_filter($this->runner->probeCalls, static fn (array $argv): bool => str_ends_with($argv[2], 'com.pablo.web') || str_ends_with($argv[3] ?? '', 'com.pablo.web.plist')));
         $this->assertSame(['bootout', 'print', 'print', 'print', 'bootstrap'], array_map(static fn (array $argv): string => $argv[1], $web));
@@ -64,7 +64,7 @@ final class LaunchdSchedulerTest extends TestCase
             };
         };
 
-        $this->scheduler()->install('/bin/pablo', false, '/usr/bin', $this->log());
+        $this->scheduler()->install('/bin/pablo', false, '/usr/bin', 1, $this->log());
 
         $bootstraps = array_filter($this->runner->probeCalls, static fn (array $argv): bool => 'bootstrap' === $argv[1]);
         $this->assertCount(4, $bootstraps); // dispatch ×3, prune ×1
@@ -81,10 +81,21 @@ final class LaunchdSchedulerTest extends TestCase
         $this->expectException(PabloError::class);
         $this->expectExceptionMessage('launchctl bootstrap com.pablo.dispatch failed: Bootstrap failed: 5');
         try {
-            $this->scheduler()->install('/bin/pablo', false, '/usr/bin', $this->log());
+            $this->scheduler()->install('/bin/pablo', false, '/usr/bin', 1, $this->log());
         } finally {
             $this->assertCount(5, array_filter($this->runner->probeCalls, static fn (array $argv): bool => 'bootstrap' === $argv[1]));
         }
+    }
+
+    public function testTheTickIsWrittenAndReadBack(): void
+    {
+        $this->runner->onProbe = static fn (array $argv): ProbeResult => new ProbeResult('print' === $argv[1] ? 113 : 0, '');
+
+        $this->scheduler()->install('/bin/pablo', false, '/usr/bin', 15, $this->log());
+
+        $plist = (string) file_get_contents($this->tmp.'/LaunchAgents/com.pablo.dispatch.plist');
+        $this->assertMatchesRegularExpression('#<key>StartInterval</key>\s*<integer>900</integer>#', $plist);
+        $this->assertSame(15, $this->scheduler()->dispatchStatus()->tickMinutes);
     }
 
     private function scheduler(): LaunchdScheduler

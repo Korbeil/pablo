@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Pablo\Doctor;
 
+use Pablo\Config\GlobalConfig;
 use Pablo\Config\ProjectConfig;
 use Pablo\Dispatch\Dispatch;
 use Pablo\Dispatch\DispatchHealth;
 use Pablo\Install\Scheduler\SchedulerFactory;
+use Pablo\Install\Scheduler\ServiceFiles;
 
 /**
  * The "scheduler" section of system:doctor: is the dispatcher's timer
@@ -17,13 +19,23 @@ use Pablo\Install\Scheduler\SchedulerFactory;
  */
 final class SchedulerHealth
 {
-    /** Three missed ticks: the scheduler is not firing. */
-    public const STALE_DISPATCH_MINUTES = 15;
+    /**
+     * The dispatcher is considered stalled after three missed ticks, never
+     * before this: one run (holding the lock, so the next ticks skip) may
+     * legitimately take a few minutes.
+     */
+    public const STALE_DISPATCH_MIN_MINUTES = 15;
 
     public function __construct(
         private readonly SchedulerFactory $schedulers,
         private readonly DispatchHealth $health,
+        private readonly GlobalConfig $globalConfig = new GlobalConfig(),
     ) {
+    }
+
+    public static function staleAfterMinutes(int $tickMinutes): int
+    {
+        return max(self::STALE_DISPATCH_MIN_MINUTES, 3 * $tickMinutes);
     }
 
     /**
@@ -35,9 +47,12 @@ final class SchedulerHealth
     {
         $now ??= microtime(true);
         $lines = [];
+        $tick = Dispatch::tickMinutes($this->globalConfig);
+        $installedTick = null; // the tick the installed timer/agent fires on, when readable
 
         try {
             $status = $this->schedulers->create()->dispatchStatus();
+            $installedTick = $status->tickMinutes;
             if (!$status->installed) {
                 $lines[] = self::line(false, 'scheduler', "{$status->name} is not installed");
                 $lines[] = '   → run: pablo system:install';
@@ -45,7 +60,11 @@ final class SchedulerHealth
                 $lines[] = self::line(false, 'scheduler', "{$status->name} is installed but not active");
                 $lines[] = '   → run: pablo system:install';
             } else {
-                $lines[] = self::line(true, 'scheduler', "{$status->name} active");
+                $lines[] = self::line(true, 'scheduler', "{$status->name} active".(null !== $status->tickMinutes ? ', every '.ServiceFiles::every($status->tickMinutes) : ''));
+            }
+            if ($status->installed && null !== $status->tickMinutes && $status->tickMinutes !== $tick) {
+                $lines[] = self::line(false, 'scheduler', "{$status->name} runs every ".ServiceFiles::every($status->tickMinutes).', dispatch.tick_minutes says '.ServiceFiles::every($tick));
+                $lines[] = '   → run: pablo system:install';
             }
         } catch (\Throwable $e) {
             $lines[] = self::line(false, 'scheduler', $e->getMessage());
@@ -58,14 +77,14 @@ final class SchedulerHealth
             $started = strtotime($last->startedAt);
             $minutes = false !== $started ? (int) floor(max(0.0, $now - $started) / 60) : null;
             $ago = null !== $minutes ? "{$minutes} min ago" : $last->startedAt;
-            $stale = null === $minutes || $minutes > self::STALE_DISPATCH_MINUTES;
+            $stale = null === $minutes || $minutes > self::staleAfterMinutes($installedTick ?? $tick);
             $detail = "last dispatch {$ago} ({$last->outcome})";
             if (DispatchHealth::OUTCOME_PREFLIGHT_FAILED === $last->outcome && null !== $last->detail) {
                 $detail .= ": {$last->detail}";
             }
             $lines[] = self::line(!$stale && DispatchHealth::OUTCOME_PREFLIGHT_FAILED !== $last->outcome, 'dispatch', $detail);
             if ($stale) {
-                $lines[] = '   → the dispatcher runs every '.Dispatch::TICK_MINUTES.' minutes: check the scheduler and its logs';
+                $lines[] = '   → the dispatcher runs every '.ServiceFiles::every($installedTick ?? $tick).': check the scheduler and its logs';
             }
         }
 

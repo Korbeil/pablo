@@ -106,6 +106,17 @@ final class ConfigSchemaTest extends TestCase
         ]));
     }
 
+    public function testDispatchTickMinutesMustDivideAnHour(): void
+    {
+        $this->assertNull(ConfigSchema::valueError(ConfigSchema::GLOBAL, 'dispatch.tick_minutes', 1));
+        $this->assertNull(ConfigSchema::valueError(ConfigSchema::GLOBAL, 'dispatch.tick_minutes', '15'));
+        $this->assertSame(
+            'must be one of: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60 (minutes dividing an hour), got 7',
+            ConfigSchema::valueError(ConfigSchema::GLOBAL, 'dispatch.tick_minutes', 7),
+        );
+        $this->assertNotNull(ConfigSchema::valueError(ConfigSchema::GLOBAL, 'dispatch.tick_minutes', 0));
+    }
+
     public function testGlobalOnlyKeysAreCheckedByValidateButDeferredWhenLoading(): void
     {
         $data = ['dashboard_port' => 99999, 'prune' => ['keep_days' => 0], 'shell_completion' => 'maybe'];

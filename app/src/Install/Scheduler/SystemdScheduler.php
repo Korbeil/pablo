@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Pablo\Install\Scheduler;
 
 use Pablo\Install\InstallLog;
+use Pablo\Support\Files;
 use Pablo\Support\PabloError;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\WriteStatus;
@@ -30,11 +31,11 @@ final class SystemdScheduler implements SchedulerInterface
     ) {
     }
 
-    public function install(string $pabloBin, bool $withWeb, string $path, InstallLog $log): void
+    public function install(string $pabloBin, bool $withWeb, string $path, int $tickMinutes, InstallLog $log): void
     {
         $log->section('services', $this->unitDir);
         foreach ([...self::DISPATCH_UNITS, ...self::PRUNE_UNITS, ...($withWeb ? [self::WEB_UNIT] : [])] as $unit) {
-            $log->file('unit', $this->unitDir.'/'.$unit, $this->writeUnit($unit, $path));
+            $log->file('unit', $this->unitDir.'/'.$unit, $this->writeUnit($unit, $path, $tickMinutes));
         }
         // User units only start at boot if the user lingers; otherwise systemd
         // waits for a login that never comes on a headless box, and everything
@@ -44,7 +45,7 @@ final class SystemdScheduler implements SchedulerInterface
         }
         $this->systemctl(['daemon-reload']);
         $this->systemctl(['enable', '--now', 'pablo-dispatch.timer']);
-        $log->info('pablo-dispatch.timer enabled (every 5 minutes; logs: journalctl --user -u pablo-dispatch.service)');
+        $log->info('pablo-dispatch.timer enabled (every '.ServiceFiles::every($tickMinutes).'; logs: journalctl --user -u pablo-dispatch.service)');
         $this->systemctl(['enable', '--now', 'pablo-prune.timer']);
         $log->info('pablo-prune.timer enabled (daily at 03:00; logs: journalctl --user -u pablo-prune.service)');
 
@@ -83,18 +84,25 @@ final class SystemdScheduler implements SchedulerInterface
     public function dispatchStatus(): SchedulerStatus
     {
         $timer = 'pablo-dispatch.timer';
-        $installed = ServiceFiles::isOurs($this->unitDir.'/'.$timer, $timer);
+        $file = $this->unitDir.'/'.$timer;
+        $installed = ServiceFiles::isOurs($file, $timer);
+        $tick = $installed && 1 === preg_match('~^OnCalendar=\*:0/(\d+)\s*$~m', (string) Files::tryRead($file), $m) ? (int) $m[1] : null;
 
         return new SchedulerStatus(
             $timer,
             $installed,
             $installed && 0 === $this->runner->probe(['systemctl', '--user', 'is-active', '--quiet', $timer], 10)->exitCode,
+            $tick,
         );
     }
 
-    private function writeUnit(string $unit, string $path): WriteStatus
+    private function writeUnit(string $unit, string $path, int $tickMinutes): WriteStatus
     {
-        $content = str_replace('@PATH@', self::escape($path), ServiceFiles::bundled($this->sourceDir.'/'.$unit));
+        $content = str_replace(
+            ['@PATH@', '@TICK_MINUTES@'],
+            [self::escape($path), (string) $tickMinutes],
+            ServiceFiles::bundled($this->sourceDir.'/'.$unit),
+        );
 
         return ServiceFiles::write($this->unitDir.'/'.$unit, $unit, $content);
     }

@@ -1,6 +1,6 @@
 <h1>How it works</h1>
 
-<p>PABLO has two layers: the commands you run, and a background job that runs every 5 minutes, checks each project and does whatever is due. Agents run in your <a href="page:glossary#ade">agent environment (ADE: Orca, OpenChamber or headless)</a>, and everything else is plain, deterministic code.</p>
+<p>PABLO has two layers: the commands you run, and a background job that runs every minute, checks each project and does whatever is due. Agents run in your <a href="page:glossary#ade">agent environment (ADE: Orca, OpenChamber or headless)</a>, and everything else is plain, deterministic code.</p>
 
 <h2>Two layers</h2>
 
@@ -8,7 +8,7 @@
   <dt>Interactive</dt>
   <dd>What you run: the <a href="page:cli"><code>pablo</code> commands</a>, the <code>/pablo-commit-and-pr</code> command (OpenCode, Claude Code or Copilot), and the agent sessions you open in Orca or OpenChamber.</dd>
   <dt>Background</dt>
-  <dd>A <a href="page:glossary#scheduler">scheduler</a> (systemd user timer on Linux, launchd agent on macOS) runs <code>pablo system:dispatch</code> every 5 minutes, and <a href="page:storage#what-grows-and-how-its-pruned"><code>pablo system:prune</code></a> every day at 03:00.</dd>
+  <dd>A <a href="page:glossary#scheduler">scheduler</a> (systemd user timer on Linux, launchd agent on macOS) runs <code>pablo system:dispatch</code> every minute (<a href="#job-timing"><code>dispatch.tick_minutes</code></a>), and <a href="page:storage#what-grows-and-how-its-pruned"><code>pablo system:prune</code></a> every day at 03:00.</dd>
 </dl>
 
 <h2>The background job</h2>
@@ -60,11 +60,21 @@
   <li>for the whole run: when it started and finished, and whether it went fine, had a failing job, or stopped on the tool check. A run with nothing due went fine, so the record also shows the scheduler is alive.</li>
 </ul>
 
-<p>A job that fails twice in a row backs off instead of retrying every 5 minutes: it waits 5 minutes × 2<sup>failures − 1</sup> after its last attempt (10, 20, 40 minutes…), never longer than its own interval. One success ends the back-off, and so does running the job by hand: <code>pablo system:poll</code> and <code>pablo sync:run</code> ignore the back-off and, when they work, reset the failure count (not <code>pablo sync:run --dry-run</code>, which proves too little).</p>
+<p>A job that fails twice in a row backs off instead of retrying on every run: it waits 5 minutes × 2<sup>failures − 1</sup> after its last attempt (10, 20, 40 minutes…), never longer than its own interval. One success ends the back-off, and so does running the job by hand: <code>pablo system:poll</code> and <code>pablo sync:run</code> ignore the back-off and, when they work, reset the failure count (not <code>pablo sync:run --dry-run</code>, which proves too little).</p>
 
 <p><code>pablo system:doctor</code> shows all this in its <a href="page:providers#the-doctor">scheduler section</a>, and the <a href="page:dashboard">dashboard</a> shows a banner while a job is failing. Recording is best-effort: a problem writing these files never stops a run.</p>
 
-<p>Because the dispatcher wakes up every 5 minutes, a job runs at the first wake-up <em>after</em> its interval has elapsed, not at the exact minute.</p>
+<h3 id="job-timing">When a job runs</h3>
+
+<p>The dispatcher wakes up every <code>dispatch.tick_minutes</code> (default <code>1</code>), and runs a job at the first wake-up once its interval has elapsed (give or take 30 seconds, so a wake-up a few seconds early still counts). A <code>state_polling.interval_minutes: 2</code> therefore polls every 2 minutes. A wake-up with nothing due only reads the configuration: it calls no CLI and makes no API request, so a short tick costs nothing on GitHub or your tracker. Only the intervals decide that.</p>
+
+<p>On Linux each wake-up still leaves a start and a finish line in the user journal. To have fewer, raise the tick in <code>~/.pablo/config.yaml</code> (one of 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30 or 60 minutes) and run <code>pablo system:install</code>, which writes it into the timer:</p>
+
+<pre><code class="language-yaml">dispatch:
+  tick_minutes: 5
+</code></pre>
+
+<p>An interval shorter than the tick is then rounded up to it. <code>pablo system:doctor</code> warns when the installed timer and <code>dispatch.tick_minutes</code> disagree.</p>
 
 <h2 id="agent-backends">Agent environments (ADEs)</h2>
 
@@ -130,7 +140,7 @@ openchamber session list --dir &lt;worktree&gt; --with-status
 
 <h3>One timer for all projects</h3>
 
-<p>A single 5-minute dispatcher reads each project's intervals from its YAML file, instead of one scheduler unit per project. Adding a project is just adding a file.</p>
+<p>A single dispatcher, woken every minute, reads each project's intervals from its YAML file, instead of one scheduler unit per project. Adding a project is just adding a file.</p>
 
 <h3>A state machine, not an agent framework</h3>
 

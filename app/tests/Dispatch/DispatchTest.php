@@ -162,6 +162,25 @@ final class DispatchTest extends TestCase
         $this->assertSame([['poll', 'a']], $this->ran);
     }
 
+    /**
+     * A tick firing a few seconds before the interval has fully elapsed still
+     * runs the job (Dispatch::DUE_GRACE_SECONDS) instead of waiting a whole
+     * tick more; one firing well before it does not.
+     */
+    public function testATickJustBeforeTheIntervalRunsTheJob(): void
+    {
+        $env = $this->env();
+        $now = 1_800_000_000.0;
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now);
+        $this->ran = [];
+
+        // poll interval: 10 min
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 9 * 60);
+        $this->assertSame([], $this->ran);
+        $this->runDispatch($env['projects'], $env['store'], $env['runners'], $now + 10 * 60 - 2);
+        $this->assertSame([['poll', 'a'], ['poll', 'b']], $this->ran);
+    }
+
     public function testOneProjectFailureDoesNotBlockOthers(): void
     {
         $env = $this->env();

@@ -44,16 +44,16 @@ final class LaunchdScheduler implements SchedulerInterface
         $this->sleep = $sleep ?? static function (int $us): void { usleep($us); };
     }
 
-    public function install(string $pabloBin, bool $withWeb, string $path, InstallLog $log): void
+    public function install(string $pabloBin, bool $withWeb, string $path, int $tickMinutes, InstallLog $log): void
     {
         $labels = [self::DISPATCH, self::PRUNE, ...($withWeb ? [self::WEB] : [])];
         $log->section('services', $this->agentsDir);
         foreach ($labels as $label) {
-            $log->file('plist', $this->plist($label), $this->write($label, $pabloBin, $path));
+            $log->file('plist', $this->plist($label), $this->write($label, $pabloBin, $path, $tickMinutes));
         }
 
         $this->load(self::DISPATCH);
-        $log->info(self::DISPATCH." loaded (every 5 minutes; logs: {$this->logDir}/dispatch.log)");
+        $log->info(self::DISPATCH.' loaded (every '.ServiceFiles::every($tickMinutes)."; logs: {$this->logDir}/dispatch.log)");
         $this->load(self::PRUNE);
         $log->info(self::PRUNE." loaded (daily at 03:00; logs: {$this->logDir}/prune.log)");
 
@@ -85,23 +85,27 @@ final class LaunchdScheduler implements SchedulerInterface
     public function dispatchStatus(): SchedulerStatus
     {
         $installed = ServiceFiles::isOurs($this->plist(self::DISPATCH), self::DISPATCH);
+        $tick = $installed && 1 === preg_match('~<key>StartInterval</key>\s*<integer>(\d+)</integer>~', (string) Files::tryRead($this->plist(self::DISPATCH)), $m)
+            ? intdiv((int) $m[1], 60)
+            : null;
 
         return new SchedulerStatus(
             self::DISPATCH,
             $installed,
             $installed && 0 === $this->runner->probe(['launchctl', 'print', $this->domain().'/'.self::DISPATCH], 10)->exitCode,
+            $tick,
         );
     }
 
     /** @throws PabloError */
-    private function write(string $label, string $pabloBin, string $path): WriteStatus
+    private function write(string $label, string $pabloBin, string $path, int $tickMinutes): WriteStatus
     {
         Files::ensureDir($this->logDir);
         $content = str_replace(
-            ['@PABLO_BIN@', '@LOG_DIR@', '@HOME@', '@PATH@'],
+            ['@PABLO_BIN@', '@LOG_DIR@', '@HOME@', '@PATH@', '@TICK_SECONDS@'],
             array_map(
                 static fn (string $value): string => htmlspecialchars($value, \ENT_XML1 | \ENT_QUOTES),
-                [$pabloBin, $this->logDir, $this->home, $path],
+                [$pabloBin, $this->logDir, $this->home, $path, (string) ($tickMinutes * 60)],
             ),
             ServiceFiles::bundled($this->templatesDir.'/'.$label.'.plist.template'),
         );

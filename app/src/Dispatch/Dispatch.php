@@ -18,8 +18,8 @@ use Pablo\Support\PabloError;
 /**
  * The cron dispatcher, fired by the pablo-dispatch systemd user timer.
  *
- * One timer, every 5 minutes; per-project cadence lives in the configs and is
- * enforced here via last-run stamps. A global flock prevents overlapping
+ * One timer, every dispatch.tick_minutes (default 1); per-project cadence
+ * lives in the configs and is enforced here via last-run stamps. A global flock prevents overlapping
  * runs; a hard preflight failure (gh, the agent runtime's CLI, an impossible
  * backend/runtime pair) aborts the whole run fast and
  * loud, while a soft one (provider CLIs) only warns. The CLI probes (one
@@ -37,15 +37,24 @@ use Pablo\Support\PabloError;
 final class Dispatch
 {
     /**
-     * How often the scheduler fires this dispatcher. Per-project cadence is
-     * enforced by the stamps below, so a project can never be polled more often
-     * than this — which is why the dashboard rounds its "next poll" estimate up
-     * to the next tick.
+     * How often the scheduler fires this dispatcher when dispatch.tick_minutes
+     * is not set. Per-project cadence is enforced by the stamps below, so a
+     * project can never be polled more often than the tick — which is why the
+     * dashboard rounds its "next poll" estimate up to the next tick.
      *
-     * Must match systemd/pablo-dispatch.timer (OnCalendar=*:0/5) and
-     * launchd/com.pablo.dispatch.plist.template (StartInterval 300).
+     * system:install writes the tick into systemd/pablo-dispatch.timer
+     * (OnCalendar=*:0/N) and launchd/com.pablo.dispatch.plist.template
+     * (StartInterval). A tick with nothing due costs a config read.
      */
-    public const TICK_MINUTES = 5;
+    public const DEFAULT_TICK_MINUTES = 1;
+
+    /**
+     * A job is due this much before its interval has fully elapsed: ticks
+     * fire a few seconds early or late, and without it an interval equal to a
+     * multiple of the tick would, every time a tick lands a second early,
+     * wait for the next one.
+     */
+    public const DUE_GRACE_SECONDS = 30;
 
     /**
      * The one job run for several projects at once (dispatch.poll_concurrency):
@@ -196,6 +205,20 @@ final class Dispatch
         ];
     }
 
+    /**
+     * The tick the scheduler was installed with, as configured
+     * (dispatch.tick_minutes). An invalid value never breaks a reader:
+     * system:install refuses it, the rest fall back to the default.
+     */
+    public static function tickMinutes(GlobalConfig $globalConfig): int
+    {
+        try {
+            return $globalConfig->dispatchTickMinutes(self::DEFAULT_TICK_MINUTES);
+        } catch (PabloError) {
+            return self::DEFAULT_TICK_MINUTES;
+        }
+    }
+
     /** @return array<string, callable(ProjectConfig): int> */
     public static function jobIntervals(): array
     {
@@ -216,7 +239,7 @@ final class Dispatch
             return true;
         }
 
-        return $now - $last->ranAt >= self::jobIntervals()[$job]($cfg) * 60;
+        return $now - $last->ranAt >= self::jobIntervals()[$job]($cfg) * 60 - self::DUE_GRACE_SECONDS;
     }
 
     /** Due and not backing off (says so when it is). */

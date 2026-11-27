@@ -8,8 +8,8 @@ use Pablo\Install\InstallLog;
 use Pablo\Support\PabloError;
 
 /**
- * The background services of a PABLO install: the dispatcher every five
- * minutes, the housekeeping (`system:prune`) daily at 03:00 — run late
+ * The background services of a PABLO install: the dispatcher every
+ * dispatch.tick_minutes, the housekeeping (`system:prune`) daily at 03:00 — run late
  * after a sleep — and the dashboard unless --without-web. One implementation per
  * platform (SchedulerFactory picks it); the unit/plist files are bundled,
  * written — never symlinked, they may come from inside the binary — and
@@ -26,12 +26,13 @@ interface SchedulerInterface
      * created, updated or unchanged); the services are (re)started either
      * way, so they run the binary just installed.
      *
-     * @param string $path the services' PATH (SchedulerPath::build()), written
-     *                     in place of the bundled files' @PATH@ placeholder
+     * @param string $path        the services' PATH (SchedulerPath::build()), written
+     *                            in place of the bundled files' @PATH@ placeholder
+     * @param int    $tickMinutes how often the dispatcher runs (dispatch.tick_minutes)
      *
      * @throws PabloError
      */
-    public function install(string $pabloBin, bool $withWeb, string $path, InstallLog $log): void;
+    public function install(string $pabloBin, bool $withWeb, string $path, int $tickMinutes, InstallLog $log): void;
 
     /** @param \Closure(string): void $info */
     public function uninstall(\Closure $info): void;
@@ -43,8 +44,8 @@ interface SchedulerInterface
     public function hasWebService(): bool;
 
     /**
-     * Whether the dispatcher's timer/agent is PABLO's and currently active —
-     * read-only, for system:doctor.
+     * Whether the dispatcher's timer/agent is PABLO's and currently active,
+     * and the tick written into it — read-only, for system:doctor.
      */
     public function dispatchStatus(): SchedulerStatus;
 }

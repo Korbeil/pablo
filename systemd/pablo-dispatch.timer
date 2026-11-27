@@ -2,10 +2,15 @@
 # there, a re-install overwrites it.
 # marker: pablo-dispatch.timer (system:uninstall removes only files carrying this line)
 [Unit]
-Description=Run the PABLO dispatcher every 5 minutes
+Description=Run the PABLO dispatcher every @TICK_MINUTES@ minute(s)
 
 [Timer]
-OnCalendar=*:0/5
+# dispatch.tick_minutes in ~/.pablo/config.yaml (default 1), written here by
+# `pablo system:install`. Each project's intervals are enforced by the
+# dispatcher itself; this is only how often it looks.
+OnCalendar=*:0/@TICK_MINUTES@
+# systemd's default accuracy (1min) would let a tick fire up to a minute late.
+AccuracySec=1s
 Persistent=true
 
 [Install]

@@ -94,7 +94,7 @@
   <li>makes sure <code>~/.local/bin/pablo</code> is this binary and, if that directory isn't on your <code>PATH</code> yet, adds it (see below), then writes the <a href="#shell-completion">shell completion</a> of your shell;</li>
   <li>renders the agents for your <a href="page:runtimes">runtime</a>, and extracts the <code>/pablo-commit-and-pr</code> command and the <code>pablo-task</code> skill, into <code>~/.pablo/runtime/</code>;</li>
   <li>links them into <code>~/.config/opencode/</code> (OpenCode), <code>~/.claude/</code> (Claude Code) or <code>~/.copilot/</code> (Copilot);</li>
-  <li>writes and starts the background scheduler, which runs PABLO every 5 minutes, the daily <a href="page:storage#what-grows-and-how-its-pruned">housekeeping job</a> (03:00), and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary), with the <a href="#the-services-path">services' <code>PATH</code></a> computed from yours;</li>
+  <li>writes and starts the background scheduler, which runs PABLO every minute (<a href="page:how-it-works#job-timing"><code>dispatch.tick_minutes</code></a>), the daily <a href="page:storage#what-grows-and-how-its-pruned">housekeeping job</a> (03:00), and the <a href="page:dashboard">dashboard</a> on <code>http://127.0.0.1:8321</code> (restarting it, so it runs the new binary), with the <a href="#the-services-path">services' <code>PATH</code></a> computed from yours;</li>
   <li>runs <code>pablo system:doctor</code> and prints your next steps.</li>
 </ol>
 
@@ -159,7 +159,7 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
 <table>
   <thead><tr><th></th><th>Linux</th><th>macOS</th></tr></thead>
   <tbody>
-    <tr><td>Scheduler</td><td>systemd user timer <code>pablo-dispatch.timer</code></td><td>launchd agent <code>com.pablo.dispatch</code> (every 300 s)</td></tr>
+    <tr><td>Scheduler</td><td>systemd user timer <code>pablo-dispatch.timer</code></td><td>launchd agent <code>com.pablo.dispatch</code> (every <code>dispatch.tick_minutes</code> × 60 s)</td></tr>
     <tr><td>Scheduler logs</td><td><code>journalctl --user -u pablo-dispatch.service</code></td><td><code>~/.pablo/logs/dispatch.log</code> (and <code>.err.log</code>)</td></tr>
     <tr><td>Scheduler status</td><td><code>systemctl --user list-timers pablo-dispatch.timer</code></td><td><code>launchctl print gui/$UID/com.pablo.dispatch</code></td></tr>
     <tr><td>Housekeeping (<a href="page:storage#what-grows-and-how-its-pruned"><code>system:prune</code></a>)</td><td>systemd user timer <code>pablo-prune.timer</code>, daily at 03:00 (<code>Persistent=true</code>: a missed run happens after boot or wake-up)</td><td>launchd agent <code>com.pablo.prune</code>, daily at 03:00 (a missed run happens at wake-up)</td></tr>
@@ -193,7 +193,7 @@ pablo system:setup    # the same checks as a wizard, one fix at a time
   <li>Install the prerequisites, including <code>acli auth login</code> if you use Jira (<code>acli confluence auth login</code> for Confluence).</li>
   <li>Run the installer and look for “com.pablo.dispatch loaded”.</li>
   <li>Run <code>pablo system:doctor</code>: everything should be ✅.</li>
-  <li>Watch one 5-minute run: <code>tail -f ~/.pablo/logs/dispatch.log</code>.</li>
+  <li>Watch a run: <code>tail -f ~/.pablo/logs/dispatch.log</code>.</li>
   <li>Try a round trip on a real project: <code>pablo task:start …</code>, then <code>pablo task:list</code>.</li>
 </ol>
 
