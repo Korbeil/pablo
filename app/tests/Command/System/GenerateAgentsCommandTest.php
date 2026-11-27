@@ -437,7 +437,10 @@ EOF, $resolver);
         unlink($this->projectsDir.'/gh.yaml');
         unlink($this->projectsDir.'/gl.yaml');
         $this->assertSame(['gitlab'], $templates->enabledForges($this->projectsDir), 'repo.forge');
-        $this->assertSame(['github', 'gitlab'], $templates->enabledForges($this->tmp.'/no-projects'));
+        $this->assertSame(['github', 'gitlab', 'gitea'], $templates->enabledForges($this->tmp.'/no-projects'));
+
+        file_put_contents($this->projectsDir.'/gt.yaml', "name: gt\ntype: work\nrepo:\n  path: /nowhere\n  primary_branch: main\n  forge: gitea\nissue_tracker:\n  provider: jira\n  identity: u@e.com\n  project_key: XX\n");
+        $this->assertSame(['gitlab', 'gitea'], $templates->enabledForges($this->projectsDir), 'repo.forge: gitea');
     }
 
     private function writeProject(string $name, string $provider): void

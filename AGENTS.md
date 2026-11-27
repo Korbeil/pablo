@@ -163,8 +163,11 @@ and the dashboard: `TaskStarter`, `TaskAttacher`, `TaskStateChanger`,
 `src/StateMachine/` (the data-driven state machine) · `src/Store/` (state
 store + per-task flock) · `src/Poller/` (state polling) ·
 `src/Provider/` (all external integrations): `Forge/` (pull requests
-and CI: `ForgeInterface`, implemented by `Github/GithubForge` over `gh`
-and `Gitlab/GitlabForge` over `glab api`; `ForgeRegistry::for($cfg)` is
+and CI: `ForgeInterface`, implemented by `Github/GithubForge` over `gh`,
+`Gitlab/GitlabForge` over `glab api` and `Gitea/GiteaForge` over
+`gt api` (the Gitea CLI, tea's successor; REST only, every call with
+`--host <host> --no-input`, draft toggling through `gt pr ready`);
+`ForgeRegistry::for($cfg)` is
 the one place picking a project's forge — `repo.forge`, else the origin
 remote's host through `Support\RepoSlug::ref()` and its `RepoRef` — so
 engine code never names a forge; the engine says "PR" for a GitLab merge
@@ -519,7 +522,7 @@ at launch; validated by the runtime's `modelError()`), `pr_description_locale`,
 `type` (`work`/`open-source`/`personal`), `repo.path`, `repo.primary_branch`,
 `issue_tracker.{provider,identity,project_key}` (providers:
 `github`/`gitlab`/`jira`/`linear`); optional: `repo.primary_remote` (`origin`),
-`repo.forge` (`github`/`gitlab`, else detected from the origin remote),
+`repo.forge` (`github`/`gitlab`/`gitea`, else detected from the origin remote),
 `worktrees_root`, `issue_tracker.{repo,site}`, `confluence.space`,
 `testing.failure_signal`, `startup_script`, `models` (agent label => model).
 

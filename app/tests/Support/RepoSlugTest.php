@@ -41,6 +41,8 @@ final class RepoSlugTest extends TestCase
         $this->assertSame('github', RepoRef::forgeOfHost('github.com'));
         $this->assertSame('gitlab', RepoRef::forgeOfHost('gitlab.com'));
         $this->assertSame('gitlab', RepoRef::forgeOfHost('GitLab.Acme.io'));
+        $this->assertSame('gitea', RepoRef::forgeOfHost('gitea.com'));
+        $this->assertSame('gitea', RepoRef::forgeOfHost('Gitea.Acme.io'));
         $this->assertNull(RepoRef::forgeOfHost('git.example.com'));
     }
 
@@ -48,6 +50,7 @@ final class RepoSlugTest extends TestCase
     {
         $this->assertSame('https://github.com/acme/web/pull/4', (new RepoRef('github', 'github.com', 'acme/web'))->prUrl(4));
         $this->assertSame('https://gitlab.acme.io/a/b/web/-/merge_requests/4', (new RepoRef('gitlab', 'gitlab.acme.io', 'a/b/web'))->prUrl(4));
+        $this->assertSame('https://gitea.acme.io/acme/web/pulls/4', (new RepoRef('gitea', 'gitea.acme.io', 'acme/web'))->prUrl(4));
     }
 
     public function testGithubOriginKeepsOwnerAndRepo(): void
@@ -71,6 +74,13 @@ final class RepoSlugTest extends TestCase
             $this->assertStringContainsString('repo.forge: gitlab', $e->getMessage());
         }
         $this->assertEquals(new RepoRef('gitlab', 'git.example.com', 'team/app'), $this->ref('git@git.example.com:team/app.git', forge: 'gitlab'));
+    }
+
+    public function testGiteaOriginKeepsOwnerAndRepo(): void
+    {
+        $this->assertEquals(new RepoRef('gitea', 'gitea.com', 'acme/api'), $this->ref('git@gitea.com:acme/api.git'));
+        // an instance under a sub-path: the slug is the path's last two segments
+        $this->assertEquals(new RepoRef('gitea', 'git.example.com', 'team/app'), $this->ref('https://git.example.com/gitea/team/app.git', forge: 'gitea'));
     }
 
     public function testGithubForgeOnAnotherHostIsRefused(): void

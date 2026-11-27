@@ -53,8 +53,8 @@ final class PrecommitCheckCommand extends Command
             'state' => $ctx->task->state->value,
             'allowed' => \in_array($ctx->task->state, StateMachine::COMMIT_ALLOWED_FROM, true),
             'pr_description_locale' => $ctx->cfg->prDescriptionLocale,
-            // github | gitlab: which CLI opens the draft PR/MR (null: no
-            // readable GitHub/GitLab origin)
+            // github | gitlab | gitea: which CLI opens the draft PR/MR
+            // (null: no readable GitHub/GitLab/Gitea origin)
             'forge' => $this->forgeOf($ctx->cfg),
         ];
         $output->writeln(json_encode($payload, \JSON_THROW_ON_ERROR));

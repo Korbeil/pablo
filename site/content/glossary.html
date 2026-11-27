@@ -35,7 +35,7 @@
 <p>Where a task stands in PABLO's state machine (<code>in-progress</code>, <code>draft</code>, <code>ci-red</code>, <code>waiting-review</code>…). Entering a state may launch an agent. See <a href="page:states#every-state">Every state</a>.</p>
 
 <h3 id="forge">Forge</h3>
-<p>Where a project's pull requests and CI live: GitHub (<code>gh</code>) or GitLab (<code>glab</code>, where a pull request is a merge request). Told by the repository's <code>origin</code> remote, or set with <code>repo.forge</code>. See <a href="page:providers#forges">Forges</a>.</p>
+<p>Where a project's pull requests and CI live: GitHub (<code>gh</code>), GitLab (<code>glab</code>, where a pull request is a merge request) or Gitea (<code>gt</code>, where a draft is a <code>WIP:</code> title prefix). Told by the repository's <code>origin</code> remote, or set with <code>repo.forge</code>. See <a href="page:providers#forges">Forges</a>.</p>
 
 <h3 id="failure-signal">Failure signal</h3>
 
@@ -43,7 +43,7 @@
 
 <h3 id="ready-anchor">Ready anchor</h3>
 
-<p>The time of the forge's last “ready for review” event on a pull request (on GitLab, “marked this merge request as ready”). Only reviews submitted after it count, so an approval from a previous round doesn't leak into this one. See <a href="page:states#reviews">Reviews</a>.</p>
+<p>The time of the forge's last “ready for review” event on a pull request (on GitLab, “marked this merge request as ready”; on Gitea, the title change dropping the <code>WIP:</code> prefix). Only reviews submitted after it count, so an approval from a previous round doesn't leak into this one. See <a href="page:states#reviews">Reviews</a>.</p>
 
 <h3 id="display-cache">Display cache</h3>
 

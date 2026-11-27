@@ -37,7 +37,7 @@ Then watch your tasks on http://127.0.0.1:8321 or with `pablo task:list`.
 
 - Linux or macOS;
 - git;
-- the CLI of your forge, logged in: [`gh`](https://cli.github.com/) for GitHub (`gh auth login`), [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab (`glab auth login`);
+- the CLI of your forge, logged in: [`gh`](https://cli.github.com/) for GitHub (`gh auth login`), [`glab`](https://gitlab.com/gitlab-org/cli) for GitLab (`glab auth login`), [`gt`](https://gitea.com/gitea/cli) for Gitea (`gt auth login`);
 - curl, and `sha256sum` or `shasum`, to download and verify PABLO;
 - a runtime, the agent CLI: [OpenCode](https://opencode.ai) (default), [Claude Code](https://code.claude.com/docs) or [GitHub Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli) (experimental);
 - an agent environment (ADE), where agents run: [Orca](https://www.onorca.dev/) (default), [OpenChamber](https://openchamber.dev/) (OpenCode only), or none (headless: agents run in the background).

@@ -7,6 +7,7 @@ namespace Pablo\Agents;
 use Pablo\Config\ProjectConfig;
 use Pablo\Domain\Agent;
 use Pablo\Domain\Task;
+use Pablo\Provider\Forge\Gitea\GiteaApi;
 use Pablo\Provider\Forge\Gitlab\GitlabApi;
 use Pablo\Provider\Forge\RepoRef;
 use Pablo\Support\Json;
@@ -22,7 +23,7 @@ use Pablo\Support\RepoSlug;
  *
  * Strictly best-effort: any fetch failure drops that block (or the whole
  * section) and the agent falls back to fetching by itself, as its prompt
- * describes. Read-only — only `gh`/`glab`/`acli`/`linear` view calls.
+ * describes. Read-only — only `gh`/`glab`/`gt`/`acli`/`linear` view calls.
  */
 final class LaunchContext
 {
@@ -232,6 +233,9 @@ final class LaunchContext
         if ($repo->isGitlab()) {
             return $this->gitlabCiBlock($prNumber, $repo, $cfg);
         }
+        if ($repo->isGitea()) {
+            return $this->giteaCiBlock($prNumber, $repo, $cfg);
+        }
         $slug = $repo->slug;
         // gh pr checks exits non-zero whenever a check fails — that is the
         // normal case here, so never treat the exit code as an error.
@@ -338,6 +342,71 @@ final class LaunchContext
     }
 
     /**
+     * Gitea: the head commit's failing statuses (ci.ignore_checks left out)
+     * and the tail of a few failed Gitea Actions jobs' logs.
+     */
+    private function giteaCiBlock(int $prNumber, RepoRef $repo, ProjectConfig $cfg): string
+    {
+        $path = GiteaApi::repo($repo->slug);
+        $sha = self::str($this->giteaGet($repo, "{$path}/pulls/{$prNumber}")['head']['sha'] ?? null);
+        if ('' === $sha) {
+            return '';
+        }
+        $status = $this->giteaGet($repo, "{$path}/commits/".rawurlencode($sha).'/status', ['limit' => GiteaApi::PER_PAGE]);
+        $failing = [];
+        foreach (self::listOf($status['statuses'] ?? null) as $s) {
+            $state = self::str($s['status'] ?? $s['state'] ?? null);
+            if (\in_array($state, ['failure', 'error'], true) && !\in_array(self::str($s['context'] ?? null), $cfg->ci->ignoreChecks, true)) {
+                $failing[] = $s;
+            }
+        }
+        if ([] === $failing) {
+            return '';
+        }
+
+        $out = "### Failing checks on PR #{$prNumber}\n";
+        foreach ($failing as $s) {
+            $out .= '- '.self::str($s['context'] ?? null).' — '.self::str($s['status'] ?? $s['state'] ?? null).' — '.self::str($s['target_url'] ?? null)."\n";
+        }
+
+        $jobs = 0;
+        $runs = self::listOf($this->giteaGet($repo, "{$path}/actions/runs", ['head_sha' => $sha, 'limit' => GiteaApi::PER_PAGE])['workflow_runs'] ?? null);
+        foreach ($runs as $run) {
+            if ('failure' !== self::str($run['conclusion'] ?? null) || !\is_scalar($run['id'] ?? null)) {
+                continue;
+            }
+            foreach (self::listOf($this->giteaGet($repo, "{$path}/actions/runs/{$run['id']}/jobs", ['limit' => GiteaApi::PER_PAGE])['jobs'] ?? null) as $job) {
+                if ('failure' !== self::str($job['conclusion'] ?? null) || !\is_scalar($job['id'] ?? null)) {
+                    continue;
+                }
+                if ($jobs >= self::MAX_FAILED_JOBS) {
+                    $out .= "\n(further failing jobs not pre-fetched)\n";
+                    break 2;
+                }
+                ++$jobs;
+                $log = $this->runner->run(GiteaApi::argv($repo->host, "{$path}/actions/jobs/{$job['id']}/logs"), false, self::TIMEOUT);
+                $out .= "\n#### Log tail — ".self::str($job['name'] ?? null)." (run {$run['id']}, job {$job['id']})\n```\n".self::logTail($log)."\n```\n";
+            }
+        }
+
+        return self::clip($out, self::MAX_CHARS - 1_000);
+    }
+
+    /**
+     * One Gitea REST read; [] on Gitea's error body.
+     *
+     * @param array<string, string|int> $query
+     *
+     * @return array<mixed>
+     */
+    private function giteaGet(RepoRef $repo, string $endpoint, array $query = []): array
+    {
+        $data = $this->json(GiteaApi::argv($repo->host, $endpoint, $query));
+
+        return null === GiteaApi::errorOf($data) ? $data : [];
+    }
+
+    /**
      * The useful part of a `gh run view --log-failed` dump or a GitLab job trace: the error lines
      * first, then the last lines before the runner's post-job cleanup. Each
      * line loses its "<job>\t<step>\t<timestamp> " prefix (GitHub), its
@@ -384,6 +453,9 @@ final class LaunchContext
         $ref = $this->repoSlug->ref($cfg);
         if ($ref->isGitlab()) {
             return $this->gitlabReviewBlock($prNumber, $ref);
+        }
+        if ($ref->isGitea()) {
+            return $this->giteaReviewBlock($prNumber, $ref);
         }
         [$owner, $repo] = explode('/', $ref->slug, 2) + [1 => ''];
         $data = $this->json([
@@ -497,6 +569,68 @@ final class LaunchContext
         }
         if ([] === $threads && [] === $conversation) {
             return '';
+        }
+
+        return self::clip($out, self::MAX_CHARS - 1_000);
+    }
+
+    /**
+     * Gitea: the unresolved review comments (grouped by file and line), the
+     * non-empty review bodies and the conversation comments, first 50 of each.
+     */
+    private function giteaReviewBlock(int $prNumber, RepoRef $repo): string
+    {
+        $path = GiteaApi::repo($repo->slug);
+        $reviews = self::listOf($this->giteaGet($repo, "{$path}/pulls/{$prNumber}/reviews", ['limit' => GiteaApi::PER_PAGE]));
+        $bodies = [];
+        $threads = [];
+        foreach ($reviews as $r) {
+            if ('PENDING' === self::str($r['state'] ?? null) || true === ($r['dismissed'] ?? false)) {
+                continue;
+            }
+            if ('' !== trim(self::str($r['body'] ?? null))) {
+                $bodies[] = $r;
+            }
+            if ((int) ($r['comments_count'] ?? 0) > 0 && \is_scalar($r['id'] ?? null)) {
+                foreach (self::listOf($this->giteaGet($repo, "{$path}/pulls/{$prNumber}/reviews/{$r['id']}/comments")) as $c) {
+                    if (!\is_array($c['resolver'] ?? null)) {
+                        $threads[self::str($c['path'] ?? null).':'.self::str($c['position'] ?? $c['original_position'] ?? null)][] = $c;
+                    }
+                }
+            }
+        }
+        $conversation = self::listOf($this->giteaGet($repo, "{$path}/issues/{$prNumber}/comments", ['limit' => GiteaApi::PER_PAGE]));
+        if ([] === $threads && [] === $bodies && [] === $conversation) {
+            return '';
+        }
+        $truncated = \count($reviews) >= GiteaApi::PER_PAGE || \count($conversation) >= GiteaApi::PER_PAGE;
+
+        $out = "### Open review feedback on PR #{$prNumber}\n"
+            .\sprintf("%d unresolved threads, %d non-empty review bodies, %d conversation comments%s.\n",
+                \count($threads), \count($bodies), \count($conversation), $truncated ? ' [truncated: more pages exist, paginate yourself]' : '');
+        if ([] !== $threads) {
+            $out .= "\n#### Unresolved threads\n";
+            foreach ($threads as $where => $comments) {
+                $out .= "\n- `{$where}`\n";
+                foreach ($comments as $c) {
+                    $out .= '  - **'.self::str($c['user']['login'] ?? null).'** '.self::str($c['html_url'] ?? null).":\n    "
+                        .str_replace("\n", "\n    ", self::clip(trim(self::str($c['body'] ?? null)), self::COMMENT_CHARS))."\n";
+                }
+            }
+        }
+        if ([] !== $bodies) {
+            $out .= "\n#### Review bodies\n";
+            foreach ($bodies as $r) {
+                $out .= "\n- **".self::str($r['user']['login'] ?? null).'** ('.self::str($r['state'] ?? null).') '.self::str($r['html_url'] ?? null).":\n  "
+                    .str_replace("\n", "\n  ", self::clip(trim(self::str($r['body'] ?? null)), self::COMMENT_CHARS))."\n";
+            }
+        }
+        if ([] !== $conversation) {
+            $out .= "\n#### Conversation comments\n";
+            foreach ($conversation as $c) {
+                $out .= "\n- **".self::str($c['user']['login'] ?? null).'** '.self::str($c['html_url'] ?? null).":\n  "
+                    .str_replace("\n", "\n  ", self::clip(trim(self::str($c['body'] ?? null)), self::COMMENT_CHARS))."\n";
+            }
         }
 
         return self::clip($out, self::MAX_CHARS - 1_000);

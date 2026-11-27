@@ -152,6 +152,153 @@ permissions:
     resource: "glab ci delete*"
     effect: deny
   - action: shell
+    resource: "gt pr create*"
+    effect: deny
+  - action: shell
+    resource: "gt pr new*"
+    effect: deny
+  - action: shell
+    resource: "gt pr close*"
+    effect: deny
+  - action: shell
+    resource: "gt pr reopen*"
+    effect: deny
+  - action: shell
+    resource: "gt pr edit*"
+    effect: deny
+  - action: shell
+    resource: "gt pr ready*"
+    effect: deny
+  - action: shell
+    resource: "gt pr merge*"
+    effect: deny
+  - action: shell
+    resource: "gt pr review*"
+    effect: deny
+  - action: shell
+    resource: "gt pr comment*"
+    effect: deny
+  - action: shell
+    resource: "gt pr update-branch*"
+    effect: deny
+  - action: shell
+    resource: "gt pr backport*"
+    effect: deny
+  - action: shell
+    resource: "gt pr clean*"
+    effect: deny
+  - action: shell
+    resource: "gt pr checkout*"
+    effect: deny
+  - action: shell
+    resource: "gt pr lock*"
+    effect: deny
+  - action: shell
+    resource: "gt pr unlock*"
+    effect: deny
+  - action: shell
+    resource: "gt pr pin*"
+    effect: deny
+  - action: shell
+    resource: "gt pr unpin*"
+    effect: deny
+  - action: shell
+    resource: "gt pr delete*"
+    effect: deny
+  - action: shell
+    resource: "gt pr rm*"
+    effect: deny
+  - action: shell
+    resource: "gt pr attachment*"
+    effect: deny
+  - action: shell
+    resource: "gt issue create*"
+    effect: deny
+  - action: shell
+    resource: "gt issue edit*"
+    effect: deny
+  - action: shell
+    resource: "gt issue move*"
+    effect: deny
+  - action: shell
+    resource: "gt issue close*"
+    effect: deny
+  - action: shell
+    resource: "gt issue reopen*"
+    effect: deny
+  - action: shell
+    resource: "gt issue lock*"
+    effect: deny
+  - action: shell
+    resource: "gt issue unlock*"
+    effect: deny
+  - action: shell
+    resource: "gt issue pin*"
+    effect: deny
+  - action: shell
+    resource: "gt issue unpin*"
+    effect: deny
+  - action: shell
+    resource: "gt issue delete*"
+    effect: deny
+  - action: shell
+    resource: "gt issue rm*"
+    effect: deny
+  - action: shell
+    resource: "gt issue comment*"
+    effect: deny
+  - action: shell
+    resource: "gt issue attachment*"
+    effect: deny
+  - action: shell
+    resource: "gt run cancel*"
+    effect: deny
+  - action: shell
+    resource: "gt run rerun*"
+    effect: deny
+  - action: shell
+    resource: "gt run delete*"
+    effect: deny
+  - action: shell
+    resource: "gt run rm*"
+    effect: deny
+  - action: shell
+    resource: "gt workflow*"
+    effect: deny
+  - action: shell
+    resource: "gt release*"
+    effect: deny
+  - action: shell
+    resource: "gt wiki*"
+    effect: deny
+  - action: shell
+    resource: "gt label*"
+    effect: deny
+  - action: shell
+    resource: "gt milestone*"
+    effect: deny
+  - action: shell
+    resource: "gt api -X*"
+    effect: deny
+  - action: shell
+    resource: "gt api --method*"
+    effect: deny
+  - action: shell
+    resource: "gt api -f*"
+    effect: deny
+  - action: shell
+    resource: "gt api --raw-field*"
+    effect: deny
+  - action: shell
+    resource: "gt api -F*"
+    effect: deny
+  - action: shell
+    resource: "gt api --field*"
+    effect: deny
+  - action: shell
+    resource: "gt api --input*"
+    effect: deny
+  - action: shell
     resource: "*acli jira workitem edit*"
     effect: deny
   - action: shell
