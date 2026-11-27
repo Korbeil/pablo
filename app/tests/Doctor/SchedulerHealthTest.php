@@ -39,6 +39,7 @@ final class SchedulerHealthTest extends TestCase
         mkdir($this->tmp.'/home', 0o777, true);
         $this->setEnv('HOME', $this->tmp.'/home');
         $this->setEnv('PABLO_STAMPS_DIR', $this->tmp.'/stamps');
+        $this->setEnv('PABLO_CONFIG', $this->tmp.'/config.yaml');
         $this->runner = new FakeProcessRunner();
         $this->health = new DispatchHealth();
     }
@@ -75,11 +76,11 @@ final class SchedulerHealthTest extends TestCase
         );
     }
 
-    private function installTimer(): void
+    private function installTimer(?int $tick = null): void
     {
         $dir = $this->tmp.'/home/.config/systemd/user';
         mkdir($dir, 0o777, true);
-        file_put_contents($dir.'/pablo-dispatch.timer', '# '.ServiceFiles::marker('pablo-dispatch.timer')."\n");
+        file_put_contents($dir.'/pablo-dispatch.timer', '# '.ServiceFiles::marker('pablo-dispatch.timer')."\n".(null !== $tick ? "[Timer]\nOnCalendar=*:0/{$tick}\n" : ''));
     }
 
     /** @param array<string, ProjectConfig> $projects */
@@ -120,6 +121,35 @@ final class SchedulerHealthTest extends TestCase
         $out = $this->render();
         $this->assertStringContainsString('⚠️ scheduler  pablo-dispatch.timer is installed but not active', $out);
         $this->assertStringContainsString('⚠️ dispatch   last dispatch 40 min ago (ok)', $out);
+    }
+
+    public function testATimerOnAnotherTickThanTheConfigSaysToReinstall(): void
+    {
+        $this->installTimer(5);
+        $this->runner->onProbe = static fn (array $argv): ProbeResult => new ProbeResult(0, '');
+        $this->health->finishDispatch(self::NOW - 60, self::NOW - 59, DispatchHealth::OUTCOME_OK);
+
+        $out = $this->render();
+        $this->assertStringContainsString('✅ scheduler  pablo-dispatch.timer active, every 5 minutes', $out);
+        $this->assertStringContainsString('⚠️ scheduler  pablo-dispatch.timer runs every 5 minutes, dispatch.tick_minutes says 1 minute', $out);
+
+        file_put_contents($this->tmp.'/config.yaml', "dispatch:\n  tick_minutes: 5\n");
+        $this->assertStringNotContainsString('dispatch.tick_minutes says', $this->render());
+    }
+
+    /** Three missed ticks, but never under 15 minutes: one run may take a few. */
+    public function testStaleThresholdFollowsTheTick(): void
+    {
+        $this->assertSame(15, SchedulerHealth::staleAfterMinutes(1));
+        $this->assertSame(15, SchedulerHealth::staleAfterMinutes(5));
+        $this->assertSame(90, SchedulerHealth::staleAfterMinutes(30));
+
+        $this->installTimer(30);
+        file_put_contents($this->tmp.'/config.yaml', "dispatch:\n  tick_minutes: 30\n");
+        $this->runner->onProbe = static fn (array $argv): ProbeResult => new ProbeResult(0, '');
+        $this->health->finishDispatch(self::NOW - 40 * 60, self::NOW - 40 * 60 + 3, DispatchHealth::OUTCOME_OK);
+
+        $this->assertStringContainsString('✅ dispatch   last dispatch 40 min ago (ok)', $this->render());
     }
 
     public function testPreflightFailureIsShown(): void

@@ -14,6 +14,7 @@ use Pablo\App\ConsoleApplication;
 use Pablo\Command\Command;
 use Pablo\Config\Config;
 use Pablo\Config\GlobalConfig;
+use Pablo\Dispatch\Dispatch;
 use Pablo\Housekeeping\Pruner;
 use Pablo\Install\ConfigSeeder;
 use Pablo\Install\InstallLog;
@@ -110,6 +111,7 @@ final class InstallCommand extends Command
         // Before the first read of the config: a former key name fails it.
         $seeder->migrate($info);
         $this->globalConfig->schedulerPath();
+        $tickMinutes = $this->globalConfig->dispatchTickMinutes(Dispatch::DEFAULT_TICK_MINUTES);
 
         // 1. Config.
         $askModel = $input->isInteractive()
@@ -153,7 +155,7 @@ final class InstallCommand extends Command
         //    older binary loses the container it reads its services from.
         $path = $this->schedulerPath($runtime);
         $log->detail('services PATH: '.$path);
-        $scheduler->install(InstallPaths::binPath(), $withWeb, $path, $log);
+        $scheduler->install(InstallPaths::binPath(), $withWeb, $path, $tickMinutes, $log);
         $this->pruneContainers($info);
 
         // 5. Preflight.

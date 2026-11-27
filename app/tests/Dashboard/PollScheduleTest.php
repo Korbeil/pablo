@@ -10,26 +10,37 @@ use Pablo\Config\StatePollingConfig;
 use Pablo\Config\SyncConfig;
 use Pablo\Config\TrackerConfig;
 use Pablo\Dashboard\PollSchedule;
+use Pablo\Tests\SandboxedEnv;
 use Pablo\Tests\TempDir;
 use PHPUnit\Framework\TestCase;
 
 final class PollScheduleTest extends TestCase
 {
+    use SandboxedEnv;
+
     private string $stamps;
+    private string $config;
     private PollSchedule $schedule;
 
     protected function setUp(): void
     {
         $this->stamps = TempDir::create('poll');
-        putenv('PABLO_STAMPS_DIR='.$this->stamps);
+        $this->config = TempDir::file('config', '.yaml');
+        $this->setEnv('PABLO_STAMPS_DIR', $this->stamps);
+        $this->setEnv('PABLO_CONFIG', $this->config);
+        // Most cases below pin the arithmetic on a 5-minute grid.
+        $this->tick(5);
         $this->schedule = new PollSchedule(new \Pablo\Dispatch\Stamps());
     }
 
     protected function tearDown(): void
     {
-        putenv('PABLO_STAMPS_DIR');
-        array_map('unlink', glob($this->stamps.'/*') ?: []);
-        @rmdir($this->stamps);
+        $this->restoreEnv();
+    }
+
+    private function tick(?int $minutes): void
+    {
+        file_put_contents($this->config, null === $minutes ? '' : "dispatch:\n  tick_minutes: {$minutes}\n");
     }
 
     private function cfg(string $name, int $pollInterval = 10): ProjectConfig
@@ -103,6 +114,52 @@ final class PollScheduleTest extends TestCase
         $w = $this->schedule->windowFor($this->cfg('a', 10), $now);
 
         $this->assertSame('2026-08-06T10:05:00+00:00', $w->nextRunAt->format('c'));
+    }
+
+    public function testDefaultTickIsOneMinute(): void
+    {
+        $this->tick(null);
+        // last poll 10:01:20, interval 10m -> due 10:11:20 (less the grace) -> tick 10:11:00
+        $this->stamp('a', $this->at('2026-08-06T10:01:20+00:00')->getTimestamp());
+
+        $w = $this->schedule->windowFor($this->cfg('a', 10), $this->at('2026-08-06T10:06:00+00:00'));
+
+        $this->assertSame('2026-08-06T10:11:00+00:00', $w->nextRunAt->format('c'));
+    }
+
+    public function testAnInvalidTickFallsBackToTheDefault(): void
+    {
+        $this->tick(7);
+        $w = $this->schedule->windowFor($this->cfg('a'), $this->at('2026-08-06T10:02:30+00:00'));
+
+        $this->assertSame('2026-08-06T10:03:00+00:00', $w->nextRunAt->format('c'));
+    }
+
+    /**
+     * systemd fires on local wall-clock minutes (OnCalendar=*:0/30): in a
+     * +05:30 zone that is :00 and :30 local, not unix multiples of 30 minutes.
+     */
+    public function testTicksFollowTheLocalClockInAHalfHourZone(): void
+    {
+        $this->tick(30);
+        $now = new \DateTimeImmutable('2026-08-06T10:10:00+05:30');
+
+        $w = $this->schedule->windowFor($this->cfg('a'), $now);
+
+        $this->assertSame('2026-08-06T10:30:00+05:30', $w->nextRunAt->format('c'));
+    }
+
+    /**
+     * A tick landing a few seconds before the interval has fully elapsed
+     * still runs the job (Dispatch::DUE_GRACE_SECONDS): no extra tick of wait.
+     */
+    public function testATickJustBeforeTheDueTimeCounts(): void
+    {
+        $this->stamp('a', $this->at('2026-08-06T10:00:10+00:00')->getTimestamp());
+
+        $w = $this->schedule->windowFor($this->cfg('a', 10), $this->at('2026-08-06T10:03:00+00:00'));
+
+        $this->assertSame('2026-08-06T10:10:00+00:00', $w->nextRunAt->format('c'));
     }
 
     public function testExactTickBoundaryIsNotPushedForward(): void

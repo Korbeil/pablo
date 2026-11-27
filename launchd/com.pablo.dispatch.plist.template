@@ -21,8 +21,9 @@
         <string>@PABLO_BIN@</string>
         <string>system:dispatch</string>
     </array>
+    <!-- dispatch.tick_minutes × 60 (default 1 minute). -->
     <key>StartInterval</key>
-    <integer>300</integer>
+    <integer>@TICK_SECONDS@</integer>
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>

@@ -18,6 +18,12 @@ final class ServiceFiles
         return 'marker: '.$name;
     }
 
+    /** "1 minute", "5 minutes": the dispatcher's tick, for messages. */
+    public static function every(int $minutes): string
+    {
+        return 1 === $minutes ? '1 minute' : "{$minutes} minutes";
+    }
+
     /** PABLO's when it is a symlink (clone install) or carries its marker line. */
     public static function isOurs(string $path, string $name): bool
     {

@@ -350,6 +350,34 @@ final class InstallCommandTest extends TestCase
         $this->assertFileDoesNotExist($units.'/pablo-web.service');
     }
 
+    public function testTheDispatcherTickComesFromTheConfig(): void
+    {
+        $this->assertSame(0, $this->install(['--runtime' => 'opencode'])->getStatusCode());
+        $timer = $this->home.'/.config/systemd/user/pablo-dispatch.timer';
+        $this->assertStringContainsString("OnCalendar=*:0/1\n", (string) file_get_contents($timer), 'every minute by default');
+        $this->assertStringContainsString('AccuracySec=1s', (string) file_get_contents($timer));
+
+        file_put_contents($this->home.'/.pablo/config.yaml', "\ndispatch:\n  tick_minutes: 5\n", \FILE_APPEND);
+        $tester = $this->install(['--runtime' => 'opencode']);
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString("OnCalendar=*:0/5\n", (string) file_get_contents($timer));
+        $this->assertStringContainsString('pablo-dispatch.timer enabled (every 5 minutes;', $tester->getDisplay());
+    }
+
+    public function testAnInvalidTickIsRefusedBeforeAnythingIsWritten(): void
+    {
+        $this->assertSame(0, $this->install(['--runtime' => 'opencode'])->getStatusCode());
+        file_put_contents($this->home.'/.pablo/config.yaml', "\ndispatch:\n  tick_minutes: 7\n", \FILE_APPEND);
+        $timer = $this->home.'/.config/systemd/user/pablo-dispatch.timer';
+        unlink($timer);
+
+        $tester = $this->install(['--runtime' => 'opencode']);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('dispatch.tick_minutes must be one of: 1, 2, 3', $tester->getDisplay());
+        $this->assertFileDoesNotExist($timer);
+    }
+
     public function testAFailingSystemctlFailsTheInstall(): void
     {
         $this->runner->onProbe = static fn (array $argv): \Pablo\Support\ProbeResult => new \Pablo\Support\ProbeResult(

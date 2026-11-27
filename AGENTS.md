@@ -244,7 +244,8 @@ a slot without any fragment).
 **Two layers**: interactive (OpenCode agents/commands the user invokes
 directly — commands wrap `pablo` CLI calls; agents are read-only,
 auto-launched on certain state transitions) and background
-(`pablo system:dispatch`, run every 5 min by systemd/launchd; global flock, per
+(`pablo system:dispatch`, run every `dispatch.tick_minutes` — default 1, written
+into the timer/plist by `system:install` — by systemd/launchd; global flock, per
 project × {sync, poll, main} checks a stamp in `~/.pablo/stamps/` against that
 project's own interval; one project's failure never blocks others; the
 due jobs are worked out first and the CLI preflight — `Doctor::checkAll()`,
@@ -514,7 +515,7 @@ mapping of agent label and `default` to model — > global; a project's
 at launch; validated by the runtime's `modelError()`), `pr_description_locale`,
 `branch_prefix`. Global-only: `agent_backend`, `agent_runtime`,
 `claude_code.*`, `dashboard_port`, `dashboard_trusted_hosts`,
-`dispatch.poll_concurrency`. Required per project: `name` (unique),
+`dispatch.poll_concurrency`, `dispatch.tick_minutes`. Required per project: `name` (unique),
 `type` (`work`/`open-source`/`personal`), `repo.path`, `repo.primary_branch`,
 `issue_tracker.{provider,identity,project_key}` (providers:
 `github`/`gitlab`/`jira`/`linear`); optional: `repo.primary_remote` (`origin`),

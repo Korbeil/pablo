@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Pablo\Dashboard;
 
+use Pablo\Config\GlobalConfig;
 use Pablo\Config\ProjectConfig;
 use Pablo\Dispatch\Dispatch;
 use Pablo\Dispatch\Stamps;
@@ -13,14 +14,17 @@ use Pablo\Dispatch\Stamps;
  * project will next be polled.
  *
  * The subtlety the CLI never had to model: one scheduler tick every
- * Dispatch::TICK_MINUTES fires the dispatcher, which *then* checks whether each
+ * dispatch.tick_minutes fires the dispatcher, which *then* checks whether each
  * project is due. So a project is not polled at lastRun + interval — it is
- * polled at the first tick at or after that instant.
+ * polled at the first tick at or after that instant (less the dispatcher's
+ * Dispatch::DUE_GRACE_SECONDS).
  */
 final class PollSchedule
 {
-    public function __construct(private readonly Stamps $stamps)
-    {
+    public function __construct(
+        private readonly Stamps $stamps,
+        private readonly GlobalConfig $globalConfig = new GlobalConfig(),
+    ) {
     }
 
     /**
@@ -48,7 +52,7 @@ final class PollSchedule
         // No stamp means the dispatcher has never polled this project, so it is
         // already due: the next tick will pick it up.
         $earliest = null !== $lastRunAt
-            ? $lastRunAt->getTimestamp() + $cfg->statePolling->intervalMinutes * 60
+            ? $lastRunAt->getTimestamp() + $cfg->statePolling->intervalMinutes * 60 - Dispatch::DUE_GRACE_SECONDS
             : $now->getTimestamp();
 
         return new PollWindow(
@@ -118,15 +122,18 @@ final class PollSchedule
 
     /**
      * Rounds a unix timestamp up to the next scheduler tick. Ticks sit on
-     * wall-clock multiples of TICK_MINUTES, which unix multiples of the same
-     * period track exactly (every real UTC offset is a multiple of 15 minutes).
+     * local wall-clock multiples of the tick (a divisor of 60 minutes:
+     * OnCalendar=*:0/N), so the rounding is done in $now's timezone — a
+     * half-hour UTC offset moves a 30- or 60-minute tick off the unix
+     * multiples.
      * A tick that has already passed still yields the next one.
      */
     private function nextTickAtOrAfter(int $earliest, \DateTimeImmutable $now): \DateTimeImmutable
     {
-        $period = Dispatch::TICK_MINUTES * 60;
+        $period = Dispatch::tickMinutes($this->globalConfig) * 60;
+        $offset = $now->getOffset();
         $target = max($earliest, $now->getTimestamp());
-        $tick = (int) (ceil($target / $period) * $period);
+        $tick = (int) (ceil(($target + $offset) / $period) * $period) - $offset;
 
         return (new \DateTimeImmutable('@'.$tick))
             ->setTimezone($now->getTimezone());
