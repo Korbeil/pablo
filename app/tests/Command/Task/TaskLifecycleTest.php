@@ -137,6 +137,31 @@ final class TaskLifecycleTest extends CommandTestBed
         $this->assertSame([], $this->git->removed);
     }
 
+    public function testCloseRefusesUncommittedFilesAndListsThem(): void
+    {
+        $this->git->changes = [' M src/a.php', '?? notes.txt'];
+        $tester = $this->runCommand($this->closeCommand(), ['--worktree' => $this->wt], ['capture_stderr_separately' => true]);
+
+        $this->assertSame(1, $tester->getStatusCode());
+        $this->assertStringContainsString('2 uncommitted file(s)', $tester->getErrorOutput());
+        $this->assertStringContainsString('?? notes.txt', $tester->getErrorOutput());
+        $this->assertStringContainsString('--discard-changes', $tester->getErrorOutput());
+        $this->assertSame([], $this->git->removed);
+        $this->assertNotNull($this->store->get('wallet-kit', 'wk-45'));
+    }
+
+    public function testCloseWithDiscardChangesDeletesThemAfterListingThem(): void
+    {
+        $this->git->changes = [' M src/a.php', '?? notes.txt'];
+        $tester = $this->runCommand($this->closeCommand(), ['--worktree' => $this->wt, '--discard-changes' => true]);
+
+        $this->assertSame(0, $tester->getStatusCode());
+        $this->assertStringContainsString('deleting 2 uncommitted file(s)', $tester->getDisplay());
+        $this->assertStringContainsString(' M src/a.php', $tester->getDisplay());
+        $this->assertSame([$this->wt], $this->git->discarded);
+        $this->assertNull($this->store->get('wallet-kit', 'wk-45'));
+    }
+
     public function testCloseOfANamedTaskDoesNotAsk(): void
     {
         // Interactive, but no answer queued: a prompt would fail the run.

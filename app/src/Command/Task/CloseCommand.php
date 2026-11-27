@@ -10,6 +10,7 @@ use Pablo\Config\Config;
 use Pablo\Store\Store;
 use Pablo\Support\PabloError;
 use Pablo\Task\TaskCloser;
+use Pablo\Task\UncommittedChanges;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -34,7 +35,8 @@ final class CloseCommand extends Command
     {
         $this
             ->addTaskTarget()
-            ->addOption('yes', 'y', InputOption::VALUE_NONE, 'don\'t ask for confirmation, and close even if agents are active');
+            ->addOption('yes', 'y', InputOption::VALUE_NONE, 'don\'t ask for confirmation, and close even if agents are active')
+            ->addOption('discard-changes', null, InputOption::VALUE_NONE, 'delete the worktree\'s uncommitted files with it (listed first) instead of refusing');
     }
 
     protected function doExecute(InputInterface $input, OutputInterface $output): int
@@ -64,7 +66,22 @@ final class CloseCommand extends Command
         }
         // Out of the worktree first: it is about to be deleted.
         chdir($cfg->repo->path);
-        $cleanup = $this->closer->close($task->project, $task->branch, force: true);
+        $discard = null;
+        if ($input->getOption('discard-changes')) {
+            $files = $this->closer->uncommittedChanges($task->project, $task->branch);
+            if ([] !== $files) {
+                $output->writeln('deleting '.\count($files).' uncommitted file(s):');
+                foreach ($files as $file) {
+                    $output->writeln('  '.$file);
+                }
+            }
+            $discard = TaskCloser::fingerprint($files);
+        }
+        try {
+            $cleanup = $this->closer->close($task->project, $task->branch, force: true, discard: $discard);
+        } catch (UncommittedChanges $e) {
+            throw new PabloError("refusing to close {$task->branch} ({$task->project}): {$e->getMessage()}\n  ".implode("\n  ", $e->files)."\nRe-run with --discard-changes to delete them with the worktree.");
+        }
         $output->writeln("closed {$task->branch} ({$task->project}): {$cleanup}, state cleared. The PR itself is untouched. You are now in {$cfg->repo->path}.");
 
         return self::SUCCESS;

@@ -121,6 +121,43 @@ final class GitRepoTest extends TestCase
         $this->git()->removeWorktree($this->clone, $wt, 'wk-9');
     }
 
+    public function testRemoveWorktreeDiscardsChangesWhenAsked(): void
+    {
+        $wt = $this->makeWorktree('wk-9');
+        file_put_contents($wt.'/untracked.txt', 'work');
+
+        $this->git()->removeWorktree($this->clone, $wt, 'wk-9', discardChanges: true);
+
+        $this->assertDirectoryDoesNotExist($wt);
+        $this->assertNotContains('wk-9', $this->git()->allBranchNames($this->clone));
+    }
+
+    public function testUncommittedChangesListsModifiedUntrackedAndRenamedFiles(): void
+    {
+        $wt = $this->makeWorktree('wk-9');
+        $this->assertSame([], $this->git()->uncommittedChanges($wt));
+
+        RepoHelper::commitFile($wt, 'kept.txt', "a\n", 'add kept');
+        RepoHelper::commitFile($wt, 'old name.txt', "b\n", 'add old');
+        file_put_contents($wt.'/kept.txt', "changed\n");
+        RepoHelper::git($wt, ['mv', 'old name.txt', 'new name.txt']);
+        mkdir($wt.'/dir');
+        file_put_contents($wt.'/dir/untracked.txt', 'x');
+        file_put_contents($wt.'/.gitignore', "ignored.log\n");
+        file_put_contents($wt.'/ignored.log', 'x');
+
+        $changes = $this->git()->uncommittedChanges($wt);
+        sort($changes);
+        // The first entry keeps its leading space; a rename's original path
+        // is not an entry; ignored files are left out.
+        $this->assertSame([' M kept.txt', '?? .gitignore', '?? dir/untracked.txt', 'R  new name.txt'], $changes);
+    }
+
+    public function testUncommittedChangesOfAMissingWorktreeIsEmpty(): void
+    {
+        $this->assertSame([], $this->git()->uncommittedChanges($this->root.'/nowhere'));
+    }
+
     public function testAllBranchNamesIncludesRemote(): void
     {
         $wt = $this->makeWorktree();

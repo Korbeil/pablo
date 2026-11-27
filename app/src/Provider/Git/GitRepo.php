@@ -194,11 +194,11 @@ final class GitRepo implements GitRepoInterface
         return $path;
     }
 
-    public function removeWorktree(string $repo, string $path, string $branch): void
+    public function removeWorktree(string $repo, string $path, string $branch, bool $discardChanges = false): void
     {
         if (is_dir($path)) {
             try {
-                $this->git($repo, ['worktree', 'remove', $path]);
+                $this->git($repo, $discardChanges ? ['worktree', 'remove', '--force', $path] : ['worktree', 'remove', $path]);
             } catch (PabloError $e) {
                 // The directory is no longer a valid worktree (its .git file is
                 // gone or points elsewhere): git refuses to remove it. Unregister
@@ -214,6 +214,34 @@ final class GitRepo implements GitRepoInterface
             $this->git($repo, ['worktree', 'prune']);
         }
         $this->deleteBranches($repo, $branch);
+    }
+
+    public function uncommittedChanges(string $worktree): array
+    {
+        if (!is_dir($worktree)) {
+            return [];
+        }
+        // -z: paths come raw (no quoting), so the output is read untrimmed —
+        // the first entry's status may start with a space (" M a.php").
+        $process = $this->run(['git', '-C', $worktree, 'status', '--porcelain=v1', '-z', '--untracked-files=all'], self::TIMEOUT_LOCAL);
+        if (!$process->isSuccessful()) {
+            return [];
+        }
+        $entries = explode("\0", rtrim($process->getOutput(), "\0"));
+        $changes = [];
+        for ($i = 0, $n = \count($entries); $i < $n; ++$i) {
+            $entry = $entries[$i];
+            if (\strlen($entry) < 4) {
+                continue;
+            }
+            $changes[] = $entry;
+            // A rename or copy is followed by its original path.
+            if (\in_array($entry[0], ['R', 'C'], true) || \in_array($entry[1], ['R', 'C'], true)) {
+                ++$i;
+            }
+        }
+
+        return $changes;
     }
 
     /**

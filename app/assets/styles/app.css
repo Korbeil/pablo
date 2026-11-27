@@ -368,6 +368,16 @@ html[data-theme=dark] .tabs.is-boxed.pablo-tabs li.is-active a {
     color: var(--pablo-ink);
 }
 
+/* Josefin Sans draws its glyphs high in their line box, so a flex row
+   centring the bare title text against its icon tile and counter leaves the
+   words visibly above them. The text is a bare text node (no element to
+   move), so the boxes beside it are raised to the glyphs' optical centre. */
+.pablo-heading > .pablo-icon:first-child,
+.pablo-heading > .tag,
+.modal-card-title > .pablo-icon:first-child {
+    transform: translateY(-0.1em);
+}
+
 .pablo-health-banner {
     margin: 1rem 0;
 }
@@ -846,13 +856,166 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
     width: min(560px, 92vw);
 }
 
-.pablo-row-actions {
-    flex-wrap: nowrap;
-    justify-content: flex-end;
+/* ------------------------------------------------------ row actions menu - */
+
+/* A task row's "…" menu: a <details> whose list menu_controller.js places
+   with position: fixed (the table card scrolls sideways and would clip an
+   absolute one). */
+.pablo-cell-actions {
+    text-align: right;
 }
 
-.pablo-row-actions .button {
-    margin-bottom: 0;
+.pablo-menu {
+    display: inline-block;
+}
+
+.pablo-menu > summary {
+    list-style: none;
+}
+
+.pablo-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.button.pablo-menu-trigger {
+    width: 2.5em;
+    height: 2.5em;
+    padding: 0;
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    color: var(--pablo-muted);
+}
+
+.button.pablo-menu-trigger .pablo-icon {
+    width: 1.25em;
+    height: 1.25em;
+    margin: 0;
+}
+
+.button.pablo-menu-trigger:hover,
+.button.pablo-menu-trigger:focus-visible,
+.pablo-menu[open] > .button.pablo-menu-trigger {
+    background: var(--pablo-card-2);
+    border-color: var(--pablo-line-strong);
+    color: var(--pablo-text);
+}
+
+/* Clicking anywhere outside closes the menu: the open trigger spreads an
+   invisible layer over the page (a click on it toggles the <details>). */
+.pablo-menu[open] > summary::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    cursor: default;
+}
+
+.pablo-menu-list {
+    position: fixed;
+    z-index: 31;
+    min-width: 13rem;
+    padding: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    background: var(--pablo-card);
+    border: 1px solid var(--pablo-line-strong);
+    border-radius: 0.8rem;
+    box-shadow: 0 10px 30px rgb(0 0 0 / 16%);
+    text-align: left;
+    white-space: nowrap;
+}
+
+/* Only the phone sheet shows which task the menu is about. */
+.pablo-menu-title {
+    display: none;
+}
+
+.pablo-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.55rem 0.75rem 0.4rem;
+    border: none;
+    border-radius: 0.55rem;
+    background: none;
+    color: var(--pablo-text);
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+/* Josefin Sans sits high on its line: lift the glyph to the text's centre. */
+.pablo-menu-item .pablo-icon {
+    margin-top: -0.2em;
+    color: var(--pablo-muted);
+}
+
+.pablo-menu-item:hover,
+.pablo-menu-item:focus-visible {
+    background: var(--pablo-hover);
+    color: var(--pablo-text);
+    outline: none;
+}
+
+.pablo-menu-item:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--pablo-yellow-deep);
+}
+
+/* Close the task, once the pull request was closed unmerged. */
+.pablo-menu-item.is-danger,
+.pablo-menu-item.is-danger .pablo-icon {
+    color: var(--pablo-red-fg);
+}
+
+.pablo-menu-item.is-danger:hover,
+.pablo-menu-item.is-danger:focus-visible {
+    background: var(--pablo-red-bg);
+    color: var(--pablo-red-fg);
+}
+
+.pablo-menu-divider {
+    margin: 0.3rem 0.4rem;
+    height: 1px;
+    background: var(--pablo-line);
+}
+
+/* Close the task: the uncommitted files about to be deleted. */
+.pablo-changes-title {
+    display: flex;
+    gap: 0.5rem;
+    font-weight: 600;
+}
+
+.pablo-changes-title .pablo-icon {
+    margin-top: 0.1em;
+}
+
+.pablo-changes-list {
+    margin: 0.6rem 0;
+    padding: 0.6rem 0.75rem;
+    max-height: 10.5rem;
+    overflow: auto;
+    background: var(--pablo-card);
+    color: var(--pablo-text);
+    border-radius: 0.5rem;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.pablo-changes-more {
+    font-size: 0.85rem;
+    margin-bottom: 0.6rem;
+}
+
+.pablo-changes-approve {
+    font-weight: 600;
 }
 
 .pablo-task-actions-flash {
@@ -1177,16 +1340,56 @@ html[data-theme=dark] .tag.pablo-count:not(.pablo-count-hot) {
         display: none;
     }
 
-    .pablo-cell-actions {
-        order: 7;
-        flex: 1 1 100%;
-        margin-top: 0.3rem;
+    /* The "…" sits top-right of the card, beside the branch. */
+    .pablo-cell-task {
+        flex-basis: calc(100% - 3rem);
     }
 
-    .buttons.are-small.pablo-row-actions .button {
-        flex: 1 1 0;
-        font-size: 0.95rem;
-        min-height: 2.75rem;
+    .pablo-table.pablo-task-table td.pablo-cell-actions {
+        order: 0;
+        align-self: flex-start;
+        margin: -0.35rem -0.4rem 0 auto;
+    }
+
+    .button.pablo-menu-trigger {
+        width: 2.75rem;
+        height: 2.75rem;
+    }
+
+    /* The menu becomes a bottom sheet over a dimmed page, items finger-sized. */
+    .pablo-menu[open] > summary::before {
+        background: rgb(10 10 10 / 45%);
+    }
+
+    .pablo-menu-list {
+        inset: auto 0 0;
+        min-width: 0;
+        padding: 0.6rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+        border-radius: var(--pablo-radius) var(--pablo-radius) 0 0;
+        border-width: 1px 0 0;
+        box-shadow: 0 -6px 24px rgb(0 0 0 / 18%);
+        white-space: normal;
+        max-height: calc(100dvh - 2.5rem);
+        overflow-y: auto;
+    }
+
+    .pablo-menu-title {
+        display: block;
+        padding: 0.4rem 0.75rem 0.6rem;
+        margin-bottom: 0.3rem;
+        border-bottom: 1px solid var(--pablo-line);
+        overflow-wrap: anywhere;
+    }
+
+    .pablo-menu-title code {
+        background: none;
+        padding: 0;
+        font-weight: 600;
+    }
+
+    .pablo-menu-item {
+        min-height: 3rem;
+        font-size: 1rem;
     }
 
     /* Modals: a bottom sheet across the full width, buttons in thumb reach. */

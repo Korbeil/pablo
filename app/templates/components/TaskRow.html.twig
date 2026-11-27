@@ -68,48 +68,54 @@
 
     <td class="pablo-nowrap pablo-cell-actions">
         {% set event = constant('Pablo\\Twig\\Components\\TaskActionsModal::OPEN_EVENT') %}
-        <div class="buttons are-small pablo-row-actions">
-            <a class="button" href="{{ path('analytics_task', {project: task.project, branch: task.branch}) }}"
-               title="Task history" aria-label="Task history of {{ task.project }}/{{ task.branch }}">
-                {{ ux_icon('lucide:history', {class: 'pablo-icon'}) }}
-            </a>
-            {% if task.state.value == 'ci-red' %}
-                <button type="button" class="button is-warning is-light"
-                        title="Ignore failing CI checks"
-                        data-action="live#emit"
-                        data-live-event-param="{{ event }}"
-                        data-live-mode-param="{{ constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_SKIP_CI') }}"
-                        data-live-project-param="{{ task.project }}"
-                        data-live-branch-param="{{ task.branch }}"
-                        data-live-state-param="{{ task.state.value }}">
-                    {{ ux_icon('lucide:ban', {class: 'pablo-icon'}) }}
-                    <span>Skip CI</span>
+        {# Every row action lives in one "…" menu (menu_controller.js). Each
+           item only opens TaskActionsModal: nothing changes before Confirm.
+           Close the task is offered on every task, in red once the pull
+           request was closed unmerged (state closed). #}
+        {% set params = 'data-live-event-param="' ~ event|e('html_attr') ~ '" data-live-project-param="' ~ task.project|e('html_attr') ~ '" data-live-branch-param="' ~ task.branch|e('html_attr') ~ '" data-live-state-param="' ~ task.state.value|e('html_attr') ~ '"' %}
+        <details class="pablo-menu" data-controller="menu" data-action="toggle->menu#toggle">
+            <summary class="button is-small pablo-menu-trigger"
+                     title="Actions" aria-label="Actions for {{ task.project }}/{{ task.branch }}" aria-haspopup="menu">
+                {{ ux_icon('lucide:ellipsis', {class: 'pablo-icon'}) }}
+            </summary>
+            <div class="pablo-menu-list" role="menu" aria-label="{{ task.project }}/{{ task.branch }}" data-menu-target="list">
+                <p class="pablo-menu-title">
+                    <code>{{ task.branch }}</code>
+                </p>
+                <a class="pablo-menu-item" role="menuitem"
+                   href="{{ path('analytics_task', {project: task.project, branch: task.branch}) }}"
+                   aria-label="Task history of {{ task.project }}/{{ task.branch }}">
+                    {{ ux_icon('lucide:history', {class: 'pablo-icon'}) }}
+                    <span>Task history</span>
+                </a>
+                {% if task.state.value == 'ci-red' %}
+                    <button type="button" class="pablo-menu-item" role="menuitem"
+                            title="Ignore failing CI checks"
+                            data-action="menu#close live#emit"
+                            data-live-mode-param="{{ constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_SKIP_CI') }}"
+                            {{ params|raw }}>
+                        {{ ux_icon('lucide:ban', {class: 'pablo-icon'}) }}
+                        <span>Skip CI</span>
+                    </button>
+                {% endif %}
+                <button type="button" class="pablo-menu-item" role="menuitem"
+                        title="Force a state"
+                        data-action="menu#close live#emit"
+                        data-live-mode-param="{{ constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_FORCE_STATE') }}"
+                        {{ params|raw }}>
+                    {{ ux_icon('lucide:repeat', {class: 'pablo-icon'}) }}
+                    <span>Force state</span>
                 </button>
-            {% endif %}
-            <button type="button" class="button"
-                    title="Force a state"
-                    data-action="live#emit"
-                    data-live-event-param="{{ event }}"
-                    data-live-mode-param="{{ constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_FORCE_STATE') }}"
-                    data-live-project-param="{{ task.project }}"
-                    data-live-branch-param="{{ task.branch }}"
-                    data-live-state-param="{{ task.state.value }}">
-                {{ ux_icon('lucide:repeat', {class: 'pablo-icon'}) }}
-                <span>Force state</span>
-            </button>
-            {% if task.state.value == 'closed' %}
-                <button type="button" class="button is-danger"
+                <hr class="pablo-menu-divider">
+                <button type="button" class="pablo-menu-item{{ task.state.value == 'closed' ? ' is-danger' }}" role="menuitem"
                         title="Remove the worktree, the local branch and the task from PABLO"
-                        data-action="live#emit"
-                        data-live-event-param="{{ event }}"
+                        data-action="menu#close live#emit"
                         data-live-mode-param="{{ constant('Pablo\\Twig\\Components\\TaskActionsModal::MODE_CLOSE_TASK') }}"
-                        data-live-project-param="{{ task.project }}"
-                        data-live-branch-param="{{ task.branch }}"
-                        data-live-state-param="{{ task.state.value }}">
+                        {{ params|raw }}>
                     {{ ux_icon('lucide:trash-2', {class: 'pablo-icon'}) }}
                     <span>Close the task</span>
                 </button>
-            {% endif %}
-        </div>
+            </div>
+        </details>
     </td>
 </tr>

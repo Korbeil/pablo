@@ -8,6 +8,7 @@ use Pablo\Domain\State;
 use Pablo\Support\PabloError;
 use Pablo\Task\TaskCloser;
 use Pablo\Task\TaskStateChanger;
+use Pablo\Task\UncommittedChanges;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
 use Symfony\UX\LiveComponent\Attribute\LiveAction;
 use Symfony\UX\LiveComponent\Attribute\LiveArg;
@@ -65,6 +66,30 @@ final class TaskActionsModal
     #[LiveProp(writable: true)]
     public bool $force = false;
 
+    /** How many uncommitted files the dialog lists at most (a worktree may hold thousands). */
+    public const CHANGES_PREVIEW = 20;
+
+    /**
+     * Close the task: the first CHANGES_PREVIEW of the worktree's uncommitted
+     * files, read when the dialog opens (and again when they changed before
+     * Confirm). Only their count and fingerprint travel with the rest.
+     *
+     * @var list<string>
+     */
+    #[LiveProp]
+    public array $changes = [];
+
+    #[LiveProp]
+    public int $changeCount = 0;
+
+    /** TaskCloser::fingerprint() of the whole list: what Confirm approves. */
+    #[LiveProp]
+    public ?string $changesFingerprint = null;
+
+    /** Close the task: the user approved deleting the uncommitted files. */
+    #[LiveProp(writable: true)]
+    public bool $discard = false;
+
     #[LiveProp]
     public ?string $message = null;
 
@@ -97,6 +122,14 @@ final class TaskActionsModal
         $this->target = '';
         $this->trigger = true;
         $this->force = false;
+        $this->showChanges([]);
+        if (self::MODE_CLOSE_TASK === $this->mode) {
+            try {
+                $this->showChanges($this->closer->uncommittedChanges($project, $branch));
+            } catch (PabloError) {
+                // No such task any more: Confirm reports it.
+            }
+        }
         $this->error = null;
         $this->message = null;
         $this->open = true;
@@ -123,8 +156,16 @@ final class TaskActionsModal
 
         try {
             if (self::MODE_CLOSE_TASK === $this->mode) {
-                $cleanup = $this->closer->close($this->project, $this->branch, $this->force, onlyFrom: State::Closed);
-                $this->message = "{$this->branch}: task closed, {$cleanup}. The pull request is untouched.";
+                if ($this->changeCount > 0 && !$this->discard) {
+                    $this->error = 'Tick the box to delete the uncommitted files with the worktree.';
+
+                    return;
+                }
+                $discard = $this->discard ? $this->changesFingerprint : null;
+                $cleanup = $this->closer->close($this->project, $this->branch, $this->force, $discard);
+                $this->message = "{$this->branch}: task closed, {$cleanup}"
+                    .(null !== $discard && $this->changeCount > 0 ? ", {$this->changeCount} uncommitted file(s) deleted" : '')
+                    .'. The pull request is untouched.';
             } elseif (self::MODE_SKIP_CI === $this->mode) {
                 $task = $this->changer->skipCi($this->project, $this->branch);
                 $this->message = "{$task->branch}: CI results skipped, moved to {$task->state->value}";
@@ -139,6 +180,13 @@ final class TaskActionsModal
                 $this->message = "{$task->branch}: state set to {$task->state->value}"
                     .($this->trigger ? '' : ' (triggers skipped)');
             }
+        } catch (UncommittedChanges $e) {
+            // New or different files since the dialog opened: show the
+            // current list and ask for the approval again.
+            $this->showChanges($e->files);
+            $this->error = ucfirst($e->getMessage()).'.';
+
+            return;
         } catch (PabloError $e) {
             $this->error = $e->getMessage();
 
@@ -147,5 +195,14 @@ final class TaskActionsModal
 
         $this->open = false;
         $this->emit(TaskBoard::TASKS_CHANGED_EVENT);
+    }
+
+    /** @param list<string> $files */
+    private function showChanges(array $files): void
+    {
+        $this->changes = \array_slice($files, 0, self::CHANGES_PREVIEW);
+        $this->changeCount = \count($files);
+        $this->changesFingerprint = [] === $files ? null : TaskCloser::fingerprint($files);
+        $this->discard = false;
     }
 }

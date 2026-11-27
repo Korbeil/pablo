@@ -14,9 +14,11 @@ use Pablo\Tests\Git\GitFixtures;
 use Pablo\Tests\RestoresErrorHandlers;
 use Pablo\Tests\TempDir;
 use Pablo\Tests\UsesGlobalConfig;
+use Pablo\Twig\Components\TaskActionsModal;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 /**
@@ -137,8 +139,8 @@ final class DashboardControllerTest extends WebTestCase
         $this->assertStringContainsString('Other tasks', $joined);
         $this->assertStringNotContainsString('Working', $joined);
 
-        $this->assertSame(1, $crawler->filter('td:contains("wk-1-ci-red")')->count());
-        $this->assertSame(1, $crawler->filter('td:contains("wk-2-draft")')->count());
+        $this->assertSame(1, $crawler->filter('td.pablo-cell-task:contains("wk-1-ci-red")')->count());
+        $this->assertSame(1, $crawler->filter('td.pablo-cell-task:contains("wk-2-draft")')->count());
     }
 
     /**
@@ -237,7 +239,7 @@ final class DashboardControllerTest extends WebTestCase
         $this->assertResponseIsSuccessful();
         $this->assertSelectorTextContains('[role="alert"]', 'Invalid project config');
         $this->assertSelectorTextContains('[role="alert"]', "broken.yaml: missing required key 'repo.path'");
-        $this->assertSame(1, $crawler->filter('td:contains("wk-1-draft")')->count());
+        $this->assertSame(1, $crawler->filter('td.pablo-cell-task:contains("wk-1-draft")')->count());
     }
 
     public function testNoBannerWhenEveryProjectLoads(): void
@@ -394,6 +396,41 @@ final class DashboardControllerTest extends WebTestCase
         $history = $client->request('GET', '/analytics/task/wallet-kit/feat/wk-5');
         $this->assertResponseIsSuccessful();
         $this->assertStringContainsString('No analytics recorded for this task yet.', $history->text());
+    }
+
+    /**
+     * Every row action sits in one "…" menu: history, Force state and Close
+     * the task on every task, Skip CI on ci-red only; Close is red once the
+     * pull request was closed unmerged.
+     */
+    public function testRowActionsLiveInOneMenu(): void
+    {
+        $this->seed('wk-8', State::CiRed);
+        $this->seed('wk-9', State::Draft);
+        $this->seed('wk-10', State::Closed);
+
+        $crawler = $this->browser()->request('GET', '/');
+
+        $menus = $crawler->filter('td.pablo-cell-actions');
+        $this->assertCount(3, $menus);
+        foreach ($menus as $cell) {
+            $this->assertCount(1, (new Crawler($cell))->filter('details.pablo-menu > summary'));
+        }
+
+        $items = static fn (string $branch): Crawler => $crawler
+            ->filter('details.pablo-menu')
+            ->reduce(static fn (Crawler $menu): bool => str_contains((string) $menu->filter('summary')->attr('aria-label'), '/'.$branch))
+            ->filter('.pablo-menu-item');
+
+        $this->assertSame(['Task history', 'Skip CI', 'Force state', 'Close the task'], $items('wk-8')->each(static fn (Crawler $i): string => trim($i->text())));
+        $this->assertSame(['Task history', 'Force state', 'Close the task'], $items('wk-9')->each(static fn (Crawler $i): string => trim($i->text())));
+        $this->assertSame(['Task history', 'Force state', 'Close the task'], $items('wk-10')->each(static fn (Crawler $i): string => trim($i->text())));
+
+        $danger = $crawler->filter('.pablo-menu-item.is-danger');
+        $this->assertCount(1, $danger);
+        $this->assertSame('closed', $danger->attr('data-live-state-param'));
+        $this->assertSame('wk-10', $danger->attr('data-live-branch-param'));
+        $this->assertSame(TaskActionsModal::MODE_CLOSE_TASK, $danger->attr('data-live-mode-param'));
     }
 
     /** The tracker status chip must link to the issue; without an issue it stays an unlinked badge. */
