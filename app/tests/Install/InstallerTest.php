@@ -450,7 +450,11 @@ final class InstallerTest extends TestCase
     public function testAnExplicitPortIsForwardedAndAnInvalidOneRefused(): void
     {
         $this->fakeTool('claude');
-        $mine = self::freePort();
+        // The OS may hand the default port (also picked by freePort(), its
+        // probe closed) out again: the installer then rightly omits --port.
+        do {
+            $mine = self::freePort();
+        } while ($mine === $this->defaultPort);
 
         $ok = $this->install(['--no-interaction', '--port', (string) $mine]);
         $bad = $this->install(['--no-interaction', '--port', '99999']);
