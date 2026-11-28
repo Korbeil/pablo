@@ -25,7 +25,7 @@ final class Config
     /** In a per-agent models entry, the key of the type's model for the other agents. */
     public const MODEL_DEFAULT_KEY = 'default';
 
-    public const PROVIDERS = ['github', 'jira', 'linear', 'gitlab'];
+    public const PROVIDERS = ['github', 'jira', 'linear', 'gitlab', 'gitea'];
 
     /** repo.forge values: where a project's pull/merge requests and CI live. */
     public const FORGES = ['github', 'gitlab', 'gitea'];

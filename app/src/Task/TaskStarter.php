@@ -144,8 +144,8 @@ final class TaskStarter
 
     private function branchBase(ProjectConfig $cfg, Issue $issue): string
     {
-        // GitHub and GitLab issues are bare numbers: prefixed with the project key.
-        $base = \in_array($cfg->tracker->provider, ['github', 'gitlab'], true)
+        // GitHub, GitLab and Gitea issues are bare numbers: prefixed with the project key.
+        $base = \in_array($cfg->tracker->provider, ['github', 'gitlab', 'gitea'], true)
             ? $this->naming->branchName($cfg->tracker->projectKey, $issue->key)
             : strtolower($issue->key);
 

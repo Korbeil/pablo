@@ -170,6 +170,12 @@ YAML;
         $this->assertSame(['acli', 'gt', 'opencode', 'orca'], $this->doctor()->requiredClis($projects));
     }
 
+    public function testAGiteaTrackedProjectNeedsGt(): void
+    {
+        $projects = ['a' => $this->makeCfg('a', 'gitea', forge: 'gitea')];
+        $this->assertSame(['gt', 'opencode', 'orca'], $this->doctor()->requiredClis($projects));
+    }
+
     public function testTheForgeComesFromTheOriginRemote(): void
     {
         $git = new FakeGit();

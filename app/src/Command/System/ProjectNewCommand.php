@@ -79,10 +79,14 @@ final class ProjectNewCommand extends Command
         $detectedForge = null !== $remote ? RepoRef::forgeOfHost($remote[0]) : null;
         $forge = null;
         if (null !== $remote && null === $detectedForge) {
-            $forge = $this->askForge($remote[0], 'gitlab' === $provider ? RepoRef::GITLAB : RepoRef::GITHUB);
+            $forge = $this->askForge($remote[0], match ($provider) {
+                'gitlab' => RepoRef::GITLAB,
+                'gitea' => RepoRef::GITEA,
+                default => RepoRef::GITHUB,
+            });
         }
         $originSlug = null !== $remote ? self::slugOf($remote[1], $forge ?? $detectedForge ?? RepoRef::GITHUB) : null;
-        if ('github' === $provider) {
+        if (\in_array($provider, ['github', 'gitea'], true)) {
             $issueRepo = $this->askOptional('Issue repo (e.g. acme/upstream, optional)', $originSlug);
         } elseif ('gitlab' === $provider) {
             $issueRepo = $this->askOptional('Issue project (e.g. acme/platform/upstream, optional)', $originSlug);
@@ -110,6 +114,7 @@ final class ProjectNewCommand extends Command
             $hint = match ($provider) {
                 'github' => 'a GitHub label name',
                 'gitlab' => 'a GitLab label name, put on the merge request',
+                'gitea' => 'a Gitea label name, put on the pull request',
                 default => 'a Jira/Linear status value',
             };
             $failureSignal = $this->askRequired("Failure signal ({$hint})", null);

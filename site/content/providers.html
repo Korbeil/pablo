@@ -48,15 +48,17 @@
 
 <h2 id="gitea">Gitea: <code>gt</code></h2>
 
-<p>Required when a project's pull requests are on Gitea (gitea.com or self-hosted): <code>gt</code>, the official Gitea CLI (the successor of <code>tea</code>, which is archived; not Graphite's <code>gt</code>, which shares the name). Gitea issues are not an issue tracker PABLO reads: track the project's work in GitHub, GitLab, Jira or Linear. Log in once with <code>gt auth login --host &lt;host&gt;</code>. Every call names its instance (<code>--host</code>) and its repository by path, and passes <code>--no-input</code>, so nothing depends on the directory it runs from nor on gt's default instance, and nothing ever waits for a prompt.</p>
+<p>Required when a project's pull requests are on Gitea (gitea.com or self-hosted), or when it tracks Gitea issues: <code>gt</code>, the official Gitea CLI (the successor of <code>tea</code>, which is archived; not Graphite's <code>gt</code>, which shares the name). Log in once with <code>gt auth login --host &lt;host&gt;</code>. Every call names its instance (<code>--host</code>) and its repository by path, and passes <code>--no-input</code>, so nothing depends on the directory it runs from nor on gt's default instance, and nothing ever waits for a prompt.</p>
 
 <table>
   <thead><tr><th>Used for</th><th>Command</th></tr></thead>
   <tbody>
+    <tr><td>Issues</td><td><code>gt api repos/&lt;owner&gt;/&lt;repo&gt;/issues/&lt;n&gt;</code>, matched against the repository's remote (<code>https://&lt;host&gt;/&lt;owner&gt;/&lt;repo&gt;/issues/&lt;n&gt;</code>); open is “To Do”, closed “Done”</td></tr>
     <tr><td>Finding the pull request</td><td><code>gt api repos/&lt;owner&gt;/&lt;repo&gt;/pulls?state=all&amp;sort=recentupdate</code>, matched on the head branch (Gitea's list has no branch filter: up to 300 most recently updated pull requests are read)</td></tr>
     <tr><td>CI status</td><td><code>gt api repos/&lt;owner&gt;/&lt;repo&gt;/commits/&lt;head sha&gt;/status</code>: the head commit's combined status</td></tr>
     <tr><td>Reviews and the “ready” time</td><td><code>gt api …/pulls/&lt;n&gt;/reviews</code>, the comments of comment reviews (resolved or not), and <code>…/issues/&lt;n&gt;/timeline</code> for the title changes</td></tr>
     <tr><td>Draft / ready</td><td><code>gt pr ready &lt;n&gt;</code> (<code>--undo</code> for draft): removes or adds the <code>WIP:</code> title prefix, Gitea's draft</td></tr>
+    <tr><td>QA labels</td><td><code>gt api repos/&lt;owner&gt;/&lt;repo&gt;/issues/&lt;n&gt;/timeline</code>: the pull request's <code>label</code> events that added the label</td></tr>
     <tr><td>Re-running CI</td><td><code>gt api --method POST …/actions/runs/&lt;id&gt;/rerun</code>: the latest completed Gitea Actions run of each workflow on the branch</td></tr>
     <tr><td>Login check</td><td><code>gt auth status</code></td></tr>
   </tbody>
@@ -107,6 +109,7 @@
   <tbody>
     <tr><td><code>gh</code></td><td>a project is on GitHub or tracks GitHub issues, or no project exists yet</td><td>hard: a failure stops the run</td></tr>
     <tr><td><code>glab</code></td><td>a project is on GitLab or tracks GitLab issues</td><td>hard</td></tr>
+    <tr><td><code>gt</code></td><td>a project is on Gitea or tracks Gitea issues</td><td>hard</td></tr>
     <tr><td><code>opencode</code></td><td><code>agent_runtime</code> is <code>opencode</code> (the default); checked with <code>opencode --version</code></td><td>hard</td></tr>
     <tr><td><code>claude</code></td><td><code>agent_runtime</code> is <code>claude-code</code>; checked with <code>claude auth status</code></td><td>hard</td></tr>
     <tr><td><code>copilot</code></td><td><code>agent_runtime</code> is <code>copilot</code>; checked with <code>copilot --version</code> (Copilot has no non-interactive login check)</td><td>hard</td></tr>

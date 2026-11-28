@@ -9,7 +9,7 @@ Prerequisite: the project must be configured. If `pablo task:start --project <na
 with "not a known project", first run:
 
 ```
-pablo project:new <name> --type <work|open-source|personal> --tracker <github|gitlab|jira|linear>
+pablo project:new <name> --type <work|open-source|personal> --tracker <github|gitlab|gitea|jira|linear>
 ```
 
 (or ask the user with which type/tracker; see https://getpablo.dev/docs/configuration/).

@@ -129,7 +129,7 @@
 
 <h3>QA failure signal</h3>
 
-<p>From <code>needs-testing</code>, the task moves to <code>testing-failed</code> when the project's <code>testing.failure_signal</code> fires: a label added to the pull request (GitHub, GitLab), or the issue reaching a status (Jira, Linear). It must be a <b>new</b> event, newer than both the task's entry into <code>needs-testing</code> and the last signal already handled. An old label never triggers, and a label that stays never triggers twice. PABLO never removes the label or touches the issue.</p>
+<p>From <code>needs-testing</code>, the task moves to <code>testing-failed</code> when the project's <code>testing.failure_signal</code> fires: a label added to the pull request (GitHub, GitLab, Gitea), or the issue reaching a status (Jira, Linear). It must be a <b>new</b> event, newer than both the task's entry into <code>needs-testing</code> and the last signal already handled. An old label never triggers, and a label that stays never triggers twice. PABLO never removes the label or touches the issue.</p>
 
 <h3>Known gaps, on purpose</h3>
 

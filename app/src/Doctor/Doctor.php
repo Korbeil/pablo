@@ -60,6 +60,8 @@ final class Doctor
                 $required['gh'] = true;
             } elseif ('gitlab' === $cfg->tracker->provider) {
                 $required['glab'] = true;
+            } elseif ('gitea' === $cfg->tracker->provider) {
+                $required['gt'] = true;
             } elseif ('jira' === $cfg->tracker->provider) {
                 $required['acli'] = true;
                 if (null !== $cfg->confluenceSpace) {
