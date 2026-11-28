@@ -46,6 +46,7 @@ use Pablo\Provider\Forge\Gitlab\GitlabForge;
 use Pablo\Provider\Git\GitRepo;
 use Pablo\Provider\Git\GitRepoInterface;
 use Pablo\Provider\Git\Sync;
+use Pablo\Provider\Tracker\Gitea;
 use Pablo\Provider\Tracker\Github;
 use Pablo\Provider\Tracker\Gitlab;
 use Pablo\Provider\Tracker\Jira;
@@ -121,6 +122,7 @@ return static function (ContainerConfigurator $container): void {
     // Tracker providers and their registry.
     $services->set(Github::class);
     $services->set(Gitlab::class);
+    $services->set(Gitea::class);
     $services->set(Jira::class);
     $services->set(Linear::class);
     $services->set(ProviderRegistry::class);

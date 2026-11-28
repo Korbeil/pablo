@@ -157,6 +157,26 @@ final class LaunchContextTest extends TestCase
         };
     }
 
+    public function testGiteaIssueBlockRendersLabelsBodyAndComments(): void
+    {
+        $cfg = $this->gitea();
+        $this->gtAnswers(static fn (string $endpoint): mixed => match (true) {
+            str_contains($endpoint, 'issues/45/comments') => [
+                ['user' => ['login' => 'qa'], 'created_at' => '2026-03-02T10:00:00Z', 'body' => 'Repro on staging'],
+            ],
+            str_ends_with($endpoint, 'issues/45') => ['number' => 45, 'title' => 'Fix callbacks', 'state' => 'open', 'labels' => [['name' => 'bug']], 'body' => 'Callbacks fire twice.'],
+            default => throw new \LogicException($endpoint),
+        });
+
+        $prompt = $this->context->augment(Agent::TaskAnalyst, $this->task(new Issue('gitea', '45', 'u', 'Fix callbacks', 'WK')), $cfg, 'Analyze.');
+
+        $this->assertStringContainsString('### Gitea issue #45: Fix callbacks', $prompt);
+        $this->assertStringContainsString('Labels: bug', $prompt);
+        $this->assertStringContainsString('Callbacks fire twice.', $prompt);
+        $this->assertStringContainsString('Repro on staging', $prompt);
+        $this->assertSame(['gt', 'api', '--host', 'gitea.acme.io', '--no-input', 'repos/platform/wallet-kit/issues/45'], $this->runner->calls[0][0]);
+    }
+
     public function testGiteaCiBlockListsFailingStatusesAndActionsLogs(): void
     {
         $cfg = $this->gitea();

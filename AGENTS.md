@@ -178,7 +178,7 @@ timeout by kind, `GitRepo::TIMEOUT_*`, and a timeout surfaces as a
 branch's `error` action, never aborting the others — skips `closed` tasks as
 `skipped`; `sync:run --dry-run` reports only even with `sync.auto_apply`,
 `sync:main --dry-run` runs the primary-checkout checks without touching it),
-`Tracker/` (the `Provider` interface + `Github`/`Jira`/`Linear`, sharing
+`Tracker/` (the `Provider` interface + `Github`/`Gitlab`/`Gitea`/`Jira`/`Linear`, sharing
 `IssueStatuses`) ·
 `src/Agents/` (`AgentLauncherInterface` + the `AgentLauncherFactory`;
 `Ade/` holds the ADEs — Orca, OpenChamber, headless — and `Runtime/` the
@@ -521,7 +521,7 @@ at launch; validated by the runtime's `modelError()`), `pr_description_locale`,
 `dispatch.poll_concurrency`, `dispatch.tick_minutes`. Required per project: `name` (unique),
 `type` (`work`/`open-source`/`personal`), `repo.path`, `repo.primary_branch`,
 `issue_tracker.{provider,identity,project_key}` (providers:
-`github`/`gitlab`/`jira`/`linear`); optional: `repo.primary_remote` (`origin`),
+`github`/`gitlab`/`gitea`/`jira`/`linear`); optional: `repo.primary_remote` (`origin`),
 `repo.forge` (`github`/`gitlab`/`gitea`, else detected from the origin remote),
 `worktrees_root`, `issue_tracker.{repo,site}`, `confluence.space`,
 `testing.failure_signal`, `startup_script`, `models` (agent label => model).

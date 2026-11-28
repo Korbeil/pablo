@@ -39,12 +39,16 @@ issue_tracker:
   project_key: BIL             # GitLab issues are numbers too: the branch prefix (bil-12)
 </code></pre>
 
-<p>A repository on Gitea needs nothing more when its host name contains “gitea”: PABLO follows its pull requests through <code>gt</code>, the Gitea CLI, whatever the issue tracker (Gitea issues are not one of them). On another host name, say so with <code>repo.forge</code>:</p>
+<p>A repository on Gitea needs nothing more when its host name contains “gitea”: PABLO follows its pull requests through <code>gt</code>, the Gitea CLI, whatever the issue tracker. Its issues are the tracker with <code>provider: gitea</code> (numbers, like GitHub's: <code>project_key</code> is the branch prefix). On another host name, say so with <code>repo.forge</code>:</p>
 
 <pre><code class="language-yaml">repo:
   path: ~/dev/shop             # origin: git@git.acme.io:acme/shop.git
   primary_branch: main
   forge: gitea                 # only when the host name doesn't contain "gitea"
+issue_tracker:
+  provider: gitea
+  identity: your-gitea-login
+  project_key: SHOP            # the branch prefix (shop-12)
 </code></pre>
 
 <p>And a Jira project with a QA step and a CI gate to ignore:</p>
@@ -230,13 +234,13 @@ worktrees_root: ~/dev/wallet-kit-worktrees
                               # optional, default ~/.pablo/worktrees/&lt;repo folder name&gt;/
 
 issue_tracker:
-  provider: github            # required: github | gitlab | jira | linear
+  provider: github            # required: github | gitlab | gitea | jira | linear
   identity: your-login        # required: whose issues are "assigned to me"
                               # (informational for Jira, which uses your acli login)
   project_key: WK             # required. Jira/Linear: the issue key prefix.
-                              # GitHub/GitLab: the branch prefix (no keys there)
+                              # GitHub/GitLab/Gitea: the branch prefix (no keys there)
   site: acme.atlassian.net    # Jira only, optional: the Atlassian site for links
-  repo: acme/upstream         # GitHub/GitLab, optional: where issues and pull
+  repo: acme/upstream         # GitHub/GitLab/Gitea, optional: where issues and pull
                               # requests live, when you work on a fork (on
                               # GitLab, the full path: acme/platform/upstream)
 
@@ -255,7 +259,7 @@ main_update:
 
 testing:
   enabled: true               # false: no QA step, approval is final
-  failure_signal: qa-failed   # GitHub/GitLab: a label on the pull (merge) request.
+  failure_signal: qa-failed   # GitHub/GitLab/Gitea: a label on the pull (merge) request.
                               # Jira/Linear: an issue status.
                               # Without it, testing-failed never triggers by itself.
 review:
@@ -294,7 +298,7 @@ branch_prefix: pablo/
 
 <ul>
   <li><b>Jira and Linear</b>: the issue's key, so <code>PIM-123</code> becomes <code>pim-123</code>.</li>
-  <li><b>GitHub and GitLab</b>: the project's <code>issue_tracker.project_key</code> and the issue number: <code>project_key: WK</code> and issue #45 give <code>wk-45</code>.</li>
+  <li><b>GitHub, GitLab and Gitea</b>: the project's <code>issue_tracker.project_key</code> and the issue number: <code>project_key: WK</code> and issue #45 give <code>wk-45</code>.</li>
   <li><b>Prompt tasks</b>: the project key and a short slug of the prompt, such as <code>wk-fix-callback-verification</code>. If the prompt mentions a Jira or Linear key from one of your projects, that issue's name is used instead.</li>
   <li>No title is added: the name is only those parts.</li>
   <li><b>Duplicates</b>: if the name is already taken, PABLO tries <code>-2</code>, <code>-3</code>, … until one is free. It never reuses or overwrites a branch.</li>

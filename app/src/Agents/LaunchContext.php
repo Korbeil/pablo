@@ -10,6 +10,7 @@ use Pablo\Domain\Task;
 use Pablo\Provider\Forge\Gitea\GiteaApi;
 use Pablo\Provider\Forge\Gitlab\GitlabApi;
 use Pablo\Provider\Forge\RepoRef;
+use Pablo\Provider\Tracker\Gitea;
 use Pablo\Support\Json;
 use Pablo\Support\ProcessRunnerInterface;
 use Pablo\Support\RepoSlug;
@@ -111,6 +112,7 @@ final class LaunchContext
         return match ($issue->provider) {
             'github' => $this->githubIssue($issue->key, $cfg),
             'gitlab' => $this->gitlabIssue($issue->key, $cfg),
+            'gitea' => $this->giteaIssue($issue->key, $cfg),
             'jira' => $this->jiraIssue($issue->key),
             'linear' => $this->linearIssue($issue->key),
             default => '',
@@ -150,6 +152,23 @@ final class LaunchContext
             'State' => self::str($data['state'] ?? null),
             'Labels' => implode(', ', array_filter($labels)),
         ], self::str($data['description'] ?? null), $comments);
+    }
+
+    private function giteaIssue(string $key, ProjectConfig $cfg): string
+    {
+        $repo = $this->repoSlug->ref($cfg);
+        $path = Gitea::issuePath($repo->slug, $key);
+        $data = $this->json(GiteaApi::argv($repo->host, $path));
+        $comments = [];
+        foreach (self::listOf($this->giteaGet($repo, "{$path}/comments", ['limit' => GiteaApi::PER_PAGE])) as $c) {
+            $comments[] = [self::str($c['user']['login'] ?? null), self::str($c['created_at'] ?? null), self::str($c['body'] ?? null)];
+        }
+        $labels = array_map(static fn (array $l): string => self::str($l['name'] ?? null), self::listOf($data['labels'] ?? null));
+
+        return $this->renderIssue("Gitea issue #{$key}", self::str($data['title'] ?? null), [
+            'State' => self::str($data['state'] ?? null),
+            'Labels' => implode(', ', array_filter($labels)),
+        ], self::str($data['body'] ?? null), $comments);
     }
 
     private function jiraIssue(string $key): string

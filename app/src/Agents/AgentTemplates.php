@@ -116,8 +116,8 @@ final class AgentTemplates
 
     /**
      * Forges any configured project uses (repo.forge, else told by the
-     * origin remote in the repository's .git/config, else GitHub, or GitLab
-     * for a GitLab-tracked project) — all of them when no projects directory
+     * origin remote in the repository's .git/config, else GitHub, or GitLab /
+     * Gitea for a GitLab- / Gitea-tracked project) — all of them when no projects directory
      * exists yet. Read from files only, never git: a render must stay cheap.
      *
      * @return list<string>
@@ -150,7 +150,11 @@ final class AgentTemplates
         $remote = null !== $url ? RepoRef::parseRemote($url) : null;
         $forge = null !== $remote ? RepoRef::forgeOfHost($remote[0]) : null;
 
-        return $forge ?? (($project['issue_tracker']['provider'] ?? null) === 'gitlab' ? RepoRef::GITLAB : RepoRef::GITHUB);
+        return $forge ?? match ($project['issue_tracker']['provider'] ?? null) {
+            'gitlab' => RepoRef::GITLAB,
+            'gitea' => RepoRef::GITEA,
+            default => RepoRef::GITHUB,
+        };
     }
 
     /** The origin remote's URL, from the repository's .git/config. */
@@ -267,6 +271,7 @@ final class AgentTemplates
             static fn (string $p): string => match ($p) {
                 'github' => 'GitHub Issues',
                 'gitlab' => 'GitLab Issues',
+                'gitea' => 'Gitea Issues',
                 'jira' => 'Jira',
                 'linear' => 'Linear',
                 default => $p,
